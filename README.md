@@ -21,6 +21,29 @@ sources, with six further views still on placeholder markup.
 With no credentials set the wired views say **"not configured"** and name the variable
 they need. They never show a fabricated number.
 
+## Connecting accounts
+
+Sign in, open **Connections** in the rail, click **Connect**, approve at Google or
+Microsoft, done. Tokens are encrypted with AES-256-GCM and stored server-side; the
+browser only ever holds a session cookie.
+
+This is the delegated OAuth flow — you approve access to your own mailbox. It needs no
+Workspace domain-wide delegation and no Entra admin consent for application permissions,
+which is why it exists alongside the environment-variable paths below. A connected
+account always wins over the equivalent variables.
+
+Three things gate it:
+
+| Requirement | Why |
+|---|---|
+| `APP_PASSWORD` | Without a login, anyone with the URL could connect an account or read the mail of one already connected. Connect routes 403 until it is set. |
+| Provider client id + secret | `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `MS_CLIENT_ID`/`MS_CLIENT_SECRET`. The Connections page prints the exact redirect URI to register. |
+| `DATA_DIR` on a volume | Railway's filesystem is ephemeral. Without a mounted volume, a redeploy drops the tokens and you reconnect. The page warns when this is unset. |
+
+Register the redirect URI shown on the Connections page — `https://<your-domain>/oauth/callback/google`
+and `.../microsoft`. Google's client must be of type **Web application**, not Desktop.
+Microsoft's goes under **Authentication → Web**.
+
 ## Run locally
 
 ```bash
@@ -43,6 +66,16 @@ health check at `/api/health`.
 ### Variables
 
 Nothing is required to boot. `PORT` is injected by Railway — do not set it.
+
+**Access** — set these first
+
+| Variable | Required | Notes |
+|---|---|---|
+| `APP_PASSWORD` | to connect anything | Login password. Unset means the dashboard is public and Connect is disabled |
+| `PUBLIC_URL` | recommended | e.g. `https://command-center.up.railway.app`; providers match redirect URIs exactly |
+| `DATA_DIR` | recommended | Mounted volume path, e.g. `/data`; without it connections die on redeploy |
+| `ENCRYPTION_KEY` | no | Defaults to `APP_PASSWORD`; set it so a password change keeps stored tokens |
+| `SESSION_SECRET` | no | Defaults to `APP_PASSWORD`; set it so a password change keeps sessions |
 
 **ClickUp** — ClickUp → Settings → Apps → *API Token*
 
@@ -135,12 +168,18 @@ if that is wider than you want.
 ## Layout
 
 ```
-server.js                  Express: static + /api/data + /api/health, refresh scheduler
-scripts/refresh.mjs        Composes data/dashboard.json from whatever has credentials
+server.js                  Express: auth gate, static, /api/data, /api/health, scheduler
+lib/session.mjs            Signed-cookie sessions and the password gate
+lib/store.mjs              AES-256-GCM encrypted token store
+lib/providers.mjs          OAuth provider definitions, code exchange, token refresh
+lib/routes.mjs             /login, /connect/:p, /oauth/callback/:p, /api/connections
+scripts/refresh.mjs        Composes the payload from whatever has credentials
 scripts/sources/*.mjs      One module per source; each degrades independently
-scripts/auth-google.mjs    One-time Gmail refresh-token helper
-public/index.html          Shell and all ten views
-public/app.js              Nav, routing, clock, hydration
+scripts/auth-google.mjs    One-time Gmail refresh-token helper (env-var path)
+scripts/check-google.mjs   Validates Gmail credentials, prints delegation values
+public/index.html          Shell and all eleven views
+public/login.html          Sign-in page
+public/app.js              Nav, routing, clock, hydration, Connections screen
 data/dashboard.json        Generated payload; committed as the unconfigured state
 ```
 

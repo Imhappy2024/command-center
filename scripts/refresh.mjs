@@ -10,6 +10,7 @@ import { fetchClickUp } from './sources/clickup.mjs';
 import { fetchGmail } from './sources/gmail.mjs';
 import { fetchN8n } from './sources/n8n.mjs';
 import { fetchMicrosoft } from './sources/microsoft.mjs';
+import { accessTokenFor } from '../lib/providers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_OUT = path.join(ROOT, 'data', 'dashboard.json');
@@ -21,10 +22,10 @@ const SOURCES = [
   ['microsoft', 'Outlook', fetchMicrosoft]
 ];
 
-async function collect(env){
+async function collect(env, ctx){
   const settled = await Promise.all(SOURCES.map(async ([key, label, fn]) => {
     try {
-      const r = await fn(env);
+      const r = await fn(env, ctx);
       return r.ok
         ? { key, label, status: 'ok', data: r }
         : { key, label, status: 'unconfigured', reason: r.reason };
@@ -33,6 +34,22 @@ async function collect(env){
     }
   }));
   return Object.fromEntries(settled.map(s => [s.key, s]));
+}
+
+/* Access tokens for accounts connected through the UI. A failure here is not
+   fatal: the source falls back to its environment-variable path. */
+async function connectedAccounts(env, store){
+  if (!store?.enabled) return {};
+  const ctx = {};
+  for (const name of ['google', 'microsoft']) {
+    try {
+      const t = await accessTokenFor(name, env, store);
+      if (t) ctx[name] = t;
+    } catch (err) {
+      console.error(`[refresh] ${name} token refresh failed:`, err.message);
+    }
+  }
+  return ctx;
 }
 
 function connections(s){
@@ -179,8 +196,9 @@ function mailbox(s, env){
   return ms || gm;
 }
 
-export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEFAULT_OUT } = {}){
-  const s = await collect(env);
+export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEFAULT_OUT, store = null } = {}){
+  const ctx = await connectedAccounts(env, store);
+  const s = await collect(env, ctx);
   const ok = Object.values(s).filter(r => r.status === 'ok').length;
   const configured = Object.values(s).filter(r => r.status !== 'unconfigured').length;
 

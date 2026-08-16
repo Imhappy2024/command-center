@@ -137,14 +137,16 @@ function when(ms){
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export async function fetchGmail(env){
+export async function fetchGmail(env, ctx = {}){
+  // A mailbox connected through the UI wins: the human already consented.
+  const connected = ctx.google || null;
   const hasServiceAccount = Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON);
   const hasOAuth = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN);
-  if (!hasServiceAccount && !hasOAuth) {
-    return { ok: false, reason: 'set GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_IMPERSONATE_USER, or GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN' };
+  if (!connected && !hasServiceAccount && !hasOAuth) {
+    return { ok: false, reason: 'not connected — use Connect on the Connections page, or set the GOOGLE_* variables' };
   }
 
-  const tok = await accessToken(env);
+  const tok = connected ? connected.token : await accessToken(env);
   const inbox = await api('/labels/INBOX', tok);
 
   const listed = await api('/messages?q=' + encodeURIComponent('is:unread in:inbox') + '&maxResults=6', tok);
@@ -166,6 +168,8 @@ export async function fetchGmail(env){
 
   return {
     ok: true,
+    via: connected ? 'oauth' : (hasServiceAccount ? 'service-account' : 'refresh-token'),
+    account: connected?.account || env.GOOGLE_IMPERSONATE_USER || null,
     counts: {
       unreadMessages: inbox.messagesUnread ?? 0,
       unreadThreads: inbox.threadsUnread ?? 0,

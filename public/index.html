@@ -226,6 +226,28 @@ main{min-width:0;display:flex;flex-direction:column}
 .note p{font-size:12px;color:var(--dimmer);line-height:1.55;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
 .note .tags{display:flex;gap:5px;margin-top:11px;flex-wrap:wrap}
 
+/* connections */
+.conn{display:flex;align-items:center;gap:14px;padding:16px 18px;border-bottom:1px solid #1C232A;flex-wrap:wrap}
+.conn:last-child{border-bottom:0}
+.conn .who{flex:1;min-width:200px}
+.conn .who b{display:block;font-size:14px;color:var(--cream);font-variation-settings:'wght' 600}
+.conn .who small{display:block;font-size:12px;color:var(--dimmer);margin-top:3px}
+.conn .who code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dim);word-break:break-all}
+.btn{
+  border:1px solid var(--edge2);background:var(--panel2);color:var(--text);border-radius:7px;
+  font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  padding:9px 15px;cursor:pointer;text-decoration:none;display:inline-block;transition:.15s;white-space:nowrap;
+}
+.btn:hover{background:var(--cream);color:#12161A;border-color:var(--cream)}
+.btn.primary{background:var(--cream);color:#12161A;border-color:var(--cream)}
+.btn.primary:hover{opacity:.88}
+.btn.quiet:hover{background:#20100D;color:var(--rust);border-color:#43221B}
+.btn[aria-disabled="true"]{opacity:.4;pointer-events:none}
+.banner{border-radius:var(--r);padding:12px 15px;font-size:13px;margin-bottom:14px;line-height:1.5}
+.banner.ok{border:1px solid #1E3B31;background:#0F1F1A;color:var(--jade)}
+.banner.bad{border:1px solid #43221B;background:#20100D;color:var(--rust)}
+.banner.warn{border:1px solid #4A3A1E;background:#221B10;color:var(--brass)}
+
 /* week strip */
 .week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:14px}
 .day{background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:10px 8px;text-align:center}
@@ -505,6 +527,28 @@ main{min-width:0;display:flex;flex-direction:column}
           <div class="row"><span class="main"><b>Title check checklist</b><small>YouTube · 12K views</small></span><span class="right">8 leads</span></div>
           <div class="row"><span class="main"><b>Client turnover day</b><small>Instagram reel · 22K views</small></span><span class="right">5 leads</span></div>
         </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CONNECTIONS -->
+  <section class="view" id="v-connections" role="tabpanel" aria-labelledby="tab-connections">
+    <div class="vhead">
+      <div><h1>Connections</h1><p>Connect an account here and the views that depend on it start filling in. Tokens are encrypted server-side.</p></div>
+      <form method="post" action="/logout" style="margin:0"><button class="btn quiet" type="submit">Sign out</button></form>
+    </div>
+    <div id="conn-banner"></div>
+    <div class="card flush" style="margin-bottom:14px">
+      <div class="cardhead"><h3>Accounts</h3><span class="eyebrow">OAuth</span></div>
+      <div class="cardbody" id="conn-list"></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow" style="margin-bottom:10px">Set by environment variable</div>
+      <div style="font-size:12.5px;color:var(--dim);line-height:1.6">
+        ClickUp and n8n authenticate with an API token rather than OAuth, so they are
+        configured in Railway rather than here: <span class="mono" style="font-size:11.5px;color:var(--text)">CLICKUP_TOKEN</span>,
+        <span class="mono" style="font-size:11.5px;color:var(--text)">N8N_BASE_URL</span>,
+        <span class="mono" style="font-size:11.5px;color:var(--text)">N8N_API_KEY</span>.
       </div>
     </div>
   </section>

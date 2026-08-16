@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command Center — Sign in</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='9' fill='%23D9A441'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wdth,wght@0,75..125,400..900&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0A0C0E;--panel:#151A20;--edge:#232B34;--edge2:#303B45;--cream:#E9E5DB;--text:#C6CFD8;--dim:#77848F;--dimmer:#4E5A64;--brass:#D9A441;--rust:#C2553F}
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  min-height:100vh;background:var(--ink);color:var(--text);
+  font-family:'Archivo','Helvetica Neue',Arial,sans-serif;font-size:14px;
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  -webkit-font-smoothing:antialiased;
+}
+.box{width:100%;max-width:360px}
+.brand{display:flex;align-items:center;gap:10px;margin-bottom:26px}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--brass)}
+.brand b{font-variation-settings:'wdth' 112,'wght' 700;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--cream)}
+h1{font-size:24px;font-variation-settings:'wdth' 112,'wght' 700;color:var(--cream);letter-spacing:-.01em}
+p.sub{font-size:13px;color:var(--dim);margin-top:6px;line-height:1.5}
+form{margin-top:22px;display:flex;flex-direction:column;gap:10px}
+label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--dimmer)}
+input{
+  width:100%;background:var(--panel);border:1px solid var(--edge);border-radius:8px;
+  padding:11px 13px;color:var(--text);font-family:inherit;font-size:14px;outline:0;
+}
+input:focus{border-color:var(--edge2)}
+button{
+  margin-top:4px;background:var(--cream);color:#12161A;border:0;border-radius:8px;
+  padding:11px 13px;font-family:'IBM Plex Mono',monospace;font-size:11px;
+  letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+}
+button:hover{opacity:.9}
+.err{
+  margin-top:16px;border:1px solid #43221B;background:#20100D;color:var(--rust);
+  border-radius:8px;padding:10px 12px;font-size:12.5px;
+}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="box">
+  <div class="brand"><span class="pulse"></span><b>Command</b></div>
+  <h1>Sign in</h1>
+  <p class="sub">This dashboard reads connected mailboxes and calendars. The password is set server-side as <span style="font-family:'IBM Plex Mono',monospace;font-size:12px">APP_PASSWORD</span>.</p>
+  <div id="err" class="err" hidden>Wrong password.</div>
+  <form method="post" action="/login">
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <button type="submit">Sign in</button>
+  </form>
+</div>
+<script>
+  if (new URLSearchParams(location.search).has('error')) document.getElementById('err').hidden = false;
+</script>
+</body>
+</html>

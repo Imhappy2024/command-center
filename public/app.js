@@ -11,7 +11,8 @@ const ICON = {
   properties:'<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/>',
   financial:'<path d="M4 19V9M9 19V5M14 19v-7M19 19V3"/>',
   social:'<circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.6 10.6l6.8-3.2M8.6 13.4l6.8 3.2"/>',
-  systems:'<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8"/>'
+  systems:'<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8"/>',
+  connections:'<path d="M9.5 14.5l5-5"/><path d="M13 7l1.5-1.5a3.5 3.5 0 015 5L18 12"/><path d="M11 17l-1.5 1.5a3.5 3.5 0 01-5-5L6 12"/>'
 };
 
 const MENU = [
@@ -24,11 +25,16 @@ const MENU = [
   ['properties','Properties','Postgres'],
   ['financial','Financial','Ledger'],
   ['social','Social','Channels'],
-  ['systems','Systems','n8n']
+  ['systems','Systems','n8n'],
+  ['connections','Connections','Setup']
 ];
 
 const IDS = MENU.map(m => m[0]);
 const $ = id => document.getElementById(id);
+
+/* The OAuth callback returns to "#connections?connected=Google", so the view
+   name is only the part before the query. */
+const hashView = () => location.hash.slice(1).split('?')[0];
 
 const ESCAPES = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ESCAPES[c]);
@@ -45,7 +51,7 @@ function chip(c){
 
 function renderNav(badges){
   badges = badges || {};
-  const current = location.hash.slice(1);
+  const current = hashView();
   const active = IDS.includes(current) ? current : IDS[0];
 
   $('nav').innerHTML = MENU.map(([id, label, src]) => {
@@ -71,13 +77,14 @@ function show(id, scroll){
     b.setAttribute('aria-selected', String(on));
   });
   document.querySelectorAll('.view').forEach(v => v.classList.toggle('on', v.id === 'v-' + id));
-  if (location.hash.slice(1) !== id) history.replaceState(null, '', '#' + id);
+  if (hashView() !== id) history.replaceState(null, '', '#' + id);
   if (scroll !== false) window.scrollTo({ top: 0 });
+  if (id === 'connections') renderConnections();
 }
 
 /* ---------- overview hydration ---------- */
 
-function renderConnections(list){
+function renderRail(list){
   if (!Array.isArray(list) || !list.length) return;
   $('conns').innerHTML = list.map(c =>
     '<div class="wire"' + (c.reason ? ' title="' + esc(c.reason) + '"' : '') + '>'
@@ -333,12 +340,79 @@ function renderSystems(d, sources){
   ).join('') || '<div class="row"><span class="main"><small>No workflows.</small></span></div>';
 }
 
+/* ---------- connections ---------- */
+
+function connBanner(){
+  const q = new URLSearchParams(location.hash.split('?')[1] || '');
+  if (q.get('connected')) return { cls: 'ok', text: q.get('connected') + ' connected. The views it feeds will fill in on the next refresh.' };
+  if (q.get('error')) return { cls: 'bad', text: q.get('error') };
+  return null;
+}
+
+async function renderConnections(){
+  const list = $('conn-list');
+  const banner = $('conn-banner');
+
+  const note = connBanner();
+  banner.innerHTML = note ? '<div class="banner ' + note.cls + '">' + esc(note.text) + '</div>' : '';
+  if (note) history.replaceState(null, '', '#connections');
+
+  let d;
+  try {
+    const res = await fetch('/api/connections', { cache: 'no-store' });
+    if (res.status === 401) { location.href = '/login'; return; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    d = await res.json();
+  } catch (err) {
+    unavailable(list, 'Could not load connection state: ' + err.message);
+    return;
+  }
+
+  if (!d.loginRequired) {
+    banner.innerHTML += '<div class="banner bad">Connecting is disabled because this dashboard has no password. '
+      + 'Anyone with the URL could connect an account, or read the mail of one already connected. '
+      + 'Set APP_PASSWORD in Railway and redeploy.</div>';
+  } else if (!d.persistent) {
+    banner.innerHTML += '<div class="banner warn">DATA_DIR is not set, so connections live on the container filesystem '
+      + 'and are lost on redeploy. Attach a Railway volume and point DATA_DIR at it to keep them.</div>';
+  }
+
+  list.innerHTML = d.providers.map(p => {
+    let action, status;
+    if (!p.configured) {
+      action = '<span class="btn" aria-disabled="true">Unavailable</span>';
+      status = '<small>' + esc(p.setupHint) + '</small>';
+    } else if (p.connected) {
+      action = '<button class="btn quiet" data-disconnect="' + esc(p.name) + '">Disconnect</button>';
+      status = '<small>Connected' + (p.account ? ' as ' + esc(p.account) : '') + ' · feeds ' + esc(p.feeds.join(', ')) + '</small>';
+    } else {
+      action = '<a class="btn primary" href="/connect/' + esc(p.name) + '">Connect</a>';
+      status = '<small>' + esc(p.detail) + '</small>';
+    }
+    return '<div class="conn">'
+      + '<span class="dot ' + (p.connected ? 'ok' : p.configured ? 'warn' : 'off') + '"></span>'
+      + '<span class="who"><b>' + esc(p.label) + '</b>' + status
+      + (p.configured && !p.connected ? '<small style="margin-top:6px">Redirect URI: <code>' + esc(p.redirectUri) + '</code></small>' : '')
+      + '</span>'
+      + (d.canConnect ? action : '<span class="btn" aria-disabled="true">Locked</span>')
+      + '</div>';
+  }).join('');
+}
+
+async function disconnect(name){
+  const res = await fetch('/api/disconnect/' + encodeURIComponent(name), { method: 'POST' });
+  if (res.status === 401) { location.href = '/login'; return; }
+  await renderConnections();
+  hydrate();
+}
+
 /* ---------- boot ---------- */
 
 async function hydrate(){
   let d;
   try {
     const res = await fetch('/api/data', { cache: 'no-store' });
+    if (res.status === 401) { location.href = '/login'; return; }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     d = await res.json();
   } catch (err) {
@@ -351,7 +425,7 @@ async function hydrate(){
   }
 
   renderNav(d.nav);
-  renderConnections(d.connections);
+  renderRail(d.connections);
   renderSync(d.source, d.generatedAt);
 
   const ov = d.overview || {};
@@ -375,6 +449,8 @@ async function hydrate(){
 document.addEventListener('click', e => {
   const item = e.target.closest('.navitem');
   if (item) { show(item.dataset.view); return; }
+  const off = e.target.closest('[data-disconnect]');
+  if (off) { e.preventDefault(); disconnect(off.dataset.disconnect); return; }
   const box = e.target.closest('[data-check]');
   if (box) box.classList.toggle('done');
 });
@@ -395,7 +471,7 @@ document.addEventListener('keydown', e => {
   show(next.dataset.view);
 });
 
-window.addEventListener('hashchange', () => show(location.hash.slice(1)));
+window.addEventListener('hashchange', () => show(hashView()));
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

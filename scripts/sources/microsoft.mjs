@@ -100,20 +100,24 @@ function openBlocks(events, dayStart, dayEnd){
     .filter(b => b.mins >= 45);
 }
 
-export async function fetchMicrosoft(env){
+export async function fetchMicrosoft(env, ctx = {}){
+  // Delegated (connected via the UI) reads /me. App-only reads /users/{upn}.
+  const connected = ctx.microsoft || null;
   const missing = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'MS_SERVICE_USER']
     .filter(k => !env[k]);
-  if (missing.length) return { ok: false, reason: `${missing.join(', ')} not set` };
+  if (!connected && missing.length) {
+    return { ok: false, reason: `not connected — use Connect on the Connections page, or set ${missing.join(', ')}` };
+  }
 
   const tz = env.AGENT_TIMEZONE || env.TIMEZONE || 'UTC';
-  const user = encodeURIComponent(env.MS_SERVICE_USER);
-  const tok = await accessToken(env);
+  const scope = connected ? 'me' : `users/${encodeURIComponent(env.MS_SERVICE_USER)}`;
+  const tok = connected ? connected.token : await accessToken(env);
 
   const weekStart = mondayOf(new Date());
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
 
   const view = await graph(
-    `/users/${user}/calendarView?startDateTime=${iso(weekStart)}&endDateTime=${iso(weekEnd)}`
+    `/${scope}/calendarView?startDateTime=${iso(weekStart)}&endDateTime=${iso(weekEnd)}`
     + '&$orderby=start/dateTime&$top=200'
     + '&$select=subject,start,end,isAllDay,location,attendees,organizer,showAs',
     tok, tz
@@ -171,16 +175,17 @@ export async function fetchMicrosoft(env){
 
   const out = {
     ok: true,
-    user: env.MS_SERVICE_USER,
+    via: connected ? 'oauth' : 'app-only',
+    user: connected?.account || env.MS_SERVICE_USER,
     timezone: tz,
     calendar: { week, today, blocks, bookedMins, weekCount: events.length }
   };
 
   // Mail and contacts are optional: a tenant may consent to Calendars.Read only.
   try {
-    const folder = await graph(`/users/${user}/mailFolders/inbox?$select=totalItemCount,unreadItemCount`, tok, tz);
+    const folder = await graph(`/${scope}/mailFolders/inbox?$select=totalItemCount,unreadItemCount`, tok, tz);
     const msgs = await graph(
-      `/users/${user}/mailFolders/inbox/messages?$filter=isRead%20eq%20false&$top=6`
+      `/${scope}/mailFolders/inbox/messages?$filter=isRead%20eq%20false&$top=6`
       + '&$orderby=receivedDateTime desc&$select=subject,from,receivedDateTime,bodyPreview',
       tok, tz
     );
@@ -208,7 +213,7 @@ export async function fetchMicrosoft(env){
   }
 
   try {
-    const c = await graph(`/users/${user}/contacts?$top=1&$count=true`, tok, tz);
+    const c = await graph(`/${scope}/contacts?$top=1&$count=true`, tok, tz);
     out.contacts = { total: c['@odata.count'] ?? (c.value || []).length };
   } catch (err) {
     out.contactsError = err.message;
