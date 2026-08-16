@@ -240,6 +240,19 @@ function connectStrip(providerNames, from){
   ).join('');
 }
 
+/* Offered under a populated view, so a second or third mailbox can be added
+   without going back to the Connections page. */
+function addAnother(from){
+  if (!CONN?.canConnect) return '';
+  const open = CONN.providers.filter(p => p.configured);
+  if (!open.length) return '';
+  return '<div class="conn" style="border-top:1px solid #1C232A">'
+    + '<span class="who"><small style="color:var(--dimmer)">Add another mailbox</small></span>'
+    + open.map(p => '<a class="btn" href="/connect/' + esc(p.name) + '?return=' + esc(from) + '">'
+        + esc(p.label) + '</a>').join('')
+    + '</div>';
+}
+
 function renderProblem(els, keys, sources, hint){
   const { failing } = diagnose(sources, keys);
   const bad = failing.length > 0;
@@ -280,23 +293,31 @@ function renderInbox(d, sources){
     return;
   }
   const c = d.counts;
-  const src = d.label || 'Mail';
+  const boxes = d.mailboxes || [];
+  const many = boxes.length > 1;
+
   $('inbox-sub').textContent = c.unreadThreads.toLocaleString() + ' unread out of '
-    + c.totalThreads.toLocaleString() + ' in the ' + src + ' inbox.';
+    + c.totalThreads.toLocaleString() + (many
+      ? ' across ' + boxes.length + ' mailboxes: ' + boxes.map(b => b.account || b.label).join(', ')
+      : ' in ' + esc(d.label || 'the inbox'));
   $('inbox-chip').className = 'chip jade';
-  $('inbox-chip').textContent = src + ' live';
+  $('inbox-chip').textContent = many ? boxes.length + ' mailboxes live' : (d.label || 'Mail') + ' live';
+
   $('inbox-stats').innerHTML = [
-    { eyebrow: 'Unread', value: c.unreadThreads.toLocaleString(), meta: 'in inbox', tone: 'flat' },
+    { eyebrow: 'Unread', value: c.unreadThreads.toLocaleString(), meta: many ? 'all mailboxes' : 'in inbox', tone: 'flat' },
     { eyebrow: 'Unread messages', value: c.unreadMessages.toLocaleString(), meta: 'individual mails', tone: 'flat' },
     { eyebrow: 'Inbox total', value: c.totalThreads.toLocaleString(), meta: 'all items', tone: 'flat' },
-    { eyebrow: 'Read', value: Math.max(0, c.totalThreads - c.unreadThreads).toLocaleString(), meta: 'cleared', tone: 'up' }
+    { eyebrow: 'Mailboxes', value: String(boxes.length || 1), meta: 'connected', tone: 'flat' }
   ].map(statTile).join('');
+
   $('inbox-count').textContent = d.messages.length + ' shown';
-  $('inbox-rows').innerHTML = d.messages.map(m =>
+  $('inbox-rows').innerHTML = (d.messages.map(m =>
     '<div class="row unread"><span class="main"><b>' + esc(m.from) + ' · ' + esc(m.subject) + '</b>'
     + '<small>' + esc(m.snippet.slice(0, 110)) + '</small></span>'
+    + (many && m.account ? '<span class="chip">' + esc(m.account) + '</span>' : '')
     + '<span class="right">' + esc(m.at) + '</span></div>'
-  ).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>';
+  ).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>')
+    + addAnother('inbox');
 }
 
 function renderTasksView(d, sources){
@@ -348,10 +369,12 @@ function renderCalendar(d, sources){
     return;
   }
 
+  const cals = (d.accounts || []).filter(Boolean);
   $('cal-sub').textContent = d.weekCount + ' event' + (d.weekCount === 1 ? '' : 's')
-    + ' this week · times in ' + d.timezone;
+    + ' this week · times in ' + d.timezone
+    + (cals.length > 1 ? ' · merged from ' + cals.join(', ') : '');
   $('cal-chip').className = 'chip jade';
-  $('cal-chip').textContent = 'Outlook live';
+  $('cal-chip').textContent = cals.length > 1 ? cals.length + ' calendars live' : 'Outlook live';
 
   $('cal-week').innerHTML = d.week.map(w =>
     '<div class="day' + (w.today ? ' today' : '') + '">'
@@ -377,6 +400,8 @@ function renderCalendar(d, sources){
     + '<span class="main"><b>' + esc(b.range) + '</b><small>' + esc(b.note) + '</small></span>'
     + chip(b.chip) + '</div>'
   ).join('') || '<div class="row"><span class="main"><small>No open blocks left this week.</small></span></div>';
+
+  $('cal-today').innerHTML += addAnother('calendar');
 }
 
 function renderSystems(d, sources){
@@ -431,30 +456,48 @@ async function renderConnections(){
       + 'and are lost on redeploy. Attach a Railway volume and point DATA_DIR at it to keep them.</div>';
   }
 
+  const locked = '<span class="btn" aria-disabled="true">Locked</span>';
+
   list.innerHTML = d.providers.map(p => {
-    let action, status;
+    // One row per connected account, then a row to add another.
+    const accountRows = p.accounts.map(a =>
+      '<div class="conn"><span class="dot ok"></span>'
+      + '<span class="who"><b>' + esc(a.account) + '</b>'
+      + '<small>' + esc(p.label) + ' · feeds ' + esc(p.feeds.join(', '))
+      + (a.connectedAt ? ' · since ' + esc(a.connectedAt.slice(0, 10)) : '') + '</small></span>'
+      + (d.canConnect
+          ? '<button class="btn quiet" data-disconnect="' + esc(p.name) + '" data-account="' + esc(a.accountId) + '">Disconnect</button>'
+          : locked)
+      + '</div>'
+    ).join('');
+
+    let addRow;
     if (!p.configured) {
-      action = '<span class="btn" aria-disabled="true">Unavailable</span>';
-      status = '<small>' + esc(p.setupHint) + '</small>';
-    } else if (p.connected) {
-      action = '<button class="btn quiet" data-disconnect="' + esc(p.name) + '">Disconnect</button>';
-      status = '<small>Connected' + (p.account ? ' as ' + esc(p.account) : '') + ' · feeds ' + esc(p.feeds.join(', ')) + '</small>';
+      addRow = '<div class="conn"><span class="dot off"></span>'
+        + '<span class="who"><b>' + esc(p.label) + '</b><small>' + esc(p.setupHint) + '</small></span>'
+        + '<span class="btn" aria-disabled="true">Unavailable</span></div>';
     } else {
-      action = '<a class="btn primary" href="/connect/' + esc(p.name) + '">Connect</a>';
-      status = '<small>' + esc(p.detail) + '</small>';
+      addRow = '<div class="conn"><span class="dot ' + (p.accounts.length ? 'ok' : 'warn') + '"></span>'
+        + '<span class="who"><b>' + esc(p.label)
+        + (p.accounts.length ? ' — add another' : '') + '</b>'
+        + '<small>' + esc(p.detail) + '</small>'
+        + '<small style="margin-top:6px">Redirect URI: <code>' + esc(p.redirectUri) + '</code></small></span>'
+        + (d.canConnect
+            ? '<a class="btn primary" href="/connect/' + esc(p.name) + '?return=connections">'
+              + (p.accounts.length ? 'Add account' : 'Connect') + '</a>'
+            : locked)
+        + '</div>';
     }
-    return '<div class="conn">'
-      + '<span class="dot ' + (p.connected ? 'ok' : p.configured ? 'warn' : 'off') + '"></span>'
-      + '<span class="who"><b>' + esc(p.label) + '</b>' + status
-      + (p.configured && !p.connected ? '<small style="margin-top:6px">Redirect URI: <code>' + esc(p.redirectUri) + '</code></small>' : '')
-      + '</span>'
-      + (d.canConnect ? action : '<span class="btn" aria-disabled="true">Locked</span>')
-      + '</div>';
+    return accountRows + addRow;
   }).join('');
 }
 
-async function disconnect(name){
-  const res = await fetch('/api/disconnect/' + encodeURIComponent(name), { method: 'POST' });
+async function disconnect(provider, accountId){
+  const res = await fetch('/api/disconnect', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provider, accountId })
+  });
   if (res.status === 401) { location.href = '/login'; return; }
   await renderConnections();
   hydrate();
@@ -508,7 +551,7 @@ document.addEventListener('click', e => {
   const item = e.target.closest('.navitem');
   if (item) { show(item.dataset.view); return; }
   const off = e.target.closest('[data-disconnect]');
-  if (off) { e.preventDefault(); disconnect(off.dataset.disconnect); return; }
+  if (off) { e.preventDefault(); disconnect(off.dataset.disconnect, off.dataset.account); return; }
   const box = e.target.closest('[data-check]');
   if (box) box.classList.toggle('done');
 });

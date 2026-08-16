@@ -1,6 +1,6 @@
 {
   "source": "unconfigured",
-  "generatedAt": "2026-08-16T21:53:08.773Z",
+  "generatedAt": "2026-08-16T23:40:21.077Z",
   "timezone": "UTC",
   "sources": {
     "clickup": {
@@ -9,7 +9,7 @@
     },
     "gmail": {
       "status": "unconfigured",
-      "reason": "set GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_IMPERSONATE_USER, or GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN"
+      "reason": "not connected — use Connect on the Inbox page, or set the GOOGLE_* variables"
     },
     "n8n": {
       "status": "unconfigured",
@@ -17,7 +17,7 @@
     },
     "microsoft": {
       "status": "unconfigured",
-      "reason": "MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SERVICE_USER not set"
+      "reason": "not connected — use Connect on the Inbox or Calendar page, or set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SERVICE_USER"
     }
   },
   "connections": [
@@ -29,7 +29,7 @@
     {
       "state": "warn",
       "label": "Gmail not configured",
-      "reason": "set GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_IMPERSONATE_USER, or GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN"
+      "reason": "not connected — use Connect on the Inbox page, or set the GOOGLE_* variables"
     },
     {
       "state": "warn",
@@ -39,7 +39,7 @@
     {
       "state": "warn",
       "label": "Outlook not configured",
-      "reason": "MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SERVICE_USER not set"
+      "reason": "not connected — use Connect on the Inbox or Calendar page, or set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SERVICE_USER"
     },
     {
       "state": "warn",
@@ -75,7 +75,7 @@
       },
       {
         "title": "Gmail not configured",
-        "detail": "set GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_IMPERSONATE_USER, or GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN"
+        "detail": "not connected — use Connect on the Inbox page, or set the GOOGLE_* variables"
       },
       {
         "title": "n8n not configured",

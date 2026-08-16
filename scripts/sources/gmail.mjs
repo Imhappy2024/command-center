@@ -137,18 +137,8 @@ function when(ms){
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-export async function fetchGmail(env, ctx = {}){
-  // A mailbox connected through the UI wins: the human already consented.
-  const connected = ctx.google || null;
-  const hasServiceAccount = Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON);
-  const hasOAuth = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN);
-  if (!connected && !hasServiceAccount && !hasOAuth) {
-    return { ok: false, reason: 'not connected — use Connect on the Connections page, or set the GOOGLE_* variables' };
-  }
-
-  const tok = connected ? connected.token : await accessToken(env);
+async function mailboxFor(tok, account){
   const inbox = await api('/labels/INBOX', tok);
-
   const listed = await api('/messages?q=' + encodeURIComponent('is:unread in:inbox') + '&maxResults=6', tok);
   const ids = (listed.messages || []).map(m => m.id);
 
@@ -159,23 +149,57 @@ export async function fetchGmail(env, ctx = {}){
       subject: header(m, 'subject') || '(no subject)',
       snippet: m.snippet || '',
       at: when(m.internalDate),
+      sortKey: Number(m.internalDate) || 0,
+      account,
       unread: true
     };
   }));
 
-  // "Needs a reply": unread and addressed to you directly, not a list blast.
-  const direct = await api('/messages?q=' + encodeURIComponent('is:unread in:inbox -category:promotions -category:social') + '&maxResults=1', tok);
-
   return {
-    ok: true,
-    via: connected ? 'oauth' : (hasServiceAccount ? 'service-account' : 'refresh-token'),
-    account: connected?.account || env.GOOGLE_IMPERSONATE_USER || null,
+    account,
     counts: {
       unreadMessages: inbox.messagesUnread ?? 0,
       unreadThreads: inbox.threadsUnread ?? 0,
-      totalThreads: inbox.threadsTotal ?? 0,
-      needsReply: direct.resultSizeEstimate ?? 0
+      totalThreads: inbox.threadsTotal ?? 0
     },
     messages
+  };
+}
+
+export async function fetchGmail(env, ctx = {}){
+  // Mailboxes connected through the UI win: the human already consented.
+  const accounts = ctx.google || [];
+  const usable = accounts.filter(a => a.token);
+  const broken = accounts.filter(a => a.error);
+
+  const hasServiceAccount = Boolean(env.GOOGLE_SERVICE_ACCOUNT_JSON);
+  const hasOAuth = Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REFRESH_TOKEN);
+
+  if (!usable.length && !hasServiceAccount && !hasOAuth) {
+    return {
+      ok: false,
+      reason: broken.length
+        ? `token refresh failed for ${broken.map(b => b.account).join(', ')}`
+        : 'not connected — use Connect on the Inbox page, or set the GOOGLE_* variables'
+    };
+  }
+
+  const boxes = usable.length
+    ? await Promise.all(usable.map(a => mailboxFor(a.token, a.account)))
+    : [await mailboxFor(await accessToken(env), env.GOOGLE_IMPERSONATE_USER || null)];
+
+  const counts = boxes.reduce((acc, b) => ({
+    unreadMessages: acc.unreadMessages + b.counts.unreadMessages,
+    unreadThreads: acc.unreadThreads + b.counts.unreadThreads,
+    totalThreads: acc.totalThreads + b.counts.totalThreads
+  }), { unreadMessages: 0, unreadThreads: 0, totalThreads: 0 });
+
+  return {
+    ok: true,
+    via: usable.length ? 'oauth' : (hasServiceAccount ? 'service-account' : 'refresh-token'),
+    mailboxes: boxes.map(b => ({ label: 'Gmail', account: b.account, counts: b.counts })),
+    counts,
+    messages: boxes.flatMap(b => b.messages).sort((a, b) => b.sortKey - a.sortKey),
+    warnings: broken.map(b => `Gmail ${b.account}: ${b.error}`)
   };
 }

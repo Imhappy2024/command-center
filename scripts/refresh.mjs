@@ -10,7 +10,7 @@ import { fetchClickUp } from './sources/clickup.mjs';
 import { fetchGmail } from './sources/gmail.mjs';
 import { fetchN8n } from './sources/n8n.mjs';
 import { fetchMicrosoft } from './sources/microsoft.mjs';
-import { accessTokenFor } from '../lib/providers.mjs';
+import { tokensFor } from '../lib/providers.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_OUT = path.join(ROOT, 'data', 'dashboard.json');
@@ -36,17 +36,17 @@ async function collect(env, ctx){
   return Object.fromEntries(settled.map(s => [s.key, s]));
 }
 
-/* Access tokens for accounts connected through the UI. A failure here is not
-   fatal: the source falls back to its environment-variable path. */
+/* Access tokens for every account connected through the UI. A failure here is
+   not fatal: the source falls back to its environment-variable path. */
 async function connectedAccounts(env, store){
   if (!store?.enabled) return {};
   const ctx = {};
   for (const name of ['google', 'microsoft']) {
     try {
-      const t = await accessTokenFor(name, env, store);
-      if (t) ctx[name] = t;
+      ctx[name] = await tokensFor(name, env, store);
     } catch (err) {
-      console.error(`[refresh] ${name} token refresh failed:`, err.message);
+      console.error(`[refresh] ${name} token lookup failed:`, err.message);
+      ctx[name] = [];
     }
   }
   return ctx;
@@ -64,8 +64,15 @@ function connections(s){
   }));
   // Graph consent is per-permission: calendar can succeed while mail is denied.
   const ms = s.microsoft.status === 'ok' && s.microsoft.data;
-  if (ms?.mailError) rows.push({ state: 'warn', label: 'Outlook mail denied' });
-  if (ms?.contactsError) rows.push({ state: 'warn', label: 'Outlook contacts denied' });
+  if (ms?.mailError) rows.push({ state: 'warn', label: 'Outlook mail denied', reason: ms.mailError });
+  if (ms?.contactsError) rows.push({ state: 'warn', label: 'Outlook contacts denied', reason: ms.contactsError });
+
+  // An individual account whose refresh token died, while others still work.
+  for (const r of Object.values(s)) {
+    for (const w of (r.status === 'ok' && r.data?.warnings) || []) {
+      rows.push({ state: 'off', label: w.split(':')[0] + ' needs reconnect', reason: w });
+    }
+  }
   rows.push({ state: 'warn', label: 'GHL · no connector' });
   return rows;
 }
@@ -182,18 +189,39 @@ function todayRows(s){
   }];
 }
 
-/* Outlook wins the Inbox view when present; MAIL_SOURCE can pin it either way. */
+/* Every connected mailbox, from both providers, merged into one Inbox.
+   MAIL_SOURCE=outlook|gmail narrows it to a single provider. */
 function mailbox(s, env){
-  const pin = (env.MAIL_SOURCE || 'auto').toLowerCase();
-  const ms = s.microsoft.status === 'ok' && s.microsoft.data?.mail
-    ? { label: 'Outlook', ...s.microsoft.data.mail }
-    : null;
-  const gm = s.gmail.status === 'ok' && s.gmail.data
-    ? { label: 'Gmail', counts: s.gmail.data.counts, messages: s.gmail.data.messages }
-    : null;
-  if (pin === 'gmail') return gm;
-  if (pin === 'outlook') return ms;
-  return ms || gm;
+  const pin = (env.MAIL_SOURCE || 'all').toLowerCase();
+  const parts = [];
+
+  if (pin !== 'gmail' && s.microsoft.status === 'ok' && s.microsoft.data?.mail) {
+    parts.push(s.microsoft.data.mail);
+  }
+  if (pin !== 'outlook' && s.gmail.status === 'ok' && s.gmail.data) {
+    parts.push(s.gmail.data);
+  }
+  if (!parts.length) return null;
+
+  const mailboxes = parts.flatMap(p => p.mailboxes || []);
+  const counts = mailboxes.reduce((a, m) => ({
+    unreadMessages: a.unreadMessages + (m.counts.unreadMessages || 0),
+    unreadThreads: a.unreadThreads + (m.counts.unreadThreads || 0),
+    totalThreads: a.totalThreads + (m.counts.totalThreads || 0)
+  }), { unreadMessages: 0, unreadThreads: 0, totalThreads: 0 });
+
+  const label = mailboxes.length === 1
+    ? (mailboxes[0].account || mailboxes[0].label)
+    : `${mailboxes.length} mailboxes`;
+
+  return {
+    label,
+    mailboxes,
+    counts,
+    messages: parts.flatMap(p => p.messages || [])
+      .sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0))
+      .slice(0, 10)
+  };
 }
 
 export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEFAULT_OUT, store = null } = {}){
@@ -230,7 +258,7 @@ export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEF
       today: todayRows(s),
       tasks: cu ? cu.rows : []
     },
-    inbox: mail ? { label: mail.label, counts: mail.counts, messages: mail.messages } : null,
+    inbox: mail ? { label: mail.label, mailboxes: mail.mailboxes, counts: mail.counts, messages: mail.messages } : null,
     calendar: ms ? { ...ms.calendar, timezone: ms.timezone, user: ms.user } : null,
     contacts: ms?.contacts || null,
     tasks: cu ? { counts: cu.counts, groups: cu.groups } : null,

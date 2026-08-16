@@ -102,27 +102,47 @@ function openBlocks(events, dayStart, dayEnd){
 
 export async function fetchMicrosoft(env, ctx = {}){
   // Delegated (connected via the UI) reads /me. App-only reads /users/{upn}.
-  const connected = ctx.microsoft || null;
+  const accounts = ctx.microsoft || [];
+  const usable = accounts.filter(a => a.token);
+  const broken = accounts.filter(a => a.error);
   const missing = ['MS_TENANT_ID', 'MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'MS_SERVICE_USER']
     .filter(k => !env[k]);
-  if (!connected && missing.length) {
-    return { ok: false, reason: `not connected — use Connect on the Connections page, or set ${missing.join(', ')}` };
+
+  if (!usable.length && missing.length) {
+    return {
+      ok: false,
+      reason: broken.length
+        ? `token refresh failed for ${broken.map(b => b.account).join(', ')}`
+        : `not connected — use Connect on the Inbox or Calendar page, or set ${missing.join(', ')}`
+    };
   }
 
   const tz = env.AGENT_TIMEZONE || env.TIMEZONE || 'UTC';
-  const scope = connected ? 'me' : `users/${encodeURIComponent(env.MS_SERVICE_USER)}`;
-  const tok = connected ? connected.token : await accessToken(env);
+  const seats = usable.length
+    ? usable.map(a => ({ scope: 'me', tok: a.token, account: a.account }))
+    : [{ scope: `users/${encodeURIComponent(env.MS_SERVICE_USER)}`, tok: await accessToken(env), account: env.MS_SERVICE_USER }];
 
+  return gather(env, seats, tz, usable.length > 0, broken);
+}
+
+async function gather(env, seats, tz, delegated, broken){
   const weekStart = mondayOf(new Date());
   const weekEnd = new Date(weekStart); weekEnd.setDate(weekEnd.getDate() + 7);
 
-  const view = await graph(
-    `/${scope}/calendarView?startDateTime=${iso(weekStart)}&endDateTime=${iso(weekEnd)}`
-    + '&$orderby=start/dateTime&$top=200'
-    + '&$select=subject,start,end,isAllDay,location,attendees,organizer,showAs',
-    tok, tz
-  );
-  const events = view.value || [];
+  /* Union of every connected calendar: busy in one is busy overall, which is
+     the right answer for "when am I free". */
+  const perSeat = await Promise.all(seats.map(async seat => {
+    const view = await graph(
+      `/${seat.scope}/calendarView?startDateTime=${iso(weekStart)}&endDateTime=${iso(weekEnd)}`
+      + '&$orderby=start/dateTime&$top=200'
+      + '&$select=subject,start,end,isAllDay,location,attendees,organizer,showAs',
+      seat.tok, tz
+    );
+    return (view.value || []).map(e => ({ ...e, _account: seat.account }));
+  }));
+
+  const events = perSeat.flat().sort((a, b) =>
+    String(a.start.dateTime).localeCompare(String(b.start.dateTime)));
 
   const DAY_NAMES = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
   const week = DAY_NAMES.map((dn, i) => {
@@ -141,10 +161,12 @@ export async function fetchMicrosoft(env, ctx = {}){
   const todayKey = new Date().toISOString().slice(0, 10);
   const todayEvents = events.filter(e => String(e.start.dateTime).slice(0, 10) === todayKey);
 
+  const multi = seats.length > 1;
   const today = todayEvents.map(e => ({
     time: e.isAllDay ? 'All day' : hhmm(e.start.dateTime),
     title: e.subject || '(no subject)',
-    sub: subtitle(e),
+    sub: [subtitle(e), multi ? e._account : null].filter(Boolean).join(' · '),
+    account: e._account,
     chip: e.isAllDay ? { text: 'All day' } : { text: duration(e) || '' }
   }));
 
@@ -175,48 +197,70 @@ export async function fetchMicrosoft(env, ctx = {}){
 
   const out = {
     ok: true,
-    via: connected ? 'oauth' : 'app-only',
-    user: connected?.account || env.MS_SERVICE_USER,
+    via: delegated ? 'oauth' : 'app-only',
+    user: seats.map(s => s.account).filter(Boolean).join(', '),
+    accounts: seats.map(s => s.account),
     timezone: tz,
-    calendar: { week, today, blocks, bookedMins, weekCount: events.length }
+    calendar: { week, today, blocks, bookedMins, weekCount: events.length, accounts: seats.map(s => s.account) },
+    warnings: broken.map(b => `Outlook ${b.account}: ${b.error}`)
   };
 
   // Mail and contacts are optional: a tenant may consent to Calendars.Read only.
-  try {
-    const folder = await graph(`/${scope}/mailFolders/inbox?$select=totalItemCount,unreadItemCount`, tok, tz);
-    const msgs = await graph(
-      `/${scope}/mailFolders/inbox/messages?$filter=isRead%20eq%20false&$top=6`
-      + '&$orderby=receivedDateTime desc&$select=subject,from,receivedDateTime,bodyPreview',
-      tok, tz
-    );
-    out.mail = {
-      counts: {
-        unreadThreads: folder.unreadItemCount ?? 0,
-        unreadMessages: folder.unreadItemCount ?? 0,
-        totalThreads: folder.totalItemCount ?? 0,
-        needsReply: folder.unreadItemCount ?? 0
-      },
-      messages: (msgs.value || []).map(m => ({
-        from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown',
-        subject: m.subject || '(no subject)',
-        snippet: (m.bodyPreview || '').replace(/\s+/g, ' ').trim(),
-        at: hhmm(m.receivedDateTime) === '00:00'
-          ? String(m.receivedDateTime).slice(0, 10)
-          : (String(m.receivedDateTime).slice(0, 10) === todayKey
-              ? hhmm(m.receivedDateTime)
-              : String(m.receivedDateTime).slice(5, 10)),
-        unread: true
-      }))
-    };
-  } catch (err) {
-    out.mailError = err.message;
+  const mailboxes = [];
+  for (const seat of seats) {
+    try {
+      const folder = await graph(`/${seat.scope}/mailFolders/inbox?$select=totalItemCount,unreadItemCount`, seat.tok, tz);
+      const msgs = await graph(
+        `/${seat.scope}/mailFolders/inbox/messages?$filter=isRead%20eq%20false&$top=6`
+        + '&$orderby=receivedDateTime desc&$select=subject,from,receivedDateTime,bodyPreview',
+        seat.tok, tz
+      );
+      mailboxes.push({
+        label: 'Outlook',
+        account: seat.account,
+        counts: {
+          unreadThreads: folder.unreadItemCount ?? 0,
+          unreadMessages: folder.unreadItemCount ?? 0,
+          totalThreads: folder.totalItemCount ?? 0
+        },
+        messages: (msgs.value || []).map(m => ({
+          from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown',
+          subject: m.subject || '(no subject)',
+          snippet: (m.bodyPreview || '').replace(/\s+/g, ' ').trim(),
+          at: String(m.receivedDateTime).slice(0, 10) === todayKey
+            ? hhmm(m.receivedDateTime)
+            : String(m.receivedDateTime).slice(5, 10),
+          sortKey: new Date(m.receivedDateTime).getTime() || 0,
+          account: seat.account,
+          unread: true
+        }))
+      });
+    } catch (err) {
+      out.mailError = err.message;
+    }
   }
 
-  try {
-    const c = await graph(`/${scope}/contacts?$top=1&$count=true`, tok, tz);
-    out.contacts = { total: c['@odata.count'] ?? (c.value || []).length };
-  } catch (err) {
-    out.contactsError = err.message;
+  if (mailboxes.length) {
+    out.mail = {
+      mailboxes: mailboxes.map(m => ({ label: m.label, account: m.account, counts: m.counts })),
+      counts: mailboxes.reduce((a, m) => ({
+        unreadMessages: a.unreadMessages + m.counts.unreadMessages,
+        unreadThreads: a.unreadThreads + m.counts.unreadThreads,
+        totalThreads: a.totalThreads + m.counts.totalThreads
+      }), { unreadMessages: 0, unreadThreads: 0, totalThreads: 0 }),
+      messages: mailboxes.flatMap(m => m.messages).sort((a, b) => b.sortKey - a.sortKey)
+    };
+  }
+
+  let contacts = 0;
+  for (const seat of seats) {
+    try {
+      const c = await graph(`/${seat.scope}/contacts?$top=1&$count=true`, seat.tok, tz);
+      contacts += c['@odata.count'] ?? (c.value || []).length;
+      out.contacts = { total: contacts };
+    } catch (err) {
+      out.contactsError = err.message;
+    }
   }
 
   return out;

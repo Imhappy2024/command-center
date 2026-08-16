@@ -23,9 +23,19 @@ they need. They never show a fabricated number.
 
 ## Connecting accounts
 
-Sign in, open **Connections** in the rail, click **Connect**, approve at Google or
-Microsoft, done. Tokens are encrypted with AES-256-GCM and stored server-side; the
-browser only ever holds a session cookie.
+Sign in, click **Connect** — on the empty Inbox, the empty Calendar, or the
+**Connections** page — approve at Google or Microsoft, done. Tokens are encrypted with
+AES-256-GCM and stored server-side; the browser only ever holds a session cookie.
+
+**As many mailboxes as you like, from either provider.** Accounts are keyed by address,
+so connecting a second one adds rather than replaces. Use **Add account** on the
+Connections page, or **Add another mailbox** at the foot of a populated Inbox or Calendar.
+The Inbox merges every connected mailbox into one list, newest first, tagging each message
+with the account it came from; the counters sum across all of them. Calendars merge the
+same way, and free/busy treats you as busy if *any* connected calendar is busy.
+
+`MAIL_SOURCE` defaults to `all`. Set it to `outlook` or `gmail` to narrow the Inbox to one
+provider. Disconnecting is per-account, not per-provider.
 
 This is the delegated OAuth flow — you approve access to your own mailbox. It needs no
 Workspace domain-wide delegation and no Entra admin consent for application permissions,
@@ -161,7 +171,7 @@ if that is wider than you want.
 |---|---|---|
 | `REFRESH_INTERVAL_MINUTES` | `15` | `0` disables the timer; boot refresh still runs |
 | `AGENT_TIMEZONE` | `UTC` | IANA zone for calendar times, e.g. `America/Chicago` |
-| `MAIL_SOURCE` | `auto` | `auto` \| `outlook` \| `gmail`; auto prefers Outlook |
+| `MAIL_SOURCE` | `all` | `all` merges every connected mailbox; `outlook` or `gmail` narrows to one provider |
 | `OWNER_NAME` | ClickUp username | Name in the greeting |
 | `DATA_FILE` | `./data/dashboard.json` | Absolute path override |
 
