@@ -32,9 +32,38 @@ const MENU = [
 const IDS = MENU.map(m => m[0]);
 const $ = id => document.getElementById(id);
 
-/* The OAuth callback returns to "#connections?connected=Google", so the view
-   name is only the part before the query. */
+/* The OAuth callback returns to "#inbox?connected=you@example.com", so the view
+   name is only the part before the query. Read the result once at load, before
+   routing strips it off the URL. */
 const hashView = () => location.hash.slice(1).split('?')[0];
+const FLASH = new URLSearchParams(location.hash.split('?')[1] || '');
+
+/* Connection state, shared by the Connections view and the inline buttons. */
+let CONN = null;
+
+async function loadConnections(){
+  try {
+    const res = await fetch('/api/connections', { cache: 'no-store' });
+    if (res.status === 401) { location.href = '/login'; return null; }
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    CONN = await res.json();
+  } catch (err) {
+    console.warn('[command-center] /api/connections unavailable:', err.message);
+    CONN = null;
+  }
+  return CONN;
+}
+
+function renderFlash(){
+  const el = $('flash');
+  if (!el) return;
+  if (FLASH.get('connected')) {
+    el.innerHTML = '<div class="banner ok">Connected as ' + esc(FLASH.get('connected'))
+      + '. Pulling the first data now — this panel fills in within a few seconds.</div>';
+  } else if (FLASH.get('error')) {
+    el.innerHTML = '<div class="banner bad">' + esc(FLASH.get('error')) + '</div>';
+  }
+}
 
 const ESCAPES = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
 const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ESCAPES[c]);
@@ -184,24 +213,54 @@ function diagnose(sources, keys){
   return { failing: rows.filter(r => r.status === 'error'), rows };
 }
 
+/* Connect buttons rendered inline, so the fix sits where the gap shows up
+   rather than only on the Connections page. */
+function connectStrip(providerNames, from){
+  if (!CONN) return '';
+
+  const wanted = CONN.providers.filter(p => providerNames.includes(p.name) && !p.connected);
+  if (!wanted.length) return '';
+
+  if (!CONN.canConnect) {
+    return '<div class="row"><span class="main"><small>'
+      + esc(CONN.loginRequired
+          ? 'Connecting is unavailable: the token store has no encryption key. Set ENCRYPTION_KEY.'
+          : 'Set APP_PASSWORD in Railway to enable the Connect buttons. Without a login this page is public.')
+      + '</small></span></div>';
+  }
+
+  return wanted.map(p =>
+    '<div class="conn"><span class="dot ' + (p.configured ? 'warn' : 'off') + '"></span>'
+    + '<span class="who"><b>' + esc(p.label) + '</b><small>'
+    + esc(p.configured ? p.detail : p.setupHint) + '</small></span>'
+    + (p.configured
+        ? '<a class="btn primary" href="/connect/' + esc(p.name) + '?return=' + esc(from) + '">Connect ' + esc(p.label) + '</a>'
+        : '<span class="btn" aria-disabled="true">Unavailable</span>')
+    + '</div>'
+  ).join('');
+}
+
 function renderProblem(els, keys, sources, hint){
   const { failing } = diagnose(sources, keys);
   const bad = failing.length > 0;
+  const strip = hint.connect ? connectStrip(hint.connect, hint.from) : '';
 
-  els.sub.textContent = bad
-    ? 'Credentials are set, but the call failed.'
-    : hint.sub;
+  els.sub.textContent = bad ? 'Credentials are set, but the call failed.' : hint.sub;
   els.chip.className = bad ? 'chip rust' : 'chip brass';
-  els.chip.textContent = bad ? 'Failing' : 'Not configured';
+  els.chip.textContent = bad ? 'Failing' : 'Not connected';
   if (els.stats) els.stats.innerHTML = '';
 
-  els.body.innerHTML = bad
+  const detail = bad
     ? failing.map(f =>
         '<div class="row"><span class="main"><b>' + esc(f.label) + ' is failing</b>'
         + '<small>' + esc(f.reason || 'no detail returned') + '</small></span>'
         + '<span class="chip rust">Error</span></div>'
       ).join('')
-    : '<div class="row"><span class="main"><small>' + esc(hint.body) + '</small></span></div>';
+    : '';
+
+  els.body.innerHTML = strip
+    ? strip + detail
+    : detail || '<div class="row"><span class="main"><small>' + esc(hint.body) + '</small></span></div>';
   return bad;
 }
 
@@ -210,9 +269,14 @@ function renderInbox(d, sources){
     renderProblem(
       { sub: $('inbox-sub'), chip: $('inbox-chip'), stats: $('inbox-stats'), body: $('inbox-rows') },
       ['microsoft', 'gmail'], sources,
-      { sub: 'No mailbox is connected.', body: 'Set the MS_* variables for Outlook, or the GOOGLE_* variables for Gmail.' }
+      {
+        sub: 'No mailbox connected yet. Pick one below.',
+        body: 'Set the MS_* variables for Outlook, or the GOOGLE_* variables for Gmail.',
+        connect: ['microsoft', 'google'],
+        from: 'inbox'
+      }
     );
-    $('inbox-count').textContent = '—';
+    $('inbox-count').textContent = 'Connect to fill this in';
     return;
   }
   const c = d.counts;
@@ -271,7 +335,12 @@ function renderCalendar(d, sources){
     const bad = renderProblem(
       { sub: $('cal-sub'), chip: $('cal-chip'), body: $('cal-today') },
       ['microsoft'], sources,
-      { sub: 'Outlook is not connected.', body: 'Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.' }
+      {
+        sub: 'No calendar connected yet.',
+        body: 'Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.',
+        connect: ['microsoft'],
+        from: 'calendar'
+      }
     );
     $('cal-week').innerHTML = '';
     $('cal-today-meta').textContent = '—';
@@ -342,29 +411,14 @@ function renderSystems(d, sources){
 
 /* ---------- connections ---------- */
 
-function connBanner(){
-  const q = new URLSearchParams(location.hash.split('?')[1] || '');
-  if (q.get('connected')) return { cls: 'ok', text: q.get('connected') + ' connected. The views it feeds will fill in on the next refresh.' };
-  if (q.get('error')) return { cls: 'bad', text: q.get('error') };
-  return null;
-}
-
 async function renderConnections(){
   const list = $('conn-list');
   const banner = $('conn-banner');
+  banner.innerHTML = '';
 
-  const note = connBanner();
-  banner.innerHTML = note ? '<div class="banner ' + note.cls + '">' + esc(note.text) + '</div>' : '';
-  if (note) history.replaceState(null, '', '#connections');
-
-  let d;
-  try {
-    const res = await fetch('/api/connections', { cache: 'no-store' });
-    if (res.status === 401) { location.href = '/login'; return; }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    d = await res.json();
-  } catch (err) {
-    unavailable(list, 'Could not load connection state: ' + err.message);
+  const d = await loadConnections();
+  if (!d) {
+    unavailable(list, 'Could not load connection state.');
     return;
   }
 
@@ -411,7 +465,11 @@ async function disconnect(name){
 async function hydrate(){
   let d;
   try {
-    const res = await fetch('/api/data', { cache: 'no-store' });
+    // Connection state first: the empty-state Connect buttons depend on it.
+    const [res] = await Promise.all([
+      fetch('/api/data', { cache: 'no-store' }),
+      loadConnections()
+    ]);
     if (res.status === 401) { location.href = '/login'; return; }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     d = await res.json();
@@ -483,6 +541,14 @@ function tick(){
 tick();
 setInterval(tick, 15000);
 
+renderFlash();
 renderNav({});
 hydrate();
 setInterval(hydrate, 5 * 60 * 1000);
+
+/* The server kicks off a refresh the moment a provider connects; give it a
+   beat, then pull the result in so the panel fills without a manual reload. */
+if (FLASH.get('connected')) {
+  setTimeout(hydrate, 4000);
+  setTimeout(hydrate, 12000);
+}
