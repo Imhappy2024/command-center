@@ -1,6 +1,7 @@
 {
   "source": "unconfigured",
-  "generatedAt": "2026-08-16T21:37:17.446Z",
+  "generatedAt": "2026-08-16T21:48:09.348Z",
+  "timezone": "UTC",
   "sources": {
     "clickup": {
       "status": "unconfigured",
@@ -8,11 +9,15 @@
     },
     "gmail": {
       "status": "unconfigured",
-      "reason": "GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN not set"
+      "reason": "set GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_IMPERSONATE_USER, or GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN"
     },
     "n8n": {
       "status": "unconfigured",
       "reason": "N8N_BASE_URL / N8N_API_KEY not set"
+    },
+    "microsoft": {
+      "status": "unconfigured",
+      "reason": "MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SERVICE_USER not set"
     }
   },
   "connections": [
@@ -30,7 +35,7 @@
     },
     {
       "state": "warn",
-      "label": "Calendar · no connector"
+      "label": "Outlook not configured"
     },
     {
       "state": "warn",
@@ -39,13 +44,14 @@
   ],
   "nav": {
     "inbox": "",
+    "calendar": "",
     "tasks": "",
     "systems": ""
   },
   "overview": {
     "greeting": {
       "name": null,
-      "sub": "0 of 3 sources live, 3 unconfigured."
+      "sub": "0 of 4 sources live, 4 unconfigured."
     },
     "hero": {
       "eyebrow": "Open work · assigned to you",
@@ -65,7 +71,7 @@
       },
       {
         "title": "Gmail not configured",
-        "detail": "GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN not set"
+        "detail": "set GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_IMPERSONATE_USER, or GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN"
       },
       {
         "title": "n8n not configured",
@@ -74,9 +80,9 @@
     ],
     "stats": [
       {
-        "eyebrow": "Unread threads",
+        "eyebrow": "Unread",
         "value": "—",
-        "meta": "Gmail not connected",
+        "meta": "no mailbox connected",
         "tone": "flat"
       },
       {
@@ -86,13 +92,13 @@
         "tone": "flat"
       },
       {
-        "eyebrow": "Runs · 24h",
+        "eyebrow": "Meetings today",
         "value": "—",
-        "meta": "n8n not connected",
+        "meta": "Outlook not connected",
         "tone": "flat"
       },
       {
-        "eyebrow": "Active workflows",
+        "eyebrow": "Runs · 24h",
         "value": "—",
         "meta": "n8n not connected",
         "tone": "flat"
@@ -102,7 +108,7 @@
       {
         "time": "—",
         "title": "Calendar not connected",
-        "sub": "Needs Google Calendar API credentials; no connector is wired yet.",
+        "sub": "Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.",
         "chip": {
           "tone": "brass",
           "text": "Todo"
@@ -112,6 +118,8 @@
     "tasks": []
   },
   "inbox": null,
+  "calendar": null,
+  "contacts": null,
   "tasks": null,
   "systems": null
 }

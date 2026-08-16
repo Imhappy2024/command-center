@@ -11,7 +11,11 @@ const DATA_FILE = process.env.DATA_FILE || path.join(ROOT, 'data', 'dashboard.js
 const PORT = Number(process.env.PORT) || 3000;
 const REFRESH_MINUTES = Number(process.env.REFRESH_INTERVAL_MINUTES ?? 15);
 const HAS_SOURCE = Boolean(
-  process.env.CLICKUP_TOKEN || process.env.N8N_API_KEY || process.env.GOOGLE_REFRESH_TOKEN
+  process.env.CLICKUP_TOKEN ||
+  process.env.N8N_API_KEY ||
+  process.env.GOOGLE_REFRESH_TOKEN ||
+  process.env.GOOGLE_SERVICE_ACCOUNT_JSON ||
+  process.env.MS_CLIENT_SECRET
 );
 
 const app = express();

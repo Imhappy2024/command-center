@@ -348,35 +348,16 @@ main{min-width:0;display:flex;flex-direction:column}
 
   <!-- CALENDAR -->
   <section class="view" id="v-calendar" role="tabpanel" aria-labelledby="tab-calendar">
-    <div class="vhead"><div><h1>Calendar</h1><p>This week. Showings in cream, everything else stays out of the way.</p></div><span class="chip">Google Calendar · 3 calendars</span></div>
-    <div class="week">
-      <div class="day today"><div class="dn">Mon</div><div class="dd num">17</div><div class="ct">5 events</div></div>
-      <div class="day"><div class="dn">Tue</div><div class="dd num">18</div><div class="ct">3 events</div></div>
-      <div class="day"><div class="dn">Wed</div><div class="dd num">19</div><div class="ct">6 events</div></div>
-      <div class="day"><div class="dn">Thu</div><div class="dd num">20</div><div class="ct">2 events</div></div>
-      <div class="day"><div class="dn">Fri</div><div class="dd num">21</div><div class="ct">4 events</div></div>
-      <div class="day"><div class="dn">Sat</div><div class="dd num">22</div><div class="ct">2 showings</div></div>
-      <div class="day"><div class="dn">Sun</div><div class="dd num">23</div><div class="ct">clear</div></div>
-    </div>
+    <div class="vhead"><div><h1>Calendar</h1><p id="cal-sub">Loading…</p></div><span class="chip" id="cal-chip">Outlook</span></div>
+    <div class="week" id="cal-week"></div>
     <div class="grid g2">
       <div class="card flush">
-        <div class="cardhead"><h3>Monday 17</h3><span class="eyebrow">5 events · 4h20m booked</span></div>
-        <div class="cardbody">
-          <div class="row"><span class="time">08:30</span><span class="main"><b>Site walk · Baliuag lot 12</b><small>Engr. Ramos</small></span></div>
-          <div class="row"><span class="time">10:00</span><span class="main"><b>Showing · Malolos 3BR</b><small>The Villanuevas</small></span></div>
-          <div class="row"><span class="time">13:00</span><span class="main"><b>Bank call · Landbank</b><small>R. Dizon pre-approval</small></span></div>
-          <div class="row"><span class="time">15:30</span><span class="main"><b>Showing · Plaridel townhouse</b><small>Second viewing</small></span></div>
-          <div class="row"><span class="time">18:00</span><span class="main"><b>Content block</b><small>Listing reels</small></span></div>
-        </div>
+        <div class="cardhead"><h3 id="cal-today-title">Today</h3><span class="eyebrow" id="cal-today-meta">—</span></div>
+        <div class="cardbody" id="cal-today"></div>
       </div>
       <div class="card flush">
-        <div class="cardhead"><h3>Open blocks</h3><span class="eyebrow">Bookable</span></div>
-        <div class="cardbody">
-          <div class="row"><span class="time">Tue</span><span class="main"><b>09:00 – 12:00</b><small>Three hours, no travel needed</small></span><span class="chip jade">3h</span></div>
-          <div class="row"><span class="time">Wed</span><span class="main"><b>14:00 – 15:30</b><small>Between Malolos showings</small></span><span class="chip">1h30</span></div>
-          <div class="row"><span class="time">Thu</span><span class="main"><b>All day</b><small>Nothing booked. Good for the Bulacan tour.</small></span><span class="chip jade">8h</span></div>
-          <div class="row"><span class="time">Fri</span><span class="main"><b>16:00 – 18:00</b><small>After the reservation deadline</small></span><span class="chip">2h</span></div>
-        </div>
+        <div class="cardhead"><h3>Open blocks</h3><span class="eyebrow">45m or longer, 08:00–18:00</span></div>
+        <div class="cardbody" id="cal-blocks"></div>
       </div>
     </div>
   </section>

@@ -169,23 +169,24 @@ function unavailable(el, msg){
 
 function renderInbox(d){
   if (!d) {
-    $('inbox-sub').textContent = 'Gmail is not connected.';
+    $('inbox-sub').textContent = 'No mailbox is connected.';
     $('inbox-chip').className = 'chip brass';
     $('inbox-chip').textContent = 'Not configured';
     $('inbox-stats').innerHTML = '';
-    unavailable($('inbox-rows'), 'Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN.');
+    unavailable($('inbox-rows'), 'Connect Outlook (MS_* variables) or Gmail (GOOGLE_* variables).');
     return;
   }
   const c = d.counts;
-  $('inbox-sub').textContent = c.unreadThreads.toLocaleString() + ' unread threads out of '
-    + c.totalThreads.toLocaleString() + ' in the inbox.';
+  const src = d.label || 'Mail';
+  $('inbox-sub').textContent = c.unreadThreads.toLocaleString() + ' unread out of '
+    + c.totalThreads.toLocaleString() + ' in the ' + src + ' inbox.';
   $('inbox-chip').className = 'chip jade';
-  $('inbox-chip').textContent = 'Gmail live';
+  $('inbox-chip').textContent = src + ' live';
   $('inbox-stats').innerHTML = [
-    { eyebrow: 'Unread threads', value: c.unreadThreads.toLocaleString(), meta: 'in inbox', tone: 'flat' },
+    { eyebrow: 'Unread', value: c.unreadThreads.toLocaleString(), meta: 'in inbox', tone: 'flat' },
     { eyebrow: 'Unread messages', value: c.unreadMessages.toLocaleString(), meta: 'individual mails', tone: 'flat' },
-    { eyebrow: 'Inbox threads', value: c.totalThreads.toLocaleString(), meta: 'total', tone: 'flat' },
-    { eyebrow: 'Read', value: Math.max(0, c.totalThreads - c.unreadThreads).toLocaleString(), meta: 'threads cleared', tone: 'up' }
+    { eyebrow: 'Inbox total', value: c.totalThreads.toLocaleString(), meta: 'all items', tone: 'flat' },
+    { eyebrow: 'Read', value: Math.max(0, c.totalThreads - c.unreadThreads).toLocaleString(), meta: 'cleared', tone: 'up' }
   ].map(statTile).join('');
   $('inbox-count').textContent = d.messages.length + ' shown';
   $('inbox-rows').innerHTML = d.messages.map(m =>
@@ -223,6 +224,49 @@ function renderTasksView(d){
       ).join('')
     + '</div></div>'
   ).join('') || '<div class="card"><small style="color:var(--dimmer)">Nothing open.</small></div>';
+}
+
+function renderCalendar(d){
+  if (!d) {
+    $('cal-sub').textContent = 'Outlook is not connected.';
+    $('cal-chip').className = 'chip brass';
+    $('cal-chip').textContent = 'Not configured';
+    $('cal-week').innerHTML = '';
+    $('cal-today-meta').textContent = '—';
+    unavailable($('cal-today'), 'Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.');
+    unavailable($('cal-blocks'), 'Free/busy needs the calendar connected.');
+    return;
+  }
+
+  $('cal-sub').textContent = d.weekCount + ' event' + (d.weekCount === 1 ? '' : 's')
+    + ' this week · times in ' + d.timezone;
+  $('cal-chip').className = 'chip jade';
+  $('cal-chip').textContent = 'Outlook live';
+
+  $('cal-week').innerHTML = d.week.map(w =>
+    '<div class="day' + (w.today ? ' today' : '') + '">'
+    + '<div class="dn">' + esc(w.day) + '</div>'
+    + '<div class="dd num">' + w.date + '</div>'
+    + '<div class="ct">' + esc(w.label) + '</div></div>'
+  ).join('');
+
+  const h = Math.floor(d.bookedMins / 60), m = d.bookedMins % 60;
+  const today = d.week.find(w => w.today);
+  $('cal-today-title').textContent = today ? today.day + ' ' + today.date : 'Today';
+  $('cal-today-meta').textContent = d.today.length + ' event' + (d.today.length === 1 ? '' : 's')
+    + (d.bookedMins ? ` · ${h}h${m ? String(m).padStart(2,'0') : ''} booked` : ' · nothing booked');
+
+  $('cal-today').innerHTML = d.today.map(e =>
+    '<div class="row"><span class="time">' + esc(e.time) + '</span>'
+    + '<span class="main"><b>' + esc(e.title) + '</b><small>' + esc(e.sub) + '</small></span>'
+    + chip(e.chip) + '</div>'
+  ).join('') || '<div class="row"><span class="main"><small>Nothing scheduled today.</small></span></div>';
+
+  $('cal-blocks').innerHTML = d.blocks.map(b =>
+    '<div class="row"><span class="time">' + esc(b.day) + '</span>'
+    + '<span class="main"><b>' + esc(b.range) + '</b><small>' + esc(b.note) + '</small></span>'
+    + chip(b.chip) + '</div>'
+  ).join('') || '<div class="row"><span class="main"><small>No open blocks left this week.</small></span></div>';
 }
 
 function renderSystems(d){
@@ -285,10 +329,11 @@ async function hydrate(){
   renderTasks(ov.tasks);
 
   const st = d.sources || {};
-  $('today-src').textContent = 'Calendar · no connector';
+  $('today-src').textContent = st.microsoft?.status === 'ok' ? 'Outlook · live' : 'Calendar · not connected';
   $('tasks-src').textContent = st.clickup?.status === 'ok' ? 'ClickUp · live' : 'ClickUp · not connected';
 
   renderInbox(d.inbox);
+  renderCalendar(d.calendar);
   renderTasksView(d.tasks);
   renderSystems(d.systems);
 }

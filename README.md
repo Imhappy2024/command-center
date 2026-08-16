@@ -7,11 +7,11 @@ sources, with six further views still on placeholder markup.
 
 | View | Source | State |
 |---|---|---|
-| Overview | ClickUp + Gmail + n8n | live |
-| Inbox | Gmail | live |
+| Overview | ClickUp + mail + Outlook calendar + n8n | live |
+| Inbox | Outlook or Gmail | live |
+| Calendar | Outlook via Microsoft Graph | live |
 | Tasks | ClickUp | live |
 | Systems | n8n | live |
-| Calendar | — | placeholder, no connector |
 | Leads | — | placeholder, needs GoHighLevel |
 | Properties | — | placeholder, Supabase not wired |
 | Financial | — | placeholder |
@@ -59,31 +59,76 @@ Nothing is required to boot. `PORT` is injected by Railway — do not set it.
 | `N8N_BASE_URL` | for n8n | Instance root, e.g. `https://n8n.example.com` — no `/api/v1` |
 | `N8N_API_KEY` | for n8n | Sent as `X-N8N-API-KEY` |
 
-**Gmail** — the only one that needs an OAuth round trip
+**Gmail** — two paths, pick one. Scope is `gmail.readonly` either way.
+
+*(a) Service account* — no token expiry, no consent screen, survives password changes.
+Requires **Google Workspace**; it cannot work against a consumer `@gmail.com` mailbox.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `GOOGLE_CLIENT_ID` | for Gmail | Desktop-app OAuth client |
-| `GOOGLE_CLIENT_SECRET` | for Gmail | |
-| `GOOGLE_REFRESH_TOKEN` | for Gmail | From `npm run auth:google` |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | for this path | The whole key JSON on one line, or base64-encoded |
+| `GOOGLE_IMPERSONATE_USER` | **yes** | Mailbox to read, e.g. `you@yourdomain.com` |
 
-To mint the refresh token, once, on your own machine:
+A service account owns no mailbox — it reads someone else's by impersonation, which a
+Workspace super-admin must authorise once:
+
+1. Google Cloud Console → enable the **Gmail API** on the service account's project.
+2. `admin.google.com` → Security → Access and data control → API controls →
+   **Domain-wide delegation** → *Add new*.
+3. Client ID: the `client_id` from the JSON. Scope: `https://www.googleapis.com/auth/gmail.readonly`.
+
+Run `npm run check:google` — it prints the exact client id and scope to paste into step 3,
+then tries a real call and reports what came back.
+
+*(b) OAuth refresh token* — works on consumer Gmail, no admin needed.
+
+| Variable | Required | Notes |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | for this path | Desktop-app OAuth client |
+| `GOOGLE_CLIENT_SECRET` | for this path | |
+| `GOOGLE_REFRESH_TOKEN` | for this path | From `npm run auth:google` |
 
 ```bash
-# Google Cloud Console: enable the Gmail API, create a Desktop-app OAuth client,
-# then add your own address under OAuth consent screen -> Test users.
+# Cloud Console: enable the Gmail API, create a Desktop-app OAuth client,
+# add your address under OAuth consent screen -> Test users.
 $env:GOOGLE_CLIENT_ID='...'
 $env:GOOGLE_CLIENT_SECRET='...'
 npm run auth:google         # opens a URL, prints GOOGLE_REFRESH_TOKEN
 ```
 
-Scope requested is `gmail.readonly`. Paste the printed token into Railway.
+If `GOOGLE_SERVICE_ACCOUNT_JSON` is set it wins; the OAuth variables are ignored.
+
+**Microsoft Graph** — Outlook calendar, mail and contacts, app-only
+
+| Variable | Required | Notes |
+|---|---|---|
+| `MS_TENANT_ID` | for Outlook | Directory (tenant) ID |
+| `MS_CLIENT_ID` | for Outlook | Application (client) ID |
+| `MS_CLIENT_SECRET` | for Outlook | Client secret *value*, not the secret ID |
+| `MS_SERVICE_USER` | for Outlook | Mailbox UPN to read, e.g. `you@yourdomain.com` |
+
+This is the client-credentials flow: the app authenticates as itself, so it needs
+**Application** permissions with admin consent — *not* Delegated ones:
+
+1. Entra ID → App registrations → your app → **API permissions**.
+2. Add a permission → Microsoft Graph → **Application permissions** →
+   `Calendars.Read`, `Mail.Read`, `Contacts.Read`.
+3. **Grant admin consent**.
+
+Consent is per-permission, so calendar can work while mail is denied. When that happens
+the connection rail says "Outlook mail denied" and the Calendar view still renders.
+
+Application-scope `Mail.Read` reaches **every mailbox in the tenant**. Scope it down with
+an [application access policy](https://learn.microsoft.com/en-us/graph/auth-limit-mailbox-access)
+if that is wider than you want.
 
 **Behaviour**
 
 | Variable | Default | Notes |
 |---|---|---|
 | `REFRESH_INTERVAL_MINUTES` | `15` | `0` disables the timer; boot refresh still runs |
+| `AGENT_TIMEZONE` | `UTC` | IANA zone for calendar times, e.g. `America/Chicago` |
+| `MAIL_SOURCE` | `auto` | `auto` \| `outlook` \| `gmail`; auto prefers Outlook |
 | `OWNER_NAME` | ClickUp username | Name in the greeting |
 | `DATA_FILE` | `./data/dashboard.json` | Absolute path override |
 
@@ -118,9 +163,9 @@ throws is reported in the connection rail rather than taking down the page.
 
 ## Known gaps
 
-- **Calendar** — needs Google Calendar API credentials; nothing is wired.
 - **Leads** — needs GoHighLevel. GHL already appears in several n8n workflows, so routing
   it through n8n may be cheaper than a direct integration.
+- **Contacts** — Graph returns a count only; nothing renders it yet.
 - **Properties / Financial** — the `LW Data base` Supabase project is the obvious source;
   no schema mapping written yet.
 - **Social** — needs per-platform tokens.
