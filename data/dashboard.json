@@ -1,0 +1,109 @@
+{
+  "source": "demo",
+  "generatedAt": "2026-08-17T08:42:00+08:00",
+  "connections": [
+    { "state": "ok", "label": "9 live" },
+    { "state": "warn", "label": "GHL token expires 6d" },
+    { "state": "off", "label": "LinkedIn reauth needed" }
+  ],
+  "nav": {
+    "inbox": "18",
+    "calendar": "5",
+    "tasks": "9",
+    "leads": "7",
+    "social": "1",
+    "systems": "2"
+  },
+  "overview": {
+    "greeting": {
+      "name": "Marco",
+      "sub": "Three showings today and the Plaridel deal needs a signed reservation before Friday."
+    },
+    "hero": {
+      "eyebrow": "Pipeline value · open deals",
+      "value": "₱48.2M",
+      "sub": "across 23 active leads · ₱11.4M in contract stage",
+      "progressPct": 24,
+      "progressLabel": "24% of ₱200M annual target"
+    },
+    "attention": [
+      {
+        "title": "Reservation form · Plaridel townhouse",
+        "detail": "Buyer waiting since Friday. Blocks ₱4.2M."
+      },
+      {
+        "title": "Reauth LinkedIn",
+        "detail": "Scheduled posts have been queuing for 3 days."
+      },
+      {
+        "title": "7 leads untouched over 48h",
+        "detail": "GHL speed-to-lead dropped to 4h12m."
+      }
+    ],
+    "stats": [
+      { "eyebrow": "Unread", "value": "18", "meta": "6 need reply", "tone": "up" },
+      { "eyebrow": "Tasks due today", "value": "9", "meta": "2 overdue", "tone": "down" },
+      { "eyebrow": "New leads · 7d", "value": "34", "meta": "▲ 21%", "tone": "up" },
+      { "eyebrow": "Cash in · Aug", "value": "₱1.86M", "meta": "▲ 8.4%", "tone": "up" }
+    ],
+    "today": [
+      {
+        "time": "08:30",
+        "title": "Site walk · Baliuag lot 12",
+        "sub": "with Engr. Ramos",
+        "chip": { "text": "45m" }
+      },
+      {
+        "time": "10:00",
+        "title": "Showing · Malolos 3BR",
+        "sub": "Buyer: the Villanuevas",
+        "chip": { "tone": "brass", "text": "Prep" }
+      },
+      {
+        "time": "13:00",
+        "title": "Bank call · Landbank pre-approval",
+        "sub": "Client: R. Dizon",
+        "chip": { "text": "30m" }
+      },
+      {
+        "time": "15:30",
+        "title": "Showing · Plaridel townhouse",
+        "sub": "Second viewing, bring reservation form",
+        "chip": { "tone": "rust", "text": "Deal risk" }
+      },
+      {
+        "time": "18:00",
+        "title": "Content block · listing reels",
+        "sub": "4 properties queued",
+        "chip": { "text": "2h" }
+      }
+    ],
+    "tasks": [
+      {
+        "title": "Send reservation form to Villanueva",
+        "sub": "Deals · due today",
+        "chip": { "tone": "rust", "text": "Overdue" }
+      },
+      {
+        "title": "Upload Malolos titles to drive",
+        "sub": "Docs · due today",
+        "chip": { "tone": "rust", "text": "Overdue" }
+      },
+      {
+        "title": "Follow up 7 stale GHL leads",
+        "sub": "Sales · due today",
+        "chip": { "tone": "brass", "text": "Today" }
+      },
+      {
+        "title": "Approve August ad spend",
+        "sub": "Finance · due today",
+        "chip": { "tone": "brass", "text": "Today" }
+      },
+      {
+        "title": "Draft Plaridel listing copy",
+        "sub": "Content · due today",
+        "chip": { "tone": "brass", "text": "Today" }
+      }
+    ]
+  }
+}
