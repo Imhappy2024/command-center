@@ -1,6 +1,6 @@
 {
   "source": "unconfigured",
-  "generatedAt": "2026-08-16T21:48:09.348Z",
+  "generatedAt": "2026-08-16T21:53:08.773Z",
   "timezone": "UTC",
   "sources": {
     "clickup": {
@@ -23,19 +23,23 @@
   "connections": [
     {
       "state": "warn",
-      "label": "ClickUp not configured"
+      "label": "ClickUp not configured",
+      "reason": "CLICKUP_TOKEN not set"
     },
     {
       "state": "warn",
-      "label": "Gmail not configured"
+      "label": "Gmail not configured",
+      "reason": "set GOOGLE_SERVICE_ACCOUNT_JSON + GOOGLE_IMPERSONATE_USER, or GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN"
     },
     {
       "state": "warn",
-      "label": "n8n not configured"
+      "label": "n8n not configured",
+      "reason": "N8N_BASE_URL / N8N_API_KEY not set"
     },
     {
       "state": "warn",
-      "label": "Outlook not configured"
+      "label": "Outlook not configured",
+      "reason": "MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET, MS_SERVICE_USER not set"
     },
     {
       "state": "warn",

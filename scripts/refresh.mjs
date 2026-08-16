@@ -42,7 +42,8 @@ function connections(s){
       ? `${r.label} live`
       : r.status === 'error'
         ? `${r.label} failing`
-        : `${r.label} not configured`
+        : `${r.label} not configured`,
+    reason: r.reason || null
   }));
   // Graph consent is per-permission: calendar can succeed while mail is denied.
   const ms = s.microsoft.status === 'ok' && s.microsoft.data;

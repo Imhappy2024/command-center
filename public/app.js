@@ -80,7 +80,8 @@ function show(id, scroll){
 function renderConnections(list){
   if (!Array.isArray(list) || !list.length) return;
   $('conns').innerHTML = list.map(c =>
-    '<div class="wire"><span class="dot ' + (['ok','warn','off'].includes(c.state) ? c.state : 'warn') + '"></span>'
+    '<div class="wire"' + (c.reason ? ' title="' + esc(c.reason) + '"' : '') + '>'
+    + '<span class="dot ' + (['ok','warn','off'].includes(c.state) ? c.state : 'warn') + '"></span>'
     + '<span class="mono" style="color:var(--dim)">' + esc(c.label) + '</span></div>'
   ).join('');
 }
@@ -167,13 +168,44 @@ function unavailable(el, msg){
   el.innerHTML = '<div class="row"><span class="main"><small>' + esc(msg) + '</small></span></div>';
 }
 
-function renderInbox(d){
+const SOURCE_LABEL = { clickup: 'ClickUp', gmail: 'Gmail', n8n: 'n8n', microsoft: 'Outlook' };
+
+/* A view whose source is set-but-erroring must not claim it is unconfigured —
+   those need opposite fixes, and the error text is the only useful thing to show. */
+function diagnose(sources, keys){
+  const rows = keys.map(k => ({ key: k, label: SOURCE_LABEL[k] || k, ...(sources?.[k] || { status: 'unconfigured' }) }));
+  return { failing: rows.filter(r => r.status === 'error'), rows };
+}
+
+function renderProblem(els, keys, sources, hint){
+  const { failing } = diagnose(sources, keys);
+  const bad = failing.length > 0;
+
+  els.sub.textContent = bad
+    ? 'Credentials are set, but the call failed.'
+    : hint.sub;
+  els.chip.className = bad ? 'chip rust' : 'chip brass';
+  els.chip.textContent = bad ? 'Failing' : 'Not configured';
+  if (els.stats) els.stats.innerHTML = '';
+
+  els.body.innerHTML = bad
+    ? failing.map(f =>
+        '<div class="row"><span class="main"><b>' + esc(f.label) + ' is failing</b>'
+        + '<small>' + esc(f.reason || 'no detail returned') + '</small></span>'
+        + '<span class="chip rust">Error</span></div>'
+      ).join('')
+    : '<div class="row"><span class="main"><small>' + esc(hint.body) + '</small></span></div>';
+  return bad;
+}
+
+function renderInbox(d, sources){
   if (!d) {
-    $('inbox-sub').textContent = 'No mailbox is connected.';
-    $('inbox-chip').className = 'chip brass';
-    $('inbox-chip').textContent = 'Not configured';
-    $('inbox-stats').innerHTML = '';
-    unavailable($('inbox-rows'), 'Connect Outlook (MS_* variables) or Gmail (GOOGLE_* variables).');
+    renderProblem(
+      { sub: $('inbox-sub'), chip: $('inbox-chip'), stats: $('inbox-stats'), body: $('inbox-rows') },
+      ['microsoft', 'gmail'], sources,
+      { sub: 'No mailbox is connected.', body: 'Set the MS_* variables for Outlook, or the GOOGLE_* variables for Gmail.' }
+    );
+    $('inbox-count').textContent = '—';
     return;
   }
   const c = d.counts;
@@ -196,13 +228,14 @@ function renderInbox(d){
   ).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>';
 }
 
-function renderTasksView(d){
+function renderTasksView(d, sources){
   if (!d) {
-    $('tasks-sub').textContent = 'ClickUp is not connected.';
-    $('tasks-chip').className = 'chip brass';
-    $('tasks-chip').textContent = 'Not configured';
-    $('tasks-stats').innerHTML = '';
-    $('tasks-groups').innerHTML = '<div class="card"><small style="color:var(--dimmer)">Set CLICKUP_TOKEN.</small></div>';
+    $('tasks-groups').innerHTML = '<div class="card flush"><div class="cardbody" id="tasks-problem"></div></div>';
+    renderProblem(
+      { sub: $('tasks-sub'), chip: $('tasks-chip'), stats: $('tasks-stats'), body: $('tasks-problem') },
+      ['clickup'], sources,
+      { sub: 'ClickUp is not connected.', body: 'Set CLICKUP_TOKEN.' }
+    );
     return;
   }
   const c = d.counts;
@@ -226,15 +259,16 @@ function renderTasksView(d){
   ).join('') || '<div class="card"><small style="color:var(--dimmer)">Nothing open.</small></div>';
 }
 
-function renderCalendar(d){
+function renderCalendar(d, sources){
   if (!d) {
-    $('cal-sub').textContent = 'Outlook is not connected.';
-    $('cal-chip').className = 'chip brass';
-    $('cal-chip').textContent = 'Not configured';
+    const bad = renderProblem(
+      { sub: $('cal-sub'), chip: $('cal-chip'), body: $('cal-today') },
+      ['microsoft'], sources,
+      { sub: 'Outlook is not connected.', body: 'Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.' }
+    );
     $('cal-week').innerHTML = '';
     $('cal-today-meta').textContent = '—';
-    unavailable($('cal-today'), 'Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.');
-    unavailable($('cal-blocks'), 'Free/busy needs the calendar connected.');
+    unavailable($('cal-blocks'), bad ? 'Free/busy is unavailable while the calendar call is failing.' : 'Free/busy needs the calendar connected.');
     return;
   }
 
@@ -269,13 +303,13 @@ function renderCalendar(d){
   ).join('') || '<div class="row"><span class="main"><small>No open blocks left this week.</small></span></div>';
 }
 
-function renderSystems(d){
+function renderSystems(d, sources){
   if (!d) {
-    $('sys-sub').textContent = 'n8n is not connected.';
-    $('sys-chip').className = 'chip brass';
-    $('sys-chip').textContent = 'Not configured';
-    $('sys-stats').innerHTML = '';
-    unavailable($('sys-rows'), 'Set N8N_BASE_URL and N8N_API_KEY.');
+    renderProblem(
+      { sub: $('sys-sub'), chip: $('sys-chip'), stats: $('sys-stats'), body: $('sys-rows') },
+      ['n8n'], sources,
+      { sub: 'n8n is not connected.', body: 'Set N8N_BASE_URL and N8N_API_KEY.' }
+    );
     return;
   }
   const c = d.counts;
@@ -332,10 +366,10 @@ async function hydrate(){
   $('today-src').textContent = st.microsoft?.status === 'ok' ? 'Outlook · live' : 'Calendar · not connected';
   $('tasks-src').textContent = st.clickup?.status === 'ok' ? 'ClickUp · live' : 'ClickUp · not connected';
 
-  renderInbox(d.inbox);
-  renderCalendar(d.calendar);
-  renderTasksView(d.tasks);
-  renderSystems(d.systems);
+  renderInbox(d.inbox, st);
+  renderCalendar(d.calendar, st);
+  renderTasksView(d.tasks, st);
+  renderSystems(d.systems, st);
 }
 
 document.addEventListener('click', e => {
