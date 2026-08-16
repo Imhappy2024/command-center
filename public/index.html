@@ -338,23 +338,11 @@ main{min-width:0;display:flex;flex-direction:column}
 
   <!-- INBOX -->
   <section class="view" id="v-inbox" role="tabpanel" aria-labelledby="tab-inbox">
-    <div class="vhead"><div><h1>Inbox</h1><p>18 unread. Sorted by what will cost you money if ignored.</p></div><span class="chip">Gmail · marco@estate.ph</span></div>
-    <div class="grid g4" style="margin-bottom:14px">
-      <div class="stat"><div class="eyebrow">Unread</div><div class="v num">18</div><div class="m flat">of 342 total</div></div>
-      <div class="stat"><div class="eyebrow">Awaiting your reply</div><div class="v num">6</div><div class="m"><span class="down">2 over 24h</span></div></div>
-      <div class="stat"><div class="eyebrow">Auto-filed</div><div class="v num">41</div><div class="m"><span class="up">today</span></div></div>
-      <div class="stat"><div class="eyebrow">Median reply time</div><div class="v num">3h</div><div class="m"><span class="up">▲ 40m faster</span></div></div>
-    </div>
+    <div class="vhead"><div><h1>Inbox</h1><p id="inbox-sub">Loading…</p></div><span class="chip" id="inbox-chip">Gmail</span></div>
+    <div class="grid g4" id="inbox-stats" style="margin-bottom:14px"></div>
     <div class="card flush">
-      <div class="cardhead"><h3>Needs a reply</h3><span class="eyebrow">6 threads</span></div>
-      <div class="cardbody">
-        <div class="row unread"><span class="main"><b>Ana Villanueva · Re: Malolos 3BR reservation</b><small>"We talked to the bank, they said we can move by the 20th if…"</small></span><span class="right">08:12</span></div>
-        <div class="row unread"><span class="main"><b>Landbank Baliuag · Pre-approval documents</b><small>Missing ITR for R. Dizon. Attachment requested.</small></span><span class="right">07:48</span></div>
-        <div class="row unread"><span class="main"><b>Engr. Ramos · Lot 12 survey findings</b><small>Boundary discrepancy on the east side, needs a call.</small></span><span class="right">Yesterday</span></div>
-        <div class="row"><span class="main"><b>Sofia Cruz · Interested in Plaridel townhouse</b><small>Came in through the Facebook lead form.</small></span><span class="right">Yesterday</span></div>
-        <div class="row"><span class="main"><b>HOA Pulilan · Turnover schedule change</b><small>Moved to Sept 3. Affects two of your closings.</small></span><span class="right">Sat</span></div>
-        <div class="row"><span class="main"><b>Bookkeeper · July reconciliation questions</b><small>Three unmatched transfers, needs your notes.</small></span><span class="right">Fri</span></div>
-      </div>
+      <div class="cardhead"><h3>Newest unread</h3><span class="eyebrow" id="inbox-count">—</span></div>
+      <div class="cardbody" id="inbox-rows"></div>
     </div>
   </section>
 
@@ -395,42 +383,9 @@ main{min-width:0;display:flex;flex-direction:column}
 
   <!-- TASKS -->
   <section class="view" id="v-tasks" role="tabpanel" aria-labelledby="tab-tasks">
-    <div class="vhead"><div><h1>Tasks</h1><p>Live from ClickUp. Checking here writes back to the list.</p></div><span class="chip">ClickUp · Estate Ops workspace</span></div>
-    <div class="grid g4" style="margin-bottom:14px">
-      <div class="stat"><div class="eyebrow">Due today</div><div class="v num">9</div><div class="m"><span class="down">2 overdue</span></div></div>
-      <div class="stat"><div class="eyebrow">This week</div><div class="v num">27</div><div class="m flat">across 5 lists</div></div>
-      <div class="stat"><div class="eyebrow">Closed · 7d</div><div class="v num">41</div><div class="m"><span class="up">▲ 12%</span></div></div>
-      <div class="stat"><div class="eyebrow">Unassigned</div><div class="v num">4</div><div class="m"><span class="down">needs an owner</span></div></div>
-    </div>
-    <div class="grid g3">
-      <div class="card flush">
-        <div class="cardhead"><h3>Deals</h3><span class="eyebrow">6 open</span></div>
-        <div class="cardbody">
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Send reservation form</b><small>Villanueva · today</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Chase Landbank ITR</b><small>Dizon · today</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Prep Plaridel contract</b><small>Fri</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Turnover checklist · Pulilan</b><small>Sept 3</small></span></div>
-        </div>
-      </div>
-      <div class="card flush">
-        <div class="cardhead"><h3>Content</h3><span class="eyebrow">8 open</span></div>
-        <div class="cardbody">
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Draft Plaridel listing copy</b><small>today</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Shoot 4 property reels</b><small>today</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Schedule week's posts</b><small>Tue</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Newsletter · August listings</b><small>Wed</small></span></div>
-        </div>
-      </div>
-      <div class="card flush">
-        <div class="cardhead"><h3>Admin</h3><span class="eyebrow">5 open</span></div>
-        <div class="cardbody">
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Approve August ad spend</b><small>today</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Answer bookkeeper's questions</b><small>Tue</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>Renew PRC license</b><small>Sept 12</small></span></div>
-          <div class="row"><span class="check" data-check></span><span class="main"><b>File BIR 2551Q</b><small>Oct 25</small></span></div>
-        </div>
-      </div>
-    </div>
+    <div class="vhead"><div><h1>Tasks</h1><p id="tasks-sub">Loading…</p></div><span class="chip" id="tasks-chip">ClickUp</span></div>
+    <div class="grid g4" id="tasks-stats" style="margin-bottom:14px"></div>
+    <div class="grid g3" id="tasks-groups"></div>
   </section>
 
   <!-- NOTES -->
@@ -575,25 +530,11 @@ main{min-width:0;display:flex;flex-direction:column}
 
   <!-- SYSTEMS -->
   <section class="view" id="v-systems" role="tabpanel" aria-labelledby="tab-systems">
-    <div class="vhead"><div><h1>Systems</h1><p>Eleven automations running. Two are failing quietly, which is worse than failing loudly.</p></div><span class="chip">n8n · self-hosted</span></div>
-    <div class="grid g4" style="margin-bottom:14px">
-      <div class="stat"><div class="eyebrow">Active workflows</div><div class="v num">11</div><div class="m flat">2 paused</div></div>
-      <div class="stat"><div class="eyebrow">Runs · 24h</div><div class="v num">1,847</div><div class="m"><span class="up">▲ normal</span></div></div>
-      <div class="stat"><div class="eyebrow">Failures · 24h</div><div class="v num">23</div><div class="m"><span class="down">1.2% error rate</span></div></div>
-      <div class="stat"><div class="eyebrow">Time saved · est</div><div class="v num">31h</div><div class="m"><span class="up">this month</span></div></div>
-    </div>
+    <div class="vhead"><div><h1>Systems</h1><p id="sys-sub">Loading…</p></div><span class="chip" id="sys-chip">n8n</span></div>
+    <div class="grid g4" id="sys-stats" style="margin-bottom:14px"></div>
     <div class="card flush">
-      <div class="cardhead"><h3>Workflows</h3><span class="eyebrow">Sorted by failures first</span></div>
-      <div class="cardbody">
-        <div class="sys"><span class="dot off"></span><span class="name"><b>LinkedIn scheduled posting</b><small>Failing since Aug 14 · expired OAuth token</small></span><span class="spark"><i class="f" style="height:60%"></i><i class="f" style="height:80%"></i><i class="f" style="height:70%"></i><i class="f" style="height:90%"></i><i class="f" style="height:75%"></i></span><span class="chip rust">18 fails</span></div>
-        <div class="sys"><span class="dot warn"></span><span class="name"><b>GHL lead to ClickUp task</b><small>Intermittent · rate limited at peak</small></span><span class="spark"><i style="height:70%"></i><i style="height:90%"></i><i class="f" style="height:40%"></i><i style="height:85%"></i><i style="height:80%"></i></span><span class="chip brass">5 fails</span></div>
-        <div class="sys"><span class="dot ok"></span><span class="name"><b>New lead instant SMS reply</b><small>Median 47 seconds to first touch</small></span><span class="spark"><i style="height:80%"></i><i style="height:95%"></i><i style="height:70%"></i><i style="height:88%"></i><i style="height:92%"></i></span><span class="chip jade">Healthy</span></div>
-        <div class="sys"><span class="dot ok"></span><span class="name"><b>Listing sync · Postgres to website</b><small>Every 15 minutes</small></span><span class="spark"><i style="height:75%"></i><i style="height:80%"></i><i style="height:85%"></i><i style="height:78%"></i><i style="height:90%"></i></span><span class="chip jade">Healthy</span></div>
-        <div class="sys"><span class="dot ok"></span><span class="name"><b>Inbox triage and labeling</b><small>Runs on every new message</small></span><span class="spark"><i style="height:88%"></i><i style="height:72%"></i><i style="height:95%"></i><i style="height:80%"></i><i style="height:85%"></i></span><span class="chip jade">Healthy</span></div>
-        <div class="sys"><span class="dot ok"></span><span class="name"><b>Daily brief generator</b><small>05:30 every weekday</small></span><span class="spark"><i style="height:90%"></i><i style="height:90%"></i><i style="height:90%"></i><i style="height:90%"></i><i style="height:90%"></i></span><span class="chip jade">Healthy</span></div>
-        <div class="sys"><span class="dot ok"></span><span class="name"><b>Commission calculator on close</b><small>Triggered by ClickUp status</small></span><span class="spark"><i style="height:60%"></i><i style="height:0%"></i><i style="height:85%"></i><i style="height:0%"></i><i style="height:70%"></i></span><span class="chip jade">Healthy</span></div>
-        <div class="sys"><span class="dot warn"></span><span class="name"><b>Weekly metrics rollup</b><small>Paused · you turned this off Aug 2</small></span><span class="spark"><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i><i style="height:20%"></i></span><span class="chip">Paused</span></div>
-      </div>
+      <div class="cardhead"><h3>Workflows</h3><span class="eyebrow">Failures first, then busiest</span></div>
+      <div class="cardbody" id="sys-rows"></div>
     </div>
   </section>
 </main>

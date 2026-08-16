@@ -10,7 +10,9 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "refresh": "node scripts/refresh.mjs",
+    "auth:google": "node scripts/auth-google.mjs"
   },
   "dependencies": {
     "compression": "^1.7.5",

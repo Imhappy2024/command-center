@@ -1,77 +1,129 @@
 # Command Center
 
-Single-pane operations dashboard — inbox, calendar, tasks, leads, properties, financials,
-social and automation health in one view.
+Single-pane operations dashboard — inbox, tasks, and automation health pulled from live
+sources, with six further views still on placeholder markup.
 
-## Status
+## What is actually wired
 
-The shell is complete and deployable. The **Overview** view and the connection rail render
-from `/api/data`; the other eight views are still static markup pending real sources.
+| View | Source | State |
+|---|---|---|
+| Overview | ClickUp + Gmail + n8n | live |
+| Inbox | Gmail | live |
+| Tasks | ClickUp | live |
+| Systems | n8n | live |
+| Calendar | — | placeholder, no connector |
+| Leads | — | placeholder, needs GoHighLevel |
+| Properties | — | placeholder, Supabase not wired |
+| Financial | — | placeholder |
+| Social | — | placeholder |
+| Notes | — | placeholder |
 
-`data/dashboard.json` currently ships `"source": "demo"` — the UI labels itself
-**"Demo data · no live sources"** so a deployed build never passes placeholder numbers off
-as real.
+With no credentials set the wired views say **"not configured"** and name the variable
+they need. They never show a fabricated number.
 
 ## Run locally
 
 ```bash
 npm install
-npm run dev          # http://localhost:3000
+cp .env.example .env      # fill in what you have
+npm run dev               # http://localhost:3000
 ```
+
+`npm run refresh` regenerates `data/dashboard.json` once and prints per-source status.
 
 ## Deploy to Railway
 
-1. Push this repo to GitHub.
-2. Railway → **New Project → Deploy from GitHub repo** → pick this repo.
-3. Nothing else to configure. Nixpacks detects Node, runs `npm install`, then `npm start`.
-   `railway.json` sets the health check to `/api/health`.
-4. **Settings → Networking → Generate Domain** to get a public URL.
+1. Railway → **New Project → Deploy from GitHub repo** → this repo.
+2. **Variables** → add the ones below (all optional; add only the sources you want).
+3. **Settings → Networking → Generate Domain**.
 
-Railway injects `PORT`; the server binds `0.0.0.0:$PORT`. No secrets are required to boot.
+Nixpacks detects Node, runs `npm install`, then `npm start`. `railway.json` points the
+health check at `/api/health`.
 
-| Variable    | Required | Default              | Notes                                  |
-|-------------|----------|----------------------|----------------------------------------|
-| `PORT`      | no       | `3000`               | Railway sets this automatically        |
-| `DATA_FILE` | no       | `./data/dashboard.json` | Absolute path to an alternate payload |
+### Variables
+
+Nothing is required to boot. `PORT` is injected by Railway — do not set it.
+
+**ClickUp** — ClickUp → Settings → Apps → *API Token*
+
+| Variable | Required | Notes |
+|---|---|---|
+| `CLICKUP_TOKEN` | for ClickUp | Personal token, starts with `pk_` |
+| `CLICKUP_TEAM_ID` | no | Defaults to your first team |
+| `CLICKUP_USER_ID` | no | Defaults to you; set to scope tasks to someone else |
+
+**n8n** — n8n → Settings → *n8n API* → create an API key
+
+| Variable | Required | Notes |
+|---|---|---|
+| `N8N_BASE_URL` | for n8n | Instance root, e.g. `https://n8n.example.com` — no `/api/v1` |
+| `N8N_API_KEY` | for n8n | Sent as `X-N8N-API-KEY` |
+
+**Gmail** — the only one that needs an OAuth round trip
+
+| Variable | Required | Notes |
+|---|---|---|
+| `GOOGLE_CLIENT_ID` | for Gmail | Desktop-app OAuth client |
+| `GOOGLE_CLIENT_SECRET` | for Gmail | |
+| `GOOGLE_REFRESH_TOKEN` | for Gmail | From `npm run auth:google` |
+
+To mint the refresh token, once, on your own machine:
+
+```bash
+# Google Cloud Console: enable the Gmail API, create a Desktop-app OAuth client,
+# then add your own address under OAuth consent screen -> Test users.
+$env:GOOGLE_CLIENT_ID='...'
+$env:GOOGLE_CLIENT_SECRET='...'
+npm run auth:google         # opens a URL, prints GOOGLE_REFRESH_TOKEN
+```
+
+Scope requested is `gmail.readonly`. Paste the printed token into Railway.
+
+**Behaviour**
+
+| Variable | Default | Notes |
+|---|---|---|
+| `REFRESH_INTERVAL_MINUTES` | `15` | `0` disables the timer; boot refresh still runs |
+| `OWNER_NAME` | ClickUp username | Name in the greeting |
+| `DATA_FILE` | `./data/dashboard.json` | Absolute path override |
 
 ## Layout
 
 ```
-server.js              Express: static + /api/data + /api/health
-public/index.html      Shell and all ten views
-public/app.js          Nav, routing, clock, and Overview hydration
-data/dashboard.json    The payload /api/data serves
-railway.json           Build and health-check config
+server.js                  Express: static + /api/data + /api/health, refresh scheduler
+scripts/refresh.mjs        Composes data/dashboard.json from whatever has credentials
+scripts/sources/*.mjs      One module per source; each degrades independently
+scripts/auth-google.mjs    One-time Gmail refresh-token helper
+public/index.html          Shell and all ten views
+public/app.js              Nav, routing, clock, hydration
+data/dashboard.json        Generated payload; committed as the unconfigured state
 ```
+
+## How refresh works
+
+`runRefresh()` calls every source in parallel. Each returns `ok`, `unconfigured`, or
+`error`, and the composed payload carries a `sources` block recording which was which.
+`source` is then `live` (all up), `partial` (some up), or `unconfigured` (none).
+
+The server refreshes on boot and every `REFRESH_INTERVAL_MINUTES` when at least one
+credential is present. The browser re-fetches `/api/data` every 5 minutes. A source that
+throws is reported in the connection rail rather than taking down the page.
 
 ## API
 
-| Route         | Returns                                                     |
-|---------------|-------------------------------------------------------------|
-| `GET /api/health` | `{ ok, uptime, ts }` — Railway's health check target      |
-| `GET /api/data`   | The dashboard payload; `503` if the file is missing or malformed |
+| Route | Returns |
+|---|---|
+| `GET /api/health` | `{ ok, uptime, ts }` — Railway's health-check target |
+| `GET /api/data` | The payload; `503` if the file is missing or malformed |
 
-The frontend fetches `/api/data` on load and every 5 minutes. If the request fails it keeps
-the static markup and flags the header chip **"Data source unreachable"** rather than
-rendering empty cards.
+## Known gaps
 
-## Wiring real data
-
-`data/dashboard.json` is the single seam. Anything that can write that file — a cron job, an
-n8n workflow, a scheduled agent — makes the dashboard live without touching the frontend.
-
-Connector status as of this commit:
-
-| Source          | Available | Note                                           |
-|-----------------|-----------|------------------------------------------------|
-| Gmail           | yes       | inbox counts, threads awaiting reply            |
-| ClickUp         | yes       | tasks, due dates, list rollups                  |
-| n8n             | yes       | workflow list, execution history, failure counts |
-| Supabase        | yes       | properties / listings table                     |
-| Google Drive    | yes       | document checks                                 |
-| Google Calendar | no        | no connector — needs Calendar API credentials   |
-| GoHighLevel     | no        | no connector — needs a GHL API key              |
-| Social platforms| no        | needs per-platform tokens                       |
-
-Next step is a `scripts/refresh.mjs` that pulls from the available sources, writes
-`data/dashboard.json` with `"source": "live"`, and runs on a schedule.
+- **Calendar** — needs Google Calendar API credentials; nothing is wired.
+- **Leads** — needs GoHighLevel. GHL already appears in several n8n workflows, so routing
+  it through n8n may be cheaper than a direct integration.
+- **Properties / Financial** — the `LW Data base` Supabase project is the obvious source;
+  no schema mapping written yet.
+- **Social** — needs per-platform tokens.
+- n8n execution history is sampled at 250 records; the Systems panel marks the count with
+  `+` when it hits that ceiling.
+- The Tasks checkboxes are display-only — ticking one does not write back to ClickUp.

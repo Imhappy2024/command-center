@@ -1,109 +1,117 @@
 {
-  "source": "demo",
-  "generatedAt": "2026-08-17T08:42:00+08:00",
+  "source": "unconfigured",
+  "generatedAt": "2026-08-16T21:37:17.446Z",
+  "sources": {
+    "clickup": {
+      "status": "unconfigured",
+      "reason": "CLICKUP_TOKEN not set"
+    },
+    "gmail": {
+      "status": "unconfigured",
+      "reason": "GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN not set"
+    },
+    "n8n": {
+      "status": "unconfigured",
+      "reason": "N8N_BASE_URL / N8N_API_KEY not set"
+    }
+  },
   "connections": [
-    { "state": "ok", "label": "9 live" },
-    { "state": "warn", "label": "GHL token expires 6d" },
-    { "state": "off", "label": "LinkedIn reauth needed" }
+    {
+      "state": "warn",
+      "label": "ClickUp not configured"
+    },
+    {
+      "state": "warn",
+      "label": "Gmail not configured"
+    },
+    {
+      "state": "warn",
+      "label": "n8n not configured"
+    },
+    {
+      "state": "warn",
+      "label": "Calendar · no connector"
+    },
+    {
+      "state": "warn",
+      "label": "GHL · no connector"
+    }
   ],
   "nav": {
-    "inbox": "18",
-    "calendar": "5",
-    "tasks": "9",
-    "leads": "7",
-    "social": "1",
-    "systems": "2"
+    "inbox": "",
+    "tasks": "",
+    "systems": ""
   },
   "overview": {
     "greeting": {
-      "name": "Marco",
-      "sub": "Three showings today and the Plaridel deal needs a signed reservation before Friday."
+      "name": null,
+      "sub": "0 of 3 sources live, 3 unconfigured."
     },
     "hero": {
-      "eyebrow": "Pipeline value · open deals",
-      "value": "₱48.2M",
-      "sub": "across 23 active leads · ₱11.4M in contract stage",
-      "progressPct": 24,
-      "progressLabel": "24% of ₱200M annual target"
+      "eyebrow": "Open work · assigned to you",
+      "value": "—",
+      "sub": "ClickUp is not connected, so there is no count to show.",
+      "progressPct": 0,
+      "progressLabel": "Set CLICKUP_TOKEN to populate this."
     },
     "attention": [
       {
-        "title": "Reservation form · Plaridel townhouse",
-        "detail": "Buyer waiting since Friday. Blocks ₱4.2M."
+        "title": "No sources connected",
+        "detail": "Nothing is being watched, so an empty dashboard means nothing."
       },
       {
-        "title": "Reauth LinkedIn",
-        "detail": "Scheduled posts have been queuing for 3 days."
+        "title": "ClickUp not configured",
+        "detail": "CLICKUP_TOKEN not set"
       },
       {
-        "title": "7 leads untouched over 48h",
-        "detail": "GHL speed-to-lead dropped to 4h12m."
+        "title": "Gmail not configured",
+        "detail": "GOOGLE_CLIENT_ID / _SECRET / _REFRESH_TOKEN not set"
+      },
+      {
+        "title": "n8n not configured",
+        "detail": "N8N_BASE_URL / N8N_API_KEY not set"
       }
     ],
     "stats": [
-      { "eyebrow": "Unread", "value": "18", "meta": "6 need reply", "tone": "up" },
-      { "eyebrow": "Tasks due today", "value": "9", "meta": "2 overdue", "tone": "down" },
-      { "eyebrow": "New leads · 7d", "value": "34", "meta": "▲ 21%", "tone": "up" },
-      { "eyebrow": "Cash in · Aug", "value": "₱1.86M", "meta": "▲ 8.4%", "tone": "up" }
+      {
+        "eyebrow": "Unread threads",
+        "value": "—",
+        "meta": "Gmail not connected",
+        "tone": "flat"
+      },
+      {
+        "eyebrow": "Due today",
+        "value": "—",
+        "meta": "ClickUp not connected",
+        "tone": "flat"
+      },
+      {
+        "eyebrow": "Runs · 24h",
+        "value": "—",
+        "meta": "n8n not connected",
+        "tone": "flat"
+      },
+      {
+        "eyebrow": "Active workflows",
+        "value": "—",
+        "meta": "n8n not connected",
+        "tone": "flat"
+      }
     ],
     "today": [
       {
-        "time": "08:30",
-        "title": "Site walk · Baliuag lot 12",
-        "sub": "with Engr. Ramos",
-        "chip": { "text": "45m" }
-      },
-      {
-        "time": "10:00",
-        "title": "Showing · Malolos 3BR",
-        "sub": "Buyer: the Villanuevas",
-        "chip": { "tone": "brass", "text": "Prep" }
-      },
-      {
-        "time": "13:00",
-        "title": "Bank call · Landbank pre-approval",
-        "sub": "Client: R. Dizon",
-        "chip": { "text": "30m" }
-      },
-      {
-        "time": "15:30",
-        "title": "Showing · Plaridel townhouse",
-        "sub": "Second viewing, bring reservation form",
-        "chip": { "tone": "rust", "text": "Deal risk" }
-      },
-      {
-        "time": "18:00",
-        "title": "Content block · listing reels",
-        "sub": "4 properties queued",
-        "chip": { "text": "2h" }
+        "time": "—",
+        "title": "Calendar not connected",
+        "sub": "Needs Google Calendar API credentials; no connector is wired yet.",
+        "chip": {
+          "tone": "brass",
+          "text": "Todo"
+        }
       }
     ],
-    "tasks": [
-      {
-        "title": "Send reservation form to Villanueva",
-        "sub": "Deals · due today",
-        "chip": { "tone": "rust", "text": "Overdue" }
-      },
-      {
-        "title": "Upload Malolos titles to drive",
-        "sub": "Docs · due today",
-        "chip": { "tone": "rust", "text": "Overdue" }
-      },
-      {
-        "title": "Follow up 7 stale GHL leads",
-        "sub": "Sales · due today",
-        "chip": { "tone": "brass", "text": "Today" }
-      },
-      {
-        "title": "Approve August ad spend",
-        "sub": "Finance · due today",
-        "chip": { "tone": "brass", "text": "Today" }
-      },
-      {
-        "title": "Draft Plaridel listing copy",
-        "sub": "Content · due today",
-        "chip": { "tone": "brass", "text": "Today" }
-      }
-    ]
-  }
+    "tasks": []
+  },
+  "inbox": null,
+  "tasks": null,
+  "systems": null
 }

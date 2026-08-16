@@ -98,16 +98,18 @@ function renderGreeting(g){
 
 function renderSync(source, generatedAt){
   const el = $('sync');
-  if (source === 'demo'){
+  if (source === 'unconfigured' || source === 'demo'){
     el.className = 'chip brass';
-    el.textContent = 'Demo data · no live sources';
+    el.textContent = source === 'demo' ? 'Demo data · no live sources' : 'No sources connected';
     return;
   }
   const t = generatedAt ? new Date(generatedAt) : null;
-  el.className = 'chip jade';
-  el.textContent = t && !isNaN(t)
-    ? 'Synced ' + t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    : 'Synced';
+  const stamp = t && !isNaN(t)
+    ? t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : null;
+  el.className = source === 'partial' ? 'chip brass' : 'chip jade';
+  el.textContent = (source === 'partial' ? 'Partial sync' : 'Synced')
+    + (stamp ? ' · ' + stamp : '');
 }
 
 function renderHero(h){
@@ -152,6 +154,107 @@ function renderTasks(tasks){
   ).join('') || '<div class="row"><span class="main"><small>Inbox zero on tasks.</small></span></div>';
 }
 
+/* ---------- inbox / tasks / systems views ---------- */
+
+function statTile(s){
+  const cls = ['up','down','flat'].includes(s.tone) ? s.tone : 'flat';
+  return '<div class="stat"><div class="eyebrow">' + esc(s.eyebrow) + '</div>'
+    + '<div class="v num">' + esc(s.value) + '</div>'
+    + '<div class="m"><span class="' + cls + '">' + esc(s.meta) + '</span></div></div>';
+}
+
+function unavailable(el, msg){
+  el.innerHTML = '<div class="row"><span class="main"><small>' + esc(msg) + '</small></span></div>';
+}
+
+function renderInbox(d){
+  if (!d) {
+    $('inbox-sub').textContent = 'Gmail is not connected.';
+    $('inbox-chip').className = 'chip brass';
+    $('inbox-chip').textContent = 'Not configured';
+    $('inbox-stats').innerHTML = '';
+    unavailable($('inbox-rows'), 'Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and GOOGLE_REFRESH_TOKEN.');
+    return;
+  }
+  const c = d.counts;
+  $('inbox-sub').textContent = c.unreadThreads.toLocaleString() + ' unread threads out of '
+    + c.totalThreads.toLocaleString() + ' in the inbox.';
+  $('inbox-chip').className = 'chip jade';
+  $('inbox-chip').textContent = 'Gmail live';
+  $('inbox-stats').innerHTML = [
+    { eyebrow: 'Unread threads', value: c.unreadThreads.toLocaleString(), meta: 'in inbox', tone: 'flat' },
+    { eyebrow: 'Unread messages', value: c.unreadMessages.toLocaleString(), meta: 'individual mails', tone: 'flat' },
+    { eyebrow: 'Inbox threads', value: c.totalThreads.toLocaleString(), meta: 'total', tone: 'flat' },
+    { eyebrow: 'Read', value: Math.max(0, c.totalThreads - c.unreadThreads).toLocaleString(), meta: 'threads cleared', tone: 'up' }
+  ].map(statTile).join('');
+  $('inbox-count').textContent = d.messages.length + ' shown';
+  $('inbox-rows').innerHTML = d.messages.map(m =>
+    '<div class="row unread"><span class="main"><b>' + esc(m.from) + ' · ' + esc(m.subject) + '</b>'
+    + '<small>' + esc(m.snippet.slice(0, 110)) + '</small></span>'
+    + '<span class="right">' + esc(m.at) + '</span></div>'
+  ).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>';
+}
+
+function renderTasksView(d){
+  if (!d) {
+    $('tasks-sub').textContent = 'ClickUp is not connected.';
+    $('tasks-chip').className = 'chip brass';
+    $('tasks-chip').textContent = 'Not configured';
+    $('tasks-stats').innerHTML = '';
+    $('tasks-groups').innerHTML = '<div class="card"><small style="color:var(--dimmer)">Set CLICKUP_TOKEN.</small></div>';
+    return;
+  }
+  const c = d.counts;
+  $('tasks-sub').textContent = c.total + ' open tasks assigned to you, due today or earlier.';
+  $('tasks-chip').className = 'chip jade';
+  $('tasks-chip').textContent = 'ClickUp live';
+  $('tasks-stats').innerHTML = [
+    { eyebrow: 'Due today', value: String(c.dueToday), meta: 'not yet late', tone: c.dueToday ? 'flat' : 'up' },
+    { eyebrow: 'Overdue', value: String(c.overdue), meta: c.overdue ? 'past due date' : 'all clear', tone: c.overdue ? 'down' : 'up' },
+    { eyebrow: 'Total open', value: String(c.total), meta: 'assigned to you', tone: 'flat' },
+    { eyebrow: 'Spaces', value: String(d.groups.length), meta: 'carrying work', tone: 'flat' }
+  ].map(statTile).join('');
+  $('tasks-groups').innerHTML = d.groups.map(g =>
+    '<div class="card flush"><div class="cardhead"><h3>' + esc(g.name) + '</h3>'
+    + '<span class="eyebrow">' + g.count + ' open</span></div><div class="cardbody">'
+    + g.tasks.map(t =>
+        '<div class="row"><span class="check" data-check></span>'
+        + '<span class="main"><b>' + esc(t.title) + '</b><small>' + esc(t.sub) + '</small></span></div>'
+      ).join('')
+    + '</div></div>'
+  ).join('') || '<div class="card"><small style="color:var(--dimmer)">Nothing open.</small></div>';
+}
+
+function renderSystems(d){
+  if (!d) {
+    $('sys-sub').textContent = 'n8n is not connected.';
+    $('sys-chip').className = 'chip brass';
+    $('sys-chip').textContent = 'Not configured';
+    $('sys-stats').innerHTML = '';
+    unavailable($('sys-rows'), 'Set N8N_BASE_URL and N8N_API_KEY.');
+    return;
+  }
+  const c = d.counts;
+  $('sys-sub').textContent = c.active + ' of ' + c.total + ' workflows active · '
+    + c.runs24h + (c.capped ? '+' : '') + ' runs in the last 24h.';
+  $('sys-chip').className = 'chip jade';
+  $('sys-chip').textContent = 'n8n live';
+  $('sys-stats').innerHTML = [
+    { eyebrow: 'Active workflows', value: String(c.active), meta: c.inactive + ' inactive', tone: 'flat' },
+    { eyebrow: 'Runs · 24h', value: c.runs24h.toLocaleString() + (c.capped ? '+' : ''), meta: c.capped ? 'sample capped at 250' : 'complete', tone: 'flat' },
+    { eyebrow: 'Failures · 24h', value: String(c.failures24h), meta: c.errorRate + '% error rate', tone: c.failures24h ? 'down' : 'up' },
+    { eyebrow: 'Total workflows', value: String(c.total), meta: 'in this instance', tone: 'flat' }
+  ].map(statTile).join('');
+  $('sys-rows').innerHTML = d.rows.map(r =>
+    '<div class="sys"><span class="dot ' + (['ok','warn','off'].includes(r.state) ? r.state : 'warn') + '"></span>'
+    + '<span class="name"><b>' + esc(r.name) + '</b><small>' + esc(r.detail) + '</small></span>'
+    + '<span class="spark">' + (r.spark || []).map(b =>
+        '<i class="' + (b.failed ? 'f' : '') + '" style="height:' + Math.max(4, Math.min(100, b.height)) + '%"></i>'
+      ).join('') + '</span>'
+    + chip(r.chip) + '</div>'
+  ).join('') || '<div class="row"><span class="main"><small>No workflows.</small></span></div>';
+}
+
 /* ---------- boot ---------- */
 
 async function hydrate(){
@@ -180,6 +283,14 @@ async function hydrate(){
   renderStats(ov.stats);
   renderToday(ov.today);
   renderTasks(ov.tasks);
+
+  const st = d.sources || {};
+  $('today-src').textContent = 'Calendar · no connector';
+  $('tasks-src').textContent = st.clickup?.status === 'ok' ? 'ClickUp · live' : 'ClickUp · not connected';
+
+  renderInbox(d.inbox);
+  renderTasksView(d.tasks);
+  renderSystems(d.systems);
 }
 
 document.addEventListener('click', e => {
