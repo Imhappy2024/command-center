@@ -106,6 +106,12 @@ app.listen(PORT, '0.0.0.0', async () => {
   const connected = Object.keys(await store.all()).filter(k => k.startsWith('oauth:'));
   if (connected.length) console.log(`  connected: ${connected.map(k => k.slice(6)).join(', ')}`);
 
+  /* Always write a payload on boot, even with nothing configured. DATA_FILE may
+     sit on a freshly mounted volume where the committed placeholder does not
+     exist, and /api/data 503s on a missing file — which would replace the
+     Connect UI with "data source unreachable" at exactly the wrong moment. */
+  await refresh('boot');
+
   const hasEnvSource = Boolean(
     env.CLICKUP_TOKEN || env.N8N_API_KEY || env.GOOGLE_REFRESH_TOKEN ||
     env.GOOGLE_SERVICE_ACCOUNT_JSON || env.MS_CLIENT_SECRET
@@ -115,7 +121,6 @@ app.listen(PORT, '0.0.0.0', async () => {
     return;
   }
 
-  refresh('boot');
   if (REFRESH_MINUTES > 0) {
     console.log(`  refreshing every ${REFRESH_MINUTES}m`);
     setInterval(() => refresh('interval'), REFRESH_MINUTES * 60_000).unref();
