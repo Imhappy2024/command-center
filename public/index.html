@@ -768,6 +768,8 @@ main{min-width:0;display:flex;flex-direction:column}
       </div>
     </div>
 
+    <div class="err" id="ib-banner" hidden></div>
+
     <div class="mailwrap" id="ib-wrap">
       <div class="card flush maillist">
         <div class="cardhead">
@@ -840,13 +842,34 @@ main{min-width:0;display:flex;flex-direction:column}
           <button class="prov" data-prov="Microsoft"><span class="pv-ic" style="--pv:#5B8DEF">M</span><span class="pv-t"><b>Microsoft</b><small>Outlook, Microsoft 365, Hotmail</small></span><span class="chip">OAuth</span></button>
           <button class="prov" data-prov="IMAP"><span class="pv-ic" style="--pv:#4E9E7E">@</span><span class="pv-t"><b>Other (IMAP)</b><small>Any host with an app password</small></span><span class="chip">Manual</span></button>
         </div>
-        <div class="sheetnote mono">Connecting opens the provider's own sign-in. This prototype fakes it and lets you name the mailbox yourself.</div>
+        <div class="sheetnote mono">Google and Microsoft open their own sign-in, where you choose which address to connect. One grant covers mail and calendar. IMAP asks for a host and an app password instead.</div>
       </div>
 
       <div id="ib-step2" hidden>
         <div class="form">
-          <label class="fld"><span class="eyebrow">Email address</span>
-            <input id="ib-email" placeholder="name@yourdomain.com" autocomplete="off"></label>
+          <!-- IMAP only. Google and Microsoft report the address themselves, so
+               asking for it here would only let the two disagree. -->
+          <div id="ib-imapfld" hidden>
+            <label class="fld"><span class="eyebrow">Email address</span>
+              <input id="ib-email" placeholder="name@yourdomain.com" autocomplete="off"></label>
+
+            <label class="fld"><span class="eyebrow">App password</span>
+              <input id="ib-pass" type="password" autocomplete="new-password">
+              <small class="hint">Generate one at your host. Not your main account password.</small></label>
+
+            <label class="fld"><span class="eyebrow">IMAP host</span>
+              <input id="ib-imaphost" placeholder="imap.yourhost.com" autocomplete="off"></label>
+
+            <label class="fld"><span class="eyebrow">IMAP port</span>
+              <input id="ib-imapport" value="993" inputmode="numeric" autocomplete="off"></label>
+
+            <label class="fld"><span class="eyebrow">SMTP host</span>
+              <input id="ib-smtphost" placeholder="same as IMAP host" autocomplete="off">
+              <small class="hint">Leave blank to reuse the IMAP host. Needed to send.</small></label>
+
+            <label class="fld"><span class="eyebrow">SMTP port</span>
+              <input id="ib-smtpport" value="465" inputmode="numeric" autocomplete="off"></label>
+          </div>
 
           <label class="fld"><span class="eyebrow">Label</span>
             <input id="ib-label" placeholder="Business Email" maxlength="24" autocomplete="off">
@@ -1073,6 +1096,11 @@ const PALETTE = ['#D9A441','#4E9E7E','#5B8DEF','#C2553F','#B07FD4','#4FB8A8','#E
 
 let ACCOUNTS = [];
 
+/* Folder totals from the server, so a folder that is not currently loaded still
+   counts. Null while the demo switch is on, where MAIL holds everything. */
+let COUNTS = null;
+let PER = {};
+
 let MAIL = [];
 
 const FOLDERS = [
@@ -1113,7 +1141,12 @@ function mountSubnav(){
 
 function drawSubnav(){
   if (!subnavEl) return;
-  const unreadIn = f => MAIL.filter(m => m.folder === 'inbox' && m.unread && (!f || m.acct === f)).length;
+  /* Server-side tallies. Only one folder's messages are loaded at a time, so
+     counting the loaded list would show zero against every other folder. Falls
+     back to counting MAIL, which is what the demo switch relies on. */
+  const unreadIn = f => (f ? PER[f]?.inboxUnread : COUNTS?.inboxUnread)
+    ?? MAIL.filter(m => m.folder === 'inbox' && m.unread && (!f || m.acct === f)).length;
+  const totalIn = key => COUNTS?.[key] ?? (MAIL.filter(m => m.folder === key).length || '');
   const row = (key, label, count, color, broken) =>
     '<button class="subitem' + (IB.folder === key ? ' on' : '') + (broken ? ' broken' : '') + '" data-folder="' + key + '">'
     + '<span class="sdot" style="--c:' + (color || 'var(--dimmer)') + '"></span>'
@@ -1126,15 +1159,16 @@ function drawSubnav(){
     ? ACCOUNTS.map(a => row('a:' + a.id, a.label, unreadIn(a.id), a.color, a.status !== 'ok')).join('')
     : '<div class="subempty">None connected</div>';
   html += '<div class="subhead">Folders</div>';
-  html += FOLDERS.map(f =>
-    row(f.key, f.label, MAIL.filter(m => m.folder === f.key).length)).join('');
-  html += row('archive', 'Archive', MAIL.filter(m => m.folder === 'archive').length);
+  html += FOLDERS.map(f => row(f.key, f.label, totalIn(f.key))).join('');
+  html += row('archive', 'Archive', totalIn('archive'));
   html += '<button class="subadd" id="ib-subadd">+ Connect email</button>';
 
   subnavEl.innerHTML = html;
   subnavEl.querySelectorAll('[data-folder]').forEach(b => b.onclick = () => {
     IB.folder = b.dataset.folder; IB.open = null;
-    drawAll();
+    banner(null);
+    // Each folder is its own fetch, so switching reloads rather than filtering.
+    drawAll(); load();
   });
   document.getElementById('ib-subadd').onclick = openModal;
 }
@@ -1204,16 +1238,20 @@ function drawList(){
       + '</div>';
   }).join('');
 
+  /* Provider message ids are opaque strings — Gmail's are hex, Graph's are long
+     base64, IMAP's are folder:uid. Number() would make every one NaN. */
   listEl.querySelectorAll('.msg').forEach(el => el.onclick = e => {
     if (e.target.closest('[data-star]')) return;
-    const m = MAIL.find(x => x.id === Number(el.dataset.id));
-    if (m.folder === 'inbox') m.unread = false;
-    IB.open = m.id; IB.composing = null; drawAll();
+    IB.composing = null;
+    openMessage(el.dataset.id);
   });
   listEl.querySelectorAll('[data-star]').forEach(b => b.onclick = e => {
     e.stopPropagation();
-    const m = MAIL.find(x => x.id === Number(b.dataset.star));
-    m.star = !m.star; drawAll();
+    const m = MAIL.find(x => x.id === b.dataset.star);
+    if (!m) return;
+    commit(() => { m.star = !m.star; },
+           () => { m.star = !m.star; },
+           () => post(`${msgUrl(m)}/star`, { star: m.star }));
   });
 }
 
@@ -1287,22 +1325,68 @@ function drawReader(){
           : '')
     + '</div></div>';
 
-  el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+  /* Optimistic: mutate, draw, then send. On failure put it back and say why.
+     The local half was already here; the fetch is what has been added. */
+  el.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
     const a = b.dataset.act;
     if (a === 'compose') { IB.composing = m.id; drawReader(); return; }
-    if (a === 'unread')  { m.unread = true; IB.open = null; }
-    if (a === 'star')    { m.star = !m.star; }
-    if (a === 'reply')   { m.reply = !m.reply; }
-    if (a === 'archive') { m.folder = m.folder === 'archive' ? 'inbox' : 'archive'; IB.open = null; }
-    if (a === 'trash')   { m.folder = 'trash'; IB.open = null; }
-    if (a === 'restore' || a === 'notspam') { m.folder = 'inbox'; IB.open = null; }
-    if (a === 'purge' || a === 'discard') { MAIL = MAIL.filter(x => x.id !== m.id); IB.open = null; }
-    if (a === 'send')    { if (m.folder === 'drafts') { MAIL = MAIL.filter(x => x.id !== m.id); IB.open = null; }
-                           else { b.textContent = 'Sent'; b.disabled = true; return; } }
-    if (a === 'draft' || a === 'task' || a === 'edit') {
-      b.textContent = a === 'task' ? 'Sent to ClickUp' : a === 'edit' ? 'Editing' : 'Saved';
-      b.disabled = true; return;
+
+    if (a === 'star')  return commit(() => { m.star = !m.star; },
+                                     () => { m.star = !m.star; },
+                                     () => post(`${msgUrl(m)}/star`, { star: m.star }));
+
+    if (a === 'unread') return commit(() => { m.unread = true; IB.open = null; },
+                                      () => { m.unread = false; IB.open = m.id; },
+                                      () => post(`${msgUrl(m)}/read`, { read: false }));
+
+    if (a === 'archive' || a === 'trash' || a === 'restore' || a === 'notspam') {
+      const was = m.folder;
+      const to = a === 'archive' ? (was === 'archive' ? 'inbox' : 'archive')
+               : a === 'trash'   ? 'trash'
+               : 'inbox';
+      return commit(() => { MAIL = MAIL.filter(x => x.id !== m.id); IB.open = null; },
+                    () => { m.folder = was; IB.open = m.id; },
+                    () => post(`${msgUrl(m)}/move`, { folder: to }));
     }
+
+    if (a === 'purge' || a === 'discard') {
+      const was = m.folder;
+      return commit(() => { MAIL = MAIL.filter(x => x.id !== m.id); IB.open = null; },
+                    () => { m.folder = was; IB.open = m.id; },
+                    () => api(msgUrl(m), { method: 'DELETE' }));
+    }
+
+    if (a === 'send') {
+      const box = el.querySelector('.compose textarea');
+      const text = (box?.value || '').trim();
+      if (!text)   return banner('Write something before sending.');
+      if (!m.addr) return banner('This message has no reply address.');
+      b.disabled = true; b.textContent = 'Sending…';
+      try {
+        await post(`/api/mail/${encodeURIComponent(m.acct)}/send`, {
+          to: m.addr,
+          subject: isDraft || /^re:/i.test(m.subject) ? m.subject : 'Re: ' + m.subject,
+          body: text
+        });
+        banner('Sent to ' + m.addr, 'ok');
+        IB.open = null; IB.composing = null;
+        await load();
+      } catch (err) {
+        b.disabled = false; b.textContent = 'Send';
+        banner(err.message);
+      }
+      return;
+    }
+
+    /* 'draft' and 'task' have no endpoint in the API. Rather than report a
+       success that did not happen, say so. */
+    if (a === 'draft' || a === 'task') {
+      banner(a === 'draft'
+        ? 'Saving drafts is not wired yet — there is no draft-write endpoint.'
+        : 'Sending to tasks is not wired yet — no task source is connected.');
+      return;
+    }
+
     drawAll();
   });
 }
@@ -1351,9 +1435,24 @@ function openModal(){
   document.getElementById('ib-step2').hidden = true;
   document.getElementById('ib-mtitle').textContent = 'Connect an account';
   document.getElementById('ib-mdesc').textContent  = "One sign-in covers mail and calendar. You'll sign in on the provider's page, not here.";
-  document.getElementById('ib-email').value = '';
-  document.getElementById('ib-label').value = '';
+  ['ib-email','ib-label','ib-pass','ib-imaphost','ib-smtphost'].forEach(id => {
+    const f = document.getElementById(id); if (f) f.value = '';
+  });
+  document.getElementById('ib-imapport').value = '993';
+  document.getElementById('ib-smtpport').value = '465';
   const e0 = document.getElementById('ib-err'); if (e0) e0.hidden = true;
+
+  /* A provider with no client id on the server cannot complete a round trip, so
+     it is shown disabled with the reason rather than failing after the click. */
+  document.querySelectorAll('.prov').forEach(b => {
+    const cfg = PROVIDERS_CFG[b.dataset.prov.toLowerCase()];
+    const ready = CAN_CONNECT && (!cfg || cfg.configured !== false);
+    b.disabled = !ready;
+    b.style.opacity = ready ? '' : '.45';
+    b.style.cursor = ready ? '' : 'not-allowed';
+    b.title = ready ? '' : (cfg?.setupHint || 'Connecting is disabled on the server.');
+  });
+
   modal().hidden = false;
 }
 const closeModal = () => { modal().hidden = true; };
@@ -1382,41 +1481,76 @@ function step2(provider){
   document.getElementById('ib-step1').hidden = true;
   document.getElementById('ib-step2').hidden = false;
   document.getElementById('ib-mtitle').textContent = 'Name this mailbox';
-  document.getElementById('ib-mdesc').textContent =
-    provider + ' signed in. Name it and pick a colour. Both the mailbox and its calendar will use these.';
+
+  /* Nothing has been signed into yet — the label and colour are chosen first and
+     ride through the round trip, so the account arrives already named. */
+  const isImap = provider === 'IMAP';
+  document.getElementById('ib-mdesc').textContent = isImap
+    ? 'Enter the mailbox details, then name it and pick a colour.'
+    : `Name it and pick a colour, then continue to ${provider} to choose which address to connect. `
+      + 'Both the mailbox and its calendar will use these.';
+
+  document.getElementById('ib-imapfld').hidden = !isImap;
+  document.getElementById('ib-save').textContent = isImap ? 'Connect account' : `Continue to ${provider}`;
   document.getElementById('ib-label').placeholder =
     provider === 'Google' ? 'Business Email' : provider === 'Microsoft' ? 'Work Outlook' : 'Support Inbox';
+
   drawSwatches(); updatePreview();
-  document.getElementById('ib-email').focus();
+  document.getElementById(isImap ? 'ib-email' : 'ib-label').focus();
 }
 
-function saveAccount(){
-  const email = document.getElementById('ib-email').value.trim();
+async function saveAccount(){
   const label = document.getElementById('ib-label').value.trim();
   const errEl = document.getElementById('ib-err');
   const bad = m => { errEl.textContent = m; errEl.hidden = false; return false; };
   errEl.hidden = true;
-  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bad('Enter a valid email address.');
+
   if (!label) return bad('Give the mailbox a label.');
+
+  /* Google and Microsoft: hand off to the provider's own chooser, carrying the
+     label and colour so the account lands already named. The address is whatever
+     is picked there — one grant covers mail and calendar, so there is no second
+     step for the calendar. */
+  if (NEW.provider !== 'IMAP') {
+    window.location = '/connect/' + NEW.provider.toLowerCase()
+      + '?label=' + encodeURIComponent(label)
+      + '&color=' + encodeURIComponent(NEW.color);
+    return true;
+  }
+
+  const email = document.getElementById('ib-email').value.trim();
+  const password = document.getElementById('ib-pass').value;
+  const imapHost = document.getElementById('ib-imaphost').value.trim();
+
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bad('Enter a valid email address.');
+  if (!password) return bad('Enter the app password for this mailbox.');
+  if (!imapHost) return bad('Enter the IMAP host.');
   if (ACCOUNTS.some(a => a.email.toLowerCase() === email.toLowerCase()))
     return bad('That address is already connected.');
 
-  const id = 'acct' + Date.now().toString(36);
-  ACCOUNTS.push({ id, email, label, provider:NEW.provider, color:NEW.color, status:'ok' });
-  MAIL.unshift({
-    id: Date.now(), acct:id, folder:'inbox', from:'Mailbox sync', addr:'sync@' + NEW.provider.toLowerCase() + '.local',
-    subject:'Connected ' + email, snippet:'Initial sync finished. Older mail will backfill in the background.',
-    time:'now', unread:true, star:false, reply:false,
-    body:"Connected " + email + " via " + NEW.provider + ".\n\nLabelled \"" + label + "\" and colour-coded in the sidebar.\n\nInitial sync pulled the last 30 days. Older mail backfills in the background and will appear as it lands."
-  });
-  const now = new Date(); now.setMinutes(0, 0, 0);
-  const soon = new Date(now.getTime() + 3600_000), soonEnd = new Date(now.getTime() + 5400_000);
-  EVENTS.push({ id:'cal' + id, cal:id, title:'Calendar connected', start:soon, end:soonEnd,
-                location:'', attendees:'', allDay:false });
-
-  closeModal();
-  IB.folder = 'a:' + id; IB.open = null;
-  drawAll(); drawCal();
+  const btn = document.getElementById('ib-save');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  try {
+    // The server proves the credentials against the host before storing them.
+    const out = await api('/connect/imap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email, password, imapHost, label, color: NEW.color,
+        imapPort: document.getElementById('ib-imapport').value,
+        smtpHost: document.getElementById('ib-smtphost').value.trim(),
+        smtpPort: document.getElementById('ib-smtpport').value
+      })
+    });
+    closeModal();
+    banner('Connected ' + out.email, 'ok');
+    IB.folder = 'a:' + out.id; IB.open = null;
+    await load();
+  } catch (err) {
+    bad(err.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Connect account';
+  }
 }
 
 /* ---------- wiring ---------- */
@@ -1472,14 +1606,13 @@ function makeSplitter(wrapId, gutterId, def){
 makeSplitter('ib-wrap', 'ib-gutter', 32);
 
 document.getElementById('ib-demo').onclick = toggleDemo;
-document.getElementById('ib-refresh').onclick = e => {
+document.getElementById('ib-refresh').onclick = async e => {
   const b = e.currentTarget;
   b.textContent = 'Syncing\u2026'; b.disabled = true;
-  setTimeout(() => { b.textContent = 'Refresh'; b.disabled = false; drawAll(); }, 900);
+  try { await load(); }
+  finally { b.textContent = 'Refresh'; b.disabled = false; }
 };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal().hidden) closeModal(); });
-
-drawAll();
 
 /* ================= CALENDAR =================
    Calendars are not a separate connection. Each entry in ACCOUNTS is both a
@@ -1489,7 +1622,10 @@ drawAll();
 
 let EVENTS = [];
 
-const CAL = { view:'week', anchor:new Date(), hidden:new Set(), sel:null, demo:true };
+/* demo starts off: the boot state is real data. The switch is still here so the
+   design can be judged against populated views — pressing it turns demo on,
+   pressing it again reloads from the API. */
+const CAL = { view:'week', anchor:new Date(), hidden:new Set(), sel:null, demo:false };
 
 const DAY_START = 6, DAY_END = 22, ROWH = 46;
 const DAYNAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -1718,11 +1854,21 @@ function clearDemo(){ ACCOUNTS = []; MAIL = []; EVENTS = []; LOCATIONS = []; LEA
 /* One switch drives every view that has a data contract. */
 function toggleDemo(){
   CAL.demo = !CAL.demo;
-  CAL.demo ? buildDemo() : clearDemo();
   CAL.hidden.clear(); CAL.sel = null; CAL.anchor = new Date();
   IB.folder = 'open'; IB.open = null;
   LD.loc = 'all'; LD.stage = 'all'; LD.sel = null;
+  COUNTS = null; PER = {};
+
+  if (CAL.demo) {
+    buildDemo();
+    banner('Showing demo data. Press Demo data again to reload the real thing.');
+    drawAll(); drawCal(); drawLeads(); drawSocial();
+    return;
+  }
+  clearDemo();
+  banner(null);
   drawAll(); drawCal(); drawLeads(); drawSocial();
+  load();
 }
 
 /* ---------- overlap lanes ---------- */
@@ -1953,7 +2099,11 @@ function drawCal(){
 
 function drawSources(){
   const box = document.getElementById('cal-sources');
-  box.innerHTML = ACCOUNTS.map(c =>
+  /* Only accounts that actually carry a calendar. IMAP has mail and nothing
+     else, so listing it here would leave a toggle that is empty forever. */
+  box.innerHTML = ACCOUNTS
+    .filter(c => !c.feeds || c.feeds.includes('calendar'))
+    .map(c =>
     '<button class="calsrc' + (CAL.hidden.has(c.id) ? ' off' : '') + '" data-cal="' + c.id + '" style="--c:' + c.color + '">'
     + '<span class="cb"></span><span>' + escC(c.label) + '</span></button>').join('');
   box.querySelectorAll('[data-cal]').forEach(b => b.onclick = () => {
@@ -2311,14 +2461,24 @@ function ldSave(){
   if (!name) return fail('Give the sub-account a label.');
   if (LOCATIONS.some(l => l.id === locId)) return fail('That sub-account is already connected.');
 
-  /* Backend: POST /api/ghl/locations { locationId, token, label, color }
-     Server calls GET /locations/{id} to verify the token before storing it. */
-  const short = name.split(' ')[0];
-  LOCATIONS.push({ id:locId, name, short, color:LDNEW.color, status:'ok' });
-  ldClose();
-  LD.loc = locId; LD.sel = null;
-  syncPulse('Sub-account connected');
-  drawLeads();
+  /* The server calls GET /locations/{id} with the token before storing it, so a
+     bad token or missing scopes surfaces here rather than as an empty pipeline. */
+  const btn = document.getElementById('ld-save');
+  btn.disabled = true;
+  const was = btn.textContent;
+  btn.textContent = 'Verifying…';
+
+  return api('/api/ghl/locations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ locationId: locId, token, label: name, color: LDNEW.color })
+  }).then(async () => {
+    ldClose();
+    LD.loc = locId; LD.sel = null;
+    syncPulse('Sub-account connected');
+    await load();
+  }).catch(err => fail(err.message))
+    .finally(() => { btn.disabled = false; btn.textContent = was; });
 }
 
 document.getElementById('ld-close').onclick  = ldClose;
@@ -2525,11 +2685,193 @@ document.getElementById('so-range').onchange = e => { SO.range = e.target.value;
 document.getElementById('so-connect').onclick = soConnect;
 
 
-buildDemo();
-drawAll();
-drawCal();
-drawLeads();
-drawSocial();
+/* ================= LOADERS =================
+   Everything above renders from the nine state arrays. This is the only thing
+   that fills them. Nothing above was rewritten to accommodate it: if a view
+   renders wrong the normalisation is wrong, and the fix belongs in the backend.
+
+   The demo switch stays. buildDemo() is now opt-in rather than the boot state,
+   so pressing "Demo data" turns it on and pressing it again reloads real data. */
+
+let CAN_CONNECT = true;
+let PROVIDERS_CFG = {};
+
+async function api(url, options){
+  const r = await fetch(url, options);
+  const body = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(body.error || `${r.status} ${r.statusText}`);
+  return body;
+}
+
+const post = (url, body) => api(url, {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(body || {})
+});
+
+const msgUrl = m => `/api/mail/${encodeURIComponent(m.acct)}/${encodeURIComponent(m.id)}`;
+
+function banner(text, kind){
+  const el = document.getElementById('ib-banner');
+  if (!el) return;
+  if (!text) { el.hidden = true; return; }
+  el.textContent = text;
+  el.hidden = false;
+  el.style.borderColor = kind === 'ok' ? '#4E9E7E55' : '';
+  el.style.color = kind === 'ok' ? '#4E9E7E' : '';
+}
+
+/* Optimistic action: apply, draw, send, and on failure undo and explain. */
+async function commit(apply, undo, request){
+  banner(null);
+  apply();
+  drawAll();
+  try {
+    await request();
+    await load();
+  } catch (err) {
+    undo();
+    banner(err.message);
+    drawAll();
+  }
+}
+
+/* The window the calendar is currently showing, padded by a day either side so
+   an event overlapping the edge still renders. */
+function visibleRange(){
+  const a = CAL.anchor;
+  let from, to;
+  if (CAL.view === 'day')        { from = startOfDay(a); to = addDays(from, 1); }
+  else if (CAL.view === 'week')  { from = mondayOf(a);   to = addDays(from, 7); }
+  else {
+    from = new Date(a.getFullYear(), a.getMonth(), 1);
+    to = new Date(a.getFullYear(), a.getMonth() + 1, 1);
+  }
+  return { from: addDays(from, -1).toISOString(), to: addDays(to, 1).toISOString() };
+}
+
+/* Bodies are fetched on open, not with the list: pulling 25 full messages per
+   mailbox on every load is an order of magnitude more traffic for text nobody
+   has asked to read. Cached so a reload does not blank the open message. */
+const BODIES = new Map();
+
+let loading = false;
+async function load(){
+  if (loading || CAL.demo) return;
+  loading = true;
+  try {
+    const acc = await api('/api/accounts');
+    ACCOUNTS = acc.accounts;
+    CAN_CONNECT = acc.canConnect;
+    PROVIDERS_CFG = acc.providers || {};
+
+    const folder = IB.folder === 'open' || IB.folder.startsWith('a:') ? 'inbox' : IB.folder;
+    const acct = IB.folder.startsWith('a:') ? IB.folder.slice(2) : 'all';
+    const range = visibleRange();
+
+    /* Independent fetches, so one integration being unconfigured never blanks
+       the others. Anything that rejects leaves its array empty and reports. */
+    const [mail, cal, locs, leads, social, ads, posts] = await Promise.allSettled([
+      ACCOUNTS.length ? api(`/api/mail?folder=${encodeURIComponent(folder)}&account=${encodeURIComponent(acct)}`) : null,
+      ACCOUNTS.length ? api(`/api/calendar?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&account=all`) : null,
+      api('/api/ghl/locations'),
+      api('/api/ghl/leads?location=' + encodeURIComponent(LD.loc) + '&stage=' + encodeURIComponent(LD.stage)),
+      api('/api/social?range=' + encodeURIComponent(SO.range)),
+      api('/api/social/ads?range=' + encodeURIComponent(SO.range)),
+      api('/api/social/posts?range=' + encodeURIComponent(SO.range))
+    ]);
+
+    const val = (r, key, fallback) =>
+      r.status === 'fulfilled' && r.value ? (r.value[key] ?? fallback) : fallback;
+
+    MAIL = val(mail, 'messages', []);
+    MAIL.forEach(m => { if (BODIES.has(m.id)) m.body = BODIES.get(m.id); });
+    COUNTS = val(mail, 'counts', null);
+    PER = val(mail, 'perAccount', {});
+
+    /* Dates, not strings. The time grid and the open-blocks finder do arithmetic
+       on these and fail silently otherwise. */
+    EVENTS = val(cal, 'events', []).map(e => ({
+      ...e,
+      start: parseWhen(e.start, e.allDay),
+      end: parseWhen(e.end, e.allDay)
+    })).filter(e => e.start && e.end);
+
+    LOCATIONS = val(locs, 'locations', []);
+    LEADS = val(leads, 'leads', []);
+    SOCIAL = val(social, 'platforms', []);
+    ADS = val(ads, 'ads', null);
+    POSTS = val(posts, 'posts', []);
+
+    const warnings = [mail, cal, locs, leads]
+      .flatMap(r => (r.status === 'fulfilled' && r.value?.warnings) || [])
+      .map(w => `${w.label || w.account}: ${w.error}`);
+    banner(warnings.length ? warnings.join(' · ') : null);
+
+    drawAll(); drawCal(); drawLeads(); drawSocial();
+  } catch (err) {
+    banner('Could not load: ' + err.message);
+    drawAll(); drawCal(); drawLeads(); drawSocial();
+  } finally {
+    loading = false;
+  }
+}
+
+/* All-day events arrive as date-only strings. new Date('2026-08-20') parses as
+   UTC midnight, which lands on the 19th anywhere west of Greenwich and puts the
+   event in the wrong column. Split and build it in local time instead. */
+function parseWhen(value, allDay){
+  if (!value) return null;
+  if (allDay && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [y, m, d] = value.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+async function openMessage(id){
+  const m = MAIL.find(x => x.id === id);
+  if (!m) return;
+  IB.open = m.id;
+  const wasUnread = m.unread;
+  if (wasUnread) m.unread = false;
+  drawAll();
+  try {
+    if (wasUnread && m.folder === 'inbox') await post(`${msgUrl(m)}/read`, { read: true });
+    if (m.body == null) {
+      const out = await api(`${msgUrl(m)}?folder=${encodeURIComponent(m.folder)}`);
+      m.body = out.message?.body ?? '';
+      BODIES.set(m.id, m.body);
+    }
+    drawAll();
+    if (wasUnread) await load();
+  } catch (err) {
+    if (wasUnread) m.unread = true;
+    banner(err.message);
+    drawAll();
+  }
+}
+
+/* The OAuth callback returns to /#inbox?connected=<email> or ?error=<msg>. Show
+   it once, then strip the query so a refresh does not repeat it. */
+function readHash(){
+  const raw = location.hash.replace(/^#/, '');
+  if (!raw) return;
+  const [view, qs] = raw.split('?');
+  if (view) {
+    const item = document.querySelector('.navitem[data-target="' + view + '"]');
+    if (item) item.click();
+  }
+  if (!qs) return;
+  const q = new URLSearchParams(qs);
+  if (q.get('connected')) banner('Connected ' + q.get('connected'), 'ok');
+  if (q.get('error')) banner(q.get('error'));
+  history.replaceState(null, '', location.pathname + (view ? '#' + view : ''));
+}
+
+readHash();
+load();
 
 </script>
 

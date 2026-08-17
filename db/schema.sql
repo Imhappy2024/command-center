@@ -30,3 +30,24 @@ ALTER TABLE accounts ADD COLUMN IF NOT EXISTS imap_host TEXT;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS imap_port INTEGER;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS smtp_host TEXT;
 ALTER TABLE accounts ADD COLUMN IF NOT EXISTS smtp_port INTEGER;
+
+/* Not every connection is an OAuth grant. GHL issues Private Integration
+   Tokens: long-lived, manually rotated, with nothing to refresh. auth_kind
+   distinguishes them so the refresh path knows to leave them alone, and meta
+   carries whatever else a provider needs without a column per provider. */
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS auth_kind TEXT NOT NULL DEFAULT 'oauth';
+ALTER TABLE accounts ADD COLUMN IF NOT EXISTS meta JSONB NOT NULL DEFAULT '{}';
+
+/* Inbound webhooks are written here raw and processed asynchronously, so a slow
+   handler never makes the sender retry into a duplicate. */
+CREATE TABLE IF NOT EXISTS webhook_events (
+  id          BIGSERIAL PRIMARY KEY,
+  provider    TEXT NOT NULL,
+  event_type  TEXT NOT NULL,
+  external_id TEXT,
+  payload     JSONB NOT NULL,
+  received_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  processed   BOOLEAN NOT NULL DEFAULT false
+);
+
+CREATE INDEX IF NOT EXISTS wh_unprocessed ON webhook_events (provider, processed) WHERE NOT processed;
