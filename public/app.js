@@ -251,17 +251,15 @@ function connectStrip(providerNames, from){
   ).join('');
 }
 
-/* Offered under a populated view, so a second or third mailbox can be added
-   without going back to the Connections page. */
-function addAnother(from){
-  if (!CONN?.canConnect) return '';
-  const open = CONN.providers.filter(p => p.configured);
-  if (!open.length) return '';
-  return '<div class="conn" style="border-top:1px solid #1C232A">'
-    + '<span class="who"><small style="color:var(--dimmer)">Add another mailbox</small></span>'
-    + open.map(p => '<a class="btn" href="/connect/' + esc(p.name) + '?return=' + esc(from) + '">'
-        + esc(p.label) + '</a>').join('')
-    + '</div>';
+/* Header action, so adding a second account never means scrolling past a
+   screenful of email to find it. */
+function headerConnect(el, from, verb){
+  if (!el) return;
+  const open = CONN?.canConnect ? CONN.providers.filter(p => p.configured) : [];
+  el.innerHTML = open.map(p =>
+    '<a class="btn primary" href="/connect/' + esc(p.name) + '?return=' + esc(from) + '">'
+    + esc(verb) + ' ' + esc(p.label) + '</a>'
+  ).join('');
 }
 
 function renderProblem(els, keys, sources, hint){
@@ -289,6 +287,7 @@ function renderProblem(els, keys, sources, hint){
 }
 
 function renderInbox(d, sources){
+  headerConnect($('inbox-connect'), 'inbox', d ? 'Add' : 'Connect');
   if (!d) {
     renderProblem(
       { sub: $('inbox-sub'), chip: $('inbox-chip'), stats: $('inbox-stats'), body: $('inbox-rows') },
@@ -327,8 +326,7 @@ function renderInbox(d, sources){
     + '<small>' + esc(m.snippet.slice(0, 110)) + '</small></span>'
     + (many && m.account ? '<span class="chip">' + esc(m.account) + '</span>' : '')
     + '<span class="right">' + esc(m.at) + '</span></div>'
-  ).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>')
-    + addAnother('inbox');
+  ).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>');
 }
 
 function renderTasksView(d, sources){
@@ -363,6 +361,7 @@ function renderTasksView(d, sources){
 }
 
 function renderCalendar(d, sources){
+  headerConnect($('cal-connect'), 'calendar', d ? 'Add' : 'Connect');
   if (!d) {
     const bad = renderProblem(
       { sub: $('cal-sub'), chip: $('cal-chip'), body: $('cal-today') },
@@ -411,8 +410,6 @@ function renderCalendar(d, sources){
     + '<span class="main"><b>' + esc(b.range) + '</b><small>' + esc(b.note) + '</small></span>'
     + chip(b.chip) + '</div>'
   ).join('') || '<div class="row"><span class="main"><small>No open blocks left this week.</small></span></div>';
-
-  $('cal-today').innerHTML += addAnother('calendar');
 }
 
 function renderSystems(d, sources){

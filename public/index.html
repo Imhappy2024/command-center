@@ -361,7 +361,13 @@ main{min-width:0;display:flex;flex-direction:column}
 
   <!-- INBOX -->
   <section class="view" id="v-inbox" role="tabpanel" aria-labelledby="tab-inbox">
-    <div class="vhead"><div><h1>Inbox</h1><p id="inbox-sub">Loading…</p></div><span class="chip" id="inbox-chip">Gmail</span></div>
+    <div class="vhead">
+      <div><h1>Inbox</h1><p id="inbox-sub">Loading…</p></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="chip" id="inbox-chip">Mail</span>
+        <span id="inbox-connect" style="display:flex;gap:8px"></span>
+      </div>
+    </div>
     <div class="grid g4" id="inbox-stats" style="margin-bottom:14px"></div>
     <div class="card flush">
       <div class="cardhead"><h3>Newest unread</h3><span class="eyebrow" id="inbox-count">—</span></div>
@@ -371,7 +377,13 @@ main{min-width:0;display:flex;flex-direction:column}
 
   <!-- CALENDAR -->
   <section class="view" id="v-calendar" role="tabpanel" aria-labelledby="tab-calendar">
-    <div class="vhead"><div><h1>Calendar</h1><p id="cal-sub">Loading…</p></div><span class="chip" id="cal-chip">Outlook</span></div>
+    <div class="vhead">
+      <div><h1>Calendar</h1><p id="cal-sub">Loading…</p></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="chip" id="cal-chip">Calendar</span>
+        <span id="cal-connect" style="display:flex;gap:8px"></span>
+      </div>
+    </div>
     <div class="week" id="cal-week"></div>
     <div class="grid g2">
       <div class="card flush">

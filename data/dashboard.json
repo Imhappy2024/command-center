@@ -1,6 +1,6 @@
 {
   "source": "unconfigured",
-  "generatedAt": "2026-08-16T23:40:21.077Z",
+  "generatedAt": "2026-08-17T00:21:26.283Z",
   "timezone": "UTC",
   "sources": {
     "clickup": {
@@ -98,7 +98,7 @@
       {
         "eyebrow": "Meetings today",
         "value": "—",
-        "meta": "Outlook not connected",
+        "meta": "no calendar connected",
         "tone": "flat"
       },
       {
@@ -111,8 +111,8 @@
     "today": [
       {
         "time": "—",
-        "title": "Calendar not connected",
-        "sub": "Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.",
+        "title": "No calendar connected",
+        "sub": "Connect Google or Microsoft on the Calendar page.",
         "chip": {
           "tone": "brass",
           "text": "Todo"

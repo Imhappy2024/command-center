@@ -9,8 +9,11 @@
 
 import { createSign } from 'node:crypto';
 
+import { weekWindow } from '../../lib/calendar.mjs';
+
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
+const CAL_API = 'https://www.googleapis.com/calendar/v3';
 const SCOPE = 'https://www.googleapis.com/auth/gmail.readonly';
 
 const b64url = buf => Buffer.from(buf).toString('base64')
@@ -137,9 +140,52 @@ function when(ms){
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
 }
 
-async function mailboxFor(tok, account){
+/* Calendar events, normalised for lib/calendar.mjs. Asking Google for a
+   timeZone means the strings come back as local wall clock, same as Graph. */
+async function eventsFor(tok, account, tz){
+  const { start, end } = weekWindow(tz);
+  const q = new URLSearchParams({
+    timeMin: new Date(start).toISOString(),
+    timeMax: new Date(end).toISOString(),
+    singleEvents: 'true',
+    orderBy: 'startTime',
+    maxResults: '200',
+    timeZone: tz
+  });
+
+  const res = await fetch(`${CAL_API}/calendars/primary/events?${q}`, {
+    headers: { Authorization: `Bearer ${tok}` }
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    const reason = body.error?.message || res.statusText;
+    // Tokens minted before the calendar scope existed cannot be widened.
+    if (res.status === 401 || res.status === 403) {
+      throw new Error(`${reason} — reconnect ${account} to grant calendar access`);
+    }
+    throw new Error(`Google Calendar -> ${res.status} ${reason}`);
+  }
+
+  const json = await res.json();
+  return (json.items || [])
+    .filter(e => e.status !== 'cancelled')
+    .map(e => {
+      const allDay = Boolean(e.start?.date);
+      return {
+        allDay,
+        start: allDay ? `${e.start.date}T00:00:00` : String(e.start.dateTime).slice(0, 19),
+        end: allDay ? `${e.end.date}T00:00:00` : String(e.end.dateTime).slice(0, 19),
+        title: e.summary || '(no title)',
+        sub: e.location || (e.attendees || []).map(a => a.displayName || a.email).slice(0, 2).join(', ') || '',
+        account,
+        source: 'Google'
+      };
+    });
+}
+
+async function mailboxFor(tok, account, perMailbox){
   const inbox = await api('/labels/INBOX', tok);
-  const listed = await api('/messages?q=' + encodeURIComponent('is:unread in:inbox') + '&maxResults=6', tok);
+  const listed = await api('/messages?q=' + encodeURIComponent('is:unread in:inbox') + '&maxResults=' + perMailbox, tok);
   const ids = (listed.messages || []).map(m => m.id);
 
   const messages = await Promise.all(ids.map(async id => {
@@ -184,9 +230,26 @@ export async function fetchGmail(env, ctx = {}){
     };
   }
 
-  const boxes = usable.length
-    ? await Promise.all(usable.map(a => mailboxFor(a.token, a.account)))
-    : [await mailboxFor(await accessToken(env), env.GOOGLE_IMPERSONATE_USER || null)];
+  const tz = env.AGENT_TIMEZONE || env.TIMEZONE || 'UTC';
+  const perMailbox = Math.max(1, Number(env.INBOX_PER_MAILBOX) || 6);
+  const warnings = broken.map(b => `Gmail ${b.account}: ${b.error}`);
+
+  const seats = usable.length
+    ? usable.map(a => ({ token: a.token, account: a.account }))
+    : [{ token: await accessToken(env), account: env.GOOGLE_IMPERSONATE_USER || null }];
+
+  const boxes = await Promise.all(seats.map(s => mailboxFor(s.token, s.account, perMailbox)));
+
+  // Calendar is a separate scope, and older tokens do not carry it. A refusal
+  // here must not take the mailbox down with it.
+  let events = [];
+  for (const s of seats) {
+    try {
+      events = events.concat(await eventsFor(s.token, s.account, tz));
+    } catch (err) {
+      warnings.push(`Google Calendar ${s.account}: ${err.message}`);
+    }
+  }
 
   const counts = boxes.reduce((acc, b) => ({
     unreadMessages: acc.unreadMessages + b.counts.unreadMessages,
@@ -197,9 +260,15 @@ export async function fetchGmail(env, ctx = {}){
   return {
     ok: true,
     via: usable.length ? 'oauth' : (hasServiceAccount ? 'service-account' : 'refresh-token'),
-    mailboxes: boxes.map(b => ({ label: 'Gmail', account: b.account, counts: b.counts })),
+    mailboxes: boxes.map(b => ({
+      label: 'Gmail',
+      account: b.account,
+      counts: b.counts,
+      messages: b.messages
+    })),
     counts,
-    messages: boxes.flatMap(b => b.messages).sort((a, b) => b.sortKey - a.sortKey),
-    warnings: broken.map(b => `Gmail ${b.account}: ${b.error}`)
+    events,
+    calendarAccounts: events.length ? [...new Set(events.map(e => e.account))] : [],
+    warnings
   };
 }

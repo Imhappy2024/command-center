@@ -11,6 +11,7 @@ import { fetchGmail } from './sources/gmail.mjs';
 import { fetchN8n } from './sources/n8n.mjs';
 import { fetchMicrosoft } from './sources/microsoft.mjs';
 import { tokensFor } from '../lib/providers.mjs';
+import { buildCalendar } from '../lib/calendar.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const DEFAULT_OUT = path.join(ROOT, 'data', 'dashboard.json');
@@ -129,10 +130,9 @@ function attention(s, mail){
   return out.slice(0, 4);
 }
 
-function stats(s, mail){
+function stats(s, mail, cal){
   const cu = s.clickup.status === 'ok' && s.clickup.data;
   const n8 = s.n8n.status === 'ok' && s.n8n.data;
-  const ms = s.microsoft.status === 'ok' && s.microsoft.data;
 
   return [
     mail
@@ -141,9 +141,9 @@ function stats(s, mail){
     cu
       ? { eyebrow: 'Due today', value: String(cu.counts.dueToday), meta: cu.counts.overdue ? `${cu.counts.overdue} overdue` : 'nothing overdue', tone: cu.counts.overdue ? 'down' : 'up' }
       : { eyebrow: 'Due today', value: '—', meta: 'ClickUp not connected', tone: 'flat' },
-    ms
-      ? { eyebrow: 'Meetings today', value: String(ms.calendar.today.length), meta: `${Math.round(ms.calendar.bookedMins / 60 * 10) / 10}h booked`, tone: 'flat' }
-      : { eyebrow: 'Meetings today', value: '—', meta: 'Outlook not connected', tone: 'flat' },
+    cal
+      ? { eyebrow: 'Meetings today', value: String(cal.today.length), meta: `${Math.round(cal.bookedMins / 60 * 10) / 10}h booked`, tone: 'flat' }
+      : { eyebrow: 'Meetings today', value: '—', meta: 'no calendar connected', tone: 'flat' },
     n8
       ? { eyebrow: 'Runs · 24h', value: n8.counts.runs24h.toLocaleString() + (n8.counts.capped ? '+' : ''), meta: `${n8.counts.failures24h} failed`, tone: n8.counts.failures24h ? 'down' : 'up' }
       : { eyebrow: 'Runs · 24h', value: '—', meta: 'n8n not connected', tone: 'flat' }
@@ -172,56 +172,88 @@ function hero(s){
   };
 }
 
-function todayRows(s){
-  const ms = s.microsoft.status === 'ok' && s.microsoft.data;
-  if (ms) {
-    if (ms.calendar.today.length) return ms.calendar.today;
-    return [{ time: '—', title: 'Nothing scheduled today', sub: 'The calendar is clear.', chip: { tone: 'jade', text: 'Free' } }];
+function todayRows(s, cal){
+  if (cal) {
+    if (cal.today.length) return cal.today;
+    return [{ time: '—', title: 'Nothing scheduled today', sub: 'Every connected calendar is clear.', chip: { tone: 'jade', text: 'Free' } }];
   }
   if (s.microsoft.status === 'error') {
     return [{ time: '—', title: 'Outlook calendar failing', sub: s.microsoft.reason, chip: { tone: 'rust', text: 'Error' } }];
   }
   return [{
     time: '—',
-    title: 'Calendar not connected',
-    sub: 'Set MS_TENANT_ID, MS_CLIENT_ID, MS_CLIENT_SECRET and MS_SERVICE_USER.',
+    title: 'No calendar connected',
+    sub: 'Connect Google or Microsoft on the Calendar page.',
     chip: { tone: 'brass', text: 'Todo' }
   }];
+}
+
+/* Round-robin across mailboxes, newest-first within each.
+   A flat sort by timestamp lets one busy account fill the whole list and hide
+   the others, which defeats the point of a merged inbox. */
+function interleave(mailboxes, total){
+  const queues = mailboxes.map(m => [...(m.messages || [])].sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0)));
+  const out = [];
+  for (let round = 0; out.length < total; round++) {
+    let placed = false;
+    for (const q of queues) {
+      if (round >= q.length) continue;
+      out.push(q[round]);
+      placed = true;
+      if (out.length >= total) break;
+    }
+    if (!placed) break;
+  }
+  return out;
 }
 
 /* Every connected mailbox, from both providers, merged into one Inbox.
    MAIL_SOURCE=outlook|gmail narrows it to a single provider. */
 function mailbox(s, env){
   const pin = (env.MAIL_SOURCE || 'all').toLowerCase();
-  const parts = [];
+  const mailboxes = [];
 
   if (pin !== 'gmail' && s.microsoft.status === 'ok' && s.microsoft.data?.mail) {
-    parts.push(s.microsoft.data.mail);
+    mailboxes.push(...s.microsoft.data.mail.mailboxes);
   }
   if (pin !== 'outlook' && s.gmail.status === 'ok' && s.gmail.data) {
-    parts.push(s.gmail.data);
+    mailboxes.push(...(s.gmail.data.mailboxes || []));
   }
-  if (!parts.length) return null;
+  if (!mailboxes.length) return null;
 
-  const mailboxes = parts.flatMap(p => p.mailboxes || []);
   const counts = mailboxes.reduce((a, m) => ({
     unreadMessages: a.unreadMessages + (m.counts.unreadMessages || 0),
     unreadThreads: a.unreadThreads + (m.counts.unreadThreads || 0),
     totalThreads: a.totalThreads + (m.counts.totalThreads || 0)
   }), { unreadMessages: 0, unreadThreads: 0, totalThreads: 0 });
 
-  const label = mailboxes.length === 1
-    ? (mailboxes[0].account || mailboxes[0].label)
-    : `${mailboxes.length} mailboxes`;
+  const total = Math.max(1, Number(env.INBOX_TOTAL) || 10);
 
   return {
-    label,
-    mailboxes,
+    label: mailboxes.length === 1
+      ? (mailboxes[0].account || mailboxes[0].label)
+      : `${mailboxes.length} mailboxes`,
+    mailboxes: mailboxes.map(m => ({ label: m.label, account: m.account, counts: m.counts })),
     counts,
-    messages: parts.flatMap(p => p.messages || [])
-      .sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0))
-      .slice(0, 10)
+    messages: interleave(mailboxes, total)
   };
+}
+
+/* One calendar from every connected account, both providers. */
+function calendar(s, env){
+  const events = [];
+  const accounts = [];
+  for (const key of ['microsoft', 'gmail']) {
+    const d = s[key].status === 'ok' && s[key].data;
+    if (!d?.events?.length) continue;
+    events.push(...d.events);
+    accounts.push(...(d.calendarAccounts || []));
+  }
+  if (!events.length) return null;
+  return buildCalendar(events, {
+    tz: env.AGENT_TIMEZONE || env.TIMEZONE || 'UTC',
+    accounts: [...new Set(accounts.filter(Boolean))]
+  });
 }
 
 export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEFAULT_OUT, store = null } = {}){
@@ -234,6 +266,7 @@ export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEF
   const n8 = s.n8n.status === 'ok' && s.n8n.data;
   const ms = s.microsoft.status === 'ok' && s.microsoft.data;
   const mail = mailbox(s, env);
+  const cal = calendar(s, env);
 
   const payload = {
     source: ok === 0 ? 'unconfigured' : ok === SOURCES.length ? 'live' : 'partial',
@@ -243,7 +276,7 @@ export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEF
     connections: connections(s),
     nav: {
       inbox: mail ? String(mail.counts.unreadThreads) : '',
-      calendar: ms ? String(ms.calendar.today.length) : '',
+      calendar: cal ? String(cal.today.length) : '',
       tasks: cu ? String(cu.counts.dueToday) : '',
       systems: n8 && n8.counts.failures24h ? String(n8.counts.failures24h) : ''
     },
@@ -254,12 +287,12 @@ export async function runRefresh({ env = process.env, out = env.DATA_FILE || DEF
       },
       hero: hero(s),
       attention: attention(s, mail),
-      stats: stats(s, mail),
-      today: todayRows(s),
+      stats: stats(s, mail, cal),
+      today: todayRows(s, cal),
       tasks: cu ? cu.rows : []
     },
     inbox: mail ? { label: mail.label, mailboxes: mail.mailboxes, counts: mail.counts, messages: mail.messages } : null,
-    calendar: ms ? { ...ms.calendar, timezone: ms.timezone, user: ms.user } : null,
+    calendar: cal,
     contacts: ms?.contacts || null,
     tasks: cu ? { counts: cu.counts, groups: cu.groups } : null,
     systems: n8 ? { counts: n8.counts, rows: n8.rows } : null
