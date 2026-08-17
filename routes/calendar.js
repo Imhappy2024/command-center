@@ -6,6 +6,7 @@
 
 import express from 'express';
 import { accountsFor } from '../lib/accounts.js';
+import { guarded } from './guard.js';
 import * as provider from '../providers/index.js';
 
 const isIso = v => typeof v === 'string' && !Number.isNaN(Date.parse(v));
@@ -20,7 +21,7 @@ const warn = (account, err) => ({
 export function calendarRoutes({ auth }){
   const r = express.Router();
 
-  r.get('/api/calendar', auth.require, async (req, res) => {
+  r.get('/api/calendar', auth.require, guarded('api/calendar', async (req, res) => {
     /* The frontend derives the window from the view it is drawing, so it always
        sends both. The default is only a floor for a bare request. */
     const from = isIso(req.query.from) ? new Date(req.query.from).toISOString() : new Date().toISOString();
@@ -52,7 +53,7 @@ export function calendarRoutes({ auth }){
       events: events.sort((a, b) => (Date.parse(a.start) || 0) - (Date.parse(b.start) || 0)),
       warnings
     });
-  });
+  }));
 
   return r;
 }

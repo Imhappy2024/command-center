@@ -3,6 +3,7 @@
 import express from 'express';
 import { accountsFor, getAccount } from '../lib/accounts.js';
 import { PROVIDERS } from '../lib/oauth.js';
+import { guarded } from './guard.js';
 import * as provider from '../providers/index.js';
 
 const FOLDERS = ['inbox', 'drafts', 'trash', 'spam', 'archive'];
@@ -32,9 +33,20 @@ export function mailRoutes({ env, auth }){
 
   /* Loads the account named in the path, or answers 404. Every action route
      starts here, so an unknown id never reaches a provider. */
+  /* Two separate failures with two separate meanings: the store being
+     unreachable is a 503 and says nothing about the request, while a provider
+     rejecting the operation is a 400 the UI can show. Both must be caught —
+     an unhandled rejection in an async handler takes the container down. */
   const withAccount = handler => [auth.require, express.json(), async (req, res) => {
-    const account = await getAccount(req.params.accountId);
+    let account;
+    try {
+      account = await getAccount(req.params.accountId);
+    } catch (err) {
+      console.error('[mail:lookup]', err.message);
+      return res.status(503).json({ error: 'account store unavailable' });
+    }
     if (!account) return res.status(404).json({ error: 'no such account' });
+
     try {
       res.json((await handler(req, account)) ?? { ok: true });
     } catch (err) {
@@ -43,15 +55,21 @@ export function mailRoutes({ env, auth }){
     }
   }];
 
-  r.get('/api/mail', auth.require, async (req, res) => {
+  r.get('/api/mail', auth.require, guarded('api/mail', async (req, res) => {
     const folder = String(req.query.folder || 'inbox');
     if (!FOLDERS.includes(folder)) {
       return res.status(400).json({ error: `folder must be one of ${FOLDERS.join(', ')}` });
     }
 
     const accounts = await resolve(req.query.account);
-    if (!accounts.length) return res.json({ messages: [], counts: null, warnings: [] });
+    if (!accounts.length) {
+      return res.json({ messages: [], counts: null, perAccount: {}, warnings: [] });
+    }
 
+    /* Counts cover every mailbox even when the list is filtered to one, because
+       the sidebar always shows all of them. Scoping the tallies to the selected
+       account would zero the others the moment you clicked into one. */
+    const counted = await accountsFor('mail');
     const limit = limitOf(req.query.limit);
 
     /* Fetched per account rather than as one capped pull, so a mailbox with a
@@ -61,7 +79,7 @@ export function mailRoutes({ env, auth }){
        every surviving row. */
     const [lists, tallies] = await Promise.all([
       Promise.allSettled(accounts.map(a => provider.listMail(a, folder, limit))),
-      Promise.allSettled(accounts.map(a => provider.counts(a)))
+      Promise.allSettled(counted.map(a => provider.counts(a)))
     ]);
 
     const messages = [];
@@ -71,21 +89,29 @@ export function mailRoutes({ env, auth }){
       else warnings.push(warn(accounts[i], out.reason));
     });
 
+    /* Counts are reported per account as well as in total. The sidebar shows an
+       unread number against each mailbox and a total against Open, and it must
+       stay right even though only one folder's messages are loaded at a time —
+       deriving those numbers from the loaded list would zero every folder the
+       user is not currently looking at. */
     const counts = { inbox: 0, inboxUnread: 0, drafts: 0, trash: 0, spam: 0, archive: null };
-    for (const t of tallies) {
-      if (t.status !== 'fulfilled') continue;
+    const perAccount = {};
+    tallies.forEach((t, i) => {
+      if (t.status !== 'fulfilled') return;
+      perAccount[counted[i].id] = t.value;
       for (const key of Object.keys(counts)) {
         if (t.value[key] == null) continue;
         counts[key] = (counts[key] ?? 0) + t.value[key];
       }
-    }
+    });
 
     res.json({
       messages: messages.sort((a, b) => b.sortKey - a.sortKey),
       counts,
+      perAccount,
       warnings
     });
-  });
+  }));
 
   r.get('/api/mail/:accountId/:messageId', ...withAccount(async (req, account) => ({
     message: await provider.getMail(
@@ -124,7 +150,7 @@ export function mailRoutes({ env, auth }){
 
   /* Which controls the UI may offer, so it can hide "Delete forever" on Google
      rather than showing a button that always fails. */
-  r.get('/api/mail/capabilities', auth.require, async (req, res) => {
+  r.get('/api/mail/capabilities', auth.require, guarded('api/mail/capabilities', async (req, res) => {
     const accounts = await accountsFor('mail');
     res.json({
       capabilities: Object.fromEntries(accounts.map(a => [a.id, {
@@ -132,7 +158,7 @@ export function mailRoutes({ env, auth }){
         feeds: PROVIDERS[a.provider]?.feeds || ['mail']
       }]))
     });
-  });
+  }));
 
   return r;
 }

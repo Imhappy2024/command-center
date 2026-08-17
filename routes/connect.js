@@ -5,6 +5,7 @@ import { PROVIDERS, isConfigured, exchangeCode } from '../lib/oauth.js';
 import { newState, newVerifier, challengeFor, setPending, readPending, STATE_COOKIE, clearCookie }
   from '../lib/session.js';
 import { listAccounts, upsertOAuth, upsertImap, renameAccount, deleteAccount } from '../lib/accounts.js';
+import { guarded } from './guard.js';
 import { verify as verifyImap } from '../providers/imap.js';
 
 /* Built from PUBLIC_URL when it is set, never from request headers: Railway's
@@ -41,9 +42,8 @@ export function connectRoutes({ env, auth, secret }){
     return true;
   };
 
-  r.get('/api/accounts', auth.require, async (req, res) => {
-    try {
-      res.json({
+  r.get('/api/accounts', auth.require, guarded('api/accounts', async (req, res) => {
+    res.json({
         canConnect: Boolean(env.APP_PASSWORD),
         providers: Object.fromEntries(
           Object.keys(PROVIDERS).map(name => [name, {
@@ -53,15 +53,11 @@ export function connectRoutes({ env, auth, secret }){
             setupHint: PROVIDERS[name].setupHint
           }])
         ),
-        accounts: await listAccounts()
-      });
-    } catch (err) {
-      console.error('[api/accounts]', err.message);
-      res.status(503).json({ error: 'account store unavailable' });
-    }
-  });
+      accounts: await listAccounts()
+    });
+  }));
 
-  r.post('/api/accounts/:id', auth.require, express.json(), async (req, res) => {
+  r.post('/api/accounts/:id', auth.require, express.json(), guarded('api/accounts:rename', async (req, res) => {
     const { label, color } = req.body || {};
     const updated = await renameAccount(req.params.id, {
       label: label === undefined ? null : safeLabel(label) || null,
@@ -69,13 +65,13 @@ export function connectRoutes({ env, auth, secret }){
     });
     if (!updated) return res.status(404).json({ error: 'no such account' });
     res.json({ account: updated });
-  });
+  }));
 
-  r.delete('/api/accounts/:id', auth.require, async (req, res) => {
+  r.delete('/api/accounts/:id', auth.require, guarded('api/accounts:delete', async (req, res) => {
     const gone = await deleteAccount(req.params.id);
     if (!gone) return res.status(404).json({ error: 'no such account' });
     res.json({ ok: true });
-  });
+  }));
 
   /* ---------------- OAuth round trip ---------------- */
 
