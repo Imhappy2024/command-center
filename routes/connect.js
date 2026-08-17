@@ -31,12 +31,15 @@ export function connectRoutes({ env, auth, secret }){
   const r = express.Router();
   const isSecure = req => baseUrl(req, env).startsWith('https:');
 
-  /* Belt and braces: the boot check already refuses to start without
-     APP_PASSWORD. If that ever regresses, connecting must fail closed rather
-     than let anyone who finds the URL attach a mailbox to it. */
+  /* Keyed on ENCRYPTION_KEY, not APP_PASSWORD. Encryption is what actually
+     matters for storing a long-lived credential; whether the dashboard asks for
+     a login is a separate concern, and conflating the two meant AUTH_MODE=open
+     silently disabled connecting. */
   const gate = (req, res) => {
-    if (!env.APP_PASSWORD) {
-      res.status(403).json({ error: 'APP_PASSWORD is not set, so connecting is disabled.' });
+    if (!env.ENCRYPTION_KEY) {
+      res.status(403).json({
+        error: 'ENCRYPTION_KEY is not set, so there is nowhere safe to store a token. Connecting is disabled.'
+      });
       return false;
     }
     return true;
@@ -44,7 +47,7 @@ export function connectRoutes({ env, auth, secret }){
 
   r.get('/api/accounts', auth.require, guarded('api/accounts', async (req, res) => {
     res.json({
-        canConnect: Boolean(env.APP_PASSWORD),
+        canConnect: Boolean(env.ENCRYPTION_KEY),
         providers: Object.fromEntries(
           Object.keys(PROVIDERS).map(name => [name, {
             label: PROVIDERS[name].label,
