@@ -194,10 +194,17 @@ routes/auth.js             /login, /logout
 routes/connect.js          /connect/:provider, /oauth/callback/:provider, /api/accounts
 routes/mail.js             /api/mail and the actions
 routes/calendar.js         /api/calendar
+routes/ghl.js              /api/ghl/locations and the lead placeholders
+routes/social.js           /api/social, and the Meta webhook challenge
 routes/guard.js            Turns a database outage into a 503, not a crash
-public/index.html          Shell, all ten views, Inbox logic
-public/login.html          Sign-in page
+public/index.html          Shell, all ten views, every view's logic
+public/login.html          Sign-in page, served in remember and password modes
 ```
+
+That is the whole import graph, rooted at `server.js`. There is no dead code left
+in it: the first-generation `.mjs` modules, the snapshot pipeline under
+`scripts/`, and the old `public/app.js` were deleted once nothing imported them.
+Recover any of them from git history if a source collector is worth reviving.
 
 ## API
 
@@ -260,10 +267,6 @@ place them on the viewer's calendar day rather than shifting them across midnigh
   rather than the presence of one. It reports `null` and the sidebar shows blank.
 - **IMAP opens a connection per operation.** Fine for one user; it adds about a second to
   each call.
-- **The snapshot pipeline is parked.** `scripts/refresh.mjs`, `scripts/sources/*` and
-  `lib/*.mjs` still hold the ClickUp, n8n and calendar collectors that fed
-  `data/dashboard.json`. Nothing imports them, and they still read the old encrypted-file
-  token store, so they will not run as-is. They are kept because they are the shortest
-  path to wiring the remaining views; repointing them at Postgres is the work.
-- **`public/app.js` is orphaned** — the previous dashboard's logic, superseded by the
-  inline script in `index.html`. Retained, not referenced.
+- **`data/dashboard.json` is a leftover.** It was the snapshot payload the deleted
+  pipeline wrote and the removed `/api/data` route served. Nothing reads it. It is not
+  under `public/`, so it is not reachable from a browser; it can go whenever.

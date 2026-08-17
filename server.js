@@ -5,6 +5,7 @@ import { migrate, close } from './db/index.js';
 import { initCrypto } from './lib/crypto.js';
 import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
+import { PROVIDERS, missingVars } from './lib/oauth.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -90,10 +91,23 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  auth:     ${gate}`);
   console.log('  tokens:   Postgres, AES-256-GCM at rest');
   console.log(`  origin:   ${env.PUBLIC_URL}`);
-  for (const [name, id] of [['Google', 'GOOGLE_CLIENT_ID'], ['Microsoft', 'MS_CLIENT_ID']]) {
-    console.log(`  ${name.padEnd(9)} ${env[id] ? 'configured' : 'not configured'}`);
+
+  /* Reported through missingVars, the same check the connect sheet uses, and
+     enumerated from PROVIDERS so a provider added later is covered without
+     touching this. Naming the absent variable is the point: "not configured"
+     alone sent an hour down the wrong path. */
+  const width = Math.max(...Object.values(PROVIDERS).map(p => p.label.length));
+  for (const [name, p] of Object.entries(PROVIDERS)) {
+    const label = `  ${p.label.padEnd(width)}  `;
+    if (!p.oauth) {
+      console.log(`${label}no server config — credentials entered per connection`);
+      continue;
+    }
+    const absent = missingVars(name, env);
+    console.log(label + (absent.length
+      ? `not configured — ${absent.join(' and ')} missing`
+      : 'configured'));
   }
-  console.log('  IMAP      always available (host and app password entered per mailbox)');
 });
 
 /* Railway sends SIGTERM on redeploy. Draining first means an in-flight token
