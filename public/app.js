@@ -222,11 +222,22 @@ function connectStrip(providerNames, from){
   if (!wanted.length) return '';
 
   if (!CONN.canConnect) {
-    return '<div class="row"><span class="main"><small>'
-      + esc(CONN.loginRequired
-          ? 'Connecting is unavailable: the token store has no encryption key. Set ENCRYPTION_KEY.'
-          : 'Set APP_PASSWORD in Railway to enable the Connect buttons. Without a login this page is public.')
-      + '</small></span></div>';
+    if (CONN.loginRequired) {
+      return '<div style="padding:16px 18px"><div class="banner bad">'
+        + 'Connecting is unavailable: the token store has no encryption key. Set '
+        + '<span class="mono">ENCRYPTION_KEY</span> in Railway.</div></div>';
+    }
+    return '<div style="padding:16px 18px"><div class="banner warn">'
+      + '<b style="display:block;margin-bottom:6px;font-size:14px">Connect buttons are locked</b>'
+      + 'This dashboard has no password, so anyone with the URL can open it. Connecting a mailbox '
+      + 'now would publish your mail to that URL, so the buttons stay disabled until you set one.'
+      + '<div style="margin-top:10px;line-height:1.9">'
+      + '<b>1.</b> Railway → your service → <b>Variables</b> → add <span class="mono">APP_PASSWORD</span><br>'
+      + '<b>2.</b> Add <span class="mono">PUBLIC_URL</span> = <span class="mono">' + esc(location.origin) + '</span><br>'
+      + '<b>3.</b> Settings → <b>Volumes</b> → mount one at <span class="mono">/data</span>, then add '
+      + '<span class="mono">DATA_DIR</span> = <span class="mono">/data</span><br>'
+      + '<b>4.</b> Redeploy. You will get a login screen — the buttons appear once you are in.'
+      + '</div></div></div>';
   }
 
   return wanted.map(p =>
@@ -448,9 +459,13 @@ async function renderConnections(){
   }
 
   if (!d.loginRequired) {
-    banner.innerHTML += '<div class="banner bad">Connecting is disabled because this dashboard has no password. '
-      + 'Anyone with the URL could connect an account, or read the mail of one already connected. '
-      + 'Set APP_PASSWORD in Railway and redeploy.</div>';
+    banner.innerHTML += '<div class="banner warn">'
+      + '<b style="display:block;margin-bottom:6px;font-size:14px">Connect buttons are locked</b>'
+      + 'No password is set, so this page is public and connecting a mailbox would publish it. '
+      + 'Add <span class="mono">APP_PASSWORD</span> in Railway → Variables, plus '
+      + '<span class="mono">PUBLIC_URL</span> = <span class="mono">' + esc(location.origin) + '</span> '
+      + 'and <span class="mono">DATA_DIR</span> = <span class="mono">/data</span> with a volume mounted there. '
+      + 'Redeploy and you will get a login screen.</div>';
   } else if (!d.persistent) {
     banner.innerHTML += '<div class="banner warn">DATA_DIR is not set, so connections live on the container filesystem '
       + 'and are lost on redeploy. Attach a Railway volume and point DATA_DIR at it to keep them.</div>';
