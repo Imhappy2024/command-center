@@ -1,28 +1,51 @@
 import express from 'express';
 import compression from 'compression';
-import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { runRefresh } from './scripts/refresh.mjs';
-import { TokenStore, resolveSecret } from './lib/store.mjs';
-import { makeAuth } from './lib/session.mjs';
-import { mountRoutes } from './lib/routes.mjs';
+import { migrate, close } from './db/index.js';
+import { initCrypto } from './lib/crypto.js';
+import { makeAuth } from './lib/session.js';
+import { authRoutes } from './routes/auth.js';
+import { connectRoutes, baseUrl } from './routes/connect.js';
+import { mailRoutes } from './routes/mail.js';
+import { calendarRoutes } from './routes/calendar.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
 const env = process.env;
-
-const DATA_DIR = env.DATA_DIR || path.join(ROOT, 'data');
-const DATA_FILE = env.DATA_FILE || path.join(DATA_DIR, 'dashboard.json');
 const PORT = Number(env.PORT) || 3000;
-const REFRESH_MINUTES = Number(env.REFRESH_INTERVAL_MINUTES ?? 15);
 
-const secret = await resolveSecret(env, DATA_DIR);
-const store = new TokenStore({
-  file: env.TOKEN_STORE || path.join(DATA_DIR, 'connections.enc'),
-  secret
-});
+/* Half-configured is worse than not running: without APP_PASSWORD the dashboard
+   is open to anyone who finds the URL, and without ENCRYPTION_KEY there is
+   nowhere safe to put a refresh token. Name the variable and stop. */
+const REQUIRED = ['APP_PASSWORD', 'SESSION_SECRET', 'ENCRYPTION_KEY', 'DATABASE_URL'];
+const missing = REQUIRED.filter(name => !env[name]);
+if (missing.length) {
+  console.error('Cannot start. Missing required environment variable(s):');
+  for (const name of missing) console.error(`  - ${name}`);
+  console.error('\nSet them in Railway under Variables, or in .env for a local run.');
+  console.error('See .env.example for what each one is for.');
+  process.exit(1);
+}
+
+for (const name of ['SESSION_SECRET', 'ENCRYPTION_KEY']) {
+  if (env[name].length < 32) {
+    console.error(`${name} must be at least 32 characters. Generate one with:`);
+    console.error('  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"');
+    process.exit(1);
+  }
+}
+
+initCrypto(env.ENCRYPTION_KEY);
+
+try {
+  await migrate();
+} catch (err) {
+  console.error('Cannot start. Database migration failed:', err.message);
+  console.error('Check DATABASE_URL points at a reachable Postgres instance.');
+  process.exit(1);
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -36,41 +59,25 @@ app.use((req, res, next) => {
   next();
 });
 
-/* Optional. With no APP_PASSWORD the dashboard is open and connecting still
-   works — the password gates who can open the page, not whether the feature
-   exists. */
 const auth = makeAuth({
   password: env.APP_PASSWORD,
-  secret: env.SESSION_SECRET || secret,
+  secret: env.SESSION_SECRET,
   isSecure: () => String(env.PUBLIC_URL || '').startsWith('https:') || env.NODE_ENV === 'production'
 });
 
-/* Health stays open so Railway can reach it without a session. */
+/* Open so Railway's healthcheck can reach it without a session. Reports nothing
+   about configuration or connected accounts. */
 app.get('/api/health', (req, res) => {
   res.json({ ok: true, uptime: Math.round(process.uptime()), ts: new Date().toISOString() });
 });
 
-mountRoutes(app, {
-  env,
-  auth,
-  store,
-  secret,
-  publicDir: PUBLIC,
-  onConnected: () => refresh('connect')
-});
+app.use(authRoutes({ auth, publicDir: PUBLIC }));
+app.use(connectRoutes({ env, auth, secret: env.SESSION_SECRET }));
+app.use(mailRoutes({ env, auth }));
+app.use(calendarRoutes({ auth }));
 
-app.get('/api/data', auth.require, async (req, res) => {
-  try {
-    const raw = await readFile(DATA_FILE, 'utf8');
-    JSON.parse(raw); // fail loudly on malformed data rather than shipping it
-    res.set('Cache-Control', 'no-store').type('application/json').send(raw);
-  } catch (err) {
-    console.error('[api/data]', err.message);
-    res.status(503).json({ error: 'dashboard data unavailable' });
-  }
-});
-
-/* login.html must stay reachable while signed out; everything else is gated. */
+/* login.html is reachable only through /login, which renders it while signed
+   out; everything else under public/ is behind the gate. */
 app.use('/login.html', (req, res) => res.redirect('/login'));
 app.use(auth.require, express.static(PUBLIC, {
   extensions: ['html'],
@@ -85,48 +92,23 @@ app.use((req, res) => {
   res.status(200).sendFile(path.join(PUBLIC, 'index.html'));
 });
 
-let refreshing = null;
-async function refresh(reason){
-  if (refreshing) return refreshing;
-  refreshing = (async () => {
-    try {
-      const { summary, payload } = await runRefresh({ env, out: DATA_FILE, store });
-      console.log(`[refresh:${reason}] ${summary} -> source=${payload.source}`);
-    } catch (err) {
-      console.error(`[refresh:${reason}] failed:`, err.message);
-    } finally {
-      refreshing = null;
-    }
-  })();
-  return refreshing;
-}
-
-app.listen(PORT, '0.0.0.0', async () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Command Center listening on 0.0.0.0:${PORT}`);
-  console.log(`  data dir:  ${DATA_DIR}`);
-  console.log(`  login:     ${auth.enabled ? 'APP_PASSWORD set' : 'OPEN — anyone with the URL can read connected mail'}`);
-  console.log(`  connect:   ${store.enabled ? 'enabled' : 'disabled — no encryption key'}`);
-
-  const connected = Object.keys(await store.all()).filter(k => k.startsWith('oauth:'));
-  if (connected.length) console.log(`  connected: ${connected.map(k => k.slice(6)).join(', ')}`);
-
-  /* Always write a payload on boot, even with nothing configured. DATA_FILE may
-     sit on a freshly mounted volume where the committed placeholder does not
-     exist, and /api/data 503s on a missing file — which would replace the
-     Connect UI with "data source unreachable" at exactly the wrong moment. */
-  await refresh('boot');
-
-  const hasEnvSource = Boolean(
-    env.CLICKUP_TOKEN || env.N8N_API_KEY || env.GOOGLE_REFRESH_TOKEN ||
-    env.GOOGLE_SERVICE_ACCOUNT_JSON || env.MS_CLIENT_SECRET
-  );
-  if (!hasEnvSource && !connected.length) {
-    console.log('  no sources yet — connect an account or set source credentials');
-    return;
+  console.log('  login:    APP_PASSWORD set');
+  console.log('  tokens:   Postgres, AES-256-GCM at rest');
+  console.log(`  origin:   ${env.PUBLIC_URL || '(derived from request headers — set PUBLIC_URL in production)'}`);
+  for (const [name, id] of [['Google', 'GOOGLE_CLIENT_ID'], ['Microsoft', 'MS_CLIENT_ID']]) {
+    console.log(`  ${name.padEnd(9)} ${env[id] ? 'configured' : 'not configured'}`);
   }
-
-  if (REFRESH_MINUTES > 0) {
-    console.log(`  refreshing every ${REFRESH_MINUTES}m`);
-    setInterval(() => refresh('interval'), REFRESH_MINUTES * 60_000).unref();
-  }
+  console.log('  IMAP      always available (host and app password entered per mailbox)');
 });
+
+/* Railway sends SIGTERM on redeploy. Draining first means an in-flight token
+   refresh finishes writing rather than leaving a half-updated row behind. */
+for (const signal of ['SIGTERM', 'SIGINT']) {
+  process.on(signal, () => {
+    console.log(`${signal} received, shutting down`);
+    server.close(async () => { await close(); process.exit(0); });
+    setTimeout(() => process.exit(0), 10_000).unref();
+  });
+}

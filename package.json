@@ -1,8 +1,8 @@
 {
   "name": "command-center",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
-  "description": "Single-pane operations dashboard.",
+  "description": "Single-pane operations dashboard with multi-account mail and calendar.",
   "type": "module",
   "main": "server.js",
   "engines": {
@@ -11,12 +11,14 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "refresh": "node scripts/refresh.mjs",
-    "auth:google": "node scripts/auth-google.mjs",
-    "check:google": "node scripts/check-google.mjs"
+    "check": "node --check server.js"
   },
   "dependencies": {
     "compression": "^1.7.5",
-    "express": "^4.21.2"
+    "express": "^4.21.2",
+    "imap": "^0.8.19",
+    "mailparser": "^3.7.2",
+    "nodemailer": "^6.9.16",
+    "pg": "^8.13.1"
   }
 }
