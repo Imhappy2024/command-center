@@ -40,6 +40,7 @@ const FLASH = new URLSearchParams(location.hash.split('?')[1] || '');
 
 /* Connection state, shared by the Connections view and the inline buttons. */
 let CONN = null;
+let ENVCHK = null;
 
 async function loadConnections(){
   try {
@@ -51,7 +52,38 @@ async function loadConnections(){
     console.warn('[command-center] /api/connections unavailable:', err.message);
     CONN = null;
   }
+
+  // Only worth asking when something is stopping us connecting.
+  if (CONN && !CONN.canConnect && !ENVCHK) {
+    try {
+      const r = await fetch('/api/env-check', { cache: 'no-store' });
+      if (r.ok) ENVCHK = await r.json();
+    } catch { /* diagnostic only */ }
+  }
   return CONN;
+}
+
+/* Turns "but I added it" into a fact about what the process received. */
+function envReport(names){
+  if (!ENVCHK) return '';
+  const rows = names.map(n => {
+    const v = ENVCHK.vars[n] || {};
+    const state = v.set ? 'ok' : v.present ? 'warn' : 'off';
+    const note = v.set ? 'received' : v.present ? 'defined but empty' : 'not received';
+    return '<div class="wire" style="font-size:12px;margin-top:4px">'
+      + '<span class="dot ' + state + '"></span>'
+      + '<span class="mono">' + esc(n) + '</span>'
+      + '<span style="color:var(--dimmer)">' + note + '</span></div>';
+  }).join('');
+
+  const near = (ENVCHK.lookalikes || []).length
+    ? '<div style="margin-top:8px;font-size:12px;color:var(--dimmer)">Other variables this service received: '
+      + '<span class="mono">' + esc(ENVCHK.lookalikes.join(', ')) + '</span></div>'
+    : '';
+
+  return '<div style="margin-top:12px;padding-top:10px;border-top:1px solid var(--edge2)">'
+    + '<div class="eyebrow" style="margin-bottom:4px">What this server process actually received</div>'
+    + rows + near + '</div>';
 }
 
 function renderFlash(){
@@ -237,7 +269,9 @@ function connectStrip(providerNames, from){
       + '<b>3.</b> Settings → <b>Volumes</b> → mount one at <span class="mono">/data</span>, then add '
       + '<span class="mono">DATA_DIR</span> = <span class="mono">/data</span><br>'
       + '<b>4.</b> Redeploy. You will get a login screen — the buttons appear once you are in.'
-      + '</div></div></div>';
+      + '</div>'
+      + envReport(['APP_PASSWORD', 'PUBLIC_URL', 'DATA_DIR', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'])
+      + '</div></div>';
   }
 
   return wanted.map(p =>
