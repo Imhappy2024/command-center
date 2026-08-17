@@ -225,10 +225,31 @@ function renderTasks(tasks){
 
 /* ---------- mail: read, compose, act ---------- */
 
-let MAILBOXES = [];   // from the last payload, for the From picker
-let OPEN_MSG = null;  // message currently in the reader
+let MAILBOXES = [];      // connected mailboxes, for the From picker and strip
+let MESSAGES = [];       // merged list from the last payload
+let OPEN_MSG = null;     // message loaded in the reader
+let OPEN_REF = null;     // which row that was
+const ARCHIVED = new Set();   // archived this session, so the filter has something to show
+
+const MAIL_VIEW = { account: 'all', filter: 'all', search: '' };
 
 const sheet = (id, on) => $(id).classList.toggle('on', on);
+const key = m => `${m.provider}:${m.accountId}:${m.id}`;
+
+/* Stable per-account colour, so a mailbox keeps its stripe between renders. */
+function accountColour(id){
+  let h = 0;
+  for (const ch of String(id)) h = (h * 31 + ch.charCodeAt(0)) % 360;
+  return `hsl(${h} 52% 62%)`;
+}
+
+const initials = value => String(value || '?')
+  .replace(/[<>"]/g, '').trim().split(/[\s.@_-]+/).filter(Boolean)
+  .slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+
+/* Heuristic, not a provider signal: unread and not obviously automated. */
+const NO_REPLY = /no-?reply|do-?not-?reply|notification|newsletter|mailer-daemon|postmaster|automated|noreply/i;
+const needsReply = m => m.unread && !NO_REPLY.test(`${m.fromAddress || ''} ${m.from || ''}`);
 
 async function api(path, init){
   const res = await fetch(path, {
@@ -241,48 +262,66 @@ async function api(path, init){
   return json;
 }
 
-/* Remote HTML is rendered in a sandboxed iframe rather than injected: mail is
-   hostile input, and a srcdoc frame with no allow-scripts cannot run any of it. */
-function renderBody(msg){
-  const el = $('read-body');
-  if (msg.html) {
-    el.className = 'content html';
-    el.innerHTML = '';
-    const frame = document.createElement('iframe');
-    frame.setAttribute('sandbox', '');
-    frame.setAttribute('referrerpolicy', 'no-referrer');
-    frame.style.cssText = 'width:100%;min-height:40vh;border:0;background:#fff;border-radius:6px';
-    frame.srcdoc = msg.html;
-    el.appendChild(frame);
-  } else {
-    el.className = 'content';
-    el.textContent = msg.text || '(no body)';
-  }
+function readerEmpty(title, note){
+  $('ib-reader').innerHTML = '<div class="empty"><b>' + esc(title) + '</b>'
+    + (note ? '<small>' + esc(note) + '</small>' : '') + '</div>';
+}
+
+/* Remote HTML goes in a sandboxed iframe rather than being injected: mail is
+   hostile input, and a srcdoc frame without allow-scripts cannot run any of it. */
+function bodyHtml(msg){
+  if (!msg.html) return '<div class="rbody">' + esc(msg.text || '(no body)') + '</div>';
+  return '<div class="rbody html"><iframe sandbox="" referrerpolicy="no-referrer" '
+    + 'srcdoc="' + esc(msg.html) + '"></iframe></div>';
+}
+
+function paintReader(msg, ref){
+  const colour = accountColour(ref.accountId);
+  $('ib-reader').innerHTML =
+    '<div class="rhead"><h2>' + esc(msg.subject) + '</h2>'
+    + '<div class="rmeta">'
+    + '<span class="msg" style="display:inline-flex;padding:0;border:0;background:none;grid-template-columns:none">'
+    + '<span class="av" style="--c:' + colour + '">' + esc(initials(msg.from)) + '</span></span>'
+    + '<span><b style="color:var(--text)">' + esc(msg.from) + '</b>'
+    + (msg.date ? ' · ' + esc(String(msg.date).slice(0, 25)) : '') + '</span>'
+    + '<span class="chip" style="--c:' + colour + '">' + esc(ref.accountId) + '</span>'
+    + '</div>'
+    + '<div class="rmeta" style="margin-top:6px"><span>To ' + esc(msg.to || '—') + '</span>'
+    + (msg.cc ? '<span>Cc ' + esc(msg.cc) + '</span>' : '') + '</div></div>'
+    + '<div class="ractions">'
+    + '<button class="btn primary" id="read-reply">Reply</button>'
+    + '<button class="btn" data-msg-action="unread">Mark unread</button>'
+    + '<button class="btn" data-msg-action="' + (msg.starred ? 'unstar' : 'star') + '">'
+    + (msg.starred ? 'Unstar' : 'Star') + '</button>'
+    + '<button class="btn" data-msg-action="archive">Archive</button>'
+    + '<button class="btn" data-msg-action="trash">Trash</button>'
+    + '</div>'
+    + bodyHtml(msg);
 }
 
 async function openMessage(ref){
   OPEN_MSG = null;
-  $('read-subject').textContent = 'Loading…';
-  $('read-meta').textContent = '';
-  $('read-body').textContent = 'Loading…';
-  sheet('reader', true);
+  OPEN_REF = ref;
+  readerEmpty('Loading…');
+  document.querySelectorAll('.msg').forEach(el =>
+    el.classList.toggle('on', el.dataset.key === `${ref.provider}:${ref.accountId}:${ref.id}`));
 
   try {
     const msg = await api(`/api/message/${encodeURIComponent(ref.provider)}/`
       + `${encodeURIComponent(ref.accountId)}/${encodeURIComponent(ref.id)}`);
     OPEN_MSG = { ...msg, provider: ref.provider, accountId: ref.accountId };
-    $('read-subject').textContent = msg.subject;
-    $('read-meta').innerHTML =
-      '<div><b>From</b> ' + esc(msg.from) + '</div>'
-      + '<div><b>To</b> ' + esc(msg.to || '—') + '</div>'
-      + (msg.cc ? '<div><b>Cc</b> ' + esc(msg.cc) + '</div>' : '')
-      + '<div><b>Account</b> ' + esc(ref.accountId) + (msg.date ? ' · ' + esc(msg.date) : '') + '</div>';
-    renderBody(msg);
-    // Opening it is reading it.
-    if (msg.unread) messageAction('read', true).catch(() => {});
+    paintReader(OPEN_MSG, ref);
+
+    // Opening it is reading it — reflect that locally without a full refetch.
+    if (msg.unread) {
+      messageAction('read', true).catch(() => {});
+      const local = MESSAGES.find(m => key(m) === key(ref));
+      if (local) local.unread = false;
+      document.querySelector(`.msg[data-key="${CSS.escape(key(ref))}"]`)?.classList.remove('unread');
+      renderAccountStrip();
+    }
   } catch (err) {
-    $('read-subject').textContent = 'Could not open message';
-    $('read-body').textContent = err.message;
+    readerEmpty('Could not open message', err.message);
   }
 }
 
@@ -294,9 +333,21 @@ async function messageAction(action, quiet){
       method: 'POST',
       body: JSON.stringify({ provider, accountId, id, action })
     });
-    if (!quiet) { sheet('reader', false); hydrate(); }
+    if (quiet) return;
+
+    if (action === 'star' || action === 'unstar') {
+      OPEN_MSG.starred = action === 'star';
+      const local = MESSAGES.find(m => key(m) === key(OPEN_MSG));
+      if (local) local.starred = OPEN_MSG.starred;
+      paintReader(OPEN_MSG, OPEN_REF);
+      renderMailList();
+      return;
+    }
+    if (action === 'archive' || action === 'trash') ARCHIVED.add(key(OPEN_MSG));
+    readerEmpty(action === 'trash' ? 'Moved to trash' : action === 'archive' ? 'Archived' : 'Marked unread');
+    hydrate();
   } catch (err) {
-    if (!quiet) { $('read-body').className = 'content'; $('read-body').textContent = err.message; }
+    readerEmpty('Action failed', err.message);
   }
 }
 
@@ -458,56 +509,156 @@ function renderProblem(els, keys, sources, hint){
   return bad;
 }
 
+function renderAccountStrip(){
+  const strip = $('ib-accts');
+  const total = MESSAGES.filter(m => m.unread).length;
+
+  const tile = (id, label, sub, count, colour, on, dead) =>
+    '<button class="acct' + (on ? ' on' : '') + (dead ? ' dead' : '') + '" data-acct="' + esc(id) + '">'
+    + '<span class="swatch" style="--c:' + colour + '"></span>'
+    + '<span class="who"><b>' + esc(label) + '</b><small>' + esc(sub) + '</small></span>'
+    + '<span class="n">' + (count || '') + '</span></button>';
+
+  strip.innerHTML =
+    tile('all', 'All inboxes', MAILBOXES.length + ' connected', total, 'var(--cream)', MAIL_VIEW.account === 'all')
+    + MAILBOXES.map(m => tile(
+        m.accountId,
+        m.account || m.label,
+        m.label,
+        m.counts?.unreadThreads || 0,
+        accountColour(m.accountId),
+        MAIL_VIEW.account === m.accountId
+      )).join('')
+    + '<button class="acct addbtn" id="ib-addacct"><span class="who"><b>+ Add</b>'
+    + '<small>another mailbox</small></span></button>';
+}
+
+function visibleMessages(){
+  const q = MAIL_VIEW.search.trim().toLowerCase();
+  return MESSAGES.filter(m => {
+    if (MAIL_VIEW.account !== 'all' && m.accountId !== MAIL_VIEW.account) return false;
+
+    const archived = ARCHIVED.has(key(m));
+    if (MAIL_VIEW.filter === 'archived') { if (!archived) return false; }
+    else if (archived) return false;
+
+    if (MAIL_VIEW.filter === 'unread' && !m.unread) return false;
+    if (MAIL_VIEW.filter === 'starred' && !m.starred) return false;
+    if (MAIL_VIEW.filter === 'reply' && !needsReply(m)) return false;
+
+    if (q && !`${m.from} ${m.fromAddress || ''} ${m.subject} ${m.snippet}`.toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+const FILTER_EMPTY = {
+  all: ['Nothing here', 'This mailbox has no messages in the current pull.'],
+  unread: ['No unread mail', 'Everything in the current pull has been read.'],
+  reply: ['Nothing waiting on you', 'Unread mail from a real person, excluding no-reply and notification senders.'],
+  starred: ['Nothing starred', 'Star a message from the reader and it shows up here.'],
+  archived: ['Nothing archived yet', 'Messages you archive in this session appear here. A full archive view needs a separate fetch, which is not built.']
+};
+
+function renderMailList(){
+  const list = visibleMessages();
+  const acct = MAIL_VIEW.account === 'all'
+    ? 'All inboxes'
+    : (MAILBOXES.find(m => m.accountId === MAIL_VIEW.account)?.account || MAIL_VIEW.account);
+
+  $('ib-listtitle').textContent = acct;
+  $('ib-listcount').textContent = list.length
+    ? `${list.length} of ${MESSAGES.length}`
+    : 'none';
+
+  if (!list.length) {
+    const [title, note] = FILTER_EMPTY[MAIL_VIEW.filter] || FILTER_EMPTY.all;
+    $('ib-list').innerHTML = '<div class="empty"><b>' + esc(MAIL_VIEW.search ? 'No matches' : title) + '</b>'
+      + '<small>' + esc(MAIL_VIEW.search ? 'Nothing in the current pull matches that search.' : note) + '</small></div>';
+    return;
+  }
+
+  $('ib-list').innerHTML = list.map(m => {
+    const colour = accountColour(m.accountId);
+    const k = key(m);
+    return '<div class="msg' + (m.unread ? ' unread' : '') + (ARCHIVED.has(k) ? ' archived' : '')
+      + (OPEN_REF && key(OPEN_REF) === k ? ' on' : '') + '" data-key="' + esc(k) + '"'
+      + ' data-provider="' + esc(m.provider) + '" data-account="' + esc(m.accountId) + '"'
+      + ' data-id="' + esc(m.id) + '" tabindex="0" role="button">'
+      + '<span class="stripe" style="--c:' + colour + '"></span>'
+      + '<span class="av" style="--c:' + colour + '">' + esc(initials(m.from)) + '</span>'
+      + '<span class="txt"><b>' + esc(m.from) + '</b>'
+      + '<span class="subj">' + esc(m.subject) + '</span>'
+      + '<span class="snip">' + esc(m.snippet.slice(0, 120)) + '</span></span>'
+      + '<span class="meta"><span class="tm">' + esc(m.at) + '</span>'
+      + '<button class="star' + (m.starred ? ' on' : '') + '" data-star="' + esc(k) + '"'
+      + ' aria-label="' + (m.starred ? 'Unstar' : 'Star') + '">' + (m.starred ? '★' : '☆') + '</button>'
+      + '</span></div>';
+  }).join('');
+}
+
+function renderConnectSheet(){
+  const provs = CONN?.providers || [];
+  $('ib-provs').innerHTML = provs.map(p => {
+    const icon = p.name === 'google' ? 'G' : 'M';
+    const tint = p.name === 'google' ? '#D9A441' : '#5B8DEF';
+    const ready = p.configured && CONN.canConnect;
+    return '<button class="prov" data-prov="' + esc(p.name) + '"'
+      + (ready ? '' : ' aria-disabled="true"') + '>'
+      + '<span class="pv-ic" style="--pv:' + tint + '">' + icon + '</span>'
+      + '<span class="pv-t"><b>' + esc(p.label) + '</b><small>'
+      + esc(ready ? p.detail : p.setupHint) + '</small></span>'
+      + '<span class="chip">' + (ready ? 'OAuth' : 'Setup') + '</span></button>';
+  }).join('')
+  + '<button class="prov" aria-disabled="true"><span class="pv-ic" style="--pv:#4E9E7E">@</span>'
+  + '<span class="pv-t"><b>Other (IMAP)</b><small>Not built — no IMAP client in this app yet</small></span>'
+  + '<span class="chip">N/A</span></button>';
+
+  $('ib-note').textContent = CONN?.publicUrlWarning
+    ? 'This dashboard has no password, so anyone with the URL can read the mailboxes you connect. Set APP_PASSWORD to add a login.'
+    : 'Connecting opens the provider’s own sign-in. Tokens are encrypted and stored server-side.';
+}
+
 function renderInbox(d, sources){
-  headerConnect($('inbox-connect'), 'inbox', d ? 'Add' : 'Connect');
   MAILBOXES = (d?.mailboxes || []).filter(m => m.provider && m.accountId);
+  MESSAGES = d?.messages || [];
   $('compose-btn').hidden = MAILBOXES.length === 0;
+
+  if (MAIL_VIEW.account !== 'all' && !MAILBOXES.some(m => m.accountId === MAIL_VIEW.account)) {
+    MAIL_VIEW.account = 'all';
+  }
+
   if (!d) {
-    renderProblem(
-      { sub: $('inbox-sub'), chip: $('inbox-chip'), stats: $('inbox-stats'), body: $('inbox-rows') },
-      ['microsoft', 'gmail'], sources,
-      {
-        sub: 'No mailbox connected yet. Pick one below.',
-        body: 'Set the MS_* variables for Outlook, or the GOOGLE_* variables for Gmail.',
-        connect: ['microsoft', 'google'],
-        from: 'inbox'
-      }
-    );
-    $('inbox-count').textContent = 'Connect to fill this in';
+    const { failing } = diagnose(sources, ['microsoft', 'gmail']);
+    $('inbox-sub').textContent = failing.length
+      ? 'Credentials are set, but the call failed.'
+      : 'No mailbox connected yet.';
+    $('inbox-chip').className = failing.length ? 'chip rust' : 'chip brass';
+    $('inbox-chip').textContent = failing.length ? 'Failing' : 'Not connected';
+    $('ib-accts').innerHTML = '<button class="acct addbtn" id="ib-addacct">'
+      + '<span class="who"><b>+ Connect a mailbox</b><small>Google or Microsoft</small></span></button>';
+    $('ib-listtitle').textContent = 'No mailboxes';
+    $('ib-listcount').textContent = '—';
+    $('ib-list').innerHTML = '<div class="empty"><b>Nothing connected</b>'
+      + '<small>Use Connect new email above. You sign in on the provider’s page.</small></div>'
+      + (failing.length ? failing.map(f =>
+          '<div class="row"><span class="main"><b>' + esc(f.label) + ' is failing</b><small>'
+          + esc(f.reason || '') + '</small></span><span class="chip rust">Error</span></div>').join('') : '');
+    readerEmpty('No message selected', 'Connect a mailbox to start reading.');
     return;
   }
   const c = d.counts;
-  const boxes = d.mailboxes || [];
-  const many = boxes.length > 1;
+  const many = MAILBOXES.length > 1;
 
-  $('inbox-sub').textContent = c.unreadThreads.toLocaleString() + ' unread out of '
-    + c.totalThreads.toLocaleString() + (many
-      ? ' across ' + boxes.length + ' mailboxes: ' + boxes.map(b => b.account || b.label).join(', ')
-      : ' in ' + esc(d.label || 'the inbox'));
+  $('inbox-sub').textContent = c.unreadThreads.toLocaleString() + ' unread of '
+    + c.totalThreads.toLocaleString()
+    + (many ? ` across ${MAILBOXES.length} mailboxes` : ' in ' + (d.label || 'the inbox'))
+    + ` · showing the newest ${MESSAGES.length}`;
   $('inbox-chip').className = 'chip jade';
-  $('inbox-chip').textContent = many ? boxes.length + ' mailboxes live' : (d.label || 'Mail') + ' live';
+  $('inbox-chip').textContent = many ? MAILBOXES.length + ' mailboxes live' : (d.label || 'Mail') + ' live';
 
-  $('inbox-stats').innerHTML = [
-    { eyebrow: 'Unread', value: c.unreadThreads.toLocaleString(), meta: many ? 'all mailboxes' : 'in inbox', tone: 'flat' },
-    { eyebrow: 'Unread messages', value: c.unreadMessages.toLocaleString(), meta: 'individual mails', tone: 'flat' },
-    { eyebrow: 'Inbox total', value: c.totalThreads.toLocaleString(), meta: 'all items', tone: 'flat' },
-    { eyebrow: 'Mailboxes', value: String(boxes.length || 1), meta: 'connected', tone: 'flat' }
-  ].map(statTile).join('');
-
-  $('inbox-count').textContent = d.messages.length + ' shown';
-  $('inbox-rows').innerHTML = (d.messages.map(m => {
-    const ref = 'data-provider="' + esc(m.provider) + '" data-account="' + esc(m.accountId)
-      + '" data-id="' + esc(m.id) + '"';
-    return '<div class="row unread clickable" data-open-msg ' + ref + ' tabindex="0" role="button">'
-      + '<span class="main"><b>' + esc(m.from) + ' · ' + esc(m.subject) + '</b>'
-      + '<small>' + esc(m.snippet.slice(0, 110)) + '</small></span>'
-      + (many && m.account ? '<span class="chip">' + esc(m.account) + '</span>' : '')
-      + '<span class="rowact">'
-      + '<button class="iconbtn" data-quick="read" ' + ref + '>Read</button>'
-      + '<button class="iconbtn" data-quick="archive" ' + ref + '>Archive</button>'
-      + '</span>'
-      + '<span class="right">' + esc(m.at) + '</span></div>';
-  }).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>');
+  renderAccountStrip();
+  renderMailList();
+  if (!OPEN_MSG) readerEmpty('No message selected', 'Pick anything on the left to read it here.');
 }
 
 function renderTasksView(d, sources){
@@ -754,26 +905,55 @@ document.addEventListener('click', e => {
   if (e.target.closest('#compose-send')) { submitCompose('send'); return; }
   if (e.target.closest('#compose-draft')) { submitCompose('draft'); return; }
   if (e.target.closest('#read-reply')) { replyToOpen(); return; }
+  if (e.target.closest('#ib-refresh')) { hydrate(); return; }
 
-  const act = e.target.closest('[data-msg-action]');
-  if (act) { messageAction(act.dataset.msgAction); return; }
-
-  // Row-level quick actions run without opening the message.
-  const quick = e.target.closest('[data-quick]');
-  if (quick) {
-    e.stopPropagation();
-    const { provider, account, id } = quick.dataset;
-    api('/api/mail/action', {
-      method: 'POST',
-      body: JSON.stringify({ provider, accountId: account, id, action: quick.dataset.quick })
-    }).then(() => {
-      quick.closest('.row')?.classList.remove('unread');
-      hydrate();
-    }).catch(err => { quick.textContent = 'failed'; console.error(err); });
+  // connect sheet
+  if (e.target.closest('#ib-connect') || e.target.closest('#ib-addacct')) {
+    renderConnectSheet();
+    $('ib-modal').hidden = false;
+    return;
+  }
+  if (e.target.closest('#ib-close') || e.target.id === 'ib-modal') { $('ib-modal').hidden = true; return; }
+  const prov = e.target.closest('[data-prov]');
+  if (prov) {
+    if (prov.getAttribute('aria-disabled') === 'true') return;
+    location.href = '/connect/' + encodeURIComponent(prov.dataset.prov) + '?return=inbox';
     return;
   }
 
-  const openRow = e.target.closest('[data-open-msg]');
+  // account strip + filters + star
+  const tile = e.target.closest('[data-acct]');
+  if (tile) { MAIL_VIEW.account = tile.dataset.acct; renderAccountStrip(); renderMailList(); return; }
+
+  const fchip = e.target.closest('[data-filter]');
+  if (fchip) {
+    MAIL_VIEW.filter = fchip.dataset.filter;
+    document.querySelectorAll('#ib-filters .fchip').forEach(b => b.classList.toggle('on', b === fchip));
+    renderMailList();
+    return;
+  }
+
+  const starBtn = e.target.closest('[data-star]');
+  if (starBtn) {
+    e.stopPropagation();
+    const m = MESSAGES.find(x => key(x) === starBtn.dataset.star);
+    if (!m) return;
+    const next = !m.starred;
+    m.starred = next;                       // optimistic; reverted if the call fails
+    starBtn.classList.toggle('on', next);
+    starBtn.textContent = next ? '★' : '☆';
+    api('/api/mail/action', {
+      method: 'POST',
+      body: JSON.stringify({ provider: m.provider, accountId: m.accountId, id: m.id, action: next ? 'star' : 'unstar' })
+    }).catch(() => {
+      m.starred = !next;
+      starBtn.classList.toggle('on', !next);
+      starBtn.textContent = !next ? '★' : '☆';
+    });
+    return;
+  }
+
+  const openRow = e.target.closest('.msg[data-id]');
   if (openRow) {
     openMessage({
       provider: openRow.dataset.provider,
@@ -788,12 +968,13 @@ document.addEventListener('click', e => {
 
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') {
+    if (!$('ib-modal').hidden) { $('ib-modal').hidden = true; return; }
     const open = document.querySelector('.sheet.on');
     if (open) { open.classList.remove('on'); return; }
   }
   // Enter/Space on a focused message row opens it.
   if (e.key === 'Enter' || e.key === ' ') {
-    const row = e.target.closest?.('[data-open-msg]');
+    const row = e.target.closest?.('.msg[data-id]');
     if (row) {
       e.preventDefault();
       openMessage({ provider: row.dataset.provider, accountId: row.dataset.account, id: row.dataset.id });
@@ -821,6 +1002,16 @@ document.addEventListener('keydown', e => {
 });
 
 window.addEventListener('hashchange', () => show(hashView()));
+
+let searchTimer = null;
+document.addEventListener('input', e => {
+  if (e.target.id !== 'ib-search') return;
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    MAIL_VIEW.search = e.target.value;
+    renderMailList();
+  }, 140);
+});
 
 const DAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

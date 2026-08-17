@@ -227,7 +227,8 @@ function mailbox(s, env){
     totalThreads: a.totalThreads + (m.counts.totalThreads || 0)
   }), { unreadMessages: 0, unreadThreads: 0, totalThreads: 0 });
 
-  const total = Math.max(1, Number(env.INBOX_TOTAL) || 10);
+  // The list is the main surface now, and filters/search only see what was pulled.
+  const total = Math.max(1, Number(env.INBOX_TOTAL) || 30);
 
   return {
     label: mailboxes.length === 1

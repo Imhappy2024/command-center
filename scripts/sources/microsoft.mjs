@@ -87,7 +87,7 @@ async function mailFor(seat, tz, today, perMailbox){
   const folder = await graph(`/${seat.scope}/mailFolders/inbox?$select=totalItemCount,unreadItemCount`, seat.tok, tz);
   const msgs = await graph(
     `/${seat.scope}/mailFolders/inbox/messages?$filter=isRead%20eq%20false&$top=${perMailbox}`
-    + '&$orderby=receivedDateTime desc&$select=subject,from,receivedDateTime,bodyPreview',
+    + '&$orderby=receivedDateTime desc&$select=subject,from,receivedDateTime,bodyPreview,isRead,flag',
     seat.tok, tz
   );
   return {
@@ -105,12 +105,14 @@ async function mailFor(seat, tz, today, perMailbox){
       provider: 'microsoft',
       accountId: seat.accountId,
       from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown',
+      fromAddress: m.from?.emailAddress?.address || '',
       subject: m.subject || '(no subject)',
       snippet: (m.bodyPreview || '').replace(/\s+/g, ' ').trim(),
       at: dateKey(m.receivedDateTime) === today ? hhmm(m.receivedDateTime) : String(m.receivedDateTime).slice(5, 10),
       sortKey: new Date(m.receivedDateTime).getTime() || 0,
       account: seat.account,
-      unread: true
+      unread: m.isRead === false,
+      starred: m.flag?.flagStatus === 'flagged'
     }))
   };
 }
@@ -132,7 +134,7 @@ export async function fetchMicrosoft(env, ctx = {}){
   }
 
   const tz = env.AGENT_TIMEZONE || env.TIMEZONE || 'UTC';
-  const perMailbox = Math.max(1, Number(env.INBOX_PER_MAILBOX) || 6);
+  const perMailbox = Math.max(1, Number(env.INBOX_PER_MAILBOX) || 15);
   const warnings = broken.map(b => `Outlook ${b.account}: ${b.error}`);
 
   const seats = usable.length

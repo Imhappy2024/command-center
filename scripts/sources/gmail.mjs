@@ -191,17 +191,20 @@ async function mailboxFor(tok, account, accountId, perMailbox){
 
   const messages = await Promise.all(ids.map(async id => {
     const m = await api(`/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, tok);
+    const rawFrom = header(m, 'from');
     return {
       id: m.id,
       provider: 'google',
       accountId,
-      from: sender(header(m, 'from')),
+      from: sender(rawFrom),
+      fromAddress: (rawFrom.match(/<([^>]+)>/) || [null, rawFrom])[1].trim(),
       subject: header(m, 'subject') || '(no subject)',
       snippet: m.snippet || '',
       at: when(m.internalDate),
       sortKey: Number(m.internalDate) || 0,
       account,
-      unread: true
+      unread: (m.labelIds || []).includes('UNREAD'),
+      starred: (m.labelIds || []).includes('STARRED')
     };
   }));
 
@@ -236,7 +239,7 @@ export async function fetchGmail(env, ctx = {}){
   }
 
   const tz = env.AGENT_TIMEZONE || env.TIMEZONE || 'UTC';
-  const perMailbox = Math.max(1, Number(env.INBOX_PER_MAILBOX) || 6);
+  const perMailbox = Math.max(1, Number(env.INBOX_PER_MAILBOX) || 15);
   const warnings = broken.map(b => `Gmail ${b.account}: ${b.error}`);
 
   const seats = usable.length

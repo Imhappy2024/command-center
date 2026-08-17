@@ -282,6 +282,109 @@ main{min-width:0;display:flex;flex-direction:column}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 
+/* ---------- inbox: multi-account ---------- */
+.accts{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px}
+.acct{
+  display:flex;align-items:center;gap:10px;flex:none;cursor:pointer;text-align:left;
+  background:var(--panel);border:1px solid var(--edge);border-radius:9px;padding:10px 14px;color:inherit;
+  transition:.15s;min-width:150px;
+}
+.acct:hover{border-color:var(--edge2)}
+.acct.on{background:var(--panel2);border-color:var(--brass)}
+.acct .swatch{width:7px;height:26px;border-radius:3px;background:var(--c,var(--dim));flex:none}
+.acct .who{min-width:0}
+.acct .who b{display:block;font-size:12.5px;color:var(--cream);font-variation-settings:'wght' 600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+.acct .who small{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--dimmer);letter-spacing:.05em}
+.acct .n{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--brass);flex:none;padding-left:10px}
+.acct.dead .n{color:var(--rust)}
+.acct.addbtn{border-style:dashed;min-width:auto;color:var(--dimmer)}
+.acct.addbtn:hover{border-color:var(--brass);color:var(--brass)}
+
+.mailtools{display:flex;gap:12px;align-items:center;margin-bottom:12px;flex-wrap:wrap}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{
+  background:none;border:1px solid var(--edge);border-radius:20px;color:var(--dim);cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  padding:6px 12px;transition:.15s;
+}
+.fchip:hover{border-color:var(--edge2);color:var(--text)}
+.fchip.on{background:var(--cream);border-color:var(--cream);color:#12161A}
+.msearch{
+  flex:1;min-width:180px;background:var(--panel);border:1px solid var(--edge);border-radius:7px;
+  padding:8px 12px;color:var(--text);font-family:inherit;font-size:13px;outline:0;
+}
+.msearch:focus{border-color:var(--edge2)}
+.msearch::placeholder{color:var(--dimmer)}
+
+.mailwrap{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:14px;align-items:start}
+.maillist{max-height:660px;overflow:auto}
+.reader{min-height:380px;max-height:660px;overflow:auto;display:flex;flex-direction:column}
+
+.msg{
+  display:grid;grid-template-columns:8px 34px 1fr auto;gap:11px;align-items:start;
+  padding:12px 16px 12px 10px;border-bottom:1px solid #1C232A;cursor:pointer;transition:background .12s;
+}
+.msg:hover{background:#181E24}
+.msg.on{background:#1C232B}
+.msg .stripe{width:3px;align-self:stretch;border-radius:2px;background:var(--c,var(--dim));opacity:.55}
+.msg.unread .stripe{opacity:1}
+.msg .av{
+  width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;color:#12161A;background:var(--c,#555);flex:none;
+}
+.msg .txt{min-width:0}
+.msg .txt b{display:block;font-size:13px;color:var(--dim);font-variation-settings:'wght' 500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg.unread .txt b{color:var(--cream);font-variation-settings:'wght' 600}
+.msg .subj{display:block;font-size:12.5px;color:var(--dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg.unread .subj{color:var(--text)}
+.msg .snip{display:block;font-size:11.5px;color:var(--dimmer);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg .meta{text-align:right;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.msg .meta .tm{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer)}
+.star{background:none;border:0;cursor:pointer;color:var(--dimmer);font-size:13px;line-height:1;padding:0}
+.star.on{color:var(--brass)}
+.msg.archived{opacity:.45}
+
+.rhead{padding:18px 20px;border-bottom:1px solid var(--edge)}
+.rhead h2{font-size:17px;color:var(--cream);font-variation-settings:'wdth' 108,'wght' 700;line-height:1.35;margin-bottom:9px}
+.rmeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
+.ractions{display:flex;gap:6px;padding:12px 20px;border-bottom:1px solid var(--edge);flex-wrap:wrap}
+.rbody{padding:20px;font-size:13.5px;line-height:1.72;color:var(--text);white-space:pre-wrap;flex:1;word-break:break-word}
+.rbody.html{white-space:normal}
+.rbody iframe{width:100%;min-height:340px;border:0;background:#fff;border-radius:6px}
+.rfoot{padding:14px 20px;border-top:1px solid var(--edge)}
+.rfoot textarea{
+  width:100%;min-height:78px;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
+  padding:11px 13px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;outline:0;
+}
+.rfoot textarea:focus{border-color:var(--edge2)}
+.empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:70px 24px;text-align:center;flex:1}
+.empty b{color:var(--dim);font-size:13.5px;font-variation-settings:'wght' 500}
+.empty small{color:var(--dimmer);font-size:12px;max-width:38ch;line-height:1.6}
+
+.modal{position:fixed;inset:0;background:rgba(6,8,10,.78);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal[hidden]{display:none}
+.modal .sheetbox{background:var(--panel);border:1px solid var(--edge2);border-radius:14px;width:100%;max-width:440px;overflow:hidden}
+.sheethead{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;padding:20px 20px 16px;border-bottom:1px solid var(--edge)}
+.sheethead h3{font-size:15px;color:var(--cream)}
+.sheethead small{display:block;font-size:12px;color:var(--dimmer);margin-top:4px;line-height:1.5}
+.xbtn{background:none;border:0;color:var(--dim);font-size:22px;line-height:1;cursor:pointer;padding:0 2px}
+.xbtn:hover{color:var(--cream)}
+.provlist{padding:10px}
+.prov{
+  width:100%;display:flex;align-items:center;gap:12px;background:none;border:1px solid transparent;
+  border-radius:9px;padding:12px;cursor:pointer;color:inherit;text-align:left;transition:.15s;
+}
+.prov:hover{background:var(--panel2);border-color:var(--edge)}
+.prov[aria-disabled="true"]{opacity:.45;cursor:not-allowed}
+.pv-ic{width:32px;height:32px;border-radius:8px;background:var(--pv);color:#12161A;display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;flex:none}
+.pv-t{flex:1;min-width:0}
+.pv-t b{display:block;font-size:13.5px;color:var(--cream);font-variation-settings:'wght' 600}
+.pv-t small{display:block;font-size:11.5px;color:var(--dimmer);margin-top:1px}
+.sheetnote{padding:13px 20px;border-top:1px solid var(--edge);font-size:10.5px;color:var(--dimmer);line-height:1.6;letter-spacing:.03em}
+
+@media(max-width:1100px){.mailwrap{grid-template-columns:1fr}.reader{max-height:none}}
+@media(max-width:820px){.maillist{max-height:none}.msg .snip{display:none}}
+
 /* ---------- mail reader + composer ---------- */
 .sheet{
   position:fixed;inset:0;z-index:60;display:none;
@@ -361,22 +464,15 @@ main{min-width:0;display:flex;flex-direction:column}
   </div>
   <div id="flash" style="padding:18px 28px 0"></div>
 
-  <!-- message reader -->
-  <div class="sheet" id="reader" role="dialog" aria-modal="true" aria-labelledby="read-subject">
-    <div class="panel">
-      <div class="top">
-        <h3 id="read-subject">Message</h3>
-        <button class="btn quiet" data-close-sheet="reader">Close</button>
+  <!-- connect a mailbox -->
+  <div class="modal" id="ib-modal" hidden>
+    <div class="sheetbox">
+      <div class="sheethead">
+        <div><h3>Connect a mailbox</h3><small>Pick a provider. You sign in on their page, never here.</small></div>
+        <button class="xbtn" id="ib-close" aria-label="Close">&times;</button>
       </div>
-      <div class="meta" id="read-meta"></div>
-      <div class="content" id="read-body">Loading…</div>
-      <div class="foot">
-        <button class="btn primary" id="read-reply">Reply</button>
-        <button class="btn" data-msg-action="unread">Mark unread</button>
-        <button class="btn" data-msg-action="archive">Archive</button>
-        <span class="spacer"></span>
-        <button class="btn quiet" data-msg-action="trash">Trash</button>
-      </div>
+      <div class="provlist" id="ib-provs"></div>
+      <div class="sheetnote mono" id="ib-note"></div>
     </div>
   </div>
 
@@ -466,17 +562,37 @@ main{min-width:0;display:flex;flex-direction:column}
   <!-- INBOX -->
   <section class="view" id="v-inbox" role="tabpanel" aria-labelledby="tab-inbox">
     <div class="vhead">
-      <div><h1>Inbox</h1><p id="inbox-sub">Loading…</p></div>
+      <div><h1>Inbox</h1><p id="inbox-sub">Loading mailboxes…</p></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span class="chip" id="inbox-chip">Mail</span>
+        <button class="btn" id="ib-refresh">Refresh</button>
         <button class="btn primary" id="compose-btn" hidden>Compose</button>
-        <span id="inbox-connect" style="display:flex;gap:8px"></span>
+        <button class="btn primary" id="ib-connect">+ Connect new email</button>
       </div>
     </div>
-    <div class="grid g4" id="inbox-stats" style="margin-bottom:14px"></div>
-    <div class="card flush">
-      <div class="cardhead"><h3>Newest unread</h3><span class="eyebrow" id="inbox-count">—</span></div>
-      <div class="cardbody" id="inbox-rows"></div>
+
+    <div class="accts" id="ib-accts"></div>
+
+    <div class="mailtools">
+      <div class="filters" id="ib-filters">
+        <button class="fchip on" data-filter="all">All</button>
+        <button class="fchip" data-filter="unread">Unread</button>
+        <button class="fchip" data-filter="reply">Needs reply</button>
+        <button class="fchip" data-filter="starred">Starred</button>
+        <button class="fchip" data-filter="archived">Archived</button>
+      </div>
+      <input class="msearch" id="ib-search" placeholder="Search sender, subject or preview" aria-label="Search mail">
+    </div>
+
+    <div class="mailwrap">
+      <div class="card flush maillist">
+        <div class="cardhead">
+          <h3 id="ib-listtitle">All inboxes</h3>
+          <span class="eyebrow" id="ib-listcount">—</span>
+        </div>
+        <div id="ib-list"></div>
+      </div>
+      <div class="card flush reader" id="ib-reader"></div>
     </div>
   </section>
 
