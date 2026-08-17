@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 import { runRefresh } from './scripts/refresh.mjs';
-import { TokenStore } from './lib/store.mjs';
+import { TokenStore, resolveSecret } from './lib/store.mjs';
 import { makeAuth } from './lib/session.mjs';
 import { mountRoutes } from './lib/routes.mjs';
 
@@ -18,9 +18,10 @@ const DATA_FILE = env.DATA_FILE || path.join(DATA_DIR, 'dashboard.json');
 const PORT = Number(env.PORT) || 3000;
 const REFRESH_MINUTES = Number(env.REFRESH_INTERVAL_MINUTES ?? 15);
 
+const secret = await resolveSecret(env, DATA_DIR);
 const store = new TokenStore({
   file: env.TOKEN_STORE || path.join(DATA_DIR, 'connections.enc'),
-  secret: env.ENCRYPTION_KEY || env.APP_PASSWORD || null
+  secret
 });
 
 const app = express();
@@ -35,10 +36,12 @@ app.use((req, res, next) => {
   next();
 });
 
+/* Optional. With no APP_PASSWORD the dashboard is open and connecting still
+   works — the password gates who can open the page, not whether the feature
+   exists. */
 const auth = makeAuth({
   password: env.APP_PASSWORD,
-  // Sessions are signed with a key that outlives a password change if given one.
-  secret: env.SESSION_SECRET || env.ENCRYPTION_KEY || env.APP_PASSWORD || 'insecure-dev-secret',
+  secret: env.SESSION_SECRET || secret,
   isSecure: () => String(env.PUBLIC_URL || '').startsWith('https:') || env.NODE_ENV === 'production'
 });
 
@@ -51,6 +54,7 @@ mountRoutes(app, {
   env,
   auth,
   store,
+  secret,
   publicDir: PUBLIC,
   onConnected: () => refresh('connect')
 });
@@ -100,8 +104,8 @@ async function refresh(reason){
 app.listen(PORT, '0.0.0.0', async () => {
   console.log(`Command Center listening on 0.0.0.0:${PORT}`);
   console.log(`  data dir:  ${DATA_DIR}`);
-  console.log(`  login:     ${auth.enabled ? 'APP_PASSWORD set' : 'OPEN — set APP_PASSWORD to gate this dashboard'}`);
-  console.log(`  connect:   ${auth.enabled && store.enabled ? 'enabled' : 'disabled until APP_PASSWORD is set'}`);
+  console.log(`  login:     ${auth.enabled ? 'APP_PASSWORD set' : 'OPEN — anyone with the URL can read connected mail'}`);
+  console.log(`  connect:   ${store.enabled ? 'enabled' : 'disabled — no encryption key'}`);
 
   const connected = Object.keys(await store.all()).filter(k => k.startsWith('oauth:'));
   if (connected.length) console.log(`  connected: ${connected.map(k => k.slice(6)).join(', ')}`);

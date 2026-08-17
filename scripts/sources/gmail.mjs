@@ -10,6 +10,7 @@
 import { createSign } from 'node:crypto';
 
 import { weekWindow } from '../../lib/calendar.mjs';
+import { normaliseId } from '../../lib/providers.mjs';
 
 const TOKEN_URL = 'https://oauth2.googleapis.com/token';
 const API = 'https://gmail.googleapis.com/gmail/v1/users/me';
@@ -183,7 +184,7 @@ async function eventsFor(tok, account, tz){
     });
 }
 
-async function mailboxFor(tok, account, perMailbox){
+async function mailboxFor(tok, account, accountId, perMailbox){
   const inbox = await api('/labels/INBOX', tok);
   const listed = await api('/messages?q=' + encodeURIComponent('is:unread in:inbox') + '&maxResults=' + perMailbox, tok);
   const ids = (listed.messages || []).map(m => m.id);
@@ -191,6 +192,9 @@ async function mailboxFor(tok, account, perMailbox){
   const messages = await Promise.all(ids.map(async id => {
     const m = await api(`/messages/${id}?format=metadata&metadataHeaders=Subject&metadataHeaders=From&metadataHeaders=Date`, tok);
     return {
+      id: m.id,
+      provider: 'google',
+      accountId,
       from: sender(header(m, 'from')),
       subject: header(m, 'subject') || '(no subject)',
       snippet: m.snippet || '',
@@ -203,6 +207,7 @@ async function mailboxFor(tok, account, perMailbox){
 
   return {
     account,
+    accountId,
     counts: {
       unreadMessages: inbox.messagesUnread ?? 0,
       unreadThreads: inbox.threadsUnread ?? 0,
@@ -235,10 +240,14 @@ export async function fetchGmail(env, ctx = {}){
   const warnings = broken.map(b => `Gmail ${b.account}: ${b.error}`);
 
   const seats = usable.length
-    ? usable.map(a => ({ token: a.token, account: a.account }))
-    : [{ token: await accessToken(env), account: env.GOOGLE_IMPERSONATE_USER || null }];
+    ? usable.map(a => ({ token: a.token, account: a.account, accountId: a.accountId }))
+    : [{
+        token: await accessToken(env),
+        account: env.GOOGLE_IMPERSONATE_USER || null,
+        accountId: normaliseId(env.GOOGLE_IMPERSONATE_USER)
+      }];
 
-  const boxes = await Promise.all(seats.map(s => mailboxFor(s.token, s.account, perMailbox)));
+  const boxes = await Promise.all(seats.map(s => mailboxFor(s.token, s.account, s.accountId, perMailbox)));
 
   // Calendar is a separate scope, and older tokens do not carry it. A refusal
   // here must not take the mailbox down with it.
@@ -262,7 +271,9 @@ export async function fetchGmail(env, ctx = {}){
     via: usable.length ? 'oauth' : (hasServiceAccount ? 'service-account' : 'refresh-token'),
     mailboxes: boxes.map(b => ({
       label: 'Gmail',
+      provider: 'google',
       account: b.account,
+      accountId: b.accountId,
       counts: b.counts,
       messages: b.messages
     })),

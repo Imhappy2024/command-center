@@ -281,6 +281,55 @@ main{min-width:0;display:flex;flex-direction:column}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+
+/* ---------- mail reader + composer ---------- */
+.sheet{
+  position:fixed;inset:0;z-index:60;display:none;
+  background:rgba(6,8,10,.72);backdrop-filter:blur(4px);
+  align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;
+}
+.sheet.on{display:flex}
+.sheet .panel{
+  width:100%;max-width:760px;background:var(--panel);border:1px solid var(--edge2);
+  border-radius:var(--r);box-shadow:0 24px 60px rgba(0,0,0,.5);
+}
+.sheet .top{
+  display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--edge);
+}
+.sheet .top h3{flex:1;font-size:15px;color:var(--cream);font-variation-settings:'wght' 600}
+.sheet .meta{padding:12px 18px;border-bottom:1px solid var(--edge);font-size:12.5px;color:var(--dim);line-height:1.7}
+.sheet .meta b{color:var(--text);font-variation-settings:'wght' 500}
+.sheet .content{
+  padding:18px;font-size:13.5px;line-height:1.65;color:var(--text);
+  max-height:46vh;overflow-y:auto;white-space:pre-wrap;word-break:break-word;
+}
+.sheet .content.html{white-space:normal}
+.sheet .content img{max-width:100%;height:auto}
+.sheet .content a{color:var(--brass)}
+.sheet .foot{display:flex;gap:8px;padding:14px 18px;border-top:1px solid var(--edge);flex-wrap:wrap}
+.sheet .foot .spacer{flex:1}
+.field{display:flex;flex-direction:column;gap:5px;padding:10px 18px 0}
+.field label{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--dimmer)}
+.field input,.field select,.field textarea{
+  background:var(--ink2);border:1px solid var(--edge);border-radius:7px;padding:9px 11px;
+  color:var(--text);font-family:inherit;font-size:13.5px;outline:0;width:100%;
+}
+.field textarea{min-height:190px;resize:vertical;line-height:1.6}
+.field input:focus,.field select:focus,.field textarea:focus{border-color:var(--edge2)}
+.rowact{display:flex;gap:6px;opacity:0;transition:opacity .12s}
+.row:hover .rowact,.row:focus-within .rowact{opacity:1}
+.iconbtn{
+  background:none;border:1px solid var(--edge2);border-radius:5px;color:var(--dim);
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+  padding:3px 7px;cursor:pointer;
+}
+.iconbtn:hover{background:var(--cream);color:#12161A;border-color:var(--cream)}
+.row.clickable{cursor:pointer}
+@media(max-width:820px){
+  .sheet{padding:0}
+  .sheet .panel{max-width:none;border-radius:0;min-height:100vh}
+  .rowact{opacity:1}
+}
 </style>
 </head>
 <body>
@@ -311,6 +360,61 @@ main{min-width:0;display:flex;flex-direction:column}
     <div class="clock"><div class="t" id="clk">--:--</div><div class="d" id="dte">&nbsp;</div></div>
   </div>
   <div id="flash" style="padding:18px 28px 0"></div>
+
+  <!-- message reader -->
+  <div class="sheet" id="reader" role="dialog" aria-modal="true" aria-labelledby="read-subject">
+    <div class="panel">
+      <div class="top">
+        <h3 id="read-subject">Message</h3>
+        <button class="btn quiet" data-close-sheet="reader">Close</button>
+      </div>
+      <div class="meta" id="read-meta"></div>
+      <div class="content" id="read-body">Loading…</div>
+      <div class="foot">
+        <button class="btn primary" id="read-reply">Reply</button>
+        <button class="btn" data-msg-action="unread">Mark unread</button>
+        <button class="btn" data-msg-action="archive">Archive</button>
+        <span class="spacer"></span>
+        <button class="btn quiet" data-msg-action="trash">Trash</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- composer -->
+  <div class="sheet" id="composer" role="dialog" aria-modal="true" aria-labelledby="compose-title">
+    <div class="panel">
+      <div class="top">
+        <h3 id="compose-title">New message</h3>
+        <button class="btn quiet" data-close-sheet="composer">Close</button>
+      </div>
+      <div class="field">
+        <label for="compose-from">From</label>
+        <select id="compose-from"></select>
+      </div>
+      <div class="field">
+        <label for="compose-to">To</label>
+        <input id="compose-to" type="text" placeholder="name@example.com, another@example.com" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="compose-cc">Cc</label>
+        <input id="compose-cc" type="text" placeholder="optional" autocomplete="off">
+      </div>
+      <div class="field">
+        <label for="compose-subject">Subject</label>
+        <input id="compose-subject" type="text" autocomplete="off">
+      </div>
+      <div class="field" style="padding-bottom:14px">
+        <label for="compose-body">Message</label>
+        <textarea id="compose-body"></textarea>
+      </div>
+      <div class="foot">
+        <button class="btn primary" id="compose-send">Send</button>
+        <button class="btn" id="compose-draft">Save draft</button>
+        <span class="spacer"></span>
+        <span id="compose-status" style="font-size:12.5px;color:var(--dim);align-self:center"></span>
+      </div>
+    </div>
+  </div>
 
   <!-- OVERVIEW -->
   <section class="view on" id="v-overview" role="tabpanel" aria-labelledby="tab-overview">
@@ -365,6 +469,7 @@ main{min-width:0;display:flex;flex-direction:column}
       <div><h1>Inbox</h1><p id="inbox-sub">Loading…</p></div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span class="chip" id="inbox-chip">Mail</span>
+        <button class="btn primary" id="compose-btn" hidden>Compose</button>
         <span id="inbox-connect" style="display:flex;gap:8px"></span>
       </div>
     </div>

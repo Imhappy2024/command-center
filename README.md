@@ -21,6 +21,23 @@ sources, with six further views still on placeholder markup.
 With no credentials set the wired views say **"not configured"** and name the variable
 they need. They never show a fabricated number.
 
+## Mail
+
+The Inbox is a working mail client across every connected account:
+
+- **Read** — click any row for the full message. HTML mail renders in a sandboxed
+  iframe with no script execution, because mail is hostile input.
+- **Compose** — the *Compose* button, with a From picker listing every connected mailbox.
+- **Reply** — from an open message, quoting the original and threading correctly.
+- **Drafts** — *Save draft* writes to that account's Drafts folder.
+- **Act** — mark read/unread, archive, trash; per-row on hover or from the reader.
+
+`⌘/Ctrl+Enter` sends, `Esc` closes.
+
+Scopes are `gmail.modify` + `gmail.compose` and `Mail.ReadWrite` + `Mail.Send`. Accounts
+connected before sending existed are read-only until reconnected — a refresh token carries
+the scopes it was minted with and cannot be widened.
+
 ## Connecting accounts
 
 Sign in, click **Connect** — on the empty Inbox, the empty Calendar, or the
@@ -42,13 +59,15 @@ Workspace domain-wide delegation and no Entra admin consent for application perm
 which is why it exists alongside the environment-variable paths below. A connected
 account always wins over the equivalent variables.
 
-Three things gate it:
+Two things it needs:
 
 | Requirement | Why |
 |---|---|
-| `APP_PASSWORD` | Without a login, anyone with the URL could connect an account or read the mail of one already connected. Connect routes 403 until it is set. |
 | Provider client id + secret | `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`, `MS_CLIENT_ID`/`MS_CLIENT_SECRET`. The Connections page prints the exact redirect URI to register. |
 | `DATA_DIR` on a volume | Railway's filesystem is ephemeral. Without a mounted volume, a redeploy drops the tokens and you reconnect. The page warns when this is unset. |
+
+Tokens are always encrypted at rest. The key comes from `ENCRYPTION_KEY`, else `APP_PASSWORD`,
+else one generated under `DATA_DIR` on first boot — so no configuration is required to connect.
 
 Register the redirect URI shown on the Connections page — `https://<your-domain>/oauth/callback/google`
 and `.../microsoft`. Google's client must be of type **Web application**, not Desktop.
@@ -81,11 +100,11 @@ Nothing is required to boot. `PORT` is injected by Railway — do not set it.
 
 | Variable | Required | Notes |
 |---|---|---|
-| `APP_PASSWORD` | to connect anything | Login password. Unset means the dashboard is public and Connect is disabled |
+| `APP_PASSWORD` | no | Adds a login screen. Unset means the dashboard — and every mailbox on it — is open to anyone with the URL |
 | `PUBLIC_URL` | recommended | e.g. `https://command-center.up.railway.app`; providers match redirect URIs exactly |
 | `DATA_DIR` | recommended | Mounted volume path, e.g. `/data`; without it connections die on redeploy |
-| `ENCRYPTION_KEY` | no | Defaults to `APP_PASSWORD`; set it so a password change keeps stored tokens |
-| `SESSION_SECRET` | no | Defaults to `APP_PASSWORD`; set it so a password change keeps sessions |
+| `ENCRYPTION_KEY` | no | Pins the token-store key. Otherwise `APP_PASSWORD`, else auto-generated under `DATA_DIR` |
+| `SESSION_SECRET` | no | Pins the session signing key across a password change |
 
 **ClickUp** — ClickUp → Settings → Apps → *API Token*
 

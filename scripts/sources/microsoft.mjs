@@ -92,13 +92,18 @@ async function mailFor(seat, tz, today, perMailbox){
   );
   return {
     label: 'Outlook',
+    provider: 'microsoft',
     account: seat.account,
+    accountId: seat.accountId,
     counts: {
       unreadThreads: folder.unreadItemCount ?? 0,
       unreadMessages: folder.unreadItemCount ?? 0,
       totalThreads: folder.totalItemCount ?? 0
     },
     messages: (msgs.value || []).map(m => ({
+      id: m.id,
+      provider: 'microsoft',
+      accountId: seat.accountId,
       from: m.from?.emailAddress?.name || m.from?.emailAddress?.address || 'Unknown',
       subject: m.subject || '(no subject)',
       snippet: (m.bodyPreview || '').replace(/\s+/g, ' ').trim(),
@@ -131,11 +136,12 @@ export async function fetchMicrosoft(env, ctx = {}){
   const warnings = broken.map(b => `Outlook ${b.account}: ${b.error}`);
 
   const seats = usable.length
-    ? usable.map(a => ({ scope: 'me', tok: a.token, account: a.account }))
+    ? usable.map(a => ({ scope: 'me', tok: a.token, account: a.account, accountId: a.accountId }))
     : [{
         scope: `users/${encodeURIComponent(env.MS_SERVICE_USER)}`,
         tok: await accessToken(env),
-        account: env.MS_SERVICE_USER
+        account: env.MS_SERVICE_USER,
+        accountId: String(env.MS_SERVICE_USER || '').toLowerCase()
       }];
 
   const events = (await Promise.all(seats.map(s => eventsFor(s, tz)))).flat();

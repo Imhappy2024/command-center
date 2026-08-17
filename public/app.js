@@ -223,6 +223,156 @@ function renderTasks(tasks){
   ).join('') || '<div class="row"><span class="main"><small>Inbox zero on tasks.</small></span></div>';
 }
 
+/* ---------- mail: read, compose, act ---------- */
+
+let MAILBOXES = [];   // from the last payload, for the From picker
+let OPEN_MSG = null;  // message currently in the reader
+
+const sheet = (id, on) => $(id).classList.toggle('on', on);
+
+async function api(path, init){
+  const res = await fetch(path, {
+    ...init,
+    headers: { 'Content-Type': 'application/json', ...(init?.headers || {}) }
+  });
+  if (res.status === 401) { location.href = '/login'; throw new Error('signed out'); }
+  const json = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`);
+  return json;
+}
+
+/* Remote HTML is rendered in a sandboxed iframe rather than injected: mail is
+   hostile input, and a srcdoc frame with no allow-scripts cannot run any of it. */
+function renderBody(msg){
+  const el = $('read-body');
+  if (msg.html) {
+    el.className = 'content html';
+    el.innerHTML = '';
+    const frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', '');
+    frame.setAttribute('referrerpolicy', 'no-referrer');
+    frame.style.cssText = 'width:100%;min-height:40vh;border:0;background:#fff;border-radius:6px';
+    frame.srcdoc = msg.html;
+    el.appendChild(frame);
+  } else {
+    el.className = 'content';
+    el.textContent = msg.text || '(no body)';
+  }
+}
+
+async function openMessage(ref){
+  OPEN_MSG = null;
+  $('read-subject').textContent = 'Loading…';
+  $('read-meta').textContent = '';
+  $('read-body').textContent = 'Loading…';
+  sheet('reader', true);
+
+  try {
+    const msg = await api(`/api/message/${encodeURIComponent(ref.provider)}/`
+      + `${encodeURIComponent(ref.accountId)}/${encodeURIComponent(ref.id)}`);
+    OPEN_MSG = { ...msg, provider: ref.provider, accountId: ref.accountId };
+    $('read-subject').textContent = msg.subject;
+    $('read-meta').innerHTML =
+      '<div><b>From</b> ' + esc(msg.from) + '</div>'
+      + '<div><b>To</b> ' + esc(msg.to || '—') + '</div>'
+      + (msg.cc ? '<div><b>Cc</b> ' + esc(msg.cc) + '</div>' : '')
+      + '<div><b>Account</b> ' + esc(ref.accountId) + (msg.date ? ' · ' + esc(msg.date) : '') + '</div>';
+    renderBody(msg);
+    // Opening it is reading it.
+    if (msg.unread) messageAction('read', true).catch(() => {});
+  } catch (err) {
+    $('read-subject').textContent = 'Could not open message';
+    $('read-body').textContent = err.message;
+  }
+}
+
+async function messageAction(action, quiet){
+  if (!OPEN_MSG) return;
+  const { provider, accountId, id } = OPEN_MSG;
+  try {
+    await api('/api/mail/action', {
+      method: 'POST',
+      body: JSON.stringify({ provider, accountId, id, action })
+    });
+    if (!quiet) { sheet('reader', false); hydrate(); }
+  } catch (err) {
+    if (!quiet) { $('read-body').className = 'content'; $('read-body').textContent = err.message; }
+  }
+}
+
+function fromOptions(preferId){
+  const sel = $('compose-from');
+  sel.innerHTML = MAILBOXES.map(m =>
+    '<option value="' + esc(m.provider + '|' + m.accountId) + '"'
+    + (m.accountId === preferId ? ' selected' : '') + '>'
+    + esc(m.account || m.label) + ' · ' + esc(m.label) + '</option>'
+  ).join('');
+  return MAILBOXES.length > 0;
+}
+
+function openComposer(prefill = {}){
+  if (!fromOptions(prefill.accountId)) return;
+  $('compose-title').textContent = prefill.title || 'New message';
+  $('compose-to').value = prefill.to || '';
+  $('compose-cc').value = '';
+  $('compose-subject').value = prefill.subject || '';
+  $('compose-body').value = prefill.body || '';
+  $('compose-status').textContent = '';
+  sheet('composer', true);
+  $((prefill.to ? 'compose-body' : 'compose-to')).focus();
+}
+
+function replyToOpen(){
+  if (!OPEN_MSG) return;
+  const m = OPEN_MSG;
+  const quoted = (m.text || '').split('\n').map(l => '> ' + l).join('\n');
+  sheet('reader', false);
+  openComposer({
+    title: 'Reply',
+    accountId: m.accountId,
+    to: m.from,
+    subject: /^re:/i.test(m.subject) ? m.subject : 'Re: ' + m.subject,
+    body: '\n\n' + (m.date ? `On ${m.date}, ${m.from} wrote:\n` : '') + quoted,
+    replyToId: m.id
+  });
+  COMPOSE_REPLY = { replyToId: m.id, threadId: m.threadId, messageId: m.messageId, references: m.references };
+}
+
+let COMPOSE_REPLY = null;
+
+async function submitCompose(kind){
+  const [provider, accountId] = String($('compose-from').value || '').split('|');
+  const status = $('compose-status');
+  status.textContent = kind === 'send' ? 'Sending…' : 'Saving…';
+
+  const payload = {
+    provider,
+    accountId,
+    to: $('compose-to').value.trim(),
+    cc: $('compose-cc').value.trim(),
+    subject: $('compose-subject').value.trim(),
+    body: $('compose-body').value,
+    ...(COMPOSE_REPLY && kind === 'send' ? {
+      replyToId: COMPOSE_REPLY.replyToId,
+      threadId: COMPOSE_REPLY.threadId,
+      inReplyTo: COMPOSE_REPLY.messageId,
+      references: [COMPOSE_REPLY.references, COMPOSE_REPLY.messageId].filter(Boolean).join(' ')
+    } : {})
+  };
+
+  try {
+    await api(kind === 'send' ? '/api/mail/send' : '/api/mail/draft', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+    status.textContent = kind === 'send' ? 'Sent.' : 'Saved to drafts.';
+    COMPOSE_REPLY = null;
+    setTimeout(() => { sheet('composer', false); hydrate(); }, 700);
+  } catch (err) {
+    status.textContent = err.message;
+  }
+}
+
 /* ---------- inbox / tasks / systems views ---------- */
 
 function statTile(s){
@@ -254,23 +404,11 @@ function connectStrip(providerNames, from){
   if (!wanted.length) return '';
 
   if (!CONN.canConnect) {
-    if (CONN.loginRequired) {
-      return '<div style="padding:16px 18px"><div class="banner bad">'
-        + 'Connecting is unavailable: the token store has no encryption key. Set '
-        + '<span class="mono">ENCRYPTION_KEY</span> in Railway.</div></div>';
-    }
-    return '<div style="padding:16px 18px"><div class="banner warn">'
-      + '<b style="display:block;margin-bottom:6px;font-size:14px">Connect buttons are locked</b>'
-      + 'This dashboard has no password, so anyone with the URL can open it. Connecting a mailbox '
-      + 'now would publish your mail to that URL, so the buttons stay disabled until you set one.'
-      + '<div style="margin-top:10px;line-height:1.9">'
-      + '<b>1.</b> Railway → your service → <b>Variables</b> → add <span class="mono">APP_PASSWORD</span><br>'
-      + '<b>2.</b> Add <span class="mono">PUBLIC_URL</span> = <span class="mono">' + esc(location.origin) + '</span><br>'
-      + '<b>3.</b> Settings → <b>Volumes</b> → mount one at <span class="mono">/data</span>, then add '
-      + '<span class="mono">DATA_DIR</span> = <span class="mono">/data</span><br>'
-      + '<b>4.</b> Redeploy. You will get a login screen — the buttons appear once you are in.'
-      + '</div>'
-      + envReport(['APP_PASSWORD', 'PUBLIC_URL', 'DATA_DIR', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'])
+    return '<div style="padding:16px 18px"><div class="banner bad">'
+      + '<b style="display:block;margin-bottom:6px;font-size:14px">Cannot store credentials</b>'
+      + 'The token store has no encryption key, so a connection could not be saved. This normally '
+      + 'resolves itself — a key is generated under <span class="mono">DATA_DIR</span> on boot.'
+      + envReport(['DATA_DIR', 'ENCRYPTION_KEY', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET'])
       + '</div></div>';
   }
 
@@ -322,6 +460,8 @@ function renderProblem(els, keys, sources, hint){
 
 function renderInbox(d, sources){
   headerConnect($('inbox-connect'), 'inbox', d ? 'Add' : 'Connect');
+  MAILBOXES = (d?.mailboxes || []).filter(m => m.provider && m.accountId);
+  $('compose-btn').hidden = MAILBOXES.length === 0;
   if (!d) {
     renderProblem(
       { sub: $('inbox-sub'), chip: $('inbox-chip'), stats: $('inbox-stats'), body: $('inbox-rows') },
@@ -355,12 +495,19 @@ function renderInbox(d, sources){
   ].map(statTile).join('');
 
   $('inbox-count').textContent = d.messages.length + ' shown';
-  $('inbox-rows').innerHTML = (d.messages.map(m =>
-    '<div class="row unread"><span class="main"><b>' + esc(m.from) + ' · ' + esc(m.subject) + '</b>'
-    + '<small>' + esc(m.snippet.slice(0, 110)) + '</small></span>'
-    + (many && m.account ? '<span class="chip">' + esc(m.account) + '</span>' : '')
-    + '<span class="right">' + esc(m.at) + '</span></div>'
-  ).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>');
+  $('inbox-rows').innerHTML = (d.messages.map(m => {
+    const ref = 'data-provider="' + esc(m.provider) + '" data-account="' + esc(m.accountId)
+      + '" data-id="' + esc(m.id) + '"';
+    return '<div class="row unread clickable" data-open-msg ' + ref + ' tabindex="0" role="button">'
+      + '<span class="main"><b>' + esc(m.from) + ' · ' + esc(m.subject) + '</b>'
+      + '<small>' + esc(m.snippet.slice(0, 110)) + '</small></span>'
+      + (many && m.account ? '<span class="chip">' + esc(m.account) + '</span>' : '')
+      + '<span class="rowact">'
+      + '<button class="iconbtn" data-quick="read" ' + ref + '>Read</button>'
+      + '<button class="iconbtn" data-quick="archive" ' + ref + '>Archive</button>'
+      + '</span>'
+      + '<span class="right">' + esc(m.at) + '</span></div>';
+  }).join('') || '<div class="row"><span class="main"><small>Inbox zero.</small></span></div>');
 }
 
 function renderTasksView(d, sources){
@@ -489,15 +636,13 @@ async function renderConnections(){
     return;
   }
 
-  if (!d.loginRequired) {
+  if (d.publicUrlWarning) {
     banner.innerHTML += '<div class="banner warn">'
-      + '<b style="display:block;margin-bottom:6px;font-size:14px">Connect buttons are locked</b>'
-      + 'No password is set, so this page is public and connecting a mailbox would publish it. '
-      + 'Add <span class="mono">APP_PASSWORD</span> in Railway → Variables, plus '
-      + '<span class="mono">PUBLIC_URL</span> = <span class="mono">' + esc(location.origin) + '</span> '
-      + 'and <span class="mono">DATA_DIR</span> = <span class="mono">/data</span> with a volume mounted there. '
-      + 'Redeploy and you will get a login screen.</div>';
-  } else if (!d.persistent) {
+      + 'This dashboard has no password, so anyone with the URL can read the mailboxes connected here. '
+      + 'Set <span class="mono">APP_PASSWORD</span> in Railway if you want a login. Connecting works either way.'
+      + '</div>';
+  }
+  if (d.loginRequired && !d.persistent) {
     banner.innerHTML += '<div class="banner warn">DATA_DIR is not set, so connections live on the container filesystem '
       + 'and are lost on redeploy. Attach a Railway volume and point DATA_DIR at it to keep them.</div>';
   }
@@ -598,11 +743,68 @@ document.addEventListener('click', e => {
   if (item) { show(item.dataset.view); return; }
   const off = e.target.closest('[data-disconnect]');
   if (off) { e.preventDefault(); disconnect(off.dataset.disconnect, off.dataset.account); return; }
+
+  const close = e.target.closest('[data-close-sheet]');
+  if (close) { sheet(close.dataset.closeSheet, false); return; }
+
+  // Backdrop click closes; clicks inside the panel must not.
+  if (e.target.classList?.contains('sheet')) { e.target.classList.remove('on'); return; }
+
+  if (e.target.closest('#compose-btn')) { openComposer(); return; }
+  if (e.target.closest('#compose-send')) { submitCompose('send'); return; }
+  if (e.target.closest('#compose-draft')) { submitCompose('draft'); return; }
+  if (e.target.closest('#read-reply')) { replyToOpen(); return; }
+
+  const act = e.target.closest('[data-msg-action]');
+  if (act) { messageAction(act.dataset.msgAction); return; }
+
+  // Row-level quick actions run without opening the message.
+  const quick = e.target.closest('[data-quick]');
+  if (quick) {
+    e.stopPropagation();
+    const { provider, account, id } = quick.dataset;
+    api('/api/mail/action', {
+      method: 'POST',
+      body: JSON.stringify({ provider, accountId: account, id, action: quick.dataset.quick })
+    }).then(() => {
+      quick.closest('.row')?.classList.remove('unread');
+      hydrate();
+    }).catch(err => { quick.textContent = 'failed'; console.error(err); });
+    return;
+  }
+
+  const openRow = e.target.closest('[data-open-msg]');
+  if (openRow) {
+    openMessage({
+      provider: openRow.dataset.provider,
+      accountId: openRow.dataset.account,
+      id: openRow.dataset.id
+    });
+    return;
+  }
   const box = e.target.closest('[data-check]');
   if (box) box.classList.toggle('done');
 });
 
 document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const open = document.querySelector('.sheet.on');
+    if (open) { open.classList.remove('on'); return; }
+  }
+  // Enter/Space on a focused message row opens it.
+  if (e.key === 'Enter' || e.key === ' ') {
+    const row = e.target.closest?.('[data-open-msg]');
+    if (row) {
+      e.preventDefault();
+      openMessage({ provider: row.dataset.provider, accountId: row.dataset.account, id: row.dataset.id });
+      return;
+    }
+  }
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter' && $('composer').classList.contains('on')) {
+    e.preventDefault();
+    submitCompose('send');
+    return;
+  }
   if ((e.metaKey || e.ctrlKey) && e.key === 'k'){
     e.preventDefault();
     $('cmd').focus();

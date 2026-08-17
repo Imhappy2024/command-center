@@ -233,7 +233,9 @@ function mailbox(s, env){
     label: mailboxes.length === 1
       ? (mailboxes[0].account || mailboxes[0].label)
       : `${mailboxes.length} mailboxes`,
-    mailboxes: mailboxes.map(m => ({ label: m.label, account: m.account, counts: m.counts })),
+    mailboxes: mailboxes.map(m => ({
+      label: m.label, provider: m.provider, account: m.account, accountId: m.accountId, counts: m.counts
+    })),
     counts,
     messages: interleave(mailboxes, total)
   };
