@@ -26,6 +26,8 @@
   --r:10px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{width:0;height:0;display:none}
 html,body{height:100%}
 body{
   background:var(--ink);
@@ -286,50 +288,90 @@ main{min-width:0;display:flex;flex-direction:column}
 .acct.addbtn:hover{border-color:var(--brass);color:var(--brass)}
 
 
-.mailwrap{display:grid;grid-template-columns:1fr;gap:14px;align-items:start}
-.mailwrap.split{grid-template-columns:minmax(0,1fr) minmax(0,1.05fr)}
+.mailwrap{display:grid;grid-template-columns:1fr;gap:0;align-items:start}
+.mailwrap.split{grid-template-columns:var(--split,32%) 15px minmax(0,1fr)}
 .reader[hidden]{display:none}
+.gutter{display:none}
+.split .gutter{
+  display:block;align-self:stretch;position:relative;cursor:col-resize;
+  min-height:120px;touch-action:none;
+}
+.gutter::before{
+  content:"";position:absolute;left:50%;top:6px;bottom:6px;width:1px;
+  background:var(--edge);transform:translateX(-50%);transition:background .13s,width .13s;
+}
+.gutter::after{
+  content:"";position:absolute;left:50%;top:50%;width:3px;height:26px;border-radius:3px;
+  background:var(--edge2);transform:translate(-50%,-50%);opacity:0;transition:opacity .13s;
+}
+.gutter:hover::before,.gutter.drag::before,.gutter:focus-visible::before{background:var(--brass);width:2px}
+.gutter:hover::after,.gutter.drag::after{opacity:1;background:var(--brass)}
+.gutter:focus-visible{outline:none}
 .maillist{max-height:none}
 .mailwrap.split .maillist{max-height:660px;overflow:auto}
-.reader{min-height:380px;max-height:660px;overflow:auto;display:flex;flex-direction:column}
+.reader{min-height:380px;max-height:672px;overflow:hidden;display:flex;flex-direction:column}
 
+#ib-list{padding:8px;display:flex;flex-direction:column;gap:6px}
 .msg{
-  display:grid;grid-template-columns:8px 34px 1fr auto;gap:11px;align-items:start;
-  padding:12px 16px 12px 10px;border-bottom:1px solid #1C232A;cursor:pointer;transition:background .12s;
+  border:1px solid var(--edge);border-radius:9px;padding:11px 13px;cursor:pointer;
+  background:transparent;transition:background .12s,border-color .12s;position:relative;
 }
-.msg:hover{background:#181E24}
-.msg.on{background:#1C232B}
-.msg .stripe{width:3px;align-self:stretch;border-radius:2px;background:var(--c,var(--dim));opacity:.55}
-.msg.unread .stripe{opacity:1}
-.msg .av{
-  width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-family:'IBM Plex Mono',monospace;font-size:11px;color:#12161A;background:var(--c,#555);flex:none;
-}
-.msg .txt{min-width:0}
-.msg .txt .ln1{display:flex;align-items:center;gap:7px}
-.msg .txt b{font-size:13px;color:var(--dim);font-variation-settings:'wght' 500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.msg.unread .txt b{color:var(--cream);font-variation-settings:'wght' 600}
-.msg .subj{display:block;font-size:12.5px;color:var(--dim);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.msg.unread .subj{color:var(--text)}
-.msg .snip{display:block;font-size:11.5px;color:var(--dimmer);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.msg .meta{text-align:right;flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
-.msg .meta .tm{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer)}
-.star{background:none;border:0;cursor:pointer;color:var(--dimmer);font-size:13px;line-height:1;padding:0}
+.msg:hover{background:#171C22;border-color:var(--edge2)}
+.msg.on{border-color:var(--brass);background:#1B2027;box-shadow:0 0 0 1px var(--brass) inset}
+.mr1{display:flex;align-items:center;gap:7px;margin-bottom:4px}
+.udot{width:7px;height:7px;border-radius:50%;background:var(--c,var(--dim));flex:none;opacity:0}
+.msg.unread .udot{opacity:1}
+.mr1 b{font-size:13px;color:var(--dim);font-variation-settings:'wght' 500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.msg.unread .mr1 b{color:var(--cream);font-variation-settings:'wght' 600}
+.mr1 .tm{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer);flex:none}
+.msubj{font-size:13px;color:var(--dim);line-height:1.4;margin-bottom:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.msg.unread .msubj{color:var(--text)}
+.msnip{font-size:12px;color:var(--dimmer);line-height:1.45;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.star{background:none;border:0;cursor:pointer;color:var(--dimmer);font-size:12px;line-height:1;
+  padding:0;flex:none;opacity:0;transition:opacity .12s}
+.msg:hover .star,.star.on{opacity:1}
 .star.on{color:var(--brass)}
-.msg.archived{opacity:.5}
+.mtag{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;
+  padding:1.5px 5px;border-radius:3px;flex:none;
+  color:var(--c);border:1px solid color-mix(in srgb,var(--c) 40%,transparent);
+  background:color-mix(in srgb,var(--c) 12%,transparent)}
 
-.rhead{padding:18px 20px;border-bottom:1px solid var(--edge)}
-.rhead h2{font-size:17px;color:var(--cream);font-variation-settings:'wdth' 108,'wght' 700;line-height:1.35;margin-bottom:9px}
-.rmeta{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--dim)}
-.ractions{display:flex;gap:6px;padding:12px 20px;border-bottom:1px solid var(--edge);flex-wrap:wrap}
-.rbody{padding:20px;font-size:13.5px;line-height:1.72;color:var(--text);white-space:pre-wrap;flex:1}
-.rbody .sig{color:var(--dimmer);font-size:12.5px}
-.rfoot{padding:14px 20px;border-top:1px solid var(--edge)}
-.rfoot textarea{
-  width:100%;min-height:78px;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
-  padding:11px 13px;color:var(--text);font-family:inherit;font-size:13px;resize:vertical;outline:0;
-}
-.rfoot textarea:focus{border-color:var(--edge2)}
+.rtabs{display:flex;gap:4px;padding:9px 12px;border-bottom:1px solid var(--edge);
+  align-items:center;overflow-x:auto}
+.rtab{display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:6px;flex:none;
+  font-size:11.5px;color:var(--dimmer);background:transparent;border:0}
+.rtab .d{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.rtab.on{background:var(--panel2);color:var(--cream)}
+.rscroll{padding:16px;overflow:auto;flex:1}
+.rcard{background:var(--ink2);border:1px solid var(--edge);border-radius:11px;overflow:hidden}
+.rtop{display:flex;align-items:flex-start;gap:11px;padding:15px 16px 13px}
+.rtop .av{width:34px;height:34px;border-radius:9px;flex:none;display:flex;align-items:center;
+  justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:11px;color:#12161A;background:var(--c)}
+.rwho{flex:1;min-width:0}
+.rwho b{font-size:13.5px;color:var(--cream);font-variation-settings:'wght' 600}
+.rwho .addr{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--dimmer);margin-left:5px}
+.rwho small{display:block;font-size:11.5px;color:var(--dimmer);margin-top:2px}
+.rmeta2{display:flex;align-items:center;gap:3px;flex:none;padding-top:2px}
+.rmeta2 .when{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer);margin-right:6px}
+.iact{background:none;border:0;cursor:pointer;color:var(--dimmer);padding:5px;border-radius:6px;
+  display:flex;transition:.12s;line-height:0}
+.iact:hover{background:var(--panel2);color:var(--cream)}
+.iact.on{color:var(--brass)}
+.rbody{padding:4px 16px 18px;font-size:13.5px;line-height:1.75;color:var(--text);white-space:pre-wrap}
+.rcta{padding:0 16px 16px;display:flex;gap:7px;flex-wrap:wrap}
+.replybtn{display:flex;align-items:center;gap:7px;background:var(--cream);color:#12161A;border:0;
+  border-radius:8px;padding:9px 16px;cursor:pointer;font-family:inherit;font-size:13px;
+  font-variation-settings:'wght' 600;transition:.13s}
+.replybtn:hover{background:#fff}
+.compose{margin:0 16px 16px;border:1px solid var(--edge);border-radius:9px;overflow:hidden;background:var(--panel)}
+.compose textarea{width:100%;min-height:120px;background:transparent;border:0;padding:13px 14px;
+  color:var(--text);font-family:inherit;font-size:13.5px;line-height:1.65;resize:vertical;outline:0}
+.compose textarea::placeholder{color:var(--dimmer)}
+.cfoot{display:flex;gap:7px;align-items:center;padding:10px 12px;border-top:1px solid var(--edge)}
+.cfrom{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer)}
 .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:70px 24px;text-align:center;flex:1}
 .empty b{color:var(--dim);font-size:13.5px;font-variation-settings:'wght' 500}
 .empty small{color:var(--dimmer);font-size:12px;max-width:34ch;line-height:1.6}
@@ -354,7 +396,11 @@ main{min-width:0;display:flex;flex-direction:column}
 .pv-t small{display:block;font-size:11.5px;color:var(--dimmer);margin-top:1px}
 .sheetnote{padding:13px 20px;border-top:1px solid var(--edge);font-size:10.5px;color:var(--dimmer);line-height:1.6;letter-spacing:.03em}
 
-@media(max-width:1100px){.mailwrap.split{grid-template-columns:1fr}.reader{max-height:none}}
+@media(max-width:1100px){
+  .mailwrap.split{grid-template-columns:1fr;gap:14px}
+  .split .gutter{display:none}
+  .reader{max-height:none}
+}
 @media(max-width:820px){.maillist{max-height:none}.msg .snip{display:none}}
 
 /* ---------- rail submenu ---------- */
@@ -379,6 +425,9 @@ main{min-width:0;display:flex;flex-direction:column}
   font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;
 }
 .subadd:hover{border-color:var(--brass);color:var(--brass)}
+.unprotected{display:flex;align-items:center;gap:7px;margin-top:8px;padding-top:8px;
+  border-top:1px solid var(--edge);font-family:'IBM Plex Mono',monospace;font-size:9.5px;
+  letter-spacing:.05em;color:var(--rust)}
 .subempty{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer);padding:5px 10px;letter-spacing:.05em}
 
 /* ---------- connect form ---------- */
@@ -407,6 +456,238 @@ main{min-width:0;display:flex;flex-direction:column}
   .subitem{flex:none;width:auto}
   .subadd{width:auto;flex:none;margin-top:0}
 }
+
+/* ---------- calendar ---------- */
+.btn.ic{padding:8px 11px;font-size:14px;line-height:1}
+.calbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.seg{display:inline-flex;background:var(--panel);border:1px solid var(--edge);border-radius:8px;padding:3px;gap:2px}
+.seg button{
+  background:none;border:0;border-radius:6px;cursor:pointer;color:var(--dim);
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  padding:7px 14px;transition:.13s;
+}
+.seg button:hover{color:var(--text)}
+.seg button.on{background:var(--cream);color:#12161A}
+.stepper{display:flex;gap:5px}
+.calrange{font-size:12px;color:var(--cream);letter-spacing:.04em;padding:0 4px}
+.calsources{display:flex;gap:6px;margin-left:auto;flex-wrap:wrap}
+.calsrc{
+  display:flex;align-items:center;gap:7px;background:var(--panel);border:1px solid var(--edge);
+  border-radius:20px;padding:5px 12px 5px 9px;cursor:pointer;color:inherit;transition:.14s;
+}
+.calsrc:hover{border-color:var(--edge2)}
+.calsrc .cb{width:11px;height:11px;border-radius:3px;border:1.5px solid var(--c);background:var(--c);flex:none;transition:.14s}
+.calsrc.off .cb{background:transparent}
+.calsrc span{font-size:11.5px;color:var(--dim)}
+.calsrc.off span{color:var(--dimmer);text-decoration:line-through}
+
+.calwrap{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.calmain{overflow:hidden}
+.calside{max-height:672px;overflow:auto}
+
+/* time grid */
+.tgwrap{max-height:620px;overflow-y:auto;overflow-x:hidden}
+.tghead{display:grid;border-bottom:1px solid var(--edge);position:sticky;top:0;background:var(--panel);z-index:3}
+.tghead .gut{border-right:1px solid var(--edge)}
+.tgday{padding:11px 8px;text-align:center;border-right:1px solid #1C232A}
+.tgday:last-child{border-right:0}
+.tgday .dn{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;color:var(--dimmer);text-transform:uppercase}
+.tgday .dd{font-size:18px;margin-top:3px;font-variation-settings:'wdth' 114,'wght' 700;color:var(--dim)}
+.tgday.today .dd{color:#12161A;background:var(--cream);border-radius:20px;display:inline-block;padding:1px 9px;min-width:30px}
+.tgday .ct{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dimmer);margin-top:3px}
+.tgbody{display:grid;position:relative}
+.tggut{border-right:1px solid var(--edge)}
+.tggut .hr{height:46px;position:relative}
+.tggut .hr b{position:absolute;top:-6px;right:8px;font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--dimmer);font-weight:400}
+.tgcol{position:relative;border-right:1px solid #1C232A;
+  background:repeating-linear-gradient(to bottom,#1C232A 0 1px,transparent 1px 46px)}
+.tgcol:last-child{border-right:0}
+.tgcol.weekend{background-color:#0D1114;background-image:repeating-linear-gradient(to bottom,#1C232A 0 1px,transparent 1px 46px)}
+.now{position:absolute;left:0;right:0;height:1px;background:var(--rust);z-index:4}
+.now::before{content:"";position:absolute;left:-3px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--rust)}
+
+.ev{
+  position:absolute;border-radius:5px;padding:4px 7px;overflow:hidden;cursor:pointer;
+  background:color-mix(in srgb,var(--c) 22%,#12161A);border-left:2.5px solid var(--c);
+  transition:.13s;z-index:2;
+}
+.ev:hover{background:color-mix(in srgb,var(--c) 34%,#12161A);z-index:5}
+.ev.on{background:color-mix(in srgb,var(--c) 46%,#12161A);box-shadow:0 0 0 1px var(--c)}
+.ev b{display:block;font-size:11px;color:var(--cream);font-variation-settings:'wght' 600;line-height:1.3;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ev small{display:block;font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dim);margin-top:1px}
+.allday{display:flex;gap:5px;padding:7px 10px;border-bottom:1px solid var(--edge);flex-wrap:wrap;align-items:center}
+.allday .lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;color:var(--dimmer);text-transform:uppercase;margin-right:4px}
+.adev{border-radius:4px;padding:3px 9px;font-size:11px;cursor:pointer;
+  background:color-mix(in srgb,var(--c) 24%,#12161A);border-left:2px solid var(--c);color:var(--cream)}
+
+/* month grid */
+.mgrid{display:grid;grid-template-columns:repeat(7,1fr)}
+.mhead{padding:9px 6px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;
+  letter-spacing:.13em;color:var(--dimmer);text-transform:uppercase;border-bottom:1px solid var(--edge)}
+.mcell{min-height:96px;border-right:1px solid #1C232A;border-bottom:1px solid #1C232A;padding:7px 6px}
+.mcell:nth-child(7n){border-right:0}
+.mcell.out{background:#0C1013}
+.mcell .md{font-size:12px;color:var(--dim);font-variation-settings:'wght' 600;margin-bottom:5px;display:inline-block}
+.mcell.out .md{color:var(--dimmer)}
+.mcell.today .md{background:var(--cream);color:#12161A;border-radius:20px;padding:1px 7px}
+.mev{display:block;width:100%;text-align:left;border:0;border-radius:3px;cursor:pointer;margin-bottom:3px;
+  padding:2px 6px;font-size:10.5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  background:color-mix(in srgb,var(--c) 26%,#12161A);border-left:2px solid var(--c)}
+.mev:hover{background:color-mix(in srgb,var(--c) 40%,#12161A)}
+.mmore{font-family:'IBM Plex Mono',monospace;font-size:9px;color:var(--dimmer);padding-left:4px}
+
+/* side panel */
+.sblock{padding:15px 17px;border-bottom:1px solid var(--edge)}
+.sblock:last-child{border-bottom:0}
+.sblock h4{font-size:12.5px;color:var(--cream);font-variation-settings:'wght' 600;margin-bottom:10px}
+.upnext{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #1C232A;cursor:pointer}
+.upnext:last-child{border-bottom:0}
+.upnext:hover b{color:var(--cream)}
+.upnext .tick{width:3px;align-self:stretch;border-radius:2px;background:var(--c);flex:none}
+.upnext .t{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer);width:42px;flex:none;padding-top:1px}
+.upnext b{display:block;font-size:12px;color:var(--dim);font-variation-settings:'wght' 500;line-height:1.35}
+.upnext small{display:block;font-size:10.5px;color:var(--dimmer);margin-top:2px}
+.detrow{display:flex;gap:9px;font-size:12px;color:var(--dim);padding:6px 0;align-items:flex-start}
+.detrow .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dimmer);width:60px;flex:none;padding-top:2px}
+.gap{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #1C232A;font-size:12px}
+.gap:last-child{border-bottom:0}
+.gap .d{color:var(--dim)}
+.gap .len{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--jade)}
+
+@media(max-width:1100px){
+  .calwrap{grid-template-columns:1fr}
+  .calside{max-height:none}
+  .calsources{margin-left:0;width:100%}
+}
+@media(max-width:820px){
+  .mcell{min-height:70px}
+  .tgday .dd{font-size:15px}
+  .calrange{order:-1;width:100%}
+}
+
+/* ---------- leads ---------- */
+.synced{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.06em;color:var(--dimmer);
+  display:flex;align-items:center;gap:6px;transition:color .2s}
+.synced.flash{color:var(--jade)}
+.synced .d{width:6px;height:6px;border-radius:50%;background:var(--dimmer);transition:background .2s}
+.synced.flash .d{background:var(--jade)}
+
+.stagebar{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px}
+.stg{
+  background:var(--panel);border:1px solid var(--edge);border-radius:8px;cursor:pointer;flex:none;
+  padding:9px 13px;text-align:left;color:inherit;transition:.14s;min-width:96px;
+}
+.stg:hover{border-color:var(--edge2)}
+.stg.on{background:var(--panel2);border-color:var(--brass)}
+.stg .k{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--dimmer)}
+.stg.on .k{color:var(--brass)}
+.stg .n{font-size:18px;color:var(--dim);margin-top:4px;font-variation-settings:'wdth' 114,'wght' 700}
+.stg.on .n{color:var(--cream)}
+.stg .v{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--dimmer);margin-top:1px}
+
+#ld-list{padding:8px;display:flex;flex-direction:column;gap:6px}
+.lstage{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;
+  padding:1.5px 6px;border-radius:3px;flex:none;border:1px solid var(--edge2);color:var(--dim)}
+.lstage.won{color:var(--jade);border-color:#1E3B31;background:#0F1F1A}
+.lstage.lost{color:var(--rust);border-color:#43221B;background:#20100D}
+.lstage.hot{color:var(--brass);border-color:#4A3A1E;background:#221B10}
+
+/* detail pane */
+.ldhead{padding:16px 18px 14px;border-bottom:1px solid var(--edge)}
+.ldtop{display:flex;align-items:flex-start;gap:12px}
+.ldtop .av{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;
+  justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:12px;color:#12161A;background:var(--c)}
+.ldwho{flex:1;min-width:0}
+.ldwho h2{font-size:16px;color:var(--cream);font-variation-settings:'wdth' 108,'wght' 700;line-height:1.3}
+.ldwho .meta{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer);margin-top:3px}
+.ldval{text-align:right;flex:none}
+.ldval b{display:block;font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--brass)}
+.ldval small{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer)}
+.ldacts{display:flex;gap:5px;margin-top:12px;flex-wrap:wrap;align-items:center}
+.stagesel{background:var(--ink2);border:1px solid var(--edge);border-radius:7px;color:var(--text);
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.07em;text-transform:uppercase;
+  padding:7px 9px;cursor:pointer;outline:0}
+.stagesel:focus{border-color:var(--brass)}
+
+.ldtabs{display:flex;gap:2px;padding:8px 12px 0;border-bottom:1px solid var(--edge)}
+.ldtab{background:none;border:0;border-bottom:2px solid transparent;cursor:pointer;color:var(--dimmer);
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  padding:9px 12px;transition:.13s}
+.ldtab:hover{color:var(--text)}
+.ldtab.on{color:var(--cream);border-bottom-color:var(--brass)}
+
+.thread{padding:16px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:12px}
+.bub{max-width:78%;border-radius:11px;padding:10px 13px;font-size:13px;line-height:1.6}
+.bub .ch{display:flex;align-items:center;gap:6px;margin-bottom:5px;
+  font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.11em;text-transform:uppercase}
+.bub.in{align-self:flex-start;background:var(--panel2);border:1px solid var(--edge);color:var(--text)}
+.bub.in .ch{color:var(--dimmer)}
+.bub.out{align-self:flex-end;background:var(--cream);color:#12161A;border:1px solid var(--cream)}
+.bub.out .ch{color:#6C6A62}
+.bub .tm2{font-family:'IBM Plex Mono',monospace;font-size:9.5px;opacity:.7;margin-top:6px;display:block}
+.daysep{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--dimmer);margin:2px 0}
+
+.composer{border-top:1px solid var(--edge);padding:11px 14px;background:var(--panel)}
+.chanrow{display:flex;gap:4px;margin-bottom:9px}
+.chan{background:none;border:1px solid var(--edge);border-radius:6px;cursor:pointer;color:var(--dimmer);
+  font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  padding:5px 10px;transition:.13s}
+.chan:hover{color:var(--text);border-color:var(--edge2)}
+.chan.on{background:var(--cream);border-color:var(--cream);color:#12161A}
+.composer textarea{width:100%;min-height:72px;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:8px;padding:10px 12px;color:var(--text);font-family:inherit;font-size:13px;
+  line-height:1.6;resize:vertical;outline:0}
+.composer textarea:focus{border-color:var(--edge2)}
+.crow{display:flex;gap:7px;align-items:center;margin-top:9px}
+
+.fields{padding:6px 0}
+.frow{display:flex;gap:12px;padding:11px 18px;border-bottom:1px solid #1C232A;align-items:flex-start}
+.frow:last-child{border-bottom:0}
+.frow .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dimmer);width:92px;flex:none;padding-top:2px}
+.frow .v{flex:1;min-width:0;font-size:13px;color:var(--text);word-break:break-word}
+.frow input{width:100%;background:transparent;border:1px solid transparent;border-radius:6px;
+  padding:3px 7px;margin:-3px -7px;color:var(--text);font-family:inherit;font-size:13px;outline:0;transition:.13s}
+.frow input:hover{border-color:var(--edge)}
+.frow input:focus{border-color:var(--brass);background:var(--ink2)}
+.tagrow{display:flex;gap:5px;flex-wrap:wrap}
+.steps{background:var(--ink2);border:1px solid var(--edge);border-radius:8px;padding:12px 13px;
+  font-size:11px;line-height:2;color:var(--dim);letter-spacing:.02em}
+.steps b{color:var(--brass)}
+.scopes{display:block;margin-top:5px;color:var(--dimmer);font-size:10px;line-height:1.7;word-spacing:6px}
+
+/* ---------- social ---------- */
+.pcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);padding:15px 16px;position:relative;overflow:hidden}
+.pcard::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--c)}
+.pcard .ptop{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.pcard .pname{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--c)}
+.pcard .v{font-size:26px;color:var(--cream);font-variation-settings:'wdth' 116,'wght' 700}
+.pcard .lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);margin-top:2px}
+.pcard .d{font-family:'IBM Plex Mono',monospace;font-size:10.5px;margin-top:8px}
+.pcard.dim{opacity:.55}
+.pcard .sub2{display:flex;gap:14px;margin-top:12px;padding-top:11px;border-top:1px solid #1C232A}
+.pcard .sub2 div{flex:1;min-width:0}
+.pcard .sub2 b{display:block;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text)}
+.pcard .sub2 small{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dimmer)}
+
+.notice{background:#191309;border:1px solid #3A2D14;border-radius:8px;padding:11px 14px;margin-bottom:14px;
+  font-size:12px;color:#C3A468;line-height:1.6}
+.notice b{color:var(--brass)}
+
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dimmer);text-align:left;padding:10px 14px;border-bottom:1px solid var(--edge);font-weight:400}
+.tbl th.r,.tbl td.r{text-align:right}
+.tbl td{padding:11px 14px;border-bottom:1px solid #1C232A;font-size:12.5px;color:var(--text)}
+.tbl tr:last-child td{border-bottom:0}
+.tbl tbody tr:hover{background:#171C22}
+.tbl .mono{font-family:'IBM Plex Mono',monospace;font-size:12px}
+.tbl .name{color:var(--cream);font-variation-settings:'wght' 500}
+.tbl .sm{font-size:11px;color:var(--dimmer);display:block;margin-top:2px}
+.miniplat{display:inline-block;width:6px;height:6px;border-radius:2px;background:var(--c);margin-right:7px;vertical-align:1px}
 </style>
 </head>
 <body>
@@ -418,7 +699,8 @@ main{min-width:0;display:flex;flex-direction:column}
   <nav id="nav"></nav>
   <div class="railfoot">
     <div class="eyebrow" style="margin-bottom:3px">Connections</div>
-    <div class="wire"><span class="dot off"></span><span class="mono" style="color:var(--dim)">Nothing connected</span></div>
+    <div id="rail-conn"></div>
+    <div id="rail-auth"></div>
   </div>
 </aside>
 
@@ -480,12 +762,11 @@ main{min-width:0;display:flex;flex-direction:column}
     <div class="vhead">
       <div><h1 id="ib-title">Open</h1><p id="ib-sub">Loading mailboxes…</p></div>
       <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="ib-demo">Demo data</button>
         <button class="btn" id="ib-refresh">Refresh</button>
         <button class="btn primary" id="ib-connect">+ Connect new email</button>
       </div>
     </div>
-
-    <div class="err" id="ib-banner" hidden></div>
 
     <div class="mailwrap" id="ib-wrap">
       <div class="card flush maillist">
@@ -495,14 +776,61 @@ main{min-width:0;display:flex;flex-direction:column}
         </div>
         <div id="ib-list"></div>
       </div>
+      <div class="gutter" id="ib-gutter" role="separator" aria-orientation="vertical"
+           aria-label="Resize message list" tabindex="0" title="Drag to resize, double-click to reset"></div>
       <div class="card flush reader" id="ib-reader" hidden></div>
     </div>
   </section>
 
+
+  <div class="modal" id="ld-modal" hidden>
+    <div class="sheet">
+      <div class="sheethead">
+        <div><h3>Connect a GHL sub-account</h3>
+          <small>Private Integration Tokens are scoped to one sub-account, so add one token per location.</small></div>
+        <button class="xbtn" id="ld-close" aria-label="Close">&times;</button>
+      </div>
+      <div class="form">
+        <div class="steps mono">
+          <b>1.</b> In GHL, open the sub-account &rarr; Settings &rarr; Integrations &rarr; Private Integrations<br>
+          <b>2.</b> Create a token with these scopes: <span class="scopes">contacts.readonly contacts.write opportunities.readonly opportunities.write conversations.readonly conversations.write conversations/message.readonly conversations/message.write locations.readonly users.readonly</span><br>
+          <b>3.</b> Copy the token now. GHL will not show it again.
+        </div>
+
+        <label class="fld"><span class="eyebrow">Location ID</span>
+          <input id="ld-locid" placeholder="ve9EPM428h8vShlRW1KT" autocomplete="off">
+          <small class="hint">The string after /location/ in the sub-account URL.</small></label>
+
+        <label class="fld"><span class="eyebrow">Private Integration Token</span>
+          <input id="ld-token" type="password" placeholder="pit-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" autocomplete="off">
+          <small class="hint">Sent straight to the server and encrypted. Never stored in the browser.</small></label>
+
+        <label class="fld"><span class="eyebrow">Label</span>
+          <input id="ld-name" placeholder="Northline Realty" maxlength="28" autocomplete="off"></label>
+
+        <div class="fld"><span class="eyebrow">Colour</span>
+          <div class="swatches" id="ld-colors"></div></div>
+
+        <div class="preview">
+          <span class="eyebrow" style="margin-bottom:9px;display:block">Preview</span>
+          <div class="subitem on" id="ld-preview" style="pointer-events:none">
+            <span class="sdot"></span><span class="slabel">Northline Realty</span><span class="scount">0</span>
+          </div>
+        </div>
+      </div>
+      <div class="err" id="ld-err" hidden></div>
+      <div class="sheetfoot">
+        <button class="btn" id="ld-cancel">Cancel</button>
+        <button class="btn primary" id="ld-save">Verify and connect</button>
+      </div>
+      <div class="sheetnote mono">Tokens are static and never auto-refresh. Rotate them in GHL and paste the new one here.</div>
+    </div>
+  </div>
+
   <div class="modal" id="ib-modal" hidden>
     <div class="sheet">
       <div class="sheethead">
-        <div><h3 id="ib-mtitle">Connect a mailbox</h3><small id="ib-mdesc">Pick a provider. You'll sign in on their page, not here.</small></div>
+        <div><h3 id="ib-mtitle">Connect an account</h3><small id="ib-mdesc">One sign-in covers mail and calendar. You'll sign in on the provider's page, not here.</small></div>
         <button class="xbtn" id="ib-close" aria-label="Close">&times;</button>
       </div>
 
@@ -512,35 +840,13 @@ main{min-width:0;display:flex;flex-direction:column}
           <button class="prov" data-prov="Microsoft"><span class="pv-ic" style="--pv:#5B8DEF">M</span><span class="pv-t"><b>Microsoft</b><small>Outlook, Microsoft 365, Hotmail</small></span><span class="chip">OAuth</span></button>
           <button class="prov" data-prov="IMAP"><span class="pv-ic" style="--pv:#4E9E7E">@</span><span class="pv-t"><b>Other (IMAP)</b><small>Any host with an app password</small></span><span class="chip">Manual</span></button>
         </div>
-        <div class="sheetnote mono">Google and Microsoft open their own sign-in page, where you pick which address to connect. IMAP asks for a host and an app password instead.</div>
+        <div class="sheetnote mono">Connecting opens the provider's own sign-in. This prototype fakes it and lets you name the mailbox yourself.</div>
       </div>
 
       <div id="ib-step2" hidden>
         <div class="form">
-          <!-- IMAP only. Google and Microsoft report the address themselves, so
-               asking for it here would let the two disagree. -->
-          <div id="ib-imapfld" hidden>
-            <label class="fld"><span class="eyebrow">Email address</span>
-              <input id="ib-email" placeholder="name@yourdomain.com" autocomplete="off"></label>
-
-            <label class="fld"><span class="eyebrow">App password</span>
-              <input id="ib-pass" type="password" autocomplete="new-password">
-              <small class="hint">Generate one at your host. Not your main account password.</small></label>
-
-            <label class="fld"><span class="eyebrow">IMAP host</span>
-              <input id="ib-imaphost" placeholder="imap.yourhost.com" autocomplete="off">
-              <small class="hint">Port 993 unless your host says otherwise.</small></label>
-
-            <label class="fld"><span class="eyebrow">IMAP port</span>
-              <input id="ib-imapport" value="993" inputmode="numeric" autocomplete="off"></label>
-
-            <label class="fld"><span class="eyebrow">SMTP host</span>
-              <input id="ib-smtphost" placeholder="same as IMAP host" autocomplete="off">
-              <small class="hint">Leave blank to reuse the IMAP host. Needed to send.</small></label>
-
-            <label class="fld"><span class="eyebrow">SMTP port</span>
-              <input id="ib-smtpport" value="465" inputmode="numeric" autocomplete="off"></label>
-          </div>
+          <label class="fld"><span class="eyebrow">Email address</span>
+            <input id="ib-email" placeholder="name@yourdomain.com" autocomplete="off"></label>
 
           <label class="fld"><span class="eyebrow">Label</span>
             <input id="ib-label" placeholder="Business Email" maxlength="24" autocomplete="off">
@@ -559,7 +865,7 @@ main{min-width:0;display:flex;flex-direction:column}
         <div class="err" id="ib-err" hidden></div>
         <div class="sheetfoot">
           <button class="btn" id="ib-back">Back</button>
-          <button class="btn primary" id="ib-save">Connect mailbox</button>
+          <button class="btn primary" id="ib-save">Connect account</button>
         </div>
       </div>
     </div>
@@ -568,12 +874,29 @@ main{min-width:0;display:flex;flex-direction:column}
   <!-- CALENDAR -->
   <section class="view" id="v-calendar">
     <div class="vhead">
-      <div><h1>Calendar</h1><p>No calendar connected.</p></div>
-      <span class="chip rust">Not connected</span>
+      <div><h1>Calendar</h1><p id="cal-sub">No calendars connected.</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn" id="cal-demo">Demo data</button>
+        <button class="btn primary" id="cal-connect">+ Connect account</button>
+      </div>
     </div>
-    <div class="grid g2">
-      <div class="card flush"><div class="cardhead"><h3>This week</h3><span class="eyebrow">Events</span></div><div class="empty"><b>No events</b><small>Connect a calendar to see your week here.</small></div></div>
-      <div class="card flush"><div class="cardhead"><h3>Open blocks</h3><span class="eyebrow">Free/busy</span></div><div class="empty"><b>No availability</b><small>Free time is calculated from your calendar once one is connected.</small></div></div>
+
+    <div class="calbar">
+      <div class="seg" id="cal-seg">
+        <button data-v="day">Day</button><button data-v="week" class="on">Week</button><button data-v="month">Month</button>
+      </div>
+      <div class="stepper">
+        <button class="btn ic" id="cal-prev" aria-label="Previous">‹</button>
+        <button class="btn" id="cal-today">Today</button>
+        <button class="btn ic" id="cal-next" aria-label="Next">›</button>
+      </div>
+      <div class="calrange mono" id="cal-range"></div>
+      <div class="calsources" id="cal-sources"></div>
+    </div>
+
+    <div class="calwrap" id="cal-wrap">
+      <div class="card flush calmain" id="cal-main"></div>
+      <div class="card flush calside" id="cal-side"></div>
     </div>
   </section>
 
@@ -601,15 +924,24 @@ main{min-width:0;display:flex;flex-direction:column}
   <!-- LEADS -->
   <section class="view" id="v-leads">
     <div class="vhead">
-      <div><h1>Leads</h1><p>No CRM connected.</p></div>
-      <span class="chip rust">Not connected</span>
+      <div><h1 id="ld-title">All locations</h1><p id="ld-sub">No GHL account connected.</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="synced" id="ld-synced"></span>
+        <button class="btn" id="ld-refresh">Refresh</button>
+        <button class="btn primary" id="ld-connect">+ Connect GHL</button>
+      </div>
     </div>
-    <div class="pipe" style="margin-bottom:14px">
-      <div class="stage"><div class="eyebrow">New</div><div class="n num" style="color:var(--dimmer)">—</div><div class="amt" style="color:var(--dimmer)">—</div></div><div class="stage"><div class="eyebrow">Contacted</div><div class="n num" style="color:var(--dimmer)">—</div><div class="amt" style="color:var(--dimmer)">—</div></div><div class="stage"><div class="eyebrow">Viewing</div><div class="n num" style="color:var(--dimmer)">—</div><div class="amt" style="color:var(--dimmer)">—</div></div><div class="stage"><div class="eyebrow">Reserved</div><div class="n num" style="color:var(--dimmer)">—</div><div class="amt" style="color:var(--dimmer)">—</div></div><div class="stage"><div class="eyebrow">Contract</div><div class="n num" style="color:var(--dimmer)">—</div><div class="amt" style="color:var(--dimmer)">—</div></div>
-    </div>
-    <div class="grid g21">
-      <div class="card flush"><div class="cardhead"><h3>Going cold</h3><span class="eyebrow">No contact</span></div><div class="empty"><b>No leads</b><small>Leads with no recent contact will surface here.</small></div></div>
-      <div class="card"><div class="eyebrow" style="margin-bottom:14px">Source mix</div><div class="empty"><b>No data</b><small>Where your leads come from, once a CRM is connected.</small></div></div>
+
+    <div class="stagebar" id="ld-stages"></div>
+
+    <div class="mailwrap" id="ld-wrap">
+      <div class="card flush maillist">
+        <div class="cardhead"><h3 id="ld-listtitle">Leads</h3><span class="eyebrow" id="ld-listcount">—</span></div>
+        <div id="ld-list"></div>
+      </div>
+      <div class="gutter" id="ld-gutter" role="separator" aria-orientation="vertical"
+           aria-label="Resize lead list" tabindex="0" title="Drag to resize, double-click to reset"></div>
+      <div class="card flush reader" id="ld-detail" hidden></div>
     </div>
   </section>
 
@@ -644,16 +976,24 @@ main{min-width:0;display:flex;flex-direction:column}
   <!-- SOCIAL -->
   <section class="view" id="v-social">
     <div class="vhead">
-      <div><h1>Social</h1><p>No accounts connected.</p></div>
-      <span class="chip rust">0 of 5 connected</span>
+      <div><h1>Social</h1><p id="so-sub">No accounts connected.</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select class="stagesel" id="so-range">
+          <option value="7">Last 7 days</option>
+          <option value="28" selected>Last 28 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+        <button class="btn primary" id="so-connect">+ Connect account</button>
+      </div>
     </div>
-    <div class="grid g3" style="margin-bottom:14px">
-      <div class="soc"><div class="plat"><span class="eyebrow">Facebook</span><span class="dot off"></span></div><div class="v num" style="color:var(--dimmer)">—</div><div class="m mono" style="font-size:10.5px"><span class="flat">not connected</span></div></div><div class="soc"><div class="plat"><span class="eyebrow">Instagram</span><span class="dot off"></span></div><div class="v num" style="color:var(--dimmer)">—</div><div class="m mono" style="font-size:10.5px"><span class="flat">not connected</span></div></div><div class="soc"><div class="plat"><span class="eyebrow">YouTube</span><span class="dot off"></span></div><div class="v num" style="color:var(--dimmer)">—</div><div class="m mono" style="font-size:10.5px"><span class="flat">not connected</span></div></div><div class="soc"><div class="plat"><span class="eyebrow">LinkedIn</span><span class="dot off"></span></div><div class="v num" style="color:var(--dimmer)">—</div><div class="m mono" style="font-size:10.5px"><span class="flat">not connected</span></div></div><div class="soc"><div class="plat"><span class="eyebrow">X</span><span class="dot off"></span></div><div class="v num" style="color:var(--dimmer)">—</div><div class="m mono" style="font-size:10.5px"><span class="flat">not connected</span></div></div><div class="soc"><div class="plat"><span class="eyebrow">Total reach</span><span class="dot off"></span></div><div class="v num" style="color:var(--dimmer)">—</div><div class="m mono" style="font-size:10.5px"><span class="flat">not connected</span></div></div>
+
+    <div class="ldtabs" style="border-bottom:1px solid var(--edge);margin-bottom:16px" id="so-tabs">
+      <button class="ldtab on" data-sotab="audience">Audience</button>
+      <button class="ldtab" data-sotab="ads">Meta Ads</button>
+      <button class="ldtab" data-sotab="content">Content</button>
     </div>
-    <div class="grid g2">
-      <div class="card flush"><div class="cardhead"><h3>Scheduled</h3><span class="eyebrow">Queue</span></div><div class="empty"><b>Nothing scheduled</b><small>Queued posts across every platform show here.</small></div></div>
-      <div class="card flush"><div class="cardhead"><h3>Best performing</h3><span class="eyebrow">Last 30 days</span></div><div class="empty"><b>No data</b><small>Top posts by leads generated appear here.</small></div></div>
-    </div>
+
+    <div id="so-body"></div>
   </section>
 
   <!-- SYSTEMS -->
@@ -727,85 +1067,13 @@ document.addEventListener('keydown',e=>{
 /* ================= INBOX =================
    Folder-driven. IB.folder is one of:
      'open' | 'a:<accountId>' | 'drafts' | 'trash' | 'spam' | 'archive'
-   State is filled from the API by load(); the render functions below are
-   unchanged and read the same shapes they always did. */
+   Swap MAIL for a fetch() against your own API; nothing else changes. */
 
 const PALETTE = ['#D9A441','#4E9E7E','#5B8DEF','#C2553F','#B07FD4','#4FB8A8','#E0784A','#8E9BA8'];
 
 let ACCOUNTS = [];
+
 let MAIL = [];
-
-/* Folder totals come from the server, not from MAIL. Only one folder's messages
-   are loaded at a time, so counting the loaded list would show zero against
-   every folder the user is not currently looking at. */
-let COUNTS = null;
-let PER = {};
-
-/* Per-account capabilities. Gmail cannot permanently delete without the
-   full-mailbox scope, so "Delete forever" is hidden rather than offered and
-   failed. */
-let CAPS = {};
-
-let CAN_CONNECT = true;
-let PROVIDERS_CFG = {};
-
-const api = async (url, options) => {
-  const r = await fetch(url, options);
-  const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.error || `${r.status} ${r.statusText}`);
-  return body;
-};
-
-function banner(text, kind){
-  const el = document.getElementById('ib-banner');
-  if (!text) { el.hidden = true; return; }
-  el.textContent = text;
-  el.hidden = false;
-  // .err is styled for failures; success borrows the palette's green.
-  el.style.borderColor = kind === 'ok' ? '#4E9E7E55' : '';
-  el.style.color = kind === 'ok' ? '#4E9E7E' : '';
-}
-
-let loading = false;
-async function load(){
-  if (loading) return;
-  loading = true;
-  try {
-    const a = await api('/api/accounts');
-    ACCOUNTS = a.accounts;
-    CAN_CONNECT = a.canConnect;
-    PROVIDERS_CFG = a.providers || {};
-
-    if (!ACCOUNTS.length) { MAIL = []; COUNTS = null; PER = {}; drawAll(); return; }
-
-    const folder = IB.folder === 'open' || IB.folder.startsWith('a:') ? 'inbox' : IB.folder;
-    const acct = IB.folder.startsWith('a:') ? IB.folder.slice(2) : 'all';
-
-    const [m, c] = await Promise.all([
-      api(`/api/mail?folder=${encodeURIComponent(folder)}&account=${encodeURIComponent(acct)}`),
-      api('/api/mail/capabilities').catch(() => ({ capabilities: {} }))
-    ]);
-
-    MAIL = m.messages;
-    MAIL.forEach(x => { if (BODIES.has(x.id)) x.body = BODIES.get(x.id); });
-    COUNTS = m.counts;
-    PER = m.perAccount || {};
-    CAPS = c.capabilities || {};
-
-    /* One mailbox failing must not read as "no mail". Say which one, and show
-       the ones that did load. */
-    if (m.warnings?.length) {
-      banner(m.warnings.map(w => `${w.label}: ${w.error}`).join(' · '));
-    }
-    drawAll();
-  } catch (err) {
-    MAIL = [];
-    banner(`Could not load mail: ${err.message}`);
-    drawAll();
-  } finally {
-    loading = false;
-  }
-}
 
 const FOLDERS = [
   { key:'drafts', label:'Drafts' },
@@ -813,20 +1081,8 @@ const FOLDERS = [
   { key:'spam',   label:'Spam'   }
 ];
 
-const IB = { folder:'open', open:null };
+const IB = { folder:'open', open:null, composing:null };
 const acctById = id => ACCOUNTS.find(a => a.id === id);
-
-/* A message can outlive the account row it came from — disconnect a mailbox
-   while its mail is on screen and every row would otherwise throw reading
-   .color off undefined. */
-const FALLBACK_ACCT = { id:'', email:'', label:'Unknown', color:'#8E9BA8', provider:'', status:'ok' };
-const acctOf = m => acctById(m.acct) || FALLBACK_ACCT;
-
-/* Bodies are fetched when a message is opened, not with the list — pulling 25
-   full messages per mailbox on every page load would be an order of magnitude
-   more traffic for text nobody has asked to read yet. Cached so a reload does
-   not blank the open message. */
-const BODIES = new Map();
 const initials = n => n.replace(/^To:\s*/,'').split(/\s+/).slice(0,2).map(w => w[0]).join('').toUpperCase();
 const esc2 = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const isMailFolder = () => IB.folder === 'open' || IB.folder.startsWith('a:') || IB.folder === 'archive';
@@ -857,9 +1113,7 @@ function mountSubnav(){
 
 function drawSubnav(){
   if (!subnavEl) return;
-  // Server-side tallies, so a folder that is not currently loaded still counts.
-  const unreadIn = f => (f ? PER[f]?.inboxUnread : COUNTS?.inboxUnread) ?? 0;
-  const totalIn = key => COUNTS?.[key] ?? '';
+  const unreadIn = f => MAIL.filter(m => m.folder === 'inbox' && m.unread && (!f || m.acct === f)).length;
   const row = (key, label, count, color, broken) =>
     '<button class="subitem' + (IB.folder === key ? ' on' : '') + (broken ? ' broken' : '') + '" data-folder="' + key + '">'
     + '<span class="sdot" style="--c:' + (color || 'var(--dimmer)') + '"></span>'
@@ -872,17 +1126,15 @@ function drawSubnav(){
     ? ACCOUNTS.map(a => row('a:' + a.id, a.label, unreadIn(a.id), a.color, a.status !== 'ok')).join('')
     : '<div class="subempty">None connected</div>';
   html += '<div class="subhead">Folders</div>';
-  html += FOLDERS.map(f => row(f.key, f.label, totalIn(f.key))).join('');
-  html += row('archive', 'Archive', totalIn('archive'));
+  html += FOLDERS.map(f =>
+    row(f.key, f.label, MAIL.filter(m => m.folder === f.key).length)).join('');
+  html += row('archive', 'Archive', MAIL.filter(m => m.folder === 'archive').length);
   html += '<button class="subadd" id="ib-subadd">+ Connect email</button>';
 
   subnavEl.innerHTML = html;
   subnavEl.querySelectorAll('[data-folder]').forEach(b => b.onclick = () => {
     IB.folder = b.dataset.folder; IB.open = null;
-    banner(null);
-    /* Each folder is a separate fetch, so switching reloads rather than
-       filtering a list that only ever holds one folder. */
-    drawAll(); load();
+    drawAll();
   });
   document.getElementById('ib-subadd').onclick = openModal;
 }
@@ -900,7 +1152,7 @@ function drawHeader(){
   document.getElementById('ib-listtitle').textContent = folderName();
 
   const broken = ACCOUNTS.filter(a => a.status !== 'ok');
-  const unread = COUNTS?.inboxUnread ?? 0;
+  const unread = MAIL.filter(m => m.folder === 'inbox' && m.unread).length;
   let sub;
   if (IB.folder === 'open') {
     sub = ACCOUNTS.length
@@ -908,12 +1160,10 @@ function drawHeader(){
       : 'No mailboxes connected yet.';
   } else if (IB.folder.startsWith('a:')) {
     const a = acctById(IB.folder.slice(2));
-    sub = a
-      ? a.email + ' \u00b7 ' + (PROVIDERS_CFG[a.provider]?.label || a.provider)
-        + (a.status !== 'ok' ? ' \u00b7 needs reconnecting: ' + (a.lastError || 'sign in again') : '')
-      : 'Mailbox no longer connected.';
+    sub = a.email + ' \u00b7 ' + a.provider
+        + (a.status !== 'ok' ? ' \u00b7 needs reconnecting' : '');
   } else {
-    sub = (COUNTS?.[IB.folder] ?? 0) + ' items in ' + folderName().toLowerCase();
+    sub = MAIL.filter(m => m.folder === IB.folder).length + ' items in ' + folderName().toLowerCase();
   }
   if (IB.folder === 'open' && broken.length) sub += ' \u00b7 ' + broken.map(b => b.label).join(', ') + ' needs reconnecting';
   document.getElementById('ib-sub').textContent = sub;
@@ -938,51 +1188,33 @@ function drawList(){
 
   const showAcct = IB.folder === 'open' || !IB.folder.startsWith('a:');
   listEl.innerHTML = rows.map(m => {
-    const ac = acctOf(m);
+    const ac = acctById(m.acct);
     return '<div class="msg' + (m.unread ? ' unread' : '') + (IB.open === m.id ? ' on' : '')
-      + '" data-id="' + esc2(m.id) + '" style="--c:' + ac.color + '">'
-      + '<span class="stripe"></span>'
-      + '<span class="av">' + esc2(initials(m.from)) + '</span>'
-      + '<span class="txt"><span class="ln1"><b>' + esc2(m.from) + '</b>'
-      + (showAcct ? '<span class="chip" style="font-size:9px">' + esc2(ac.label) + '</span>' : '')
-      + (m.reply && m.folder === 'inbox' ? '<span class="chip brass" style="font-size:9px">Reply</span>' : '')
-      + '</span><span class="subj">' + esc2(m.subject) + '</span>'
-      + '<span class="snip">' + esc2(m.snippet) + '</span></span>'
-      + '<span class="meta"><span class="tm">' + esc2(m.time) + '</span>'
+      + '" data-id="' + m.id + '" style="--c:' + ac.color + '">'
+      + '<div class="mr1"><span class="udot"></span><b>' + esc2(m.from) + '</b>'
+      + (showAcct ? '<span class="mtag">' + esc2(ac.label) + '</span>' : '')
+      + (m.reply && m.folder === 'inbox' ? '<span class="mtag" style="--c:var(--brass)">Reply</span>' : '')
+      + '<span class="tm">' + esc2(m.time) + '</span>'
       + (isMailFolder()
-          ? '<button class="star' + (m.star ? ' on' : '') + '" data-star="' + esc2(m.id) + '" aria-label="Star">'
+          ? '<button class="star' + (m.star ? ' on' : '') + '" data-star="' + m.id + '" aria-label="Star">'
             + (m.star ? '\u2605' : '\u2606') + '</button>' : '')
-      + '</span></div>';
+      + '</div>'
+      + '<div class="msubj">' + esc2(m.subject) + '</div>'
+      + '<div class="msnip">' + esc2(m.snippet) + '</div>'
+      + '</div>';
   }).join('');
 
-  /* Provider message ids are opaque strings — Gmail's are hex, Graph's are long
-     base64 — so they are compared as strings. The mockup's Number() cast would
-     turn every real id into NaN. */
   listEl.querySelectorAll('.msg').forEach(el => el.onclick = e => {
     if (e.target.closest('[data-star]')) return;
-    openMessage(el.dataset.id);
+    const m = MAIL.find(x => x.id === Number(el.dataset.id));
+    if (m.folder === 'inbox') m.unread = false;
+    IB.open = m.id; IB.composing = null; drawAll();
   });
   listEl.querySelectorAll('[data-star]').forEach(b => b.onclick = e => {
     e.stopPropagation();
-    const m = MAIL.find(x => x.id === b.dataset.star);
-    if (m) toggleStar(m);
+    const m = MAIL.find(x => x.id === Number(b.dataset.star));
+    m.star = !m.star; drawAll();
   });
-}
-
-function actionsFor(m){
-  /* Gmail cannot permanently delete without the full-mailbox scope, so the
-     control is absent on Google accounts rather than present and broken. */
-  const purge = CAPS[m.acct]?.hardDelete === true ? [['purge', 'Delete forever']] : [];
-
-  if (m.folder === 'drafts') return [['trash', 'Move to trash'], ...purge];
-  if (m.folder === 'trash')  return [['restore', 'Move to inbox'], ...purge];
-  if (m.folder === 'spam')   return [['notspam', 'Not spam'], ...purge];
-  return [
-    ['unread', 'Mark unread'],
-    ['star',    m.star ? 'Unstar' : 'Star'],
-    ['archive', m.folder === 'archive' ? 'Move to inbox' : 'Archive'],
-    ['trash',  'Trash']
-  ];
 }
 
 function drawReader(){
@@ -996,150 +1228,118 @@ function drawReader(){
   }
   el.hidden = false;
   wrap.classList.add('split');
-  const ac = acctOf(m);
+  const ac = acctById(m.acct);
   const isDraft = m.folder === 'drafts';
 
+  const ICO = {
+    star:'<path d="M12 3l2.6 5.6 6 .8-4.4 4.2 1.1 6L12 16.8 6.7 19.6l1.1-6L3.4 9.4l6-.8z"/>',
+    reply:'<path d="M9 14L4 9l5-5"/><path d="M4 9h9a7 7 0 017 7v3"/>',
+    archive:'<rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v11h14V8M10 12h4"/>',
+    trash:'<path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/>',
+    flag:'<path d="M5 21V4h13l-2.5 4L18 12H5"/>',
+    task:'<path d="M4 6l2 2 4-4"/><path d="M4 14l2 2 4-4"/><path d="M13 7h7M13 15h7"/>',
+    inbox:'<path d="M4 4h16v10h-5l-1.5 3h-3L9 14H4z"/><path d="M4 14v6h16v-6"/>',
+    del:'<path d="M18 6L6 18M6 6l12 12"/>'
+  };
+  const ico = k => '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">' + ICO[k] + '</svg>';
+  const iact = (k, act, title, on) => '<button class="iact' + (on ? ' on' : '') + '" data-act="' + act
+    + '" title="' + title + '" aria-label="' + title + '">' + ico(k) + '</button>';
+
+  let tools;
+  if (m.folder === 'trash')      tools = iact('inbox','restore','Move to inbox') + iact('del','purge','Delete forever');
+  else if (m.folder === 'spam')  tools = iact('inbox','notspam','Not spam') + iact('del','purge','Delete forever');
+  else if (m.folder === 'drafts')tools = iact('del','discard','Discard draft');
+  else tools = iact('star','star', m.star ? 'Unstar' : 'Star', m.star)
+             + iact('flag','reply', m.reply ? 'Clear reply flag' : 'Flag for reply', m.reply)
+             + iact('archive','archive', m.folder === 'archive' ? 'Move to inbox' : 'Archive')
+             + iact('trash','trash','Trash')
+             + iact('task','task','Send to tasks');
+
+  const tabs = ACCOUNTS.map(a =>
+    '<span class="rtab' + (a.id === m.acct ? ' on' : '') + '" style="--c:' + a.color + '">'
+    + '<span class="d"></span>' + esc2(a.label) + '</span>').join('');
+
+  const canReply = m.folder !== 'trash' && m.folder !== 'spam';
+  const open = IB.composing === m.id || isDraft;
+
   el.innerHTML =
-    '<div class="rhead"><h2>' + esc2(m.subject) + '</h2>'
-    + '<div class="rmeta"><span class="av" style="--c:' + ac.color + ';width:26px;height:26px;font-size:9.5px">'
-    + esc2(initials(m.from)) + '</span>'
-    + '<span><b style="color:var(--cream)">' + esc2(m.from) + '</b> '
-    + '<span class="mono" style="font-size:11px;color:var(--dimmer)">&lt;' + esc2(m.addr) + '&gt;</span></span>'
-    + '<span class="chip" style="border-color:' + ac.color + '55;color:' + ac.color + '">' + esc2(ac.email) + '</span>'
-    + '<span class="mono" style="font-size:11px;color:var(--dimmer);margin-left:auto">' + esc2(m.time) + '</span>'
-    + '</div></div>'
-    + '<div class="ractions">' + actionsFor(m).map(([k, t]) =>
-        '<button class="btn' + (k === 'purge' || k === 'discard' ? '' : '') + '" data-act="' + k + '">' + t + '</button>').join('')
+    '<div class="rtabs">' + tabs + '</div>'
+    + '<div class="rscroll"><div class="rcard">'
+      + '<div class="rtop">'
+        + '<span class="av" style="--c:' + ac.color + '">' + esc2(initials(m.from)) + '</span>'
+        + '<span class="rwho"><b>' + esc2(m.from) + '</b>'
+          + '<span class="addr">&lt;' + esc2(m.addr) + '&gt;</span>'
+          + '<small>To: ' + esc2(ac.email) + '</small></span>'
+        + '<span class="rmeta2"><span class="when">' + esc2(m.time) + '</span>' + tools + '</span>'
       + '</div>'
-    + '<div class="rbody">' + esc2(m.body ?? 'Loading\u2026')
-      + (isDraft ? '<span style="color:var(--dimmer)">\u2588</span>' : '') + '</div>'
-    + (m.folder === 'spam' || m.folder === 'trash' ? ''
-      : '<div class="rfoot"><textarea id="ib-reply" placeholder="' + (isDraft ? 'Continue this draft' : 'Reply from ' + esc2(ac.email)) + '\u2026">'
-        + (isDraft ? esc2(m.body || '') : '') + '</textarea>'
-        + '<div style="display:flex;gap:7px;margin-top:10px;align-items:center">'
-        + '<button class="btn primary" data-act="send">Send</button>'
-        + '<span class="mono" style="font-size:10px;color:var(--dimmer);margin-left:auto">To ' + esc2(m.addr || '\u2014') + ' from ' + esc2(ac.email) + '</span>'
-        + '</div></div>');
+      + '<div class="rbody">' + esc2(m.body) + (isDraft ? '<span style="color:var(--dimmer)">\u2588</span>' : '') + '</div>'
+      + (canReply && !open
+          ? '<div class="rcta"><button class="replybtn" data-act="compose">' + ico('reply') + 'Reply</button></div>'
+          : '')
+      + (canReply && open
+          ? '<div class="compose"><textarea placeholder="'
+            + (isDraft ? 'Continue this draft' : 'Write your reply') + '\u2026" autofocus>'
+            + (isDraft ? esc2(m.body) : '') + '</textarea>'
+            + '<div class="cfoot"><button class="btn primary" data-act="send">Send</button>'
+            + '<button class="btn" data-act="draft">Save draft</button>'
+            + '<span class="cfrom">From ' + esc2(ac.email) + '</span></div></div>'
+          : '')
+    + '</div></div>';
 
-  el.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
+  el.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
     const a = b.dataset.act;
-    const drop = () => { MAIL = MAIL.filter(x => x.id !== m.id); IB.open = null; };
-    const restore = folder => () => { m.folder = folder; IB.open = m.id; };
-
-    if (a === 'star') return toggleStar(m);
-
-    if (a === 'unread') {
-      return commit(m, () => { m.unread = true; IB.open = null; },
-        () => { m.unread = false; IB.open = m.id; },
-        () => post(`${msgUrl(m)}/read`, { read: false }));
+    if (a === 'compose') { IB.composing = m.id; drawReader(); return; }
+    if (a === 'unread')  { m.unread = true; IB.open = null; }
+    if (a === 'star')    { m.star = !m.star; }
+    if (a === 'reply')   { m.reply = !m.reply; }
+    if (a === 'archive') { m.folder = m.folder === 'archive' ? 'inbox' : 'archive'; IB.open = null; }
+    if (a === 'trash')   { m.folder = 'trash'; IB.open = null; }
+    if (a === 'restore' || a === 'notspam') { m.folder = 'inbox'; IB.open = null; }
+    if (a === 'purge' || a === 'discard') { MAIL = MAIL.filter(x => x.id !== m.id); IB.open = null; }
+    if (a === 'send')    { if (m.folder === 'drafts') { MAIL = MAIL.filter(x => x.id !== m.id); IB.open = null; }
+                           else { b.textContent = 'Sent'; b.disabled = true; return; } }
+    if (a === 'draft' || a === 'task' || a === 'edit') {
+      b.textContent = a === 'task' ? 'Sent to ClickUp' : a === 'edit' ? 'Editing' : 'Saved';
+      b.disabled = true; return;
     }
-
-    /* Moves take the row out of the current folder, so the local update is a
-       removal — the reload puts it back under whichever folder is on screen. */
-    if (a === 'archive' || a === 'trash' || a === 'restore' || a === 'notspam') {
-      const target = a === 'archive' ? (m.folder === 'archive' ? 'inbox' : 'archive')
-                   : a === 'trash'   ? 'trash'
-                   : 'inbox';
-      const was = m.folder;
-      return commit(m, drop, restore(was), () => post(`${msgUrl(m)}/move`, { folder: target }));
-    }
-
-    if (a === 'purge') {
-      const was = m.folder;
-      return commit(m, drop, restore(was), () => api(msgUrl(m), { method: 'DELETE' }));
-    }
-
-    if (a === 'send') {
-      const box = document.getElementById('ib-reply');
-      const text = (box?.value || '').trim();
-      if (!text) { banner('Write something before sending.'); return; }
-      if (!m.addr) { banner('This message has no reply address.'); return; }
-
-      const subject = isDraft || /^re:/i.test(m.subject) ? m.subject : 'Re: ' + m.subject;
-      b.disabled = true;
-      b.textContent = 'Sending…';
-      try {
-        await post(`/api/mail/${encodeURIComponent(m.acct)}/send`,
-          { to: m.addr, subject, body: text });
-        banner(`Sent to ${m.addr}`, 'ok');
-        IB.open = null;
-        await load();
-      } catch (err) {
-        b.disabled = false;
-        b.textContent = 'Send';
-        banner(err.message);
-      }
-    }
+    drawAll();
   });
 }
 
 function syncBadge(){
-  const n = COUNTS?.inboxUnread ?? 0;
+  const n = MAIL.filter(m => m.folder === 'inbox' && m.unread).length;
   const badge = document.querySelector('.navitem[data-target="inbox"] .badge');
   if (badge) badge.textContent = n || '';
 }
 
-function drawAll(){ drawSubnav(); drawHeader(); drawList(); drawReader(); syncBadge(); }
-
-/* ---------- actions ----------
-   Every one is optimistic: change local state, draw, then send. On success
-   reload so counts and folder membership come back from the provider rather
-   than being guessed. On failure put it back and say why. */
-async function commit(m, apply, undo, request){
-  banner(null);
-  apply();
-  drawAll();
-  try {
-    await request();
-    await load();
-  } catch (err) {
-    undo();
-    banner(err.message);
-    drawAll();
+function drawRail(){
+  const box = document.getElementById('rail-conn');
+  if (!box) return;
+  if (!ACCOUNTS.length) {
+    box.innerHTML = '<div class="wire"><span class="dot off"></span>'
+      + '<span class="mono" style="color:var(--dim)">Nothing connected</span></div>';
+    return;
   }
+  const ok = ACCOUNTS.filter(a => a.status === 'ok').length;
+  const bad = ACCOUNTS.filter(a => a.status !== 'ok');
+  box.innerHTML =
+    '<div class="wire"><span class="dot ok"></span><span class="mono" style="color:var(--dim)">'
+    + ok + (ok === 1 ? ' account live' : ' accounts live') + '</span></div>'
+    + bad.map(a => '<div class="wire"><span class="dot off"></span>'
+        + '<span class="mono" style="color:var(--dim)">' + esc2(a.label) + ' needs reauth</span></div>').join('');
 }
 
-const msgUrl = m => `/api/mail/${encodeURIComponent(m.acct)}/${encodeURIComponent(m.id)}`;
-const post = (url, body) => api(url, {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify(body || {})
-});
-
-function toggleStar(m){
-  const was = m.star;
-  return commit(m, () => { m.star = !was; }, () => { m.star = was; },
-    () => post(`${msgUrl(m)}/star`, { star: !was }));
+/* Server injects window.__AUTH_MODE. 'open' means no gate, so say so plainly
+   rather than letting an unprotected deployment look identical to a gated one. */
+function drawAuthFlag(){
+  const box = document.getElementById('rail-auth');
+  if (!box) return;
+  box.innerHTML = (window.__AUTH_MODE === 'open')
+    ? '<div class="unprotected"><span class="dot off"></span>No login \u00b7 public URL</div>' : '';
 }
 
-async function openMessage(id){
-  const m = MAIL.find(x => x.id === id);
-  if (!m) return;
-  IB.open = m.id;
-
-  const wasUnread = m.unread;
-  if (wasUnread) m.unread = false;
-  drawAll();
-
-  try {
-    /* Marking read is what the provider needs to know about; drafts, trash and
-       spam have no unread state worth changing. */
-    if (wasUnread && m.folder === 'inbox') {
-      await post(`${msgUrl(m)}/read`, { read: true });
-    }
-    if (m.body == null) {
-      const out = await api(`${msgUrl(m)}?folder=${encodeURIComponent(m.folder)}`);
-      m.body = out.message?.body ?? '';
-      BODIES.set(m.id, m.body);
-    }
-    drawAll();
-    if (wasUnread) await load();     // resync the unread counts
-  } catch (err) {
-    if (wasUnread) m.unread = true;
-    banner(err.message);
-    drawAll();
-  }
-}
+function drawAll(){ drawSubnav(); drawHeader(); drawList(); drawReader(); syncBadge(); drawRail(); drawAuthFlag(); }
 
 /* ---------- connect flow ---------- */
 const modal = () => document.getElementById('ib-modal');
@@ -1149,26 +1349,11 @@ function openModal(){
   NEW.provider = null; NEW.color = PALETTE[0];
   document.getElementById('ib-step1').hidden = false;
   document.getElementById('ib-step2').hidden = true;
-  document.getElementById('ib-mtitle').textContent = 'Connect a mailbox';
-  document.getElementById('ib-mdesc').textContent  = "Pick a provider. You'll sign in on their page, not here.";
-  ['ib-email','ib-label','ib-pass','ib-imaphost','ib-smtphost'].forEach(id => {
-    const f = document.getElementById(id); if (f) f.value = '';
-  });
-  document.getElementById('ib-imapport').value = '993';
-  document.getElementById('ib-smtpport').value = '465';
+  document.getElementById('ib-mtitle').textContent = 'Connect an account';
+  document.getElementById('ib-mdesc').textContent  = "One sign-in covers mail and calendar. You'll sign in on the provider's page, not here.";
+  document.getElementById('ib-email').value = '';
+  document.getElementById('ib-label').value = '';
   const e0 = document.getElementById('ib-err'); if (e0) e0.hidden = true;
-
-  /* A provider with no client id on the server cannot complete a round trip, so
-     it is shown disabled with the reason rather than failing after the click. */
-  document.querySelectorAll('.prov').forEach(b => {
-    const cfg = PROVIDERS_CFG[b.dataset.prov.toLowerCase()];
-    const ready = CAN_CONNECT && (!cfg || cfg.configured !== false);
-    b.disabled = !ready;
-    b.style.opacity = ready ? '' : '.45';
-    b.style.cursor = ready ? '' : 'not-allowed';
-    b.title = ready ? '' : (cfg?.setupHint || 'Connecting is disabled on the server.');
-  });
-
   modal().hidden = false;
 }
 const closeModal = () => { modal().hidden = true; };
@@ -1194,81 +1379,44 @@ function updatePreview(){
 function step2(provider){
   NEW.provider = provider;
   NEW.color = PALETTE[ACCOUNTS.length % PALETTE.length];
-  const isImap = provider === 'IMAP';
-
   document.getElementById('ib-step1').hidden = true;
   document.getElementById('ib-step2').hidden = false;
   document.getElementById('ib-mtitle').textContent = 'Name this mailbox';
-
-  /* Nothing has been signed into yet. The label and colour are chosen first and
-     travel through the round trip, so the account arrives already named. */
-  document.getElementById('ib-mdesc').textContent = isImap
-    ? 'Enter the mailbox details, then give it a label and a colour so you can tell it apart in the sidebar.'
-    : `Give it a label and a colour, then continue to ${provider} to choose which address to connect.`;
-
-  document.getElementById('ib-imapfld').hidden = !isImap;
-  document.getElementById('ib-save').textContent = isImap ? 'Connect mailbox' : `Continue to ${provider}`;
+  document.getElementById('ib-mdesc').textContent =
+    provider + ' signed in. Name it and pick a colour. Both the mailbox and its calendar will use these.';
   document.getElementById('ib-label').placeholder =
     provider === 'Google' ? 'Business Email' : provider === 'Microsoft' ? 'Work Outlook' : 'Support Inbox';
-
   drawSwatches(); updatePreview();
-  document.getElementById(isImap ? 'ib-email' : 'ib-label').focus();
+  document.getElementById('ib-email').focus();
 }
 
-async function saveAccount(){
+function saveAccount(){
+  const email = document.getElementById('ib-email').value.trim();
   const label = document.getElementById('ib-label').value.trim();
   const errEl = document.getElementById('ib-err');
   const bad = m => { errEl.textContent = m; errEl.hidden = false; return false; };
   errEl.hidden = true;
-
-  if (!label) return bad('Give the mailbox a label.');
-
-  /* Google and Microsoft: hand off to the provider, carrying the label and
-     colour so the account lands already named. The address is whatever the user
-     picks on the provider's own chooser — asking for it here would only let the
-     two disagree. */
-  if (NEW.provider !== 'IMAP') {
-    window.location = '/connect/' + NEW.provider.toLowerCase()
-      + '?label=' + encodeURIComponent(label)
-      + '&color=' + encodeURIComponent(NEW.color);
-    return true;
-  }
-
-  const email = document.getElementById('ib-email').value.trim();
-  const password = document.getElementById('ib-pass').value;
-  const imapHost = document.getElementById('ib-imaphost').value.trim();
-
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return bad('Enter a valid email address.');
-  if (!password) return bad('Enter the app password for this mailbox.');
-  if (!imapHost) return bad('Enter the IMAP host.');
+  if (!label) return bad('Give the mailbox a label.');
   if (ACCOUNTS.some(a => a.email.toLowerCase() === email.toLowerCase()))
     return bad('That address is already connected.');
 
-  const btn = document.getElementById('ib-save');
-  btn.disabled = true;
-  btn.textContent = 'Checking…';
-  try {
-    // The server proves the credentials against the host before storing them.
-    const out = await api('/connect/imap', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        email, password, imapHost, label, color: NEW.color,
-        imapPort: document.getElementById('ib-imapport').value,
-        smtpHost: document.getElementById('ib-smtphost').value.trim(),
-        smtpPort: document.getElementById('ib-smtpport').value
-      })
-    });
-    closeModal();
-    banner(`Connected ${out.email}`, 'ok');
-    IB.folder = 'a:' + out.id; IB.open = null;
-    await load();
-  } catch (err) {
-    bad(err.message);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Connect mailbox';
-  }
+  const id = 'acct' + Date.now().toString(36);
+  ACCOUNTS.push({ id, email, label, provider:NEW.provider, color:NEW.color, status:'ok' });
+  MAIL.unshift({
+    id: Date.now(), acct:id, folder:'inbox', from:'Mailbox sync', addr:'sync@' + NEW.provider.toLowerCase() + '.local',
+    subject:'Connected ' + email, snippet:'Initial sync finished. Older mail will backfill in the background.',
+    time:'now', unread:true, star:false, reply:false,
+    body:"Connected " + email + " via " + NEW.provider + ".\n\nLabelled \"" + label + "\" and colour-coded in the sidebar.\n\nInitial sync pulled the last 30 days. Older mail backfills in the background and will appear as it lands."
+  });
+  const now = new Date(); now.setMinutes(0, 0, 0);
+  const soon = new Date(now.getTime() + 3600_000), soonEnd = new Date(now.getTime() + 5400_000);
+  EVENTS.push({ id:'cal' + id, cal:id, title:'Calendar connected', start:soon, end:soonEnd,
+                location:'', attendees:'', allDay:false });
+
+  closeModal();
+  IB.folder = 'a:' + id; IB.open = null;
+  drawAll(); drawCal();
 }
 
 /* ---------- wiring ---------- */
@@ -1281,35 +1429,1108 @@ document.getElementById('ib-label').oninput   = updatePreview;
 modal().onclick = e => { if (e.target === modal()) closeModal(); };
 document.querySelectorAll('.prov').forEach(b => b.onclick = () => step2(b.dataset.prov));
 
-document.getElementById('ib-refresh').onclick = async e => {
+/* ---------- resizable split (reusable) ---------- */
+function makeSplitter(wrapId, gutterId, def){
+  const gut = document.getElementById(gutterId);
+  const wrap = document.getElementById(wrapId);
+  if (!gut || !wrap) return;
+  const MIN = 22, MAX = 66;
+  let dragging = false;
+
+  const setPct = p => wrap.style.setProperty('--split', Math.min(MAX, Math.max(MIN, p)).toFixed(2) + '%');
+  const current = () => parseFloat(getComputedStyle(wrap).getPropertyValue('--split')) || def;
+
+  gut.addEventListener('pointerdown', e => {
+    dragging = true;
+    gut.classList.add('drag');
+    gut.setPointerCapture(e.pointerId);
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+  });
+  gut.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const r = wrap.getBoundingClientRect();
+    setPct(((e.clientX - r.left) / r.width) * 100);
+  });
+  const stop = () => {
+    if (!dragging) return;
+    dragging = false;
+    gut.classList.remove('drag');
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  };
+  gut.addEventListener('pointerup', stop);
+  gut.addEventListener('pointercancel', stop);
+  gut.addEventListener('dblclick', () => setPct(def));
+  gut.addEventListener('keydown', e => {
+    if (e.key === 'ArrowLeft')  { setPct(current() - 3); e.preventDefault(); }
+    if (e.key === 'ArrowRight') { setPct(current() + 3); e.preventDefault(); }
+    if (e.key === 'Home')       { setPct(def); e.preventDefault(); }
+  });
+  setPct(def);
+}
+makeSplitter('ib-wrap', 'ib-gutter', 32);
+
+document.getElementById('ib-demo').onclick = toggleDemo;
+document.getElementById('ib-refresh').onclick = e => {
   const b = e.currentTarget;
   b.textContent = 'Syncing\u2026'; b.disabled = true;
-  try { await load(); }
-  finally { b.textContent = 'Refresh'; b.disabled = false; }
+  setTimeout(() => { b.textContent = 'Refresh'; b.disabled = false; drawAll(); }, 900);
 };
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !modal().hidden) closeModal(); });
 
-/* The OAuth callback comes back to /#inbox?connected=<email> or ?error=<msg>.
-   Show it once, then strip the query so a refresh does not repeat it. */
-function readHash(){
-  const raw = location.hash.replace(/^#/, '');
-  if (!raw) return;
-  const [view, qs] = raw.split('?');
+drawAll();
 
-  if (view) {
-    const item = document.querySelector('.navitem[data-target="' + view + '"]');
-    if (item) item.click();
-  }
-  if (!qs) return;
+/* ================= CALENDAR =================
+   Calendars are not a separate connection. Each entry in ACCOUNTS is both a
+   mailbox and a calendar, because one OAuth grant covers Gmail + Google Calendar
+   and Graph Mail + Graph Calendars. EVENTS is the only extra state here.
+   Point EVENTS at /api/calendar and nothing below changes. */
 
-  const q = new URLSearchParams(qs);
-  if (q.get('connected')) banner('Connected ' + q.get('connected'), 'ok');
-  if (q.get('error')) banner(q.get('error'));
-  history.replaceState(null, '', location.pathname + (view ? '#' + view : ''));
+let EVENTS = [];
+
+const CAL = { view:'week', anchor:new Date(), hidden:new Set(), sel:null, demo:true };
+
+const DAY_START = 6, DAY_END = 22, ROWH = 46;
+const DAYNAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const sameDay = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+const isToday = d => sameDay(d, new Date());
+const mondayOf = d => { const x = startOfDay(d); const off = (x.getDay() + 6) % 7; return addDays(x, -off); };
+const hhmm = d => String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
+const mins = d => d.getHours() * 60 + d.getMinutes();
+const dur = (a, b) => { const m = Math.round((b - a) / 60000); return m >= 60 ? (m/60 % 1 ? (m/60).toFixed(1) : m/60) + 'h' : m + 'm'; };
+
+const shownEvents = () => EVENTS.filter(e => !CAL.hidden.has(e.cal) && acctById(e.cal));
+
+/* ---------- demo ---------- */
+function buildDemo(){
+  ACCOUNTS = [
+    { id:'work',     email:'you@company.com',  label:'Work',     provider:'Google',    color:'#D9A441', status:'ok' },
+    { id:'personal', email:'you@gmail.com',    label:'Personal', provider:'Google',    color:'#5B8DEF', status:'ok' },
+    { id:'team',     email:'team@company.com', label:'Team',     provider:'Microsoft', color:'#4E9E7E', status:'ok' }
+  ];
+
+  MAIL = [
+    { id:101, acct:'work', folder:'inbox', from:'Dana Whitfield', addr:'dana@northline.co', subject:'Re: revised timeline',
+      snippet:'The new dates work on our end, but we will need the deposit cleared before\u2026', time:'08:12', unread:true, star:true, reply:true,
+      body:"Hi,\n\nThe revised timeline works on our end. Two conditions:\n\nThe deposit needs to clear before we start, and we will need written confirmation on the delivery window.\n\nCan you send both by Thursday?\n\nDana" },
+    { id:102, acct:'work', folder:'inbox', from:'Accounts', addr:'billing@vendor.com', subject:'Invoice 4471 is overdue',
+      snippet:'This invoice was due on the 10th. Please arrange payment or let us know\u2026', time:'07:48', unread:true, star:false, reply:true,
+      body:"Invoice 4471 was due on the 10th and remains unpaid.\n\nPlease arrange payment or let us know if there is a dispute. Late fees start accruing after the 20th." },
+    { id:103, acct:'team', folder:'inbox', from:'Priya Raman', addr:'priya@company.com', subject:'Standup notes + two blockers',
+      snippet:'Both blockers need a decision from you before Friday.', time:'07:20', unread:true, star:false, reply:true,
+      body:"Notes from standup.\n\nTwo blockers, both waiting on you:\n\n1. The vendor contract renewal, which lapses Friday\n2. Whether we ship the partial feature or hold for the full release\n\nEverything else is moving. I can take the first one off your plate if you tell me the ceiling." },
+    { id:104, acct:'work', folder:'inbox', from:'Marcus Hale', addr:'m.hale@northline.co', subject:'Site access on Wednesday',
+      snippet:'Gate code changed. New one below, and the contractor needs 24h notice.', time:'Yesterday', unread:true, star:true, reply:true,
+      body:"Heads up before Wednesday.\n\nThe gate code changed last week. The contractor also needs 24 hours notice now, not the same-day arrangement we had.\n\nIf the shoot is still on for 9:30 I need to call it in today." },
+    { id:105, acct:'personal', folder:'inbox', from:'Sam', addr:'sam@gmail.com', subject:'Sunday?',
+      snippet:'Are you free Sunday afternoon? Thinking of getting everyone together.', time:'Yesterday', unread:true, star:false, reply:false,
+      body:"Are you free Sunday afternoon?\n\nThinking of getting everyone together before things get busy again. Nothing formal, just the usual crowd." },
+    { id:106, acct:'team', folder:'inbox', from:'Jordan Wex', addr:'jordan@company.com', subject:'Q3 numbers, first pass',
+      snippet:'Rough cut attached. Two lines I want you to check before I circulate it.', time:'Sat', unread:false, star:false, reply:true,
+      body:"Rough cut of the Q3 figures.\n\nTwo lines I want you to look at before this goes wider:\n\nThe services revenue looks high to me and I think we double-counted a renewal. And the travel line is up 40% with no obvious cause.\n\nNot circulating until you have seen it." },
+    { id:107, acct:'work', folder:'inbox', from:'Legal', addr:'contracts@lawfirm.com', subject:'Redline returned \u2014 clause 4 and 7',
+      snippet:'Two provisions need changing before anyone signs. Details inside.', time:'Fri', unread:false, star:true, reply:true,
+      body:"Redline attached.\n\nTwo problems worth your attention:\n\nClause 4 has no termination provision. If someone leaves mid-project there is nothing saying who gets paid on work that lands after departure. This is where these arrangements usually break down.\n\nClause 7 as written could be read as an employment relationship rather than a contractor one, which has tax consequences you do not want.\n\nLet us talk before you show this to anyone." },
+    { id:108, acct:'personal', folder:'inbox', from:'Bank', addr:'alerts@bank.com', subject:'Statement ready \u2014 account 4471',
+      snippet:'Your August statement is now available in online banking.', time:'Fri', unread:false, star:false, reply:false,
+      body:"Your August statement for the account ending 4471 is now available.\n\nDo not reply to this message." },
+    { id:109, acct:'work', folder:'inbox', from:'Ellie Nakamura', addr:'ellie@studio.design', subject:'Photo set delivered',
+      snippet:'42 edited shots in the shared folder. Let me know on the exteriors.', time:'Thu', unread:false, star:false, reply:false,
+      body:"42 edited shots are in the shared folder.\n\nI reshot the exteriors in the late light, which I think works better. The originals are in a subfolder if you disagree.\n\nInvoice follows separately." },
+
+    { id:120, acct:'work', folder:'drafts', from:'To: Dana Whitfield', addr:'dana@northline.co', subject:'Re: revised timeline',
+      snippet:'Dana, confirming the deposit goes out Tuesday. On the delivery window', time:'08:40', unread:false, star:false, reply:false,
+      body:"Dana,\n\nConfirming the deposit goes out Tuesday.\n\nOn the delivery window, " },
+    { id:121, acct:'team', folder:'drafts', from:'To: Priya Raman', addr:'priya@company.com', subject:'Re: two blockers',
+      snippet:'Take the vendor renewal. Ceiling is', time:'Yesterday', unread:false, star:false, reply:false,
+      body:"Take the vendor renewal off my plate. Ceiling is " },
+    { id:122, acct:'personal', folder:'drafts', from:'To: Sam', addr:'sam@gmail.com', subject:'Re: Sunday?',
+      snippet:'We are in. What time were you thinking?', time:'Yesterday', unread:false, star:false, reply:false,
+      body:"We are in.\n\nWhat time were you thinking? Anything after two works." },
+
+    { id:130, acct:'team', folder:'trash', from:'Calendar', addr:'noreply@calendar.com', subject:'Declined: budget sync',
+      snippet:'Marcus declined the invitation.', time:'Wed', unread:false, star:false, reply:false,
+      body:"Marcus declined the invitation to budget sync." },
+    { id:131, acct:'work', folder:'trash', from:'Workspace', addr:'noreply@workspace.com', subject:'Subscription renews Sept 1',
+      snippet:'Business Standard, 3 users. No action needed.', time:'Wed', unread:false, star:false, reply:false,
+      body:"Your subscription renews on September 1.\n\n  Plan: Business Standard\n  Users: 3\n\nNo action needed." },
+    { id:132, acct:'personal', folder:'trash', from:'Newsletter', addr:'weekly@digest.io', subject:'Your Tuesday digest',
+      snippet:'Five things worth reading this week.', time:'Tue', unread:false, star:false, reply:false,
+      body:"Five things worth reading this week.\n\nUnsubscribe at the bottom." },
+
+    { id:140, acct:'personal', folder:'spam', from:'Account Security', addr:'no-reply@verify-account.net', subject:'Unusual sign-in \u2014 verify now',
+      snippet:'We detected a login from a new device. Click here within 24 hours\u2026', time:'09:02', unread:true, star:false, reply:false,
+      body:"We detected a login from a new device.\n\nClick the link below within 24 hours or your account will be suspended.\n\n[link removed]\n\nThis is a phishing attempt. The sender domain belongs to no provider you use." },
+    { id:141, acct:'work', folder:'spam', from:'Growth Team', addr:'outreach@rank-first.co', subject:'Quick question about your site',
+      snippet:'I noticed 47 critical SEO errors holding back your rankings\u2026', time:'Yesterday', unread:true, star:false, reply:false,
+      body:"Hi,\n\nI was looking at your site and noticed 47 critical SEO errors holding back your rankings.\n\nCan I send over a free audit?" },
+    { id:142, acct:'team', folder:'spam', from:'Investment Desk', addr:'winner@offshore-returns.biz', subject:'Guaranteed 40% monthly returns',
+      snippet:'Our fund closes enrollment Friday. Principal protected\u2026', time:'Sat', unread:false, star:false, reply:false,
+      body:"Dear valued partner,\n\nOur fund is closing enrollment on Friday. Guaranteed 40% monthly returns, no risk, principal protected.\n\nReply with your bank details to secure a slot." },
+
+    { id:150, acct:'work', folder:'archive', from:'Ellie Nakamura', addr:'ellie@studio.design', subject:'Shoot confirmed for the 12th',
+      snippet:'Locked in. I will bring the wide lens for the interiors.', time:'Aug 8', unread:false, star:false, reply:false,
+      body:"Locked in for the 12th.\n\nI will bring the wide lens for the interiors. Should be done by early afternoon." },
+    { id:151, acct:'team', folder:'archive', from:'Jordan Wex', addr:'jordan@company.com', subject:'Offsite recap',
+      snippet:'Three decisions and two things we deliberately did not decide.', time:'Aug 5', unread:false, star:false, reply:false,
+      body:"Recap from the offsite.\n\nThree decisions:\n\n1. We are consolidating onto one vendor by Q4\n2. Hiring stays frozen until the pipeline recovers\n3. Weekly review moves to Friday afternoons\n\nTwo things we deliberately did not decide: the pricing change and whether to open the second office. Both back on the table in October." }
+  ];
+
+
+  LOCATIONS = [
+    { id:'loc1', name:'Northline Realty',   short:'Northline', color:'#D9A441', status:'ok' },
+    { id:'loc2', name:'Coast Property Co.', short:'Coast',     color:'#5B8DEF', status:'ok' },
+    { id:'loc3', name:'Harbour Lettings',   short:'Harbour',   color:'#4E9E7E', status:'reauth' }
+  ];
+
+  const L = (id, loc, name, phone, email, source, stage, value, owner, tags, last, ago, unread, created) =>
+    ({ id, loc, name, phone, email, source, stage, value, owner, tags,
+       last, sortKey: Date.now() - ago, unread, created, ghlId:'ghl_' + id + '_8f2a' });
+
+  LEADS = [
+    L('l1','loc1','Dana Whitfield','+63 917 555 0114','dana@northline.co','Facebook Ads','proposal',480000,'You',['hot','financing'],'12m',7.2e5,true,'Aug 2, 2026'),
+    L('l2','loc1','Marcus Hale','+63 918 555 0192','m.hale@gmail.com','Referral','qualified',620000,'You',['cash buyer'],'1h',3.6e6,true,'Jul 28, 2026'),
+    L('l3','loc2','Priya Raman','+63 919 555 0233','priya.r@outlook.com','Website form','new',290000,'Unassigned',['inbound'],'2h',7.2e6,true,'Aug 17, 2026'),
+    L('l4','loc1','Jordan Wex','+63 917 555 0471','jordan@wexgroup.io','Instagram DM','contacted',850000,'You',['investor'],'5h',1.8e7,false,'Aug 11, 2026'),
+    L('l5','loc2','Ellie Nakamura','+63 916 555 0388','ellie@studio.design','Referral','qualified',410000,'Sam',['repeat'],'Yesterday',9.4e7,false,'Jul 19, 2026'),
+    L('l6','loc2','Tomas Reyes','+63 915 555 0102','t.reyes@mail.com','Google Ads','new',180000,'Unassigned',[],'Yesterday',1.0e8,true,'Aug 16, 2026'),
+    L('l7','loc1','Sofia Bennett','+63 917 555 0655','sofia.b@gmail.com','Walk-in','won',540000,'You',['closed'],'2d',1.9e8,false,'Jun 30, 2026'),
+    L('l8','loc3','Aaron Cole','+63 918 555 0777','aaron@coleprop.com','Facebook Ads','lost',320000,'Sam',['price'],'4d',3.5e8,false,'Jul 5, 2026'),
+    L('l9','loc2','Nadia Farouk','+63 919 555 0846','nadia.f@proton.me','Referral','proposal',730000,'You',['hot'],'3d',2.6e8,false,'Aug 4, 2026'),
+    L('l10','loc3','Grace Lim','+63 916 555 0299','grace.lim@mail.com','Website form','contacted',260000,'Sam',[],'6d',5.2e8,false,'Aug 8, 2026')
+  ];
+
+  THREADS = {
+    l1:[
+      { dir:'in',  channel:'fb',    day:'Aug 2',   time:'14:20', body:'Hi, saw the listing on Facebook. Is the three-bedroom still available?' },
+      { dir:'out', channel:'sms',   day:'Aug 2',   time:'14:31', body:'Hi Dana, yes it is. Would you like to view it this week?' },
+      { dir:'in',  channel:'sms',   day:'Aug 2',   time:'15:02', body:'Saturday morning works for us. Do you need anything from us beforehand?' },
+      { dir:'out', channel:'email', day:'Aug 3',   time:'09:15', body:'Sending over the floor plan and the computation. Bring a valid ID for the viewing, that is all.' },
+      { dir:'in',  channel:'email', day:'Yesterday', time:'16:44', body:'We talked to the bank. They said we can move by the 20th if the papers are in before Friday.' },
+      { dir:'out', channel:'sms',   day:'Yesterday', time:'17:02', body:'Perfect. I will have the reservation form to you tomorrow morning.' },
+      { dir:'in',  channel:'sms',   day:'Today',   time:'08:12', body:'Any update on the parking slot question? My husband keeps asking.' }
+    ],
+    l2:[
+      { dir:'in',  channel:'sms',   day:'Jul 28', time:'11:03', body:'Hi, Sofia gave me your number. Looking for something around 6M, cash.' },
+      { dir:'out', channel:'sms',   day:'Jul 28', time:'11:20', body:'Happy to help. What area are you focused on?' },
+      { dir:'in',  channel:'sms',   day:'Jul 28', time:'11:41', body:'Anywhere within 30 minutes of the office. Three bedrooms minimum.' },
+      { dir:'out', channel:'email', day:'Aug 14', time:'10:00', body:'Three properties that fit. All available for viewing next week.' },
+      { dir:'in',  channel:'sms',   day:'Today',  time:'10:30', body:'The second one looks right. Can we see it Wednesday?' }
+    ],
+    l3:[
+      { dir:'in',  channel:'wa',    day:'Today',  time:'09:48', body:'Hello, I filled in the form on your site about the studio unit. Still open?' }
+    ],
+    l4:[
+      { dir:'in',  channel:'fb',    day:'Aug 11', time:'19:22', body:'Do you handle investment properties? Looking at a portfolio buy.' },
+      { dir:'out', channel:'sms',   day:'Aug 12', time:'08:30', body:'We do. What is the budget range and how many units?' },
+      { dir:'in',  channel:'sms',   day:'Aug 12', time:'09:14', body:'Four to six units, up to 20M total. Yields matter more than location.' },
+      { dir:'out', channel:'email', day:'Today',  time:'06:40', body:'Attached a yield comparison across three developments. The Harbour units come out ahead on net.' }
+    ],
+    l5:[
+      { dir:'out', channel:'email', day:'Jul 19', time:'14:00', body:'Following up on last year\u2019s purchase. Anything you are looking at now?' },
+      { dir:'in',  channel:'email', day:'Aug 15', time:'11:12', body:'Actually yes. Thinking of upgrading. Same area if possible.' }
+    ],
+    l6:[
+      { dir:'in',  channel:'wa',    day:'Yesterday', time:'20:15', body:'Magkano po ang down payment sa studio unit?' }
+    ],
+    l7:[
+      { dir:'in',  channel:'sms',   day:'Jun 30', time:'13:00', body:'Walked past your office and saw the listing in the window.' },
+      { dir:'out', channel:'sms',   day:'Jun 30', time:'13:22', body:'Come in any time, I can walk you through it.' },
+      { dir:'out', channel:'email', day:'Aug 15', time:'09:00', body:'Congratulations again. Keys are ready for collection Friday.' }
+    ],
+    l8:[
+      { dir:'in',  channel:'fb',    day:'Jul 5',  time:'10:44', body:'Interested but the price is above what we can do.' },
+      { dir:'out', channel:'sms',   day:'Jul 6',  time:'08:10', body:'Understood. I will keep you posted if anything comes up in your range.' }
+    ],
+    l9:[
+      { dir:'in',  channel:'email', day:'Aug 4',  time:'15:30', body:'Referred by Ellie. Looking for a family home, ready to move within two months.' },
+      { dir:'out', channel:'email', day:'Aug 5',  time:'09:00', body:'Sending three options that match. Two are available to view this weekend.' },
+      { dir:'in',  channel:'sms',   day:'Aug 14', time:'18:20', body:'We liked the second one. What is the best you can do on price?' }
+    ],
+    l10:[
+      { dir:'in',  channel:'wa',    day:'Aug 8',  time:'12:00', body:'Hi, enquiring about rentals in the harbour area.' },
+      { dir:'out', channel:'sms',   day:'Aug 11', time:'09:30', body:'We have two coming available in September. Want me to send details?' }
+    ]
+  };
+
+  SOCIAL = [
+    { platform:'facebook',  handle:'@northlinerealty', followers:28400, followerDelta:340,  reach:186000, views:412000, engagement:1.84, status:'ok' },
+    { platform:'instagram', handle:'@northline.ph',    followers:19200, followerDelta:612,  reach:241000, views:688000, engagement:2.41, status:'ok' },
+    { platform:'youtube',   handle:'@northline',       followers:7800,  followerDelta:91,   reach:42000,  views:96000,  engagement:3.12, status:'ok' },
+    { platform:'x',         handle:'@northlineph',     followers:2300,  followerDelta:-14,  reach:11000,  views:19000,  engagement:0.61, status:'reauth' }
+  ];
+
+  ADS = {
+    spend:284000, results:127, resultsDelta:21, cplDelta:-8, reach:512000,
+    campaigns:[
+      { name:'August listings \u2014 broad',   objective:'Leads \u00b7 advantage+', spend:132000, results:71, status:'Active' },
+      { name:'Retarget \u2014 site visitors',  objective:'Leads \u00b7 custom aud.', spend:61000,  results:38, status:'Active' },
+      { name:'Reel boost \u2014 farm lot',     objective:'Engagement',              spend:48000,  results:12, status:'Active' },
+      { name:'Lookalike 1% \u2014 past buyers',objective:'Leads',                   spend:43000,  results:6,  status:'Paused' }
+    ]
+  };
+
+  POSTS = [
+    { platform:'instagram', title:'What \u20b12.8M actually buys you',      when:'12 days ago', reach:84000, views:212000, shares:1840 },
+    { platform:'facebook',  title:'Price comparison across four towns',      when:'8 days ago',  reach:41000, views:78000,  shares:520 },
+    { platform:'youtube',   title:'Title check: the five-minute version',    when:'21 days ago', reach:12000, views:31000,  shares:96 },
+    { platform:'instagram', title:'Turnover day walkthrough',                when:'4 days ago',  reach:22000, views:61000,  shares:210 },
+    { platform:'facebook',  title:'Open house recap',                        when:'2 days ago',  reach:9800,  views:14000,  shares:41 }
+  ];
+
+  const mon = mondayOf(new Date());
+  const at = (dayOffset, h, m) => { const d = addDays(mon, dayOffset); d.setHours(h, m, 0, 0); return d; };
+  const ev = (cal, day, sh, sm, eh, em, title, where, who) => ({
+    id: 'e' + Math.random().toString(36).slice(2,8), cal, title,
+    start: at(day, sh, sm), end: at(day, eh, em), location: where || '', attendees: who || '', allDay:false
+  });
+
+  EVENTS = [
+    ev('work', 0, 8,30, 9,15, 'Site walk', 'Lot 12', 'Engineer'),
+    ev('work', 0, 10,0, 11,30, 'Client meeting', 'Conference room', 'Northline'),
+    ev('work', 0, 13,0, 13,30, 'Bank call', 'Phone', 'Loans desk'),
+    ev('team', 0, 13,0, 14,0, 'Pipeline standup', 'Zoom', 'Full team'),
+    ev('work', 0, 15,30, 16,30, 'Second viewing', 'Unit 4', 'Buyer + spouse'),
+    ev('personal', 0, 18,30, 20,0, 'Gym', '', ''),
+    ev('team', 1, 9,0, 9,30, 'Content review', 'Zoom', 'Marketing'),
+    ev('work', 1, 14,0, 15,0, 'Contract prep', 'Office', ''),
+    ev('work', 2, 9,30, 11,30, 'Photo shoot', 'Two locations', 'Photographer'),
+    ev('work', 2, 12,0, 13,0, 'Lunch with referral partner', '', ''),
+    ev('team', 2, 15,0, 16,30, 'Closing appointment', 'Notary', 'Both parties'),
+    ev('personal', 2, 19,0, 21,0, 'Anniversary dinner', '', ''),
+    ev('work', 4, 10,0, 11,0, 'Contract signing', 'Office', ''),
+    ev('team', 4, 16,0, 17,0, 'Weekly review', 'Zoom', 'Full team'),
+    ev('work', 5, 9,0, 12,0, 'Open house', 'Model unit', ''),
+    ev('work', 5, 14,0, 15,0, 'Walk-in viewing', '', ''),
+    { id:'ad1', cal:'work', title:'Turnover week', start: addDays(mon,2), end: addDays(mon,3),
+      location:'Phase 2', attendees:'', allDay:true }
+  ];
 }
 
-readHash();
-load();
+function clearDemo(){ ACCOUNTS = []; MAIL = []; EVENTS = []; LOCATIONS = []; LEADS = []; THREADS = {};
+                     SOCIAL = []; ADS = null; POSTS = []; }
+
+/* One switch drives every view that has a data contract. */
+function toggleDemo(){
+  CAL.demo = !CAL.demo;
+  CAL.demo ? buildDemo() : clearDemo();
+  CAL.hidden.clear(); CAL.sel = null; CAL.anchor = new Date();
+  IB.folder = 'open'; IB.open = null;
+  LD.loc = 'all'; LD.stage = 'all'; LD.sel = null;
+  drawAll(); drawCal(); drawLeads(); drawSocial();
+}
+
+/* ---------- overlap lanes ---------- */
+function laneOut(evs){
+  const sorted = [...evs].sort((a,b) => a.start - b.start || b.end - a.end);
+  const out = [];
+  let cluster = [], clusterEnd = null;
+
+  const flush = () => {
+    if (!cluster.length) return;
+    const lanes = [];
+    cluster.forEach(e => {
+      let i = lanes.findIndex(l => l <= e.start);
+      if (i === -1) { lanes.push(e.end); i = lanes.length - 1; } else lanes[i] = e.end;
+      e._lane = i;
+    });
+    cluster.forEach(e => { e._lanes = lanes.length; out.push(e); });
+    cluster = []; clusterEnd = null;
+  };
+
+  sorted.forEach(e => {
+    if (clusterEnd !== null && e.start >= clusterEnd) flush();
+    cluster.push(e);
+    clusterEnd = clusterEnd === null ? e.end : new Date(Math.max(clusterEnd, e.end));
+  });
+  flush();
+  return out;
+}
+
+/* ---------- time grid (day + week) ---------- */
+function timeGrid(days){
+  const n = days.length;
+  const cols = '52px repeat(' + n + ',minmax(0,1fr))';
+  const timed = shownEvents().filter(e => !e.allDay);
+  const allday = shownEvents().filter(e => e.allDay &&
+    days.some(d => d >= startOfDay(e.start) && d < e.end));
+
+  let head = '<div class="tghead" style="grid-template-columns:' + cols + '"><div class="gut"></div>'
+    + days.map(d => {
+        const c = timed.filter(e => sameDay(e.start, d)).length;
+        return '<div class="tgday' + (isToday(d) ? ' today' : '') + '">'
+          + '<div class="dn">' + DAYNAMES[d.getDay()] + '</div>'
+          + '<div class="dd">' + d.getDate() + '</div>'
+          + '<div class="ct">' + (c ? c + (c === 1 ? ' event' : ' events') : '\u2014') + '</div></div>';
+      }).join('')
+    + '</div>';
+
+  const adBar = allday.length
+    ? '<div class="allday"><span class="lbl">All day</span>'
+      + allday.map(e => '<button class="adev" data-ev="' + e.id + '" style="--c:' + acctById(e.cal).color + '">'
+        + escC(e.title) + '</button>').join('') + '</div>'
+    : '';
+
+  let gut = '<div class="tggut">';
+  for (let h = DAY_START; h < DAY_END; h++)
+    gut += '<div class="hr"><b>' + String(h).padStart(2,'0') + ':00</b></div>';
+  gut += '</div>';
+
+  const span = (DAY_END - DAY_START) * 60;
+  const body = days.map(d => {
+    const dayEvs = laneOut(timed.filter(e => sameDay(e.start, d)));
+    const now = isToday(d) && mins(new Date()) >= DAY_START*60 && mins(new Date()) <= DAY_END*60
+      ? '<div class="now" style="top:' + ((mins(new Date()) - DAY_START*60) / span * 100) + '%"></div>' : '';
+    return '<div class="tgcol' + ([0,6].includes(d.getDay()) ? ' weekend' : '') + '">' + now
+      + dayEvs.map(e => {
+          const top = Math.max(0, (mins(e.start) - DAY_START*60) / span * 100);
+          const hgt = Math.max(2.2, (mins(e.end) - mins(e.start)) / span * 100);
+          const w = 100 / e._lanes, left = e._lane * w;
+          const tall = (mins(e.end) - mins(e.start)) >= 45;
+          return '<button class="ev' + (CAL.sel === e.id ? ' on' : '') + '" data-ev="' + e.id + '"'
+            + ' style="--c:' + acctById(e.cal).color + ';top:' + top + '%;height:' + hgt + '%;'
+            + 'left:calc(' + left + '% + 2px);width:calc(' + w + '% - 4px)">'
+            + '<b>' + escC(e.title) + '</b>'
+            + (tall ? '<small>' + hhmm(e.start) + ' \u2013 ' + hhmm(e.end) + '</small>' : '')
+            + '</button>';
+        }).join('')
+      + '</div>';
+  }).join('');
+
+  return head + adBar + '<div class="tgwrap"><div class="tgbody" style="grid-template-columns:' + cols
+    + ';height:' + ((DAY_END - DAY_START) * ROWH) + 'px">' + gut + body + '</div></div>';
+}
+
+/* ---------- month ---------- */
+function monthGrid(){
+  const first = new Date(CAL.anchor.getFullYear(), CAL.anchor.getMonth(), 1);
+  const start = mondayOf(first);
+  const cells = [];
+  for (let i = 0; i < 42; i++) cells.push(addDays(start, i));
+
+  let html = '<div class="mgrid">'
+    + ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map(d => '<div class="mhead">' + d + '</div>').join('')
+    + '</div><div class="mgrid">';
+
+  html += cells.map(d => {
+    const day = shownEvents().filter(e => sameDay(e.start, d))
+      .sort((a,b) => a.start - b.start);
+    const out = d.getMonth() !== CAL.anchor.getMonth();
+    return '<div class="mcell' + (out ? ' out' : '') + (isToday(d) ? ' today' : '') + '">'
+      + '<span class="md">' + d.getDate() + '</span>'
+      + day.slice(0,3).map(e => '<button class="mev" data-ev="' + e.id + '" style="--c:' + acctById(e.cal).color + '">'
+          + (e.allDay ? '' : hhmm(e.start) + ' ') + escC(e.title) + '</button>').join('')
+      + (day.length > 3 ? '<div class="mmore">+' + (day.length - 3) + ' more</div>' : '')
+      + '</div>';
+  }).join('') + '</div>';
+  return html;
+}
+
+/* ---------- side panel ---------- */
+function sidePanel(){
+  const sel = EVENTS.find(e => e.id === CAL.sel);
+  if (sel) {
+    const c = acctById(sel.cal);
+    const row = (k, v) => v ? '<div class="detrow"><span class="k">' + k + '</span><span>' + escC(v) + '</span></div>' : '';
+    return '<div class="sblock"><h4>' + escC(sel.title) + '</h4>'
+      + row('When', sel.allDay ? 'All day' : hhmm(sel.start) + ' \u2013 ' + hhmm(sel.end) + '  (' + dur(sel.start, sel.end) + ')')
+      + row('Date', DAYNAMES[sel.start.getDay()] + ', ' + MONTHS[sel.start.getMonth()] + ' ' + sel.start.getDate())
+      + row('Where', sel.location)
+      + row('With', sel.attendees)
+      + '<div class="detrow"><span class="k">Calendar</span><span style="color:' + c.color + '">' + escC(c.label) + '</span></div>'
+      + '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">'
+      + '<button class="btn" data-cact="close">Back</button>'
+      + '<button class="btn" data-cact="task">Send to tasks</button></div></div>';
+  }
+
+  const today = shownEvents().filter(e => isToday(e.start) && !e.allDay).sort((a,b) => a.start - b.start);
+  const upcoming = shownEvents().filter(e => e.start > new Date() && !e.allDay)
+    .sort((a,b) => a.start - b.start).slice(0, 5);
+
+  const gaps = [];
+  if (today.length) {
+    const merged = laneOut(today).sort((a,b) => a.start - b.start);
+    let cursor = new Date(startOfDay(new Date())); cursor.setHours(DAY_START,0,0,0);
+    merged.forEach(e => {
+      const g = Math.round((e.start - cursor) / 60000);
+      if (g >= 45) gaps.push({ from:new Date(cursor), to:new Date(e.start), m:g });
+      if (e.end > cursor) cursor = new Date(e.end);
+    });
+    const endOf = new Date(startOfDay(new Date())); endOf.setHours(DAY_END,0,0,0);
+    const tail = Math.round((endOf - cursor) / 60000);
+    if (tail >= 45) gaps.push({ from:new Date(cursor), to:endOf, m:tail });
+  }
+
+  const list = arr => arr.map(e => '<div class="upnext" data-ev="' + e.id + '" style="--c:' + acctById(e.cal).color + '">'
+    + '<span class="tick"></span><span class="t">' + hhmm(e.start) + '</span>'
+    + '<span><b>' + escC(e.title) + '</b>'
+    + (e.location ? '<small>' + escC(e.location) + '</small>' : '') + '</span></div>').join('');
+
+  return '<div class="sblock"><h4>Up next</h4>'
+    + (upcoming.length ? list(upcoming)
+       : '<div style="font-size:12px;color:var(--dimmer);line-height:1.6">Nothing left today.</div>')
+    + '</div>'
+    + '<div class="sblock"><h4>Open blocks today</h4>'
+    + (gaps.length
+       ? gaps.map(g => '<div class="gap"><span class="d">' + hhmm(g.from) + ' \u2013 ' + hhmm(g.to)
+           + '</span><span class="len">' + (g.m >= 60 ? Math.floor(g.m/60) + 'h' + (g.m%60 ? ' ' + g.m%60 + 'm' : '') : g.m + 'm')
+           + '</span></div>').join('')
+       : '<div style="font-size:12px;color:var(--dimmer);line-height:1.6">'
+         + (today.length ? 'No gaps over 45 minutes.' : 'Whole day is open.') + '</div>')
+    + '</div>';
+}
+
+/* ---------- render ---------- */
+const escC = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function drawCal(){
+  const main = document.getElementById('cal-main');
+  const side = document.getElementById('cal-side');
+  const wrap = document.getElementById('cal-wrap');
+
+  const dlabel = CAL.demo ? 'Clear demo data' : 'Demo data';
+  document.getElementById('cal-demo').textContent = dlabel;
+  const ibd = document.getElementById('ib-demo'); if (ibd) ibd.textContent = dlabel;
+
+  drawSources();
+
+  if (!ACCOUNTS.length) {
+    wrap.style.gridTemplateColumns = '1fr';
+    side.hidden = true;
+    document.getElementById('cal-range').textContent = '';
+    document.getElementById('cal-sub').textContent = 'No calendars connected.';
+    main.innerHTML = '<div class="empty"><b>No calendar connected</b>'
+      + '<small>Calendars come with mailboxes. Connect a Google or Microsoft account '
+      + 'and its calendar appears here automatically.</small>'
+      + '<button class="btn primary" id="cal-empty-connect" style="margin-top:4px">+ Connect account</button></div>';
+    const ce = document.getElementById('cal-empty-connect');
+    if (ce) ce.onclick = openModal;
+    return;
+  }
+  wrap.style.gridTemplateColumns = '';
+  side.hidden = false;
+
+  const a = CAL.anchor;
+  let range;
+  if (CAL.view === 'day') {
+    range = DAYNAMES[a.getDay()] + ', ' + MONTHS[a.getMonth()] + ' ' + a.getDate() + ' ' + a.getFullYear();
+    main.innerHTML = timeGrid([startOfDay(a)]);
+  } else if (CAL.view === 'week') {
+    const mon = mondayOf(a), sun = addDays(mon, 6);
+    range = mon.getMonth() === sun.getMonth()
+      ? MONTHS[mon.getMonth()] + ' ' + mon.getDate() + ' \u2013 ' + sun.getDate() + ', ' + sun.getFullYear()
+      : MONTHS[mon.getMonth()].slice(0,3) + ' ' + mon.getDate() + ' \u2013 ' + MONTHS[sun.getMonth()].slice(0,3) + ' ' + sun.getDate() + ', ' + sun.getFullYear();
+    main.innerHTML = timeGrid(Array.from({length:7}, (_, i) => addDays(mon, i)));
+  } else {
+    range = MONTHS[a.getMonth()] + ' ' + a.getFullYear();
+    main.innerHTML = monthGrid();
+  }
+  document.getElementById('cal-range').textContent = range;
+
+  const todayCount = shownEvents().filter(e => isToday(e.start)).length;
+  document.getElementById('cal-sub').textContent =
+    todayCount + (todayCount === 1 ? ' event' : ' events') + ' today across '
+    + ACCOUNTS.length + (ACCOUNTS.length === 1 ? ' account' : ' accounts');
+
+  side.innerHTML = sidePanel();
+
+  document.querySelectorAll('#v-calendar [data-ev]').forEach(b => b.onclick = () => {
+    CAL.sel = CAL.sel === b.dataset.ev ? null : b.dataset.ev; drawCal();
+  });
+  document.querySelectorAll('#v-calendar [data-cact]').forEach(b => b.onclick = () => {
+    if (b.dataset.cact === 'close') { CAL.sel = null; drawCal(); }
+    else { b.textContent = 'Sent'; b.disabled = true; }
+  });
+
+  const nav = document.querySelector('.navitem[data-target="calendar"] .badge');
+  if (nav) nav.textContent = todayCount || '';
+}
+
+function drawSources(){
+  const box = document.getElementById('cal-sources');
+  box.innerHTML = ACCOUNTS.map(c =>
+    '<button class="calsrc' + (CAL.hidden.has(c.id) ? ' off' : '') + '" data-cal="' + c.id + '" style="--c:' + c.color + '">'
+    + '<span class="cb"></span><span>' + escC(c.label) + '</span></button>').join('');
+  box.querySelectorAll('[data-cal]').forEach(b => b.onclick = () => {
+    const id = b.dataset.cal;
+    CAL.hidden.has(id) ? CAL.hidden.delete(id) : CAL.hidden.add(id);
+    drawCal();
+  });
+}
+
+/* ---------- wiring ---------- */
+document.querySelectorAll('#cal-seg button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#cal-seg button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); CAL.view = b.dataset.v; CAL.sel = null; drawCal();
+});
+document.getElementById('cal-prev').onclick = () => {
+  const s = CAL.view === 'day' ? -1 : CAL.view === 'week' ? -7 : 0;
+  if (s) CAL.anchor = addDays(CAL.anchor, s);
+  else CAL.anchor = new Date(CAL.anchor.getFullYear(), CAL.anchor.getMonth() - 1, 1);
+  drawCal();
+};
+document.getElementById('cal-next').onclick = () => {
+  const s = CAL.view === 'day' ? 1 : CAL.view === 'week' ? 7 : 0;
+  if (s) CAL.anchor = addDays(CAL.anchor, s);
+  else CAL.anchor = new Date(CAL.anchor.getFullYear(), CAL.anchor.getMonth() + 1, 1);
+  drawCal();
+};
+document.getElementById('cal-today').onclick = () => { CAL.anchor = new Date(); CAL.sel = null; drawCal(); };
+document.getElementById('cal-demo').onclick = toggleDemo;
+/* Mail and calendar ride on one OAuth grant, so this opens the same sheet. */
+document.getElementById('cal-connect').onclick = openModal;
+
+/* Demo data loads at boot so the views are not empty while the backend is built.
+   Both Demo data buttons clear it. Delete buildDemo/clearDemo/toggleDemo and the
+   two buttons once /api/mail and /api/calendar are live. */
+/* ================= LEADS =================
+   LOCATIONS are GHL sub-accounts. Every write here is optimistic: update local
+   state, fire the API call, revert on failure. GHL webhooks push the other way.
+   Point LOCATIONS/LEADS/THREADS at /api/ghl/* and nothing below changes. */
+
+let LOCATIONS = [];
+let LEADS = [];
+let THREADS = {};
+
+const STAGES = [
+  { k:'new',        label:'New' },
+  { k:'contacted',  label:'Contacted' },
+  { k:'qualified',  label:'Qualified' },
+  { k:'proposal',   label:'Proposal' },
+  { k:'won',        label:'Won' },
+  { k:'lost',       label:'Lost' }
+];
+const CHANNELS = [
+  { k:'sms',   label:'SMS' },
+  { k:'email', label:'Email' },
+  { k:'wa',    label:'WhatsApp' },
+  { k:'fb',    label:'FB' }
+];
+
+const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms' };
+
+const locById = id => LOCATIONS.find(l => l.id === id);
+const stageLabel = k => (STAGES.find(s => s.k === k) || {}).label || k;
+const money = n => '\u20b1' + n.toLocaleString();
+
+function ldVisible(){
+  return LEADS.filter(l =>
+    (LD.loc === 'all' || l.loc === LD.loc) &&
+    (LD.stage === 'all' || l.stage === LD.stage));
+}
+
+/* ---------- submenu ---------- */
+let ldSubEl = null;
+function mountLeadSubnav(){
+  const item = document.querySelector('.navitem[data-target="leads"]');
+  if (!item) return;
+  ldSubEl = document.createElement('div');
+  ldSubEl.className = 'subnav';
+  ldSubEl.hidden = true;
+  item.after(ldSubEl);
+  document.querySelectorAll('.navitem').forEach(b =>
+    b.addEventListener('click', () => { ldSubEl.hidden = b.dataset.target !== 'leads'; }));
+}
+
+function drawLeadSubnav(){
+  if (!ldSubEl) return;
+  const openIn = loc => LEADS.filter(l =>
+    (!loc || l.loc === loc) && !['won','lost'].includes(l.stage)).length;
+  const row = (key, label, count, color, broken) =>
+    '<button class="subitem' + (LD.loc === key ? ' on' : '') + (broken ? ' broken' : '') + '" data-loc="' + key + '">'
+    + '<span class="sdot" style="--c:' + (color || 'var(--dimmer)') + '"></span>'
+    + '<span class="slabel">' + escL(label) + '</span>'
+    + '<span class="scount">' + (broken ? '!' : (count || '')) + '</span></button>';
+
+  let html = row('all', 'All locations', openIn(null), 'linear-gradient(135deg,#D9A441,#4E9E7E)');
+  html += '<div class="subhead">Sub-accounts</div>';
+  html += LOCATIONS.length
+    ? LOCATIONS.map(l => row(l.id, l.name, openIn(l.id), l.color, l.status !== 'ok')).join('')
+    : '<div class="subempty">None connected</div>';
+  html += '<button class="subadd" id="ld-subadd">+ Connect GHL</button>';
+
+  ldSubEl.innerHTML = html;
+  ldSubEl.querySelectorAll('[data-loc]').forEach(b => b.onclick = () => {
+    LD.loc = b.dataset.loc; LD.sel = null; drawLeads();
+  });
+  document.getElementById('ld-subadd').onclick = ldConnect;
+}
+
+/* ---------- render ---------- */
+const escL = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function drawStages(){
+  const box = document.getElementById('ld-stages');
+  const pool = LEADS.filter(l => LD.loc === 'all' || l.loc === LD.loc);
+  const cell = (k, label) => {
+    const set = k === 'all' ? pool : pool.filter(l => l.stage === k);
+    const val = set.reduce((s, l) => s + l.value, 0);
+    return '<button class="stg' + (LD.stage === k ? ' on' : '') + '" data-stage="' + k + '">'
+      + '<div class="k">' + label + '</div><div class="n">' + set.length + '</div>'
+      + '<div class="v">' + (val ? money(val) : '\u2014') + '</div></button>';
+  };
+  box.innerHTML = cell('all', 'All') + STAGES.map(s => cell(s.k, s.label)).join('');
+  box.querySelectorAll('[data-stage]').forEach(b => b.onclick = () => {
+    LD.stage = b.dataset.stage; LD.sel = null; drawLeads();
+  });
+}
+
+function drawLeadList(){
+  const rows = ldVisible().sort((a, b) => b.sortKey - a.sortKey);
+  const el = document.getElementById('ld-list');
+  document.getElementById('ld-listcount').textContent =
+    rows.length + (rows.length === 1 ? ' lead' : ' leads');
+  document.getElementById('ld-listtitle').textContent =
+    LD.stage === 'all' ? 'All stages' : stageLabel(LD.stage);
+
+  if (!rows.length) {
+    el.innerHTML = LOCATIONS.length
+      ? '<div class="empty"><b>No leads here</b><small>Nothing matches this stage in this location.</small></div>'
+      : '<div class="empty"><b>No GHL account connected</b>'
+        + '<small>Connect a GoHighLevel agency account and every sub-account appears in the sidebar.</small>'
+        + '<button class="btn primary" id="ld-empty-connect" style="margin-top:4px">+ Connect GHL</button></div>';
+    const ec = document.getElementById('ld-empty-connect');
+    if (ec) ec.onclick = ldConnect;
+    return;
+  }
+
+  const showLoc = LD.loc === 'all';
+  el.innerHTML = rows.map(l => {
+    const loc = locById(l.loc);
+    const t = THREADS[l.id] || [];
+    const last = t[t.length - 1];
+    const tone = l.stage === 'won' ? ' won' : l.stage === 'lost' ? ' lost'
+               : ['qualified','proposal'].includes(l.stage) ? ' hot' : '';
+    return '<div class="msg' + (l.unread ? ' unread' : '') + (LD.sel === l.id ? ' on' : '')
+      + '" data-lead="' + l.id + '" style="--c:' + loc.color + '">'
+      + '<div class="mr1"><span class="udot"></span><b>' + escL(l.name) + '</b>'
+      + (showLoc ? '<span class="mtag">' + escL(loc.short) + '</span>' : '')
+      + '<span class="tm">' + escL(l.last) + '</span></div>'
+      + '<div class="msubj"><span class="lstage' + tone + '">' + stageLabel(l.stage) + '</span>'
+      + '<span style="margin-left:8px;font-family:\'IBM Plex Mono\',monospace;font-size:11.5px;color:var(--brass)">'
+      + money(l.value) + '</span></div>'
+      + '<div class="msnip">' + escL(last ? (last.dir === 'out' ? 'You: ' : '') + last.body : 'No messages yet') + '</div>'
+      + '</div>';
+  }).join('');
+
+  el.querySelectorAll('[data-lead]').forEach(b => b.onclick = () => {
+    const l = LEADS.find(x => x.id === b.dataset.lead);
+    l.unread = false; LD.sel = l.id; drawLeads();
+  });
+}
+
+function drawLeadDetail(){
+  const el = document.getElementById('ld-detail');
+  const wrap = document.getElementById('ld-wrap');
+  const l = LEADS.find(x => x.id === LD.sel);
+
+  if (!l || !ldVisible().includes(l)) {
+    el.hidden = true; el.innerHTML = ''; wrap.classList.remove('split');
+    return;
+  }
+  el.hidden = false; wrap.classList.add('split');
+  const loc = locById(l.loc);
+
+  const head =
+    '<div class="ldhead"><div class="ldtop">'
+      + '<span class="av" style="--c:' + loc.color + '">' + escL(initials(l.name)) + '</span>'
+      + '<span class="ldwho"><h2>' + escL(l.name) + '</h2>'
+        + '<div class="meta">' + escL(l.phone) + '  \u00b7  ' + escL(l.email) + '</div>'
+        + '<div class="meta" style="color:' + loc.color + '">' + escL(loc.name) + '</div></span>'
+      + '<span class="ldval"><b>' + money(l.value) + '</b><small>Opportunity</small></span>'
+    + '</div>'
+    + '<div class="ldacts">'
+      + '<select class="stagesel" id="ld-stage">'
+      + STAGES.map(s => '<option value="' + s.k + '"' + (s.k === l.stage ? ' selected' : '') + '>'
+          + s.label + '</option>').join('')
+      + '</select>'
+      + '<button class="btn" data-lact="call">Call</button>'
+      + '<button class="btn" data-lact="task">Create task</button>'
+      + '<button class="btn" data-lact="ghl">Open in GHL</button>'
+    + '</div></div>';
+
+  const tabs = '<div class="ldtabs">'
+    + '<button class="ldtab' + (LD.tab === 'thread' ? ' on' : '') + '" data-ltab="thread">Conversation</button>'
+    + '<button class="ldtab' + (LD.tab === 'fields' ? ' on' : '') + '" data-ltab="fields">Details</button>'
+    + '</div>';
+
+  let body;
+  if (LD.tab === 'thread') {
+    const t = THREADS[l.id] || [];
+    let lastDay = '';
+    const msgs = t.map(m => {
+      let sep = '';
+      if (m.day !== lastDay) { sep = '<div class="daysep">' + escL(m.day) + '</div>'; lastDay = m.day; }
+      const ch = (CHANNELS.find(c => c.k === m.channel) || {}).label || m.channel;
+      return sep + '<div class="bub ' + m.dir + '">'
+        + '<span class="ch">' + ch + (m.dir === 'out' ? ' \u00b7 sent' : ' \u00b7 received') + '</span>'
+        + escL(m.body) + '<span class="tm2">' + escL(m.time) + '</span></div>';
+    }).join('');
+
+    body = '<div class="thread">' + (msgs ||
+        '<div class="empty"><b>No messages</b><small>Start the conversation below. '
+        + 'It posts through GHL on the channel you pick.</small></div>') + '</div>'
+      + '<div class="composer">'
+        + '<div class="chanrow">' + CHANNELS.map(c =>
+            '<button class="chan' + (LD.channel === c.k ? ' on' : '') + '" data-chan="' + c.k + '">'
+            + c.label + '</button>').join('') + '</div>'
+        + '<textarea id="ld-msg" placeholder="Message ' + escL(l.name.split(' ')[0]) + ' by '
+        + escL((CHANNELS.find(c => c.k === LD.channel) || {}).label) + '\u2026"></textarea>'
+        + '<div class="crow"><button class="btn primary" data-lact="send">Send</button>'
+        + '<button class="btn" data-lact="note">Log a note</button>'
+        + '<span class="cfrom" style="margin-left:auto">Posts to ' + escL(loc.name) + '</span></div>'
+      + '</div>';
+  } else {
+    const f = (k, v, key) => '<div class="frow"><span class="k">' + k + '</span><span class="v">'
+      + (key ? '<input value="' + escL(v) + '" data-field="' + key + '">' : escL(v)) + '</span></div>';
+    body = '<div class="thread" style="padding:0;display:block"><div class="fields">'
+      + f('Name', l.name, 'name')
+      + f('Phone', l.phone, 'phone')
+      + f('Email', l.email, 'email')
+      + f('Source', l.source)
+      + f('Owner', l.owner, 'owner')
+      + f('Created', l.created)
+      + f('Value', money(l.value))
+      + '<div class="frow"><span class="k">Tags</span><span class="v"><span class="tagrow">'
+        + l.tags.map(t => '<span class="chip">' + escL(t) + '</span>').join('')
+        + '</span></span></div>'
+      + '<div class="frow"><span class="k">Sub-account</span><span class="v" style="color:'
+        + loc.color + '">' + escL(loc.name) + '</span></div>'
+      + f('GHL ID', l.ghlId)
+      + '</div></div>';
+  }
+
+  el.innerHTML = head + tabs + body;
+
+  el.querySelectorAll('[data-ltab]').forEach(b => b.onclick = () => { LD.tab = b.dataset.ltab; drawLeadDetail(); });
+  el.querySelectorAll('[data-chan]').forEach(b => b.onclick = () => { LD.channel = b.dataset.chan; drawLeadDetail(); });
+
+  const sel = document.getElementById('ld-stage');
+  if (sel) sel.onchange = () => { l.stage = sel.value; syncPulse('Stage updated'); drawLeads(); };
+
+  el.querySelectorAll('[data-field]').forEach(i => i.onchange = () => {
+    l[i.dataset.field] = i.value; syncPulse('Saved'); drawLeadList();
+  });
+
+  el.querySelectorAll('[data-lact]').forEach(b => b.onclick = () => {
+    const a = b.dataset.lact;
+    if (a === 'send') {
+      const ta = document.getElementById('ld-msg');
+      const text = ta.value.trim();
+      if (!text) return;
+      (THREADS[l.id] ||= []).push({ dir:'out', channel:LD.channel, body:text,
+        day:'Today', time:new Date().toTimeString().slice(0,5) });
+      l.last = 'now'; l.sortKey = Date.now();
+      if (l.stage === 'new') l.stage = 'contacted';
+      syncPulse('Sent via GHL');
+      drawLeads();
+      return;
+    }
+    b.textContent = a === 'call' ? 'Dialling' : a === 'task' ? 'Task created' : a === 'note' ? 'Logged' : 'Opening';
+    b.disabled = true;
+    if (a !== 'ghl') syncPulse('Saved');
+  });
+}
+
+let pulseTimer = null;
+function syncPulse(msg){
+  const el = document.getElementById('ld-synced');
+  if (!el) return;
+  el.classList.add('flash');
+  el.innerHTML = '<span class="d"></span>' + escL(msg) + ' \u00b7 GHL';
+  clearTimeout(pulseTimer);
+  pulseTimer = setTimeout(() => { el.classList.remove('flash'); drawLeadHeader(); }, 1800);
+}
+
+function drawLeadHeader(){
+  const el = document.getElementById('ld-synced');
+  if (!el) return;
+  el.innerHTML = LOCATIONS.length
+    ? '<span class="d"></span>Synced \u00b7 just now' : '';
+  document.getElementById('ld-title').textContent =
+    LD.loc === 'all' ? 'All locations' : (locById(LD.loc) || {}).name || 'Leads';
+  const pool = LEADS.filter(l => LD.loc === 'all' || l.loc === LD.loc);
+  const open = pool.filter(l => !['won','lost'].includes(l.stage));
+  const unread = pool.filter(l => l.unread).length;
+  document.getElementById('ld-sub').textContent = LOCATIONS.length
+    ? open.length + ' open \u00b7 ' + money(open.reduce((s, l) => s + l.value, 0)) + ' in pipeline'
+      + (unread ? ' \u00b7 ' + unread + ' unread' : '')
+    : 'No GHL account connected.';
+  const badge = document.querySelector('.navitem[data-target="leads"] .badge');
+  if (badge) badge.textContent = LEADS.filter(l => l.unread).length || '';
+}
+
+function drawLeads(){ drawLeadSubnav(); drawLeadHeader(); drawStages(); drawLeadList(); drawLeadDetail(); }
+
+/* ---------- GHL connect: Private Integration Token per sub-account ---------- */
+const ldModal = () => document.getElementById('ld-modal');
+const LDNEW = { color: PALETTE[0] };
+
+function ldConnect(){
+  LDNEW.color = PALETTE[(LOCATIONS.length + 1) % PALETTE.length];
+  ['ld-locid','ld-token','ld-name'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ld-err').hidden = true;
+  ldSwatches(); ldPreview();
+  ldModal().hidden = false;
+  document.getElementById('ld-locid').focus();
+}
+const ldClose = () => { ldModal().hidden = true; };
+
+function ldSwatches(){
+  const box = document.getElementById('ld-colors');
+  box.innerHTML = PALETTE.map(c =>
+    '<button class="sw' + (c === LDNEW.color ? ' on' : '') + '" style="background:' + c
+    + '" data-lc="' + c + '" aria-label="' + c + '"></button>').join('');
+  box.querySelectorAll('[data-lc]').forEach(b => b.onclick = () => {
+    LDNEW.color = b.dataset.lc; ldSwatches(); ldPreview();
+  });
+}
+
+function ldPreview(){
+  const p = document.getElementById('ld-preview');
+  const name = document.getElementById('ld-name').value.trim() || 'Untitled sub-account';
+  p.querySelector('.sdot').style.setProperty('--c', LDNEW.color);
+  p.querySelector('.slabel').textContent = name;
+}
+
+function ldSave(){
+  const locId = document.getElementById('ld-locid').value.trim();
+  const token = document.getElementById('ld-token').value.trim();
+  const name  = document.getElementById('ld-name').value.trim();
+  const err   = document.getElementById('ld-err');
+  const fail  = m => { err.textContent = m; err.hidden = false; return false; };
+  err.hidden = true;
+
+  if (!/^[A-Za-z0-9]{15,30}$/.test(locId)) return fail('Location ID looks wrong. It is the string after /location/ in the sub-account URL.');
+  if (token.length < 20) return fail('That does not look like a Private Integration Token.');
+  if (!name) return fail('Give the sub-account a label.');
+  if (LOCATIONS.some(l => l.id === locId)) return fail('That sub-account is already connected.');
+
+  /* Backend: POST /api/ghl/locations { locationId, token, label, color }
+     Server calls GET /locations/{id} to verify the token before storing it. */
+  const short = name.split(' ')[0];
+  LOCATIONS.push({ id:locId, name, short, color:LDNEW.color, status:'ok' });
+  ldClose();
+  LD.loc = locId; LD.sel = null;
+  syncPulse('Sub-account connected');
+  drawLeads();
+}
+
+document.getElementById('ld-close').onclick  = ldClose;
+document.getElementById('ld-cancel').onclick = ldClose;
+document.getElementById('ld-save').onclick   = ldSave;
+document.getElementById('ld-name').oninput   = ldPreview;
+ldModal().onclick = e => { if (e.target === ldModal()) ldClose(); };
+
+mountLeadSubnav();
+document.getElementById('ld-connect').onclick = ldConnect;
+document.getElementById('ld-refresh').onclick = e => {
+  const b = e.currentTarget;
+  b.textContent = 'Syncing\u2026'; b.disabled = true;
+  setTimeout(() => { b.textContent = 'Refresh'; b.disabled = false; syncPulse('Pulled from GHL'); drawLeads(); }, 900);
+};
+makeSplitter('ld-wrap', 'ld-gutter', 34);
+
+
+/* ================= SOCIAL =================
+   Built only to what the platform APIs actually return in 2026.
+
+   Deliberately absent:
+   - Impressions. Graph API v22.0 deprecated it on media and user insights
+     from 21 Apr 2025; `views` replaced it. FB page-level impressions and the
+     page-likes demographics breakdowns went in Nov 2025.
+   - DMs. FB Page and IG messages are threads with a reply box, so they belong
+     in the Inbox as two more accounts, not duplicated here.
+   - LinkedIn metrics. Community Management API is partner-gated behind a live
+     technical sign-off; it stays a deep link until that clears.
+
+   PLATFORMS drives the whole view. Point it at /api/social and nothing changes. */
+
+const PLATFORMS = [
+  { k:'facebook',  label:'Facebook',  color:'#5B8DEF', via:'Meta Graph',   ok:true  },
+  { k:'instagram', label:'Instagram', color:'#D9A441', via:'Meta Graph',   ok:true  },
+  { k:'youtube',   label:'YouTube',   color:'#C2553F', via:'YouTube Data', ok:true  },
+  { k:'x',         label:'X',         color:'#8E9BA8', via:'X pay-per-use', ok:true },
+  { k:'linkedin',  label:'LinkedIn',  color:'#4E9E7E', via:'Not available', ok:false }
+];
+
+let SOCIAL = [];
+let ADS = null;
+let POSTS = [];
+
+const SO = { tab:'audience', range:'28' };
+const platByK = k => PLATFORMS.find(p => p.k === k);
+const num = n => n >= 1e6 ? (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? (n/1e3).toFixed(1) + 'K' : String(n);
+const pesos = n => '\u20b1' + Math.round(n).toLocaleString();
+const delta = d => d > 0 ? '<span class="up">\u25b2 ' + num(d) + '</span>'
+                 : d < 0 ? '<span class="down">\u25bc ' + num(-d) + '</span>'
+                 : '<span class="flat">no change</span>';
+
+function drawSocial(){
+  const body = document.getElementById('so-body');
+  const sub  = document.getElementById('so-sub');
+
+  if (!SOCIAL.length) {
+    sub.textContent = 'No accounts connected.';
+    body.innerHTML = '<div class="card flush"><div class="empty"><b>No social accounts connected</b>'
+      + '<small>One Meta sign-in covers your Facebook Page, Instagram and ad account. '
+      + 'YouTube and X connect separately.</small>'
+      + '<button class="btn primary" id="so-empty-connect" style="margin-top:4px">+ Connect account</button>'
+      + '</div></div>';
+    const e = document.getElementById('so-empty-connect');
+    if (e) e.onclick = soConnect;
+    return;
+  }
+
+  const live = SOCIAL.filter(s => s.status === 'ok');
+  sub.textContent = live.length + ' of ' + SOCIAL.length + ' accounts live \u00b7 '
+    + num(live.reduce((s, a) => s + a.followers, 0)) + ' total following';
+
+  if (SO.tab === 'audience') body.innerHTML = audienceTab();
+  if (SO.tab === 'ads')      body.innerHTML = adsTab();
+  if (SO.tab === 'content')  body.innerHTML = contentTab();
+
+  body.querySelectorAll('[data-solink]').forEach(b => b.onclick = () =>
+    window.open(b.dataset.solink, '_blank', 'noopener'));
+  const badge = document.querySelector('.navitem[data-target="social"] .badge');
+  if (badge) badge.textContent = SOCIAL.filter(s => s.status !== 'ok').length || '';
+}
+
+function audienceTab(){
+  const cards = PLATFORMS.map(p => {
+    const a = SOCIAL.find(s => s.platform === p.k);
+    if (!p.ok) {
+      return '<div class="pcard dim" style="--c:' + p.color + '">'
+        + '<div class="ptop"><span class="pname">' + p.label + '</span>'
+        + '<span class="chip rust" style="font-size:8.5px">API closed</span></div>'
+        + '<div class="v" style="color:var(--dimmer)">\u2014</div>'
+        + '<div class="lbl">Not available</div>'
+        + '<div class="d" style="color:var(--dimmer);line-height:1.55">Metrics need Community Management '
+        + 'API approval, which requires a live technical sign-off.</div>'
+        + '<button class="btn" style="margin-top:10px;width:100%" data-solink="https://www.linkedin.com/feed/">'
+        + 'Open LinkedIn</button></div>';
+    }
+    if (!a) {
+      return '<div class="pcard dim" style="--c:' + p.color + '">'
+        + '<div class="ptop"><span class="pname">' + p.label + '</span>'
+        + '<span class="chip" style="font-size:8.5px">Not connected</span></div>'
+        + '<div class="v" style="color:var(--dimmer)">\u2014</div>'
+        + '<div class="lbl">' + p.via + '</div></div>';
+    }
+    const dead = a.status !== 'ok';
+    return '<div class="pcard' + (dead ? ' dim' : '') + '" style="--c:' + p.color + '">'
+      + '<div class="ptop"><span class="pname">' + p.label + '</span>'
+      + (dead ? '<span class="chip rust" style="font-size:8.5px">Reauth</span>'
+              : '<span class="chip" style="font-size:8.5px">' + escS(a.handle) + '</span>') + '</div>'
+      + '<div class="v">' + num(a.followers) + '</div>'
+      + '<div class="lbl">Followers</div>'
+      + '<div class="d">' + delta(a.followerDelta) + ' in ' + SO.range + 'd</div>'
+      + '<div class="sub2">'
+        + '<div><b>' + num(a.reach) + '</b><small>Reach</small></div>'
+        + '<div><b>' + num(a.views) + '</b><small>Views</small></div>'
+        + '<div><b>' + a.engagement.toFixed(2) + '%</b><small>Eng. rate</small></div>'
+      + '</div></div>';
+  }).join('');
+
+  return '<div class="notice"><b>Reading these numbers.</b> Reach counts unique accounts, '
+    + 'views counts every appearance including repeats, so views is always larger. Impressions no longer '
+    + 'exists: Meta folded it into views in April 2025, and any tool still showing it is relabelling '
+    + 'the same data. Engagement rate here is interactions divided by reach, not by followers.</div>'
+    + '<div class="grid g3" style="margin-bottom:14px">' + cards + '</div>'
+    + '<div class="card flush"><div class="cardhead"><h3>Where messages go</h3>'
+    + '<span class="eyebrow">By design</span></div>'
+    + '<div style="padding:15px 18px;font-size:12.5px;color:var(--dim);line-height:1.7">'
+    + 'Facebook Page and Instagram DMs are threads with a counterparty and a reply box, which is the same '
+    + 'shape as email. They land in the Inbox as two more accounts instead of a second messaging UI here. '
+    + 'YouTube has no DMs at all, only comments, which show under Content.'
+    + '</div></div>';
+}
+
+function adsTab(){
+  if (!ADS) {
+    return '<div class="card flush"><div class="empty"><b>No ad account connected</b>'
+      + '<small>Meta Ads needs Business Verification and the Marketing API Access Tier before it '
+      + 'returns data. The same Meta sign-in covers it.</small></div></div>';
+  }
+  const stat = (k, v, m, tone) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
+    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div></div>';
+
+  return '<div class="grid g4" style="margin-bottom:14px">'
+    + stat('Spend', pesos(ADS.spend), 'last ' + SO.range + ' days')
+    + stat('Leads', String(ADS.results), ADS.resultsDelta >= 0 ? '\u25b2 ' + ADS.resultsDelta + '%' : '\u25bc ' + (-ADS.resultsDelta) + '%',
+        ADS.resultsDelta >= 0 ? 'up' : 'down')
+    + stat('Cost per lead', pesos(ADS.spend / Math.max(1, ADS.results)), ADS.cplDelta <= 0 ? 'improving' : 'rising',
+        ADS.cplDelta <= 0 ? 'up' : 'down')
+    + stat('Reach', num(ADS.reach), 'unique accounts')
+    + '</div>'
+    + '<div class="card flush"><div class="cardhead"><h3>Campaigns</h3>'
+    + '<span class="eyebrow">Spend-based rate limits apply</span></div>'
+    + '<table class="tbl"><thead><tr><th>Campaign</th><th class="r">Spend</th>'
+    + '<th class="r">Leads</th><th class="r">CPL</th><th class="r">Status</th></tr></thead><tbody>'
+    + ADS.campaigns.map(c => '<tr><td><span class="name">' + escS(c.name) + '</span>'
+        + '<span class="sm">' + escS(c.objective) + '</span></td>'
+        + '<td class="r mono">' + pesos(c.spend) + '</td>'
+        + '<td class="r mono">' + c.results + '</td>'
+        + '<td class="r mono" style="color:' + (c.spend / Math.max(1, c.results) > ADS.spend / Math.max(1, ADS.results)
+            ? 'var(--rust)' : 'var(--jade)') + '">' + pesos(c.spend / Math.max(1, c.results)) + '</td>'
+        + '<td class="r"><span class="chip ' + (c.status === 'Active' ? 'jade' : '') + '" style="font-size:8.5px">'
+        + escS(c.status) + '</span></td></tr>').join('')
+    + '</tbody></table></div>';
+}
+
+function contentTab(){
+  if (!POSTS.length) {
+    return '<div class="card flush"><div class="empty"><b>No content yet</b>'
+      + '<small>Posts from every connected account appear here, ranked by the metric that '
+      + 'actually predicts growth.</small></div></div>';
+  }
+  return '<div class="notice">Ranked by <b>shares per reach</b> rather than likes. '
+    + 'Shares move content into feeds that likes never reach, which is why it predicts growth '
+    + 'and a like count does not.</div>'
+    + '<div class="card flush"><div class="cardhead"><h3>Top posts</h3>'
+    + '<span class="eyebrow">Last ' + SO.range + ' days</span></div>'
+    + '<table class="tbl"><thead><tr><th>Post</th><th class="r">Reach</th><th class="r">Views</th>'
+    + '<th class="r">Shares</th><th class="r">Share rate</th></tr></thead><tbody>'
+    + POSTS.slice().sort((a, b) => (b.shares / b.reach) - (a.shares / a.reach)).map(p => {
+        const pl = platByK(p.platform);
+        return '<tr><td><span class="name"><span class="miniplat" style="--c:' + pl.color + '"></span>'
+        + escS(p.title) + '</span><span class="sm">' + pl.label + ' \u00b7 ' + escS(p.when) + '</span></td>'
+        + '<td class="r mono">' + num(p.reach) + '</td>'
+        + '<td class="r mono">' + num(p.views) + '</td>'
+        + '<td class="r mono">' + p.shares + '</td>'
+        + '<td class="r mono" style="color:var(--brass)">' + (p.shares / p.reach * 100).toFixed(2) + '%</td></tr>';
+      }).join('')
+    + '</tbody></table></div>';
+}
+
+const escS = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+function soConnect(){
+  const b = document.getElementById('so-connect');
+  const was = b.textContent;
+  b.textContent = 'Not wired yet';
+  setTimeout(() => { b.textContent = was; }, 1400);
+}
+
+document.querySelectorAll('#so-tabs [data-sotab]').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#so-tabs [data-sotab]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); SO.tab = b.dataset.sotab; drawSocial();
+});
+document.getElementById('so-range').onchange = e => { SO.range = e.target.value; drawSocial(); };
+document.getElementById('so-connect').onclick = soConnect;
+
+
+buildDemo();
+drawAll();
+drawCal();
+drawLeads();
+drawSocial();
+
 </script>
 
 
