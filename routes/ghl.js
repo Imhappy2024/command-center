@@ -552,14 +552,21 @@ export function ghlRoutes({ env, auth }){
            and GHL falls back to its own default — better than refusing to send. */
       }
 
+      /* Email is not symmetrical with SMS, and treating it as if it were is what
+         broke it.
+
+         Numbers can be enumerated, so naming one is safe. Sending addresses
+         cannot: GHL requires the From to be a verified sender and exposes no way
+         to ask whether a given address qualifies. Forcing the location's admin
+         email is therefore a guess that fails hard whenever their LC Email setup
+         sends from a different verified domain.
+
+         So emailFrom is left unset and GHL uses whichever sender it has
+         configured. And a missing address is no longer a refusal — being unable
+         to discover one says nothing about whether GHL can send. */
       if (channel === 'email') {
-        if (senders && !senders.email) {
-          return res.status(400).json({
-            error: 'This sub-account has no sending email address in GHL.',
-            kind: 'validation'
-          });
-        }
-        emailFrom = senders?.email || undefined;
+        const asked = String(req.body?.from || '').trim();
+        if (asked) emailFrom = asked;
       }
 
       try {
@@ -698,7 +705,19 @@ export function ghlRoutes({ env, auth }){
       }
 
       if (wantStage || wantValue !== null) {
-        const patch = {};
+        /* Both restated on every call, because GHL requires them even when only
+           the value is changing. A stage change overwrites pipelineStageId below;
+           otherwise these keep the opportunity exactly where it is. */
+        const patch = { pipelineId: row.pipeline_id, pipelineStageId: row.stage_id };
+
+        if (!row.pipeline_id || !row.stage_id) {
+          return res.status(400).json({
+            error: 'This opportunity has not finished syncing its pipeline, so it cannot be '
+              + 'updated yet. Try again after the next sync.',
+            kind: 'validation',
+            applied
+          });
+        }
 
         if (wantStage) {
           const stages = await stagesOf(locationId, row.pipeline_id);
@@ -718,7 +737,6 @@ export function ghlRoutes({ env, auth }){
             });
           }
           patch.pipelineStageId = target.id;
-          patch.pipelineId = row.pipeline_id;
           /* won and lost are status changes in GHL, not just moves. Writing the
              stage alone would leave the opportunity open in every GHL report. */
           patch.status = statusForUiStage(wantStage);

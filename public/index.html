@@ -2506,10 +2506,12 @@ function senderControl(loc){
   }
 
   if (LD.channel === 'email') {
-    if (!s) return 'Sender unknown until the first sync finishes';
-    return s.email
-      ? 'From ' + escL(s.email)
-      : '<span style="color:var(--rust)">No email address set in GHL</span>';
+    /* Informational only. Unlike a number, this is not sent as the From — GHL
+       picks a verified sender, and there is no API to ask whether a given address
+       is one. Naming it here without forcing it is the honest middle. */
+    return s?.email
+      ? 'GHL sends as ' + escL(s.email) + ' or its verified default'
+      : 'GHL picks the verified sender';
   }
 
   /* WhatsApp and Facebook send as the connected asset, not as a number the API

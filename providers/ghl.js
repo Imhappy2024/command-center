@@ -13,10 +13,40 @@ const BASE = 'https://services.leadconnectorhq.com';
 
 /* The Version header is required. Omitting it produces failures that look like
    auth problems and are not. */
-/* 2021-07-28 is the version nearly every endpoint wants. /opportunities/search is
-   the exception: it requires Version: v3, and sending the dated one there makes it
-   answer as though nothing matched. Overridable per call for exactly that reason. */
-const DEFAULT_VERSION = '2021-07-28';
+/* ---------------------------------------------------------------------------
+   The Version header, per endpoint.
+
+   GHL has two API generations live at once. 'v3' is current; '2021-07-28' is the
+   previous one. Which a given endpoint accepts is not guessable, and getting it
+   wrong is rarely an error — several endpoints answer 200 with an empty list
+   instead, which is indistinguishable from "you have no data". That failure mode
+   cost this integration three separate debugging rounds: empty opportunities,
+   empty conversations, and sends that silently did nothing.
+
+   So it is a table, not a default with exceptions. Every entry says what it is
+   based on.
+
+     Endpoint                                  Version  Basis
+     GET  /locations/{id}                      v3       documented
+     GET  /contacts/                           dated    empirical, see below
+     PUT  /contacts/{id}                       v3       documented
+     GET  /opportunities/pipelines             v3       documented
+     GET  /opportunities/search                v3       documented
+     GET  /opportunities/{id}                  v3       documented
+     PUT  /opportunities/{id}                  v3       documented
+     GET  /conversations/search                v3       documented
+     GET  /conversations/{id}/messages         v3       documented
+     POST /conversations/messages              v3       documented
+     GET  /phone-system/numbers/location/{id}  v3       documented
+
+   GET /contacts/ is the one exception and the one entry not backed by docs: its
+   reference page does not render, and the dated version is mirroring thousands of
+   contacts in production right now. Working code beats a page that will not load,
+   so it stays until there is evidence to move it. */
+
+const V3 = 'v3';
+const DATED = '2021-07-28';
+const DEFAULT_VERSION = V3;
 
 const headers = (token, version = DEFAULT_VERSION) => ({
   Authorization: `Bearer ${token}`,
@@ -268,8 +298,10 @@ const asMessage = m => ({
    --------------------------------------------------------------------------- */
 
 export async function listContacts(token, locationId, { startAfterId, startAfter, limit = 100, signal } = {}){
+  /* DATED, deliberately. The only endpoint here not on v3 — see the table above. */
   const { data } = await call(token,
-    `/contacts/${qs({ locationId, limit, startAfterId, startAfter })}`, { signal });
+    `/contacts/${qs({ locationId, limit, startAfterId, startAfter })}`,
+    { signal, version: DATED });
   const items = (data?.contacts || []).map(asContact);
   const meta = data?.meta || {};
   /* GHL returns a next cursor even on the final page, so a page short of `limit`
@@ -363,16 +395,22 @@ export async function listMessages(token, conversationId, { lastMessageId, limit
    Writes.
    --------------------------------------------------------------------------- */
 
-/* pipelineId is accepted alongside pipelineStageId because GHL rejects a stage
-   change that does not name the pipeline the stage belongs to. */
+/* pipelineId and pipelineStageId are both REQUIRED by this endpoint, on every
+   call — not only when moving stage. Changing just the value still has to restate
+   where the opportunity already sits, or the request is rejected. The caller
+   therefore always passes the current pipeline and stage, and this refuses early
+   rather than letting GHL do it. */
 export async function updateOpportunity(token, opportunityId, { pipelineStageId, pipelineId, status, monetaryValue, name, signal } = {}){
-  const body = {};
-  if (pipelineStageId !== undefined) body.pipelineStageId = pipelineStageId;
-  if (pipelineId !== undefined)      body.pipelineId = pipelineId;
-  if (status !== undefined)          body.status = status;
-  if (monetaryValue !== undefined)   body.monetaryValue = Number(monetaryValue) || 0;
-  if (name !== undefined)            body.name = name;
-  if (!Object.keys(body).length) throw new Error('updateOpportunity called with no fields');
+  if (!pipelineId || !pipelineStageId) {
+    throw new Error(
+      'updateOpportunity needs both pipelineId and pipelineStageId — GHL requires them '
+      + 'on every update, including one that only changes the value.');
+  }
+
+  const body = { pipelineId, pipelineStageId };
+  if (status !== undefined)        body.status = status;
+  if (monetaryValue !== undefined) body.monetaryValue = Number(monetaryValue) || 0;
+  if (name !== undefined)          body.name = name;
 
   const { data } = await call(token, `/opportunities/${encodeURIComponent(opportunityId)}`,
     { method: 'PUT', body, signal });
