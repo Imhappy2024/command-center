@@ -2545,12 +2545,24 @@ function drawLeadDetail(){
       + '<span class="ldwho"><h2>' + escL(l.name) + '</h2>'
         + '<div class="meta">' + escL(l.phone) + '  \u00b7  ' + escL(l.email) + '</div>'
         + '<div class="meta" style="color:' + loc.color + '">' + escL(loc.name) + '</div></span>'
-      + '<span class="ldval"><b>' + money(l.value) + '</b><small>Opportunity</small></span>'
+      + '<span class="ldval"><b>' + (l.hasOpportunity === false ? '—' : money(l.value))
+      + '</b><small>' + (l.hasOpportunity === false ? 'No opportunity' : 'Opportunity')
+      + '</small></span>'
     + '</div>'
     + '<div class="ldacts">'
-      + '<select class="stagesel" id="ld-stage">'
-      + STAGES.map(s => '<option value="' + s.k + '"' + (s.k === l.stage ? ' selected' : '') + '>'
-          + s.label + '</option>').join('')
+      /* A stage belongs to an opportunity, not to a person. Most leads are
+         contacts who were never put into a pipeline, and for those there is
+         nothing in GHL to move — so the control says that rather than offering a
+         change the server would have to refuse. */
+      + '<select class="stagesel" id="ld-stage"'
+      + (l.hasOpportunity === false
+          ? ' disabled title="No opportunity in GHL, so there is no stage to change. Create one in GHL first."'
+            + ' style="opacity:.5;cursor:not-allowed"'
+          : '') + '>'
+      + (l.hasOpportunity === false
+          ? '<option selected>No opportunity</option>'
+          : STAGES.map(s => '<option value="' + s.k + '"' + (s.k === l.stage ? ' selected' : '') + '>'
+              + s.label + '</option>').join(''))
       + '</select>'
       + '<button class="btn" data-lact="call">Call</button>'
       + '<button class="btn" data-lact="task">Create task</button>'
@@ -2794,8 +2806,14 @@ function drawLeadHeader(){
   const pool = LEADS.filter(l => LD.loc === 'all' || l.loc === LD.loc);
   const open = pool.filter(l => !['won','lost'].includes(l.stage));
   const unread = pool.filter(l => l.unread).length;
+  /* "in pipeline" means opportunities, which most leads do not have now that the
+     list is every contact. Counting them separately stops \u20b10 reading as a broken
+     integration when it just means nobody has been put into a pipeline. */
+  const inPipeline = pool.filter(l => l.hasOpportunity);
   document.getElementById('ld-sub').textContent = LOCATIONS.length
-    ? open.length + ' open \u00b7 ' + money(open.reduce((s, l) => s + l.value, 0)) + ' in pipeline'
+    ? open.length.toLocaleString() + ' open \u00b7 '
+      + inPipeline.length.toLocaleString() + ' with an opportunity \u00b7 '
+      + money(inPipeline.reduce((s, l) => s + l.value, 0)) + ' in pipeline'
       + (unread ? ' \u00b7 ' + unread + ' unread' : '')
     : 'No GHL account connected.';
   const badge = document.querySelector('.navitem[data-target="leads"] .badge');

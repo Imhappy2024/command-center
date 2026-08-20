@@ -39,14 +39,19 @@ const asLocation = a => ({
   senders: a.senders || null
 });
 
-/* A lead id is '<locationId>:<opportunityId>'. Split on the first colon only:
+/* A lead id is '<locationId>:<contactId>', or '<locationId>:o_<opportunityId>' for
+   the rare opportunity with no mirrored contact. Split on the first colon only:
    GHL ids are alphanumeric, but the location half is what scopes every query and
    it must not be recoverable from a crafted second colon. */
 function splitLeadId(raw){
   const s = String(raw || '');
   const at = s.indexOf(':');
-  if (at < 1 || at === s.length - 1) return { locationId: null, opportunityId: null };
-  return { locationId: s.slice(0, at), opportunityId: s.slice(at + 1) };
+  if (at < 1 || at === s.length - 1) return { locationId: null };
+  const locationId = s.slice(0, at);
+  const rest = s.slice(at + 1);
+  return rest.startsWith('o_')
+    ? { locationId, contactId: null, opportunityId: rest.slice(2) }
+    : { locationId, contactId: rest, opportunityId: null };
 }
 
 /* ---------------- display strings ----------------
@@ -252,46 +257,100 @@ export function ghlRoutes({ env, auth }){
            FROM ghl_messages
           WHERE location_id = ANY($1)
           GROUP BY location_id, contact_id
+       ),
+       /* One opportunity per contact, the most recently updated. A contact can
+          hold several in GHL, and showing the same person as several rows reads
+          as duplicate data — the live one is the one worth surfacing. */
+       opp AS (
+         SELECT DISTINCT ON (location_id, contact_id)
+                location_id, contact_id, opportunity_id, stage_name, status,
+                value, name, owner, updated_at
+           FROM ghl_opportunities
+          WHERE location_id = ANY($1) AND NOT deleted AND contact_id IS NOT NULL
+          ORDER BY location_id, contact_id, updated_at DESC NULLS LAST
        )
-       SELECT o.location_id, o.opportunity_id, o.contact_id, o.stage_name, o.status,
-              o.value, o.name AS opp_name, o.owner AS opp_owner, o.date_added,
-              o.updated_at,
-              c.name AS contact_name, c.phone, c.email, c.source, c.tags,
-              c.owner AS contact_owner,
-              m.last_at, m.last_in, m.last_out
-         FROM ghl_opportunities o
-         LEFT JOIN ghl_contacts c
-                ON c.location_id = o.location_id
-               AND c.contact_id  = o.contact_id
-               AND NOT c.deleted
-         LEFT JOIN msg m
-                ON m.location_id = o.location_id
-               AND m.contact_id  = o.contact_id
-        WHERE o.location_id = ANY($1) AND NOT o.deleted
-        ORDER BY COALESCE(m.last_at, o.updated_at, o.date_added) DESC NULLS LAST
+       /* The union is wrapped and sorted from outside. A set operation's ORDER BY
+          may only name output columns, not an expression over them, so ordering
+          on COALESCE(...) directly is rejected by Postgres — hence the `activity`
+          column, computed per branch and sorted once here. */
+       SELECT * FROM (
+         SELECT c.location_id, c.contact_id,
+                c.name AS contact_name, c.phone, c.email, c.source, c.tags,
+                c.owner AS contact_owner, c.date_added,
+                o.opportunity_id, o.stage_name, o.status, o.value,
+                o.name AS opp_name, o.owner AS opp_owner, o.updated_at,
+                m.last_at, m.last_in, m.last_out,
+                COALESCE(m.last_at, o.updated_at, c.date_added) AS activity
+           FROM ghl_contacts c
+           LEFT JOIN opp o
+                  ON o.location_id = c.location_id AND o.contact_id = c.contact_id
+           LEFT JOIN msg m
+                  ON m.location_id = c.location_id AND m.contact_id = c.contact_id
+          WHERE c.location_id = ANY($1) AND NOT c.deleted
+
+         UNION ALL
+
+         /* Opportunities whose contact is not in the mirror — no contact_id at
+            all, or one that has not synced yet. Without this branch, switching to
+            contact-first would silently drop leads that used to show. */
+         SELECT o.location_id,
+                o.contact_id,
+                NULL AS contact_name, NULL AS phone, NULL AS email, NULL AS source,
+                '[]'::jsonb AS tags, NULL AS contact_owner, o.date_added,
+                o.opportunity_id, o.stage_name, o.status, o.value,
+                o.name AS opp_name, o.owner AS opp_owner, o.updated_at,
+                NULL::timestamptz AS last_at,
+                NULL::timestamptz AS last_in,
+                NULL::timestamptz AS last_out,
+                COALESCE(o.updated_at, o.date_added) AS activity
+           FROM ghl_opportunities o
+          WHERE o.location_id = ANY($1) AND NOT o.deleted
+            AND (o.contact_id IS NULL OR NOT EXISTS (
+                  SELECT 1 FROM ghl_contacts c
+                   WHERE c.location_id = o.location_id
+                     AND c.contact_id  = o.contact_id
+                     AND NOT c.deleted))
+       ) leads
+        ORDER BY activity DESC NULLS LAST
         LIMIT ${LEAD_ROWS}`,
       [ids]
     );
 
     if (rows.length === LEAD_ROWS) {
+      /* The real total, so the cap reports what it hid rather than just that it
+         capped. Two cheap counts beat an unbounded list in the browser. */
+      const { rows: [tot] } = await query(
+        `SELECT (SELECT COUNT(*) FROM ghl_contacts
+                  WHERE location_id = ANY($1) AND NOT deleted) AS contacts`,
+        [ids]);
       warnings.push({ account: 'ghl', label: 'Leads',
-        error: `Showing the ${LEAD_ROWS} most recently active leads; older ones are not listed.` });
+        error: `Showing the ${LEAD_ROWS} most recently active of `
+          + `${Number(tot?.contacts || 0).toLocaleString()} leads. Filter by sub-account `
+          + 'or stage to narrow it.' });
     }
 
     const wantStage = String(req.query.stage || 'all');
     const leads = rows
       .map(row => {
-        const activity = row.last_at || row.updated_at || row.date_added;
-        const sortKey = activity ? Date.parse(activity) : 0;
+        /* Computed in SQL so the list order and this key cannot disagree. */
+        const sortKey = row.activity ? Date.parse(row.activity) : 0;
+        const hasOpportunity = Boolean(row.opportunity_id);
         return {
-          id: `${row.location_id}:${row.opportunity_id}`,
+          /* Keyed on the contact, not the opportunity, because a lead is now a
+             person and most of them have no opportunity. The opportunity id rides
+             along in ghlId for the writes that need it. */
+          id: `${row.location_id}:${row.contact_id || 'o_' + row.opportunity_id}`,
           loc: row.location_id,
           name: row.contact_name || row.opp_name || '(no name)',
           phone: row.phone || '',
           email: row.email || '',
           source: row.source || '',
           owner: row.contact_owner || row.opp_owner || '',
-          stage: toUiStage(row.stage_name, row.status),
+          /* A contact with no opportunity has no stage in GHL — stage is a
+             property of an opportunity, not of a person. 'new' rather than
+             toUiStage's 'contacted' fallback, because nothing has happened to it
+             yet and 'contacted' would assert something untrue about 3,000 people. */
+          stage: hasOpportunity ? toUiStage(row.stage_name, row.status) : 'new',
           /* NUMERIC arrives from pg as a string. */
           value: Number(row.value) || 0,
           tags: Array.isArray(row.tags) ? row.tags : [],
@@ -301,10 +360,11 @@ export function ghlRoutes({ env, auth }){
           unread: Boolean(row.last_in) &&
             (!row.last_out || Date.parse(row.last_in) > Date.parse(row.last_out)),
           created: longDate(row.date_added),
-          ghlId: row.opportunity_id,
-          /* Needed for the deep link into GHL, which addresses contacts rather
-             than opportunities. */
-          contactId: row.contact_id || null
+          ghlId: row.opportunity_id || null,
+          contactId: row.contact_id || null,
+          /* Drives the UI: a lead with no opportunity cannot have its stage
+             changed, because there is nothing in GHL to move. */
+          hasOpportunity
         };
       })
       .filter(l => wantStage === 'all' || l.stage === wantStage);
@@ -313,18 +373,9 @@ export function ghlRoutes({ env, auth }){
   }));
 
   r.get('/api/ghl/leads/:id/thread', auth.require, guarded('api/ghl/leads:thread', async (req, res) => {
-    const { locationId, opportunityId } = splitLeadId(req.params.id);
-    if (!locationId) return res.status(400).json({ error: 'malformed lead id' });
-
-    const allowed = new Set((await locations()).map(a => a.id.replace(/^ghl:/, '')));
-    if (!allowed.has(locationId)) return res.status(404).json({ error: 'no such sub-account' });
-
-    const { rows: opp } = await query(
-      `SELECT contact_id FROM ghl_opportunities
-        WHERE location_id = $1 AND opportunity_id = $2 AND NOT deleted`,
-      [locationId, opportunityId]);
-    if (!opp.length) return res.status(404).json({ error: 'no such lead' });
-    if (!opp[0].contact_id) return res.json({ thread: [] });
+    const found = await loadLead(req.params.id);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+    if (!found.contactId) return res.json({ thread: [] });
 
     const { rows } = await query(
       `SELECT direction, channel, body, sent_at
@@ -332,7 +383,7 @@ export function ghlRoutes({ env, auth }){
         WHERE location_id = $1 AND contact_id = $2
         ORDER BY sent_at ASC
         LIMIT 500`,
-      [locationId, opp[0].contact_id]);
+      [found.locationId, found.contactId]);
 
     /* day and time are computed here because the UI does no date arithmetic on
        a thread — it groups on the string it is given. */
@@ -357,22 +408,64 @@ export function ghlRoutes({ env, auth }){
 
   /* The lead, from the mirror, with its location proved against the allow-list.
      Returns a string on failure so the caller can answer with the right status. */
+  /* Resolves a lead id to its contact and, when there is one, its live
+     opportunity. Contact-first, because most leads have no opportunity at all. */
   async function loadLead(rawId){
-    const { locationId, opportunityId } = splitLeadId(rawId);
-    if (!locationId) return { error: 'malformed lead id', status: 400 };
+    const parts = splitLeadId(rawId);
+    if (!parts.locationId) return { error: 'malformed lead id', status: 400 };
+    const { locationId } = parts;
 
     const allowed = new Set((await locations()).map(a => a.id.replace(/^ghl:/, '')));
     if (!allowed.has(locationId)) return { error: 'no such sub-account', status: 404 };
 
-    const { rows } = await query(
-      `SELECT location_id, opportunity_id, contact_id, pipeline_id, stage_id,
-              stage_name, status, value, name
-         FROM ghl_opportunities
-        WHERE location_id = $1 AND opportunity_id = $2 AND NOT deleted`,
-      [locationId, opportunityId]);
-    if (!rows.length) return { error: 'no such lead', status: 404 };
+    /* The orphan branch: an opportunity with no mirrored contact. */
+    if (!parts.contactId) {
+      const { rows } = await query(
+        `SELECT location_id, opportunity_id, contact_id, pipeline_id, stage_id,
+                stage_name, status, value, name
+           FROM ghl_opportunities
+          WHERE location_id = $1 AND opportunity_id = $2 AND NOT deleted`,
+        [locationId, parts.opportunityId]);
+      if (!rows.length) return { error: 'no such lead', status: 404 };
+      return {
+        locationId,
+        contactId: rows[0].contact_id || null,
+        opportunityId: rows[0].opportunity_id,
+        row: rows[0]
+      };
+    }
 
-    return { locationId, opportunityId, row: rows[0] };
+    const { rows: contact } = await query(
+      `SELECT contact_id, name FROM ghl_contacts
+        WHERE location_id = $1 AND contact_id = $2 AND NOT deleted`,
+      [locationId, parts.contactId]);
+    if (!contact.length) return { error: 'no such lead', status: 404 };
+
+    /* Same choice the list makes: the most recently updated opportunity, so a
+       stage write lands on the one the row is showing. */
+    const { rows: opp } = await query(
+      `SELECT opportunity_id, pipeline_id, stage_id, stage_name, status, value, name
+         FROM ghl_opportunities
+        WHERE location_id = $1 AND contact_id = $2 AND NOT deleted
+        ORDER BY updated_at DESC NULLS LAST
+        LIMIT 1`,
+      [locationId, parts.contactId]);
+
+    return {
+      locationId,
+      contactId: parts.contactId,
+      opportunityId: opp[0]?.opportunity_id || null,
+      row: {
+        contact_id: parts.contactId,
+        opportunity_id: opp[0]?.opportunity_id || null,
+        pipeline_id: opp[0]?.pipeline_id || null,
+        stage_id: opp[0]?.stage_id || null,
+        stage_name: opp[0]?.stage_name || null,
+        status: opp[0]?.status || null,
+        value: opp[0]?.value ?? 0,
+        name: opp[0]?.name || contact[0].name
+      }
+    };
   }
 
   /* The stages of the pipeline this opportunity sits in, from the mirror. */
@@ -545,6 +638,18 @@ export function ghlRoutes({ env, auth }){
         return res.status(400).json({ error: 'nothing to update' });
       }
 
+      /* A stage belongs to an opportunity, not to a person. Most leads are now
+         contacts with no opportunity at all, and there is nothing in GHL to move
+         for those — so this is refused rather than quietly creating an
+         opportunity, which would put a lead into a pipeline nobody asked for. */
+      if ((wantStage || wantValue !== null) && !opportunityId) {
+        return res.status(400).json({
+          error: 'This lead has no opportunity in GHL, so it has no stage or value to change. '
+            + 'Create an opportunity for it in GHL first.',
+          kind: 'validation'
+        });
+      }
+
       let token;
       try { token = await tokenFor(locationId); }
       catch (err) { return failWrite(res, err); }
@@ -578,12 +683,12 @@ export function ghlRoutes({ env, auth }){
       const applied = [];
 
       if (Object.keys(contactFields).length) {
-        if (!row.contact_id) {
+        if (!found.contactId) {
           return res.status(400).json({ error: 'This lead has no contact in GHL to edit.' });
         }
         try {
           const updated = await limited(locationId,
-            () => updateContact(token, row.contact_id, contactFields));
+            () => updateContact(token, found.contactId, contactFields));
           if (updated) await upsertContact(locationId, updated);
           applied.push(...Object.keys(contactFields));
         } catch (err) {
