@@ -792,7 +792,7 @@ main{min-width:0;display:flex;flex-direction:column}
           <small>Private Integration Tokens are scoped to one sub-account, so add one token per location.</small></div>
         <button class="xbtn" id="ld-close" aria-label="Close">&times;</button>
       </div>
-      <div class="form">
+      <div class="form" id="ld-form">
         <div class="steps mono">
           <b>1.</b> In GHL, open the sub-account &rarr; Settings &rarr; Integrations &rarr; Private Integrations<br>
           <b>2.</b> Create a token with these scopes: <span class="scopes">contacts.readonly contacts.write opportunities.readonly opportunities.write conversations.readonly conversations.write conversations/message.readonly conversations/message.write locations.readonly users.readonly</span><br>
@@ -820,10 +820,33 @@ main{min-width:0;display:flex;flex-direction:column}
           </div>
         </div>
       </div>
+      <!-- Shown in place of the form once the token verifies. The first sync is
+           minutes, so the sheet reports it rather than closing on a pipeline that
+           is still filling. Same two-step body swap the sheet already does. -->
+      <div class="form" id="ld-progress" hidden>
+        <div class="steps mono" id="ld-prog-head"></div>
+        <div class="preview">
+          <span class="eyebrow" style="margin-bottom:9px;display:block">Pulled so far</span>
+          <div class="subitem on" style="pointer-events:none">
+            <span class="sdot" style="--c:#4E9E7E"></span><span class="slabel">Contacts</span>
+            <span class="scount" id="ld-prog-contacts">0</span></div>
+          <div class="subitem on" style="pointer-events:none">
+            <span class="sdot" style="--c:#5B8DEF"></span><span class="slabel">Opportunities</span>
+            <span class="scount" id="ld-prog-opps">0</span></div>
+          <div class="subitem on" style="pointer-events:none">
+            <span class="sdot" style="--c:#D9A441"></span><span class="slabel">Conversations</span>
+            <span class="scount" id="ld-prog-msgs">0</span></div>
+        </div>
+      </div>
+
       <div class="err" id="ld-err" hidden></div>
-      <div class="sheetfoot">
+      <div class="sheetfoot" id="ld-foot">
         <button class="btn" id="ld-cancel">Cancel</button>
         <button class="btn primary" id="ld-save">Verify and connect</button>
+      </div>
+      <div class="sheetfoot" id="ld-progfoot" hidden>
+        <button class="btn" id="ld-prog-retry" hidden>Retry</button>
+        <button class="btn primary" id="ld-prog-close">Close</button>
       </div>
       <div class="sheetnote mono">Tokens are static and never auto-refresh. Rotate them in GHL and paste the new one here.</div>
     </div>
@@ -951,6 +974,7 @@ main{min-width:0;display:flex;flex-direction:column}
       <div style="display:flex;gap:8px;align-items:center">
         <span class="synced" id="ld-synced"></span>
         <button class="btn" id="ld-refresh">Refresh</button>
+        <button class="btn" id="ld-resync">Re-sync</button>
         <button class="btn primary" id="ld-connect">+ Connect GHL</button>
       </div>
     </div>
@@ -1918,7 +1942,7 @@ function buildDemo(){
   ];
 }
 
-function clearDemo(){ ACCOUNTS = []; MAIL = []; EVENTS = []; LOCATIONS = []; LEADS = []; THREADS = {};
+function clearDemo(){ ACCOUNTS = []; MAIL = []; EVENTS = []; LOCATIONS = []; LEADS = []; THREADS = {}; SYNC = [];
                      SOCIAL = []; ADS = null; POSTS = []; }
 
 /* One switch drives every view that has a data contract. */
@@ -2217,6 +2241,17 @@ let LOCATIONS = [];
 let LEADS = [];
 let THREADS = {};
 
+/* Backfill state per sub-account, from GET /api/ghl/sync. Kept apart from
+   LOCATIONS because it changes on its own timetable — a sync runs for minutes
+   after the location row has stopped changing. */
+let SYNC = [];
+const syncOf = id => SYNC.find(s => s.id === id);
+const anySyncing = () => SYNC.some(s => s.status === 'running');
+const neverSynced = id => {
+  const s = syncOf(id);
+  return Boolean(s) && s.status === 'idle';
+};
+
 const STAGES = [
   { k:'new',        label:'New' },
   { k:'contacted',  label:'Contacted' },
@@ -2261,16 +2296,40 @@ function drawLeadSubnav(){
   if (!ldSubEl) return;
   const openIn = loc => LEADS.filter(l =>
     (!loc || l.loc === loc) && !['won','lost'].includes(l.stage)).length;
-  const row = (key, label, count, color, broken) =>
-    '<button class="subitem' + (LD.loc === key ? ' on' : '') + (broken ? ' broken' : '') + '" data-loc="' + key + '">'
+  const row = (key, label, count, color, broken, tip) =>
+    '<button class="subitem' + (LD.loc === key ? ' on' : '') + (broken ? ' broken' : '') + '" data-loc="' + key + '"'
+    + (tip ? ' title="' + escL(tip) + '"' : '') + '>'
     + '<span class="sdot" style="--c:' + (color || 'var(--dimmer)') + '"></span>'
     + '<span class="slabel">' + escL(label) + '</span>'
     + '<span class="scount">' + (broken ? '!' : (count || '')) + '</span></button>';
 
+  /* Two different reasons for the same marker, told apart by the tooltip. An
+     empty pipeline because nothing has synced must never look like an empty
+     pipeline because there are no leads — that distinction is the whole point. */
+  const mark = l => {
+    if (l.status !== 'ok') {
+      return { broken: true, tip: 'This token was rejected. Rotate it in GHL and reconnect.' };
+    }
+    const s = syncOf(l.id);
+    if (s?.status === 'running') {
+      return { broken: false, tip: `Syncing from GHL — ${s.counts.contacts} contacts so far.` };
+    }
+    if (s?.status === 'failed') {
+      return { broken: true, tip: 'The last sync failed: ' + (s.error || 'unknown') + ' Click Re-sync to retry.' };
+    }
+    if (s?.status === 'idle') {
+      return { broken: true, tip: 'Never synced. This pipeline is empty because nothing has been pulled yet, not because there are no leads.' };
+    }
+    return { broken: false, tip: null };
+  };
+
   let html = row('all', 'All locations', openIn(null), 'linear-gradient(135deg,#D9A441,#4E9E7E)');
   html += '<div class="subhead">Sub-accounts</div>';
   html += LOCATIONS.length
-    ? LOCATIONS.map(l => row(l.id, l.name, openIn(l.id), l.color, l.status !== 'ok')).join('')
+    ? LOCATIONS.map(l => {
+        const m = mark(l);
+        return row(l.id, l.name, openIn(l.id), l.color, m.broken, m.tip);
+      }).join('')
     : '<div class="subempty">None connected</div>';
   html += '<button class="subadd" id="ld-subadd">+ Connect GHL</button>';
 
@@ -2544,8 +2603,46 @@ function syncPulse(msg){
 function drawLeadHeader(){
   const el = document.getElementById('ld-synced');
   if (!el) return;
-  el.innerHTML = LOCATIONS.length
-    ? '<span class="d"></span>Synced \u00b7 just now' : '';
+
+  /* Standing state, not a flash. syncPulse() borrows this element for 1.8s after
+     a write and then calls back here, so this is what it reverts to. */
+  el.onclick = null;
+  el.style.cursor = '';
+  el.title = '';
+
+  if (!LOCATIONS.length) {
+    el.innerHTML = '';
+  } else if (!SYNC.length) {
+    el.innerHTML = '<span class="d"></span>Synced \u00b7 GHL';
+  } else {
+    const running = SYNC.filter(s => s.status === 'running');
+    const failed  = SYNC.filter(s => s.status === 'failed');
+    const idle    = SYNC.filter(s => s.status === 'idle');
+    const done    = SYNC.filter(s => s.status === 'done');
+
+    if (running.length) {
+      const r = running[0];
+      el.innerHTML = '<span class="d" style="background:var(--brass)"></span>Syncing '
+        + escL(r.label) + '\u2026 ' + r.counts.contacts.toLocaleString() + ' contacts';
+    } else if (failed.length) {
+      el.innerHTML = '<span class="d" style="background:var(--rust)"></span>Sync failed \u00b7 '
+        + escL(failed[0].label);
+      el.title = (failed[0].error || '') + ' Click to retry.';
+      el.style.cursor = 'pointer';
+      el.onclick = () => resync(failed[0].id);
+    } else if (idle.length) {
+      el.innerHTML = '<span class="d" style="background:var(--rust)"></span>'
+        + idle.length + ' never synced';
+      el.title = 'Click to run the first sync.';
+      el.style.cursor = 'pointer';
+      el.onclick = () => resync(null);
+    } else {
+      /* Jade explicitly: the CSS only greens the dot under .flash, which is the
+         transient write confirmation, and this is the standing healthy state. */
+      el.innerHTML = '<span class="d" style="background:var(--jade)"></span>Synced \u00b7 '
+        + done.length + (done.length === 1 ? ' sub-account' : ' sub-accounts');
+    }
+  }
   document.getElementById('ld-title').textContent =
     LD.loc === 'all' ? 'All locations' : (locById(LD.loc) || {}).name || 'Leads';
   const pool = LEADS.filter(l => LD.loc === 'all' || l.loc === LD.loc);
@@ -2573,7 +2670,16 @@ function ldConnect(){
   ldModal().hidden = false;
   document.getElementById('ld-locid').focus();
 }
-const ldClose = () => { ldModal().hidden = true; };
+const ldClose = () => {
+  ldModal().hidden = true;
+  ldStopPolling();
+  /* Reset to the form so the next open is the connect step, not the progress of
+     whatever was last synced. */
+  document.getElementById('ld-form').hidden = false;
+  document.getElementById('ld-foot').hidden = false;
+  document.getElementById('ld-progress').hidden = true;
+  document.getElementById('ld-progfoot').hidden = true;
+};
 
 function ldSwatches(){
   const box = document.getElementById('ld-colors');
@@ -2617,12 +2723,114 @@ function ldSave(){
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ locationId: locId, token, label: name, color: LDNEW.color })
   }).then(async () => {
-    ldClose();
     LD.loc = locId; LD.sel = null;
-    syncPulse('Sub-account connected');
+    /* The sheet does not close. The server has already started a backfill and it
+       runs for minutes, so closing here would drop the user onto a pipeline that
+       is still filling with no indication why. */
+    ldShowProgress(locId, name);
     await load();
   }).catch(err => fail(err.message))
     .finally(() => { btn.disabled = false; btn.textContent = was; });
+}
+
+/* ---------- first-sync progress, in the sheet ---------- */
+
+let ldPollTimer = null;
+
+function ldShowProgress(locId, name){
+  document.getElementById('ld-form').hidden = true;
+  document.getElementById('ld-foot').hidden = true;
+  document.getElementById('ld-err').hidden = true;
+  document.getElementById('ld-progress').hidden = false;
+  document.getElementById('ld-progfoot').hidden = false;
+  document.getElementById('ld-prog-retry').hidden = true;
+
+  document.getElementById('ld-prog-head').innerHTML =
+    '<b>Connected ' + escL(name) + '</b><br>Syncing from GHL. You can close this — it keeps running.';
+
+  document.getElementById('ld-prog-retry').onclick = () => { resync(locId); };
+
+  ldPollProgress(locId);
+  clearInterval(ldPollTimer);
+  ldPollTimer = setInterval(() => ldPollProgress(locId), 3000);
+}
+
+async function ldPollProgress(locId){
+  if (ldModal().hidden) return ldStopPolling();
+  try {
+    const out = await api('/api/ghl/sync');
+    SYNC = out.locations || [];
+    drawLeads();
+
+    const s = syncOf(locId);
+    if (!s) return;
+
+    document.getElementById('ld-prog-contacts').textContent = s.counts.contacts.toLocaleString();
+    document.getElementById('ld-prog-opps').textContent     = s.counts.opportunities.toLocaleString();
+    document.getElementById('ld-prog-msgs').textContent     = s.counts.messages.toLocaleString();
+
+    const head = document.getElementById('ld-prog-head');
+    const retry = document.getElementById('ld-prog-retry');
+
+    if (s.status === 'running') return;      // keep polling
+
+    /* Anything other than running is terminal for this sheet. */
+    ldStopPolling();
+    if (s.status === 'failed') {
+      retry.hidden = false;
+      head.innerHTML = '<b>Sync failed</b><br>' + escL(s.error || 'Unknown error.');
+    } else if (s.status === 'done') {
+      head.innerHTML = '<b>' + escL(s.label) + ' is synced.</b><br>Everything above is now in the Leads view.';
+      load();
+    }
+  } catch (err) {
+    ldStopPolling();
+    document.getElementById('ld-prog-head').innerHTML =
+      '<b>Lost track of the sync</b><br>' + escL(err.message) + ' It may still be running.';
+  }
+}
+
+function ldStopPolling(){
+  clearInterval(ldPollTimer);
+  ldPollTimer = null;
+}
+
+/* Starts a backfill and switches the view to it. locId null means every location
+   that is idle or failed. */
+async function resync(locId){
+  try {
+    const url = locId ? '/api/ghl/sync/' + encodeURIComponent(locId) : '/api/ghl/sync';
+    await api(url, { method: 'POST' });
+    syncPulse(locId ? 'Sync started' : 'Syncing all sub-accounts');
+    await loadSync();
+  } catch (err) {
+    /* 409 means one is already running, which is not a failure worth a red
+       banner — it is the answer to the question the click asked. */
+    banner(err.status === 409 ? 'A sync is already running for that sub-account.' : err.message);
+  }
+}
+
+/* Sync status only. Cheap enough to poll while a backfill runs, and separate
+   from load() so a progress tick does not refetch every lead. */
+async function loadSync(){
+  if (CAL.demo) return;
+  try {
+    const out = await api('/api/ghl/sync');
+    SYNC = out.locations || [];
+    drawLeads();
+  } catch { /* the header simply keeps its last state */ }
+}
+
+/* While anything is backfilling, keep the header honest without the user having
+   to reload. Stops on its own once every location settles. */
+let syncWatch = null;
+function watchSync(){
+  clearInterval(syncWatch);
+  if (!anySyncing()) return;
+  syncWatch = setInterval(async () => {
+    await loadSync();
+    if (!anySyncing()) { clearInterval(syncWatch); syncWatch = null; load(); }
+  }, 5000);
 }
 
 document.getElementById('ld-close').onclick  = ldClose;
@@ -2631,12 +2839,28 @@ document.getElementById('ld-save').onclick   = ldSave;
 document.getElementById('ld-name').oninput   = ldPreview;
 ldModal().onclick = e => { if (e.target === ldModal()) ldClose(); };
 
+document.getElementById('ld-prog-close').onclick = ldClose;
+
 mountLeadSubnav();
 document.getElementById('ld-connect').onclick = ldConnect;
-document.getElementById('ld-refresh').onclick = e => {
+
+/* Refetches the mirror. It used to be a 900ms timer that flashed "Pulled from
+   GHL" without asking the server anything. */
+document.getElementById('ld-refresh').onclick = async e => {
   const b = e.currentTarget;
-  b.textContent = 'Syncing\u2026'; b.disabled = true;
-  setTimeout(() => { b.textContent = 'Refresh'; b.disabled = false; syncPulse('Pulled from GHL'); drawLeads(); }, 900);
+  b.textContent = 'Refreshing\u2026'; b.disabled = true;
+  try { await load(); syncPulse('Refreshed'); }
+  finally { b.textContent = 'Refresh'; b.disabled = false; }
+};
+
+/* Re-pulls from GHL: the selected sub-account, or every one that needs it when
+   All locations is showing. Distinct from Refresh, which only re-reads what has
+   already been mirrored. */
+document.getElementById('ld-resync').onclick = async e => {
+  const b = e.currentTarget;
+  b.disabled = true;
+  try { await resync(LD.loc === 'all' ? null : LD.loc); watchSync(); }
+  finally { b.disabled = false; }
 };
 makeSplitter('ld-wrap', 'ld-gutter', 34);
 
@@ -2930,14 +3154,15 @@ async function load(){
 
     /* Independent fetches, so one integration being unconfigured never blanks
        the others. Anything that rejects leaves its array empty and reports. */
-    const [mail, cal, locs, leads, social, ads, posts] = await Promise.allSettled([
+    const [mail, cal, locs, leads, social, ads, posts, sync] = await Promise.allSettled([
       ACCOUNTS.length ? api(`/api/mail?folder=${encodeURIComponent(folder)}&account=${encodeURIComponent(acct)}`) : null,
       ACCOUNTS.length ? api(`/api/calendar?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&account=all`) : null,
       api('/api/ghl/locations'),
       api('/api/ghl/leads?location=' + encodeURIComponent(LD.loc) + '&stage=' + encodeURIComponent(LD.stage)),
       api('/api/social?range=' + encodeURIComponent(SO.range)),
       api('/api/social/ads?range=' + encodeURIComponent(SO.range)),
-      api('/api/social/posts?range=' + encodeURIComponent(SO.range))
+      api('/api/social/posts?range=' + encodeURIComponent(SO.range)),
+      api('/api/ghl/sync')
     ]);
 
     const val = (r, key, fallback) =>
@@ -2958,6 +3183,7 @@ async function load(){
 
     LOCATIONS = val(locs, 'locations', []);
     LEADS = val(leads, 'leads', []);
+    SYNC = val(sync, 'locations', []);
     SOCIAL = val(social, 'platforms', []);
     ADS = val(ads, 'ads', null);
     POSTS = val(posts, 'posts', []);
@@ -2972,6 +3198,10 @@ async function load(){
     /* Keeps the open conversation in step with the list. After a send this is
        what replaces the optimistic row with the server's own. */
     if (LD.sel && LEADS.some(l => l.id === LD.sel)) await loadThread(LD.sel);
+
+    /* A backfill started elsewhere — at boot, or from another tab — still shows
+       its progress here. Stops on its own once everything settles. */
+    watchSync();
   } catch (err) {
     banner('Could not load: ' + err.message);
     drawAll(); drawCal(); drawLeads(); drawSocial();
