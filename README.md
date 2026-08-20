@@ -10,8 +10,10 @@ Nothing fabricates data. A view with no source says so and names what it needs.
 | View | Source | State |
 |---|---|---|
 | Inbox | Gmail, Microsoft Graph, IMAP | live |
-| Calendar | Google Calendar, Graph — `/api/calendar` serves it | **backend only**, frontend loader not yet written |
-| Overview, Tasks, Notes, Leads, Properties, Financial, Social, Systems | — | empty states |
+| Calendar | Google Calendar, Microsoft Graph | live |
+| Leads | GoHighLevel, two-way | live |
+| Social | — | empty states; Meta needs Business Verification first |
+| Overview, Tasks, Notes, Properties, Financial, Systems | — | empty states |
 
 ## Mail
 
@@ -72,6 +74,85 @@ marker and the others keep loading. Nothing is deleted, so the label and colour 
 
 Tokens and app passwords are AES-256-GCM ciphertext in Postgres, keyed from
 `ENCRYPTION_KEY`. The browser only ever holds a session cookie.
+
+## Leads
+
+GoHighLevel, one sub-account per Private Integration Token. **GHL is the source
+of truth and Postgres holds a read mirror**, which is what makes this tractable:
+
+```
+Reads   GHL --webhook--> webhook_events --> mirror tables --> dashboard
+Writes  dashboard --> GHL API --> webhook --> mirror tables --> dashboard
+```
+
+Exactly two things write to the mirror — the webhook processor and the sync job.
+No request handler does. There is no conflict resolution anywhere in the lead code
+because there are never two writable copies.
+
+Read routes never call GHL. `/api/ghl/leads` and `/api/ghl/leads/:id/thread` are
+mirror queries, so the Leads view is fast and independent of GHL's rate limits.
+
+### Connecting
+
+Either paste a token in **+ Connect GHL**, or declare pairs in the environment
+(below) and they connect at boot. Both verify the token against
+`GET /locations/{id}` before storing it, so a bad token or a missing scope is a
+specific message rather than a pipeline that silently never fills.
+
+Scopes the token needs:
+
+```
+contacts.readonly contacts.write
+opportunities.readonly opportunities.write
+conversations.readonly conversations.write
+conversations/message.readonly conversations/message.write
+locations.readonly users.readonly
+```
+
+A first sync pages pipelines, then contacts, then opportunities, then
+conversations from the last `GHL_BACKFILL_DAYS`. It runs detached, resumes from a
+cursor if interrupted, and until it finishes the Leads view says so rather than
+showing an empty pipeline.
+
+### Webhooks — unauthenticated
+
+Point a GHL workflow's **Custom Webhook** action at `POST /webhooks/ghl` and have
+it set an `event` field to one of `contact.created`, `contact.updated`,
+`opportunity.created`, `opportunity.updated`, `opportunity.stage`,
+`message.inbound`, `message.outbound`, `note.created`.
+
+There is no signature and no shared secret. GHL's Custom Webhook action sends no
+HMAC, so there was never a signature to verify. **What contains it is the
+locationId allow-list**: a payload naming a location you have not connected writes
+nothing, is stored with the reason, and still answers 200, so a prober cannot tell
+a valid location from an invalid one. The body is capped at 256KB and the endpoint
+at 60 requests per minute per IP.
+
+Payload values are not trusted either. Opportunity and message events re-read
+from GHL with that location's own token, so the worst a forged webhook achieves is
+a read of a record that already exists.
+
+### Stage names
+
+GHL stage names are user-defined per pipeline and will not match the six the UI
+shows. `lib/ghl-stages.js` is the whole translation and the one file to edit when a
+pipeline is renamed. `status` wins over the stage name, since a workflow can close
+a deal without moving it, and an unmatched name falls back to `contacted` rather
+than being dropped.
+
+Writing a stage the pipeline has no counterpart for is refused, not approximated.
+
+### What is not built
+
+- **Notes.** `note.created` events are stored in `webhook_events` and go no
+  further; there is no notes mirror table yet.
+- **Delete events.** Not subscribed, because delete webhooks are unreliable across
+  most CRMs. The daily full reconcile pass decides deletions instead, by marking
+  rows it did not see. Nothing is ever hard-deleted.
+- **Incremental update detection.** GHL's contact list is ordered by `dateAdded`
+  and this endpoint set has no `updatedAfter` filter, so an hourly pass reliably
+  catches *new* contacts while an edit to an old one arrives by webhook and,
+  failing that, on the daily full pass.
 
 ## Run locally
 
@@ -145,10 +226,17 @@ ephemeral.
 
 | Variable | Notes |
 |---|---|
-| `APP_PASSWORD` | Gates the whole dashboard. Without it anyone with the URL could connect a mailbox or read one already connected |
 | `SESSION_SECRET` | 32+ chars. Signs session and OAuth state cookies |
 | `ENCRYPTION_KEY` | 32+ chars. Encrypts refresh tokens and app passwords. Changing it makes every stored credential undecryptable |
+| `PUBLIC_URL` | Derived from `RAILWAY_PUBLIC_DOMAIN` when that is present, so on Railway you only set it to override a custom domain |
 | `DATABASE_URL` | Injected by Railway's Postgres plugin |
+| `APP_PASSWORD` | **Only when `AUTH_MODE` is `remember` or `password`.** Requiring it under `open` is what once locked the owner out |
+
+**Access**
+
+| Variable | Default | Notes |
+|---|---|---|
+| `AUTH_MODE` | `remember` | `open` — no gate at all, and the rail says so. `remember` — one sign-in per browser, 365-day sliding cookie. `password` — 14-day cookie, no sliding |
 
 **Deployment**
 
@@ -171,8 +259,26 @@ with the variable it needs.
 | Variable | Default | Notes |
 |---|---|---|
 | `MAIL_FETCH_LIMIT` | `25` | Per mailbox per folder, before merging |
-| `AGENT_TIMEZONE` | server zone | IANA zone deciding whether a row shows a clock, `Yesterday` or a date |
+| `AGENT_TIMEZONE` | server zone | IANA zone deciding whether a row shows a clock, `Yesterday` or a date. Also drives the lead list's `12m` / `2h` / `Aug 4` column |
 | `PGSSLMODE` | — | `disable` if your Postgres rejects TLS. Railway's private hostname is detected automatically |
+
+**GoHighLevel** — none required. Omit them all and sub-accounts are added through
+the Connect sheet instead.
+
+| Variable | Default | Notes |
+|---|---|---|
+| `GHL_RECONCILE_MINUTES` | `60` | Incremental pass cadence. Full pass runs daily regardless. Floors at 5 |
+| `GHL_BACKFILL_DAYS` | `90` | How far back conversations are pulled on a first sync. Older threads are not mirrored |
+| `GHL_TOKEN_<NAME>` | — | Private Integration Token. Pairs with `GHL_LOCATION_<NAME>` on the suffix |
+| `GHL_LOCATION_<NAME>` | — | Location ID — the string after `/location/` in the sub-account URL |
+| `GHL_LABEL_<NAME>` | — | Sidebar label. Falls back to the name GHL reports, then the suffix title-cased |
+| `GHL_COLOR_<NAME>` | — | Hex. Falls back to the next unused swatch |
+
+Tokens never auto-refresh, so **rotation is an edit here**: on the next deploy the
+new value is detected, verified, stored, and the account's reauth flag clears. An
+unchanged token costs no API calls at all, and a label you have since set in the UI
+is never overwritten from the environment. A pair missing its `GHL_LOCATION_` is
+named in the boot log and skipped rather than failing the deploy.
 
 ## Layout
 
@@ -184,17 +290,23 @@ lib/session.js             Signed-cookie sessions, password gate, PKCE helpers
 lib/oauth.js               Provider config, code exchange, token refresh
 lib/accounts.js            accounts CRUD and getAccessToken()
 lib/normalise.js           Shared message and event shaping
-db/schema.sql              accounts table; re-applied every boot
+lib/ghl-sync.js            Mirror writers, backfill, reconciliation
+lib/ghl-webhook.js         Payload validation and the async processor
+lib/ghl-limiter.js         Per-location request pacing
+lib/ghl-stages.js          GHL stage name <-> UI stage
+lib/ghl-seed.js            GHL_TOKEN_* / GHL_LOCATION_* pairs, read at boot
+db/schema.sql              accounts, webhook_events, the GHL mirror; re-applied every boot
 db/index.js                pg pool, query helper, migration runner
 providers/index.js         Dispatch by provider
 providers/google.js        Gmail + Google Calendar
 providers/microsoft.js     Graph mail + calendarView
 providers/imap.js          IMAP + SMTP
+providers/ghl.js           GHL API surface, normalised
 routes/auth.js             /login, /logout
 routes/connect.js          /connect/:provider, /oauth/callback/:provider, /api/accounts
 routes/mail.js             /api/mail and the actions
 routes/calendar.js         /api/calendar
-routes/ghl.js              /api/ghl/locations and the lead placeholders
+routes/ghl.js              /api/ghl/*, and the open webhook receiver
 routes/social.js           /api/social, and the Meta webhook challenge
 routes/guard.js            Turns a database outage into a 503, not a crash
 public/index.html          Shell, all ten views, every view's logic
@@ -226,6 +338,14 @@ All of these need a session. API routes answer `401` JSON; page routes redirect 
 | `DELETE /api/mail/:accountId/:messageId` | Permanent delete; refused on Google |
 | `POST /api/mail/:accountId/send` | `{ to, subject, body, replyTo? }` |
 | `GET /api/calendar?from=&to=&account=` | `{ events, warnings }` |
+| `GET /api/ghl/locations` | `{ locations }` |
+| `POST /api/ghl/locations` | `{ locationId, token, label, color }` — verifies, then backfills |
+| `DELETE /api/ghl/locations/:id` | Disconnect a sub-account |
+| `GET /api/ghl/leads?location=&stage=` | `{ leads, warnings }` — mirror only |
+| `GET /api/ghl/leads/:id/thread` | `{ thread }` — mirror only |
+| `POST /api/ghl/leads/:id/message` | `{ channel, body }` |
+| `PATCH /api/ghl/leads/:id` | `{ stage?, expectedStage?, name?, phone?, email?, owner?, value? }`; `409` if GHL moved it first |
+| `POST /webhooks/ghl` | **Open, no session.** Allow-listed by `locationId` |
 
 `account=all` fans out with `Promise.allSettled`. A failing mailbox contributes a
 `warnings` entry, never a 500. Each account is fetched to `MAIL_FETCH_LIMIT` so a busy
@@ -255,14 +375,21 @@ place them on the viewer's calendar day rather than shifting them across midnigh
 
 ## Known gaps
 
-- **Calendar frontend.** `/api/calendar` works; `public/index.html` has no calendar loader
-  yet. Its Calendar view is still an empty state.
-- **Nine views are empty states.** Overview, Tasks, Notes, Leads, Properties, Financial,
-  Social and Systems have no source wired.
+- **Six views are empty states.** Overview, Tasks, Notes, Properties, Financial and
+  Systems have no source wired. Social has its full frontend and a real API
+  contract, but returns empty until Meta's Business Verification clears.
+- **The Leads detail pane's secondary actions are still inert.** *Call*, *Task*,
+  *Note* and *Open in GHL* flip their own button text and nothing else — there is
+  no endpoint behind them. Sending, stage moves and field edits are real.
 - **No draft saving.** There is no draft-write endpoint, so the reader has no *Save draft*
   button. Gmail's `drafts.create` and Graph's `POST /me/messages` would both do it.
 - **Nothing routes mail to ClickUp.** The mockup's *Send to ClickUp* button is gone rather
   than faked. `scripts/sources/clickup.mjs` still holds a working client.
+- **`GET /api/mail/capabilities` has no caller.** It exists so the UI can hide
+  *Delete forever* on Google accounts; the frontend never fetches it, so the
+  control is hidden by other means.
+- **The demo switch is still shipped.** `buildDemo()` and both *Demo data* buttons
+  are roughly 230 lines that `INTEGRATIONS.md` §10 says to delete before shipping.
 - **Archive has no cheap count on Gmail**, because it is defined by the absence of a label
   rather than the presence of one. It reports `null` and the sidebar shows blank.
 - **IMAP opens a connection per operation.** Fine for one user; it adds about a second to

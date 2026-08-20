@@ -123,7 +123,13 @@ META_WEBHOOK_VERIFY_TOKEN=     # you invent this, Meta echoes it back
 X_CLIENT_ID=
 X_CLIENT_SECRET=
 
-GHL_WEBHOOK_SECRET=            # for verifying inbound GHL webhooks
+# GHL_WEBHOOK_SECRET — withdrawn. GHL's Custom Webhook action sends no HMAC, so
+# there was never a signature to verify, and the owner has chosen to skip a shared
+# secret too. POST /webhooks/ghl is unauthenticated and contained by the
+# locationId allow-list instead. See README, "Webhooks — unauthenticated".
+
+GHL_RECONCILE_MINUTES=60
+GHL_BACKFILL_DAYS=90
 
 MAIL_FETCH_LIMIT=25
 REFRESH_INTERVAL_MINUTES=15
