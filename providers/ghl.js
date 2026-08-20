@@ -107,8 +107,34 @@ export async function verifyLocation(token, locationId, { signal } = {}){
   const loc = data?.location || data;
   return {
     id: loc?.id || locationId,
-    name: loc?.name || loc?.businessName || locationId
+    name: loc?.name || loc?.businessName || locationId,
+    /* The sub-account's own address. GHL treats a From that matches the location
+       admin email as already verified, which makes this the one sending address
+       obtainable from the API — there is no endpoint listing verified senders. */
+    email: loc?.email || null,
+    phone: loc?.phone || null
   };
+}
+
+/* Active numbers for a sub-account.
+
+   Path parameter, not a query one, and Version: v3. skipNumberPool defaults to
+   true at GHL's end and is left that way: pool numbers rotate and are not
+   something to offer as a deliberate "send from" choice. */
+export async function listPhoneNumbers(token, locationId, { pageSize = 100, page = 0, signal } = {}){
+  const { data } = await call(token,
+    `/phone-system/numbers/location/${encodeURIComponent(locationId)}${qs({ pageSize, page })}`,
+    { signal, version: 'v3' });
+
+  const numbers = (data?.numbers || [])
+    .map(n => ({
+      phoneNumber: n.phoneNumber || null,
+      label: n.friendlyName || n.phoneNumber || null,
+      countryCode: n.countryCode || null
+    }))
+    .filter(n => n.phoneNumber);
+
+  return { numbers, total: Number(data?.total) || numbers.length };
 }
 
 /* ---------------------------------------------------------------------------

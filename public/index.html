@@ -2272,7 +2272,7 @@ const CHANNELS = [
   { k:'fb',    label:'FB' }
 ];
 
-const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms' };
+const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms', from:null };
 
 const locById = id => LOCATIONS.find(l => l.id === id);
 const stageLabel = k => (STAGES.find(s => s.k === k) || {}).label || k;
@@ -2472,6 +2472,61 @@ function drawLeadList(){
   });
 }
 
+/* Who the message goes out as.
+
+   Numbers and addresses are mirrored onto the location by the sync job — the
+   composer must not call GHL. Three states per channel, and they mean different
+   things:
+
+     not synced yet   senders is null. GHL will pick its own default.
+     none available   synced, and the sub-account genuinely has no sender.
+     one or many      show it, or offer the choice.
+
+   Email has no picker because GHL exposes no list of verified senders — only the
+   sub-account's own address. Inventing a dropdown there would imply a choice that
+   does not exist. */
+function senderControl(loc){
+  const s = loc.senders;
+
+  if (LD.channel === 'sms') {
+    if (!s) return 'Sender unknown until the first sync finishes';
+    const nums = s.numbers || [];
+    if (!nums.length) {
+      return '<span style="color:var(--rust)">No number added in GHL</span>';
+    }
+    if (nums.length === 1) {
+      return 'From ' + escL(nums[0].label || nums[0].phoneNumber);
+    }
+    const chosen = LD.from && nums.some(n => n.phoneNumber === LD.from) ? LD.from : nums[0].phoneNumber;
+    return 'From <select class="stagesel" id="ld-from">'
+      + nums.map(n => '<option value="' + escL(n.phoneNumber) + '"'
+          + (n.phoneNumber === chosen ? ' selected' : '') + '>'
+          + escL(n.label || n.phoneNumber) + '</option>').join('')
+      + '</select>';
+  }
+
+  if (LD.channel === 'email') {
+    if (!s) return 'Sender unknown until the first sync finishes';
+    return s.email
+      ? 'From ' + escL(s.email)
+      : '<span style="color:var(--rust)">No email address set in GHL</span>';
+  }
+
+  /* WhatsApp and Facebook send as the connected asset, not as a number the API
+     lets you choose between. */
+  return 'Posts to ' + escL(loc.name);
+}
+
+/* Whether Send can do anything on this channel. Disabling beats letting GHL
+   reject it after the fact. */
+function canSend(loc){
+  const s = loc.senders;
+  if (!s) return true;                       // unknown; let GHL decide
+  if (LD.channel === 'sms')   return (s.numbers || []).length > 0;
+  if (LD.channel === 'email') return Boolean(s.email);
+  return true;
+}
+
 function drawLeadDetail(){
   const el = document.getElementById('ld-detail');
   const wrap = document.getElementById('ld-wrap');
@@ -2529,16 +2584,10 @@ function drawLeadDetail(){
             + c.label + '</button>').join('') + '</div>'
         + '<textarea id="ld-msg" placeholder="Message ' + escL(l.name.split(' ')[0]) + ' by '
         + escL((CHANNELS.find(c => c.k === LD.channel) || {}).label) + '\u2026"></textarea>'
-        + '<div class="crow"><button class="btn primary" data-lact="send">Send</button>'
+        + '<div class="crow"><button class="btn primary" data-lact="send"'
+        + (canSend(loc) ? '' : ' disabled style="opacity:.45;cursor:not-allowed"') + '>Send</button>'
         + '<button class="btn" data-lact="note">Log a note</button>'
-        /* Which number or address it sends from is GHL's decision, not ours: the
-           API takes an optional fromNumber and we deliberately leave it unset,
-           because guessing at a sub-account's telephony setup is how a message
-           goes out from the wrong line. Said here so the sender is not a mystery. */
-        + '<span class="cfrom" style="margin-left:auto">' + escL(loc.name)
-        + ' · sends from its default '
-        + (LD.channel === 'email' ? 'address' : LD.channel === 'sms' ? 'number' : 'channel')
-        + '</span></div>'
+        + '<span class="cfrom" style="margin-left:auto">' + senderControl(loc) + '</span></div>'
       + '</div>';
   } else {
     const f = (k, v, key) => '<div class="frow"><span class="k">' + k + '</span><span class="v">'
@@ -2564,6 +2613,11 @@ function drawLeadDetail(){
 
   el.querySelectorAll('[data-ltab]').forEach(b => b.onclick = () => { LD.tab = b.dataset.ltab; drawLeadDetail(); });
   el.querySelectorAll('[data-chan]').forEach(b => b.onclick = () => { LD.channel = b.dataset.chan; drawLeadDetail(); });
+
+  /* Remembered across re-renders, so picking a second number does not snap back
+     to the first the moment the pane redraws. */
+  const fromSel = document.getElementById('ld-from');
+  if (fromSel) fromSel.onchange = () => { LD.from = fromSel.value; };
 
   /* Stage moves carry the stage they are moving *from*. The server re-reads GHL
      and answers 409 if a workflow got there first, which is the one case where
@@ -2641,8 +2695,9 @@ function drawLeadDetail(){
       drawLeads();
 
       try {
+        const picker = document.getElementById('ld-from');
         await post('/api/ghl/leads/' + encodeURIComponent(l.id) + '/message',
-          { channel: LD.channel, body: text });
+          { channel: LD.channel, body: text, from: picker ? picker.value : undefined });
         syncPulse('Sent via GHL');
         /* Reloads rather than patching the row in place: the server has the real
            message id and timestamp, and the stage may have moved in GHL. */

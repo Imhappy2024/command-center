@@ -33,7 +33,10 @@ const asLocation = a => ({
   name: a.label,
   short: a.label.split(' ')[0],
   color: a.color,
-  status: a.status
+  status: a.status,
+  /* Mirrored by the sync job. null until a first sync has run, which the
+     composer reports as "not synced yet" rather than as "no number". */
+  senders: a.senders || null
 });
 
 /* A lead id is '<locationId>:<opportunityId>'. Split on the first colon only:
@@ -420,6 +423,51 @@ export function ghlRoutes({ env, auth }){
       }
       if (!text) return res.status(400).json({ error: 'Nothing to send.' });
 
+      /* The sender, checked against what the sync mirrored rather than taken on
+         trust. A client-supplied fromNumber that this sub-account does not own
+         would either be rejected by GHL or, worse, send from a line belonging to
+         someone else's location. */
+      const senders = (await locations())
+        .find(a => a.id === `ghl:${locationId}`)?.senders || null;
+
+      let fromNumber;
+      let emailFrom;
+
+      if (channel === 'sms') {
+        const owned = (senders?.numbers || []).map(n => n.phoneNumber);
+        const asked = String(req.body?.from || '').trim();
+        if (asked) {
+          if (!owned.includes(asked)) {
+            return res.status(400).json({
+              error: `${asked} is not a sending number on this sub-account.`,
+              kind: 'validation'
+            });
+          }
+          fromNumber = asked;
+        } else if (owned.length === 1) {
+          /* Sent explicitly when there is exactly one, so the message cannot go
+             out from a pool number GHL picked instead. */
+          fromNumber = owned[0];
+        } else if (owned.length === 0 && senders) {
+          return res.status(400).json({
+            error: 'This sub-account has no sending number in GHL. Add one under Settings, Phone Numbers.',
+            kind: 'validation'
+          });
+        }
+        /* senders null means the first sync has not cached them yet. Left unset,
+           and GHL falls back to its own default — better than refusing to send. */
+      }
+
+      if (channel === 'email') {
+        if (senders && !senders.email) {
+          return res.status(400).json({
+            error: 'This sub-account has no sending email address in GHL.',
+            kind: 'validation'
+          });
+        }
+        emailFrom = senders?.email || undefined;
+      }
+
       try {
         const token = await tokenFor(locationId);
 
@@ -433,7 +481,12 @@ export function ghlRoutes({ env, auth }){
           type,
           contactId: row.contact_id,
           message: text,
-          conversationId: convos[0]?.conversationId
+          conversationId: convos[0]?.conversationId,
+          fromNumber,
+          emailFrom,
+          subject: channel === 'email'
+            ? (String(req.body?.subject || '').trim() || undefined)
+            : undefined
         }));
 
         /* origin='dashboard' and GHL's own message id as the key. The
