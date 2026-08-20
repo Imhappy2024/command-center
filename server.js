@@ -107,6 +107,8 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('  webhooks: /webhooks/ghl OPEN — unauthenticated, allow-listed by locationId');
   console.log(`  ghl sync: reconcile every ${app.locals.background?.intervalMinutes ?? '—'}m, `
     + 'full pass daily');
+  console.log(`  social:   poll every ${app.locals.background?.socialMinutes ?? '—'}m `
+    + '(platform APIs are never called from a request)');
 
   /* Reported through missingVars, the same check the connect sheet uses, and
      enumerated from PROVIDERS so a provider added later is covered without
