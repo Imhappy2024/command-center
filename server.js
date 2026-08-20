@@ -115,7 +115,13 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
     console.log(`${signal} received, shutting down`);
-    server.close(async () => { await close(); process.exit(0); });
+    server.close(async () => {
+      /* Before the pool closes: the webhook worker and the reconciler both hold
+         queries, and closing under them would leave a batch half applied. */
+      await app.locals.background?.stop().catch(() => {});
+      await close();
+      process.exit(0);
+    });
     setTimeout(() => process.exit(0), 10_000).unref();
   });
 }

@@ -5,8 +5,10 @@
    looks like "no leads". */
 
 import express from 'express';
-import { accountsFor, upsertStaticToken, deleteAccount, markReauth } from '../lib/accounts.js';
+import { accountsFor, upsertStaticToken, deleteAccount } from '../lib/accounts.js';
 import { verifyLocation, GhlError } from '../providers/ghl.js';
+import { query } from '../db/index.js';
+import { ipLimiter, rawLabels } from '../lib/ghl-webhook.js';
 import { guarded } from './guard.js';
 
 const safeLabel = v => String(v || '').trim().slice(0, 24);
@@ -105,13 +107,53 @@ export function ghlRoutes({ env, auth }){
       res.status(501).json({ error: NOT_BUILT }));
   }
 
-  /* The receiver has to exist before the write path or the dashboard shows stale
-     state confidently. Not built yet, and returning 501 rather than 200 means GHL
-     will not think a subscription is healthy when it is not. */
-  r.post('/webhooks/ghl', express.json({ limit: '1mb' }), (req, res) =>
-    res.status(501).json({ error: 'Webhook receiver not built yet.' }));
+  /* ---------------- inbound webhooks ----------------
+
+     Unauthenticated, deliberately. GHL's Custom Webhook workflow action posts
+     with no HMAC, so there was never a signature to verify, and the owner has
+     chosen to skip a shared secret as well.
+
+     What that forces is in lib/ghl-webhook.js: the payload is treated as hostile
+     input, and no mirror write happens until its locationId has been matched
+     against the connected sub-accounts. This route does three things only —
+     bound the body, bound the request rate, and store the payload. Validation
+     and dispatch belong to the worker, because a slow handler here makes GHL
+     retry into duplicates. */
+
+  const allowIp = ipLimiter({ max: 60, windowMs: 60_000 });
+
+  /* 256KB rather than 1MB: an unauthenticated endpoint is a memory-pressure
+     target, and a lead payload is a few KB. Malformed JSON is answered quietly
+     rather than falling through to Express's HTML error page. */
+  const webhookBody = express.json({ limit: '256kb' });
+  const readBody = (req, res, next) =>
+    webhookBody(req, res, err => err
+      ? res.status(400).json({ ok: false })
+      : next());
+
+  r.post('/webhooks/ghl', readBody, async (req, res) => {
+    if (!allowIp(req.ip)) return res.status(429).json({ ok: false });
+
+    const { eventType, externalId } = rawLabels(req.body);
+
+    try {
+      await query(
+        `INSERT INTO webhook_events (provider, event_type, external_id, payload)
+         VALUES ('ghl', $1, $2, $3)`,
+        [eventType, externalId, req.body ?? {}]
+      );
+    } catch (err) {
+      console.error('[webhooks/ghl] could not store event:', err.message);
+      /* 500 here is correct: the event was genuinely not accepted, and GHL
+         retrying is what we want. Contrast with a rejected payload below, which
+         is stored and answered 200 because retrying will not help it. */
+      return res.status(500).json({ ok: false });
+    }
+
+    /* 200 immediately, and nothing about the payload is reflected back. A prober
+       learns the same thing from a valid locationId as from an invalid one. */
+    res.status(200).json({ ok: true });
+  });
 
   return r;
 }
-
-export { markReauth };
