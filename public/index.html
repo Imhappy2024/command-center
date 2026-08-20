@@ -837,12 +837,12 @@ main{min-width:0;display:flex;flex-direction:column}
       </div>
 
       <div id="ib-step1">
-        <div class="provlist">
-          <button class="prov" data-prov="Google"><span class="pv-ic" style="--pv:#D9A441">G</span><span class="pv-t"><b>Google</b><small>Gmail and Google Workspace</small></span><span class="chip">OAuth</span></button>
-          <button class="prov" data-prov="Microsoft"><span class="pv-ic" style="--pv:#5B8DEF">M</span><span class="pv-t"><b>Microsoft</b><small>Outlook, Microsoft 365, Hotmail</small></span><span class="chip">OAuth</span></button>
-          <button class="prov" data-prov="IMAP"><span class="pv-ic" style="--pv:#4E9E7E">@</span><span class="pv-t"><b>Other (IMAP)</b><small>Any host with an app password</small></span><span class="chip">Manual</span></button>
-        </div>
-        <div class="sheetnote mono">Google and Microsoft open their own sign-in, where you choose which address to connect. One grant covers mail and calendar. IMAP asks for a host and an app password instead.</div>
+        <!-- Built from /api/accounts, filtered by feed: the mailbox sheet shows
+             providers feeding 'mail', the social sheet those feeding 'social'.
+             One endpoint decides what is configured, so the greying-out logic is
+             written once. -->
+        <div class="provlist" id="ib-provlist"></div>
+        <div class="sheetnote mono" id="ib-sheetnote"></div>
       </div>
 
       <div id="ib-step2" hidden>
@@ -1427,14 +1427,46 @@ function drawAll(){ drawSubnav(); drawHeader(); drawList(); drawReader(); syncBa
 
 /* ---------- connect flow ---------- */
 const modal = () => document.getElementById('ib-modal');
-const NEW = { provider:null, color:PALETTE[0] };
+const NEW = { provider:null, feed:'mail', color:PALETTE[0] };
 
-function openModal(){
-  NEW.provider = null; NEW.color = PALETTE[0];
+/* Presentation for each provider key. The server supplies the one-line blurb; the
+   glyph and colour are here because they are design, not configuration. */
+const PROV_UI = {
+  google:    { name: 'Google',       glyph: 'G', color: '#D9A441', chip: 'OAuth',  blurb: 'Gmail and Google Workspace' },
+  microsoft: { name: 'Microsoft',    glyph: 'M', color: '#5B8DEF', chip: 'OAuth',  blurb: 'Outlook, Microsoft 365, Hotmail' },
+  imap:      { name: 'Other (IMAP)', glyph: '@', color: '#4E9E7E', chip: 'Manual', blurb: 'Any host with an app password' },
+  meta:      { name: 'Meta',         glyph: 'f', color: '#5B8DEF', chip: 'OAuth',  blurb: 'Facebook Pages, Instagram and Ads' },
+  youtube:   { name: 'YouTube',      glyph: '▶', color: '#C2553F', chip: 'OAuth', blurb: 'Channel metrics and analytics' },
+  x:         { name: 'X',            glyph: 'X', color: '#8E9BA8', chip: 'OAuth',  blurb: 'Post and follower metrics' }
+};
+
+const SHEET_COPY = {
+  mail: {
+    title: 'Connect an account',
+    desc: "One sign-in covers mail and calendar. You'll sign in on the provider's page, not here.",
+    note: 'Google and Microsoft open their own sign-in, where you choose which address to connect. '
+        + 'One grant covers mail and calendar. IMAP asks for a host and an app password instead.'
+  },
+  social: {
+    title: 'Connect a social account',
+    /* Said plainly because a user seeing no Facebook and no Instagram row will
+       otherwise assume they are missing. */
+    desc: 'One Meta sign-in covers your Facebook Pages, Instagram and ad account. YouTube and X connect separately.',
+    note: 'Meta returns one entry per Page you grant, plus any linked Instagram account and ad account. '
+        + 'X is billed per read, so its metrics are polled hourly rather than live.'
+  }
+};
+
+/* feed is 'mail' or 'social'. Everything below keys off it. */
+function openModal(feed = 'mail'){
+  NEW.provider = null; NEW.feed = feed; NEW.color = PALETTE[0];
+  const copy = SHEET_COPY[feed] || SHEET_COPY.mail;
+
   document.getElementById('ib-step1').hidden = false;
   document.getElementById('ib-step2').hidden = true;
-  document.getElementById('ib-mtitle').textContent = 'Connect an account';
-  document.getElementById('ib-mdesc').textContent  = "One sign-in covers mail and calendar. You'll sign in on the provider's page, not here.";
+  document.getElementById('ib-mtitle').textContent = copy.title;
+  document.getElementById('ib-mdesc').textContent = copy.desc;
+  document.getElementById('ib-sheetnote').textContent = copy.note;
   ['ib-email','ib-label','ib-pass','ib-imaphost','ib-smtphost'].forEach(id => {
     const f = document.getElementById(id); if (f) f.value = '';
   });
@@ -1442,18 +1474,41 @@ function openModal(){
   document.getElementById('ib-smtpport').value = '465';
   const e0 = document.getElementById('ib-err'); if (e0) e0.hidden = true;
 
+  drawProviders(feed);
+  modal().hidden = false;
+}
+
+function drawProviders(feed){
+  const box = document.getElementById('ib-provlist');
+  const keys = Object.keys(PROVIDERS_CFG)
+    .filter(k => (PROVIDERS_CFG[k].feeds || []).includes(feed) && PROV_UI[k]);
+
+  if (!keys.length) {
+    box.innerHTML = '<div class="sheetnote mono">No provider for this is configured on the server.</div>';
+    return;
+  }
+
+  box.innerHTML = keys.map(k => {
+    const ui = PROV_UI[k];
+    const cfg = PROVIDERS_CFG[k];
+    return '<button class="prov" data-prov="' + k + '">'
+      + '<span class="pv-ic" style="--pv:' + ui.color + '">' + ui.glyph + '</span>'
+      + '<span class="pv-t"><b>' + esc2(ui.name) + '</b><small>'
+      + esc2(cfg.blurb || ui.blurb) + '</small></span>'
+      + '<span class="chip">' + ui.chip + '</span></button>';
+  }).join('');
+
   /* A provider with no client id on the server cannot complete a round trip, so
      it is shown disabled with the reason rather than failing after the click. */
-  document.querySelectorAll('.prov').forEach(b => {
-    const cfg = PROVIDERS_CFG[b.dataset.prov.toLowerCase()];
+  box.querySelectorAll('.prov').forEach(b => {
+    const cfg = PROVIDERS_CFG[b.dataset.prov];
     const ready = CAN_CONNECT && (!cfg || cfg.configured !== false);
     b.disabled = !ready;
     b.style.opacity = ready ? '' : '.45';
     b.style.cursor = ready ? '' : 'not-allowed';
     b.title = ready ? '' : (cfg?.setupHint || 'Connecting is disabled on the server.');
+    b.onclick = () => step2(b.dataset.prov);
   });
-
-  modal().hidden = false;
 }
 const closeModal = () => { modal().hidden = true; };
 
@@ -1475,25 +1530,40 @@ function updatePreview(){
   p.querySelector('.scount').textContent = '0';
 }
 
-function step2(provider){
-  NEW.provider = provider;
+const PLACEHOLDER = {
+  google: 'Business Email', microsoft: 'Work Outlook', imap: 'Support Inbox',
+  meta: 'Northline Social', youtube: 'Main Channel', x: 'Brand Account'
+};
+
+/* `key` is the provider key, not its display name — it is what the connect URL
+   is built from, so carrying the name and lowercasing it later was one rename
+   away from breaking. */
+function step2(key){
+  NEW.provider = key;
   NEW.color = PALETTE[ACCOUNTS.length % PALETTE.length];
+  const ui = PROV_UI[key] || { name: key };
+  const social = NEW.feed === 'social';
+
   document.getElementById('ib-step1').hidden = true;
   document.getElementById('ib-step2').hidden = false;
-  document.getElementById('ib-mtitle').textContent = 'Name this mailbox';
+  document.getElementById('ib-mtitle').textContent = social ? 'Name this connection' : 'Name this mailbox';
 
   /* Nothing has been signed into yet — the label and colour are chosen first and
      ride through the round trip, so the account arrives already named. */
-  const isImap = provider === 'IMAP';
-  document.getElementById('ib-mdesc').textContent = isImap
-    ? 'Enter the mailbox details, then name it and pick a colour.'
-    : `Name it and pick a colour, then continue to ${provider} to choose which address to connect. `
-      + 'Both the mailbox and its calendar will use these.';
+  const isImap = key === 'imap';
+  document.getElementById('ib-mdesc').textContent =
+    isImap ? 'Enter the mailbox details, then name it and pick a colour.'
+    : key === 'meta'
+      ? 'Name it and pick a colour, then continue to Meta. Every Page you grant arrives as its own '
+        + 'entry, named after itself, along with any linked Instagram and ad account.'
+    : social
+      ? `Name it and pick a colour, then continue to ${ui.name} to choose which account to connect.`
+      : `Name it and pick a colour, then continue to ${ui.name} to choose which address to connect. `
+        + 'Both the mailbox and its calendar will use these.';
 
   document.getElementById('ib-imapfld').hidden = !isImap;
-  document.getElementById('ib-save').textContent = isImap ? 'Connect account' : `Continue to ${provider}`;
-  document.getElementById('ib-label').placeholder =
-    provider === 'Google' ? 'Business Email' : provider === 'Microsoft' ? 'Work Outlook' : 'Support Inbox';
+  document.getElementById('ib-save').textContent = isImap ? 'Connect account' : `Continue to ${ui.name}`;
+  document.getElementById('ib-label').placeholder = PLACEHOLDER[key] || 'Connection';
 
   drawSwatches(); updatePreview();
   document.getElementById(isImap ? 'ib-email' : 'ib-label').focus();
@@ -1505,14 +1575,14 @@ async function saveAccount(){
   const bad = m => { errEl.textContent = m; errEl.hidden = false; return false; };
   errEl.hidden = true;
 
-  if (!label) return bad('Give the mailbox a label.');
+  if (!label) return bad(NEW.feed === 'social' ? 'Give the connection a label.' : 'Give the mailbox a label.');
 
-  /* Google and Microsoft: hand off to the provider's own chooser, carrying the
+  /* Everything except IMAP hands off to the provider's own chooser, carrying the
      label and colour so the account lands already named. The address is whatever
      is picked there — one grant covers mail and calendar, so there is no second
-     step for the calendar. */
-  if (NEW.provider !== 'IMAP') {
-    window.location = '/connect/' + NEW.provider.toLowerCase()
+     step for the calendar, and a Meta grant names its discovered Pages itself. */
+  if (NEW.provider !== 'imap') {
+    window.location = '/connect/' + encodeURIComponent(NEW.provider)
       + '?label=' + encodeURIComponent(label)
       + '&color=' + encodeURIComponent(NEW.color);
     return true;
@@ -1555,13 +1625,13 @@ async function saveAccount(){
 
 /* ---------- wiring ---------- */
 mountSubnav();
-document.getElementById('ib-connect').onclick = openModal;
+document.getElementById('ib-connect').onclick = () => openModal('mail');
 document.getElementById('ib-close').onclick   = closeModal;
 document.getElementById('ib-back').onclick    = openModal;
 document.getElementById('ib-save').onclick    = saveAccount;
 document.getElementById('ib-label').oninput   = updatePreview;
 modal().onclick = e => { if (e.target === modal()) closeModal(); };
-document.querySelectorAll('.prov').forEach(b => b.onclick = () => step2(b.dataset.prov));
+/* The provider buttons are built per sheet now, so drawProviders() binds them. */
 
 /* ---------- resizable split (reusable) ---------- */
 function makeSplitter(wrapId, gutterId, def){
@@ -2133,7 +2203,7 @@ document.getElementById('cal-next').onclick = () => {
 document.getElementById('cal-today').onclick = () => { CAL.anchor = new Date(); CAL.sel = null; drawCal(); };
 document.getElementById('cal-demo').onclick = toggleDemo;
 /* Mail and calendar ride on one OAuth grant, so this opens the same sheet. */
-document.getElementById('cal-connect').onclick = openModal;
+document.getElementById('cal-connect').onclick = () => openModal('mail');
 
 /* Demo data loads at boot so the views are not empty while the backend is built.
    Both Demo data buttons clear it. Delete buildDemo/clearDemo/toggleDemo and the
@@ -2744,18 +2814,25 @@ function contentTab(){
 
 const escS = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-function soConnect(){
-  const b = document.getElementById('so-connect');
-  const was = b.textContent;
-  b.textContent = 'Not wired yet';
-  setTimeout(() => { b.textContent = was; }, 1400);
-}
+/* The same sheet the Inbox uses, filtered to providers that feed 'social'. Three
+   entries rather than five: Facebook, Instagram and Ads all arrive from the one
+   Meta grant, which the sheet's own copy says so nobody goes looking for the
+   missing two. */
+const soConnect = () => openModal('social');
 
 document.querySelectorAll('#so-tabs [data-sotab]').forEach(b => b.onclick = () => {
   document.querySelectorAll('#so-tabs [data-sotab]').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); SO.tab = b.dataset.sotab; drawSocial();
 });
-document.getElementById('so-range').onchange = e => { SO.range = e.target.value; drawSocial(); };
+/* The range is a server-side window — totals are summed and deltas computed
+   across it — so changing it has to refetch. Re-rendering alone would relabel the
+   same numbers with a different period, which is the one thing worse than
+   showing nothing. */
+document.getElementById('so-range').onchange = e => {
+  SO.range = e.target.value;
+  drawSocial();
+  load();
+};
 document.getElementById('so-connect').onclick = soConnect;
 
 
