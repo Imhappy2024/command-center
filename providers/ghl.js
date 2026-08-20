@@ -13,9 +13,14 @@ const BASE = 'https://services.leadconnectorhq.com';
 
 /* The Version header is required. Omitting it produces failures that look like
    auth problems and are not. */
-const headers = token => ({
+/* 2021-07-28 is the version nearly every endpoint wants. /opportunities/search is
+   the exception: it requires Version: v3, and sending the dated one there makes it
+   answer as though nothing matched. Overridable per call for exactly that reason. */
+const DEFAULT_VERSION = '2021-07-28';
+
+const headers = (token, version = DEFAULT_VERSION) => ({
   Authorization: `Bearer ${token}`,
-  Version: '2021-07-28',
+  Version: version,
   Accept: 'application/json'
 });
 
@@ -76,11 +81,11 @@ export function qs(params){
   return s ? `?${s}` : '';
 }
 
-export async function call(token, path, { method = 'GET', body, signal } = {}){
+export async function call(token, path, { method = 'GET', body, signal, version } = {}){
   const res = await fetch(`${BASE}${path}`, {
     method,
     headers: {
-      ...headers(token),
+      ...headers(token, version),
       ...(body ? { 'Content-Type': 'application/json' } : {})
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -259,22 +264,37 @@ export async function listPipelines(token, locationId, { signal } = {}){
    needs it: a Custom Webhook payload is contact-shaped, so when an opportunity
    event arrives carrying no opportunity id, asking for that contact's
    opportunities is the only way to find what changed. */
-export async function searchOpportunities(token, locationId, { pipelineId, contactId, startAfter, startAfterId, limit = 100, signal } = {}){
+export async function searchOpportunities(token, locationId, { pipelineId, contactId, startAfter, startAfterId, page, limit = 100, signal } = {}){
+  /* camelCase, and Version: v3. Both matter: this endpoint documents locationId
+     as required, and given location_id instead it does not error — it answers
+     with an empty list, which is indistinguishable from a sub-account that has no
+     opportunities. That is exactly how a mirror ends up silently empty. */
   const { data } = await call(token, `/opportunities/search${qs({
-    location_id: locationId,
-    pipeline_id: pipelineId,
-    contact_id: contactId,
+    locationId,
+    pipelineId,
+    contactId,
     limit,
+    page,
     startAfter,
     startAfterId
-  })}`, { signal });
+  })}`, { signal, version: 'v3' });
+
   const items = (data?.opportunities || []).map(asOpportunity);
+
+  /* Two pagination schemes live on this endpoint depending on API version: a
+     meta cursor, or page/limit with a top-level total. Cursor is preferred when
+     offered; page counting is the fallback. A short page ends it either way. */
   const meta = data?.meta || {};
-  const more = items.length >= limit && (meta.startAfterId || meta.startAfter);
-  return {
-    items,
-    next: more ? { startAfterId: meta.startAfterId, startAfter: meta.startAfter } : null
-  };
+  if (items.length < limit) return { items, next: null };
+
+  if (meta.startAfterId || meta.startAfter) {
+    return { items, next: { startAfterId: meta.startAfterId, startAfter: meta.startAfter } };
+  }
+
+  const total = Number(data?.total ?? meta.total);
+  const current = Number(page) || 1;
+  if (Number.isFinite(total) && current * limit >= total) return { items, next: null };
+  return { items, next: { page: current + 1 } };
 }
 
 export async function getOpportunity(token, opportunityId, { signal } = {}){

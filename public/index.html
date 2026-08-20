@@ -2359,6 +2359,49 @@ function drawStages(){
   });
 }
 
+/* Why the pipeline is empty, which is not one question but four. "Nothing matches
+   this stage" was the only answer this view could give, and it was wrong in three
+   of the four cases — a sub-account that has never synced, one whose sync failed,
+   and one still syncing all looked identical to a genuinely empty pipeline. The
+   server already reports which; this says it. */
+function emptyPipeline(){
+  const scope = LD.loc === 'all'
+    ? SYNC.filter(s => LOCATIONS.some(l => l.id === s.id))
+    : SYNC.filter(s => s.id === LD.loc);
+
+  const running = scope.filter(s => s.status === 'running');
+  const failed  = scope.filter(s => s.status === 'failed');
+  const idle    = scope.filter(s => s.status === 'idle');
+  const retry = '<button class="btn primary" id="ld-empty-resync" style="margin-top:4px">Run sync now</button>';
+
+  if (running.length) {
+    const r = running[0];
+    return '<div class="empty"><b>Still syncing from GHL</b>'
+      + '<small>' + escL(r.label) + ' is being pulled now — '
+      + r.counts.contacts.toLocaleString() + ' contacts and '
+      + r.counts.opportunities.toLocaleString() + ' opportunities so far. '
+      + 'Leads appear as they arrive.</small></div>';
+  }
+  if (failed.length) {
+    return '<div class="empty"><b>The last sync failed</b>'
+      + '<small>' + escL(failed[0].label) + ': ' + escL(failed[0].error || 'unknown error')
+      + '</small>' + retry + '</div>';
+  }
+  if (idle.length) {
+    return '<div class="empty"><b>Nothing has been pulled from GHL yet</b>'
+      + '<small>' + (idle.length === 1 ? escL(idle[0].label) + ' has' : idle.length + ' sub-accounts have')
+      + ' never been synced, so this pipeline is empty because nothing was fetched — '
+      + 'not because there are no leads.</small>' + retry + '</div>';
+  }
+  /* Genuinely synced and genuinely empty, or filtered to a stage with nothing in
+     it. Only now is the original wording true. */
+  return '<div class="empty"><b>No leads here</b><small>'
+    + (LD.stage === 'all'
+        ? 'This sub-account is synced and has no opportunities.'
+        : 'Nothing is at the ' + escL(stageLabel(LD.stage)) + ' stage in this location.')
+    + '</small></div>';
+}
+
 function drawLeadList(){
   const rows = ldVisible().sort((a, b) => b.sortKey - a.sortKey);
   const el = document.getElementById('ld-list');
@@ -2368,13 +2411,14 @@ function drawLeadList(){
     LD.stage === 'all' ? 'All stages' : stageLabel(LD.stage);
 
   if (!rows.length) {
-    el.innerHTML = LOCATIONS.length
-      ? '<div class="empty"><b>No leads here</b><small>Nothing matches this stage in this location.</small></div>'
+    el.innerHTML = LOCATIONS.length ? emptyPipeline()
       : '<div class="empty"><b>No GHL account connected</b>'
         + '<small>Connect a GoHighLevel agency account and every sub-account appears in the sidebar.</small>'
         + '<button class="btn primary" id="ld-empty-connect" style="margin-top:4px">+ Connect GHL</button></div>';
     const ec = document.getElementById('ld-empty-connect');
     if (ec) ec.onclick = ldConnect;
+    const er = document.getElementById('ld-empty-resync');
+    if (er) er.onclick = () => { resync(LD.loc === 'all' ? null : LD.loc); watchSync(); };
     return;
   }
 
