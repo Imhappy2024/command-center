@@ -271,8 +271,9 @@ export function ghlRoutes({ env, auth }){
        )
        /* The union is wrapped and sorted from outside. A set operation's ORDER BY
           may only name output columns, not an expression over them, so ordering
-          on COALESCE(...) directly is rejected by Postgres — hence the `activity`
-          column, computed per branch and sorted once here. */
+          on COALESCE(...) directly is rejected by Postgres — hence the activity
+          column, computed per branch and sorted once here.
+          (No backticks in this comment: it lives inside a JS template literal.) */
        SELECT * FROM (
          SELECT c.location_id, c.contact_id,
                 c.name AS contact_name, c.phone, c.email, c.source, c.tags,

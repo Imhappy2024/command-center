@@ -11,7 +11,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js"
+    "check": "node --check server.js",
+    "preflight": "node tools/preflight.mjs"
   },
   "dependencies": {
     "compression": "^1.7.5",
