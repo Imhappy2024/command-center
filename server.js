@@ -80,16 +80,6 @@ try {
       'Check DATABASE_URL points at a reachable Postgres instance.');
 }
 
-/* GHL sub-accounts declared as GHL_TOKEN_* / GHL_LOCATION_* pairs. Runs before
-   listen() so the locations exist by the first request, and never fails boot: a
-   bad pair is named in the log and skipped. Steady-state redeploys make no API
-   calls at all, because an unchanged token is detected without verifying. */
-const seed = await seedFromEnv(env);
-if (seed.declared) {
-  console.log(`GHL env sub-accounts: ${seed.declared} declared, `
-    + `${seed.seeded} written, ${seed.skipped} skipped`);
-}
-
 const app = createApp({ env, publicDir: PUBLIC });
 
 const server = app.listen(PORT, '0.0.0.0', () => {
@@ -111,14 +101,32 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  social:   poll every ${app.locals.background?.socialMinutes ?? '—'}m `
     + '(platform APIs are never called from a request)');
 
-  /* Any sub-account that has never completed a backfill, or whose last one
-     failed, gets one now. Env-seeded locations never pass through the connect
-     sheet, so without this their first sync would wait on the reconcile timer.
-     A location already 'done' is left alone — restarting it every deploy would
-     re-page the entire history. Detached, and after listen(), so the health
-     check is answering before any of it starts. */
-  backfillPending({ env }).catch(err =>
-    console.error('[ghl:sync] could not start pending backfills:', err.message));
+  /* Seeding, then any pending first sync — both after listen() and both
+     detached.
+
+     Seeding used to be awaited before listen(). It verifies each declared
+     GHL_TOKEN_* against GHL, which is a network round trip per new or rotated
+     token, and with four sub-accounts that pushed boot past Railway's 60-second
+     health check window: the container was killed for being unhealthy while it
+     sat waiting on someone else's API. Nothing that calls a third party belongs
+     in front of readiness.
+
+     Chained rather than parallel, because a first backfill needs the rows the
+     seeder writes. */
+  seedFromEnv(env)
+    .then(seed => {
+      if (seed.declared) {
+        console.log(`GHL env sub-accounts: ${seed.declared} declared, `
+          + `${seed.seeded} written, ${seed.skipped} skipped`);
+      }
+      /* Any sub-account that has never completed a backfill, or whose last one
+         failed. Env-seeded locations never pass through the connect sheet, so
+         without this their first sync would wait on the reconcile timer. A
+         location already 'done' is left alone — restarting it every deploy would
+         re-page the entire history. */
+      return backfillPending({ env });
+    })
+    .catch(err => console.error('[boot] seeding or first backfill failed:', err.message));
 
   /* Reported through missingVars, the same check the connect sheet uses, and
      enumerated from PROVIDERS so a provider added later is covered without
