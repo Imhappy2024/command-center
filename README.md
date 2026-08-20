@@ -12,7 +12,7 @@ Nothing fabricates data. A view with no source says so and names what it needs.
 | Inbox | Gmail, Microsoft Graph, IMAP | live |
 | Calendar | Google Calendar, Microsoft Graph | live |
 | Leads | GoHighLevel, two-way | live |
-| Social | — | empty states; Meta needs Business Verification first |
+| Social | Meta (Pages, Instagram, Ads), YouTube, X | live; metrics and ads only |
 | Overview, Tasks, Notes, Properties, Financial, Systems | — | empty states |
 
 ## Mail
@@ -154,6 +154,71 @@ Writing a stage the pipeline has no counterpart for is refused, not approximated
   catches *new* contacts while an edit to an old one arrives by webhook and,
   failing that, on the daily full pass.
 
+## Social
+
+Metrics and ads. **No DMs** — Facebook and Instagram messaging needs Advanced
+Access, which is its own review cycle, and when it lands those threads belong in
+the Inbox as accounts rather than in a second messaging UI here.
+
+Same shape as Leads: a poller writes snapshot tables, the read routes serve them,
+and **no platform API is ever called from a request handler**. That is not
+tidiness — YouTube's quota cannot be bought, Meta Ads throttles on a spend-scaled
+budget, and X bills per read.
+
+| Provider | Connects | Yields |
+|---|---|---|
+| Meta | one sign-in | a row per Page, per linked Instagram account, per ad account |
+| YouTube | separately | one channel |
+| X | separately | one account |
+
+LinkedIn is permanently out. The Community Management API needs a screencast and
+a live sign-off call for follower counts, and messaging is not available to
+commercial integrations at all. The view renders it as a dimmed "API closed" tile.
+
+### One Meta grant, several accounts
+
+Meta is the reason `lib/oauth.js` grew a `discover()` hook. The code exchange
+returns a short-lived token and **no refresh token**, so it is swapped for a
+60-day long-lived one, and renewal repeats that swap at seven days out. Page
+tokens derived from it never expire.
+
+Facebook's dialog lets the user choose which Pages to grant, so **connecting one
+Page when four exist is correct**, not a failure. `ads_read` is checked against
+what was actually granted rather than what was asked for.
+
+### Metrics that no longer exist
+
+Nothing in this codebase requests any of these. They error or return nothing while
+looking like they work:
+
+- `impressions` on media and user insights, and reel `plays` — deprecated in Graph
+  v22.0, effective across all versions from 21 April 2025. `views` replaced it, and
+  requests on media created after 2 July 2024 error outright.
+- **Facebook page-level impressions**, page likes growth, and the by-language,
+  by-city and by-country breakdowns — removed November 2025. Only reach survives at
+  page level, under the confusing name `page_impressions_unique`.
+- Instagram `profile_views`, `website_clicks`, `email_contacts`,
+  `phone_call_clicks`, `get_directions_clicks` — deprecated in v22.0.
+
+Used instead: `views`, `reach`, `follower_count`, `accounts_engaged`,
+`total_interactions`, `shares`.
+
+### What the cards cannot show
+
+Three honest gaps, all visible in the UI rather than papered over:
+
+- **YouTube and X have no reach figure.** Neither publishes a unique-account
+  measure, and substituting views would be exactly the relabelling this dashboard
+  refuses elsewhere. The table stores NULL; the card shows `0` because it has
+  nowhere to say "not published". Engagement rate is 0 for the same reason.
+- **The Content table hides YouTube and X posts.** It ranks by shares per reach,
+  and a post with no reach has no rank. The response says how many were hidden.
+- **Follower deltas start at 0.** No platform offers a historical follower series,
+  so a delta needs two snapshots taken `range` days apart. Until the poller has
+  been running that long the answer is 0, which is the truth rather than an
+  estimate. This is what `social_metrics` exists for — Instagram retains
+  user-level insights for 90 days only.
+
 ## Run locally
 
 ```bash
@@ -250,9 +315,13 @@ with the variable it needs.
 
 | Variable | Notes |
 |---|---|
-| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Web application client |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Web application client. Also used by YouTube, which needs its own redirect URI on the same client |
 | `MS_CLIENT_ID` / `MS_CLIENT_SECRET` | Secret **value** |
 | `MS_TENANT_ID` | `common` supports work and personal accounts |
+| `META_APP_ID` / `META_APP_SECRET` | Business-type app. Covers Pages, Instagram and Ads in one grant |
+| `META_WEBHOOK_VERIFY_TOKEN` | You invent it; Meta echoes it back at `GET /webhooks/meta` |
+| `X_CLIENT_ID` / `X_CLIENT_SECRET` | OAuth 2.0 "Web App". **Reads bill at $0.005 each** |
+| `SOCIAL_POLL_MINUTES` | Default `60`, floors at `15`. How often the poller runs |
 
 **Behaviour**
 
@@ -295,13 +364,17 @@ lib/ghl-webhook.js         Payload validation and the async processor
 lib/ghl-limiter.js         Per-location request pacing
 lib/ghl-stages.js          GHL stage name <-> UI stage
 lib/ghl-seed.js            GHL_TOKEN_* / GHL_LOCATION_* pairs, read at boot
-db/schema.sql              accounts, webhook_events, the GHL mirror; re-applied every boot
+lib/social-sync.js         The social poller and its snapshot writers
+db/schema.sql              accounts, webhook_events, GHL mirror, social snapshots
 db/index.js                pg pool, query helper, migration runner
 providers/index.js         Dispatch by provider
 providers/google.js        Gmail + Google Calendar
 providers/microsoft.js     Graph mail + calendarView
 providers/imap.js          IMAP + SMTP
 providers/ghl.js           GHL API surface, normalised
+providers/meta.js          Long-lived token swap, asset discovery, insights
+providers/youtube.js       Data API + Analytics API
+providers/x.js             User and post metrics, with the call counter
 routes/auth.js             /login, /logout
 routes/connect.js          /connect/:provider, /oauth/callback/:provider, /api/accounts
 routes/mail.js             /api/mail and the actions
@@ -346,6 +419,10 @@ All of these need a session. API routes answer `401` JSON; page routes redirect 
 | `POST /api/ghl/leads/:id/message` | `{ channel, body }` |
 | `PATCH /api/ghl/leads/:id` | `{ stage?, expectedStage?, name?, phone?, email?, owner?, value? }`; `409` if GHL moved it first |
 | `POST /webhooks/ghl` | **Open, no session.** Allow-listed by `locationId` |
+| `GET /api/social?range=7\|28\|90` | `{ platforms, configured, notice }` — snapshot tables only |
+| `GET /api/social/ads?range=` | `{ ads, configured, notice }`; `ads` is `null` when no ad account is connected |
+| `GET /api/social/posts?range=` | `{ posts, configured, notice }` |
+| `GET /webhooks/meta` | Open. Echoes `hub.challenge` |
 
 `account=all` fans out with `Promise.allSettled`. A failing mailbox contributes a
 `warnings` entry, never a 500. Each account is fetched to `MAIL_FETCH_LIMIT` so a busy
@@ -376,8 +453,13 @@ place them on the viewer's calendar day rather than shifting them across midnigh
 ## Known gaps
 
 - **Six views are empty states.** Overview, Tasks, Notes, Properties, Financial and
-  Systems have no source wired. Social has its full frontend and a real API
-  contract, but returns empty until Meta's Business Verification clears.
+  Systems have no source wired.
+- **No social DMs.** Facebook and Instagram messaging needs Advanced Access and a
+  separate review cycle. When it lands those threads go in the Inbox as accounts.
+- **No Meta webhook receiver.** `POST /webhooks/meta` is still 501: this is a
+  metrics build with no subscriptions, and answering 200 would tell Meta a
+  receiver exists when none does. The `hub.challenge` echo works, so a
+  subscription can be set up ahead of the handler.
 - **The Leads detail pane's secondary actions are still inert.** *Call*, *Task*,
   *Note* and *Open in GHL* flip their own button text and nothing else — there is
   no endpoint behind them. Sending, stage moves and field edits are real.
