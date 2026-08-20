@@ -51,3 +51,101 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 );
 
 CREATE INDEX IF NOT EXISTS wh_unprocessed ON webhook_events (provider, processed) WHERE NOT processed;
+
+/* ---------------------------------------------------------------------------
+   GHL lead mirror.
+
+   GHL is the source of truth; these tables are a read mirror. Exactly two
+   writers: the webhook processor and the sync job. No request handler writes
+   here, which is why there is no conflict resolution anywhere in this codebase
+   — there are never two writable copies of a lead.
+
+   Every primary key is '<locationId>:<recordId>'. Two sub-accounts can hold the
+   same opportunity id without colliding, and a webhook can never write into a
+   location it did not come from, because the locationId half is taken from the
+   connected-accounts allow-list rather than from the payload.
+   --------------------------------------------------------------------------- */
+
+CREATE TABLE IF NOT EXISTS ghl_contacts (
+  id            TEXT PRIMARY KEY,              -- '<locationId>:<contactId>'
+  location_id   TEXT NOT NULL,
+  contact_id    TEXT NOT NULL,
+  name          TEXT,
+  first_name    TEXT,
+  last_name     TEXT,
+  phone         TEXT,
+  email         TEXT,
+  source        TEXT,
+  owner         TEXT,
+  tags          JSONB NOT NULL DEFAULT '[]',
+  custom        JSONB NOT NULL DEFAULT '{}',
+  date_added    TIMESTAMPTZ,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  seen_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted       BOOLEAN NOT NULL DEFAULT false,
+  UNIQUE (location_id, contact_id)
+);
+CREATE INDEX IF NOT EXISTS ghl_contacts_loc ON ghl_contacts (location_id) WHERE NOT deleted;
+
+CREATE TABLE IF NOT EXISTS ghl_pipelines (
+  id            TEXT PRIMARY KEY,              -- '<locationId>:<pipelineId>'
+  location_id   TEXT NOT NULL,
+  pipeline_id   TEXT NOT NULL,
+  name          TEXT,
+  stages        JSONB NOT NULL DEFAULT '[]',   -- [{id, name, position}]
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (location_id, pipeline_id)
+);
+
+CREATE TABLE IF NOT EXISTS ghl_opportunities (
+  id             TEXT PRIMARY KEY,             -- '<locationId>:<opportunityId>'
+  location_id    TEXT NOT NULL,
+  opportunity_id TEXT NOT NULL,
+  contact_id     TEXT,
+  pipeline_id    TEXT,
+  stage_id       TEXT,
+  stage_name     TEXT,
+  status         TEXT,                         -- open|won|lost|abandoned
+  name           TEXT,
+  value          NUMERIC(14,2) NOT NULL DEFAULT 0,
+  owner          TEXT,
+  date_added     TIMESTAMPTZ,
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  seen_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  deleted        BOOLEAN NOT NULL DEFAULT false,
+  UNIQUE (location_id, opportunity_id)
+);
+CREATE INDEX IF NOT EXISTS ghl_opps_loc ON ghl_opportunities (location_id) WHERE NOT deleted;
+CREATE INDEX IF NOT EXISTS ghl_opps_contact ON ghl_opportunities (location_id, contact_id);
+
+/* The primary key is GHL's own message id, and that IS the echo suppression.
+   A message sent from the dashboard is inserted here with origin='dashboard';
+   the OutboundMessage webhook that GHL fires straight back tries the same id and
+   ON CONFLICT DO NOTHING makes it a no-op. There is no separate echo table. */
+CREATE TABLE IF NOT EXISTS ghl_messages (
+  id              TEXT PRIMARY KEY,            -- '<locationId>:<messageId>'
+  location_id     TEXT NOT NULL,
+  conversation_id TEXT,
+  contact_id      TEXT NOT NULL,
+  direction       TEXT NOT NULL,               -- 'in' | 'out'
+  channel         TEXT NOT NULL,               -- sms|email|wa|fb|ig|call|other
+  body            TEXT,
+  sent_at         TIMESTAMPTZ NOT NULL,
+  origin          TEXT NOT NULL DEFAULT 'ghl', -- 'ghl' | 'dashboard'
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS ghl_msgs_contact ON ghl_messages (location_id, contact_id, sent_at);
+
+CREATE TABLE IF NOT EXISTS sync_state (
+  key         TEXT PRIMARY KEY,                -- 'ghl:<locationId>:contacts' etc
+  cursor      TEXT,
+  last_run    TIMESTAMPTZ,
+  last_error  TEXT,
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+/* The webhook receiver is unauthenticated, so a payload that fails validation is
+   kept and marked processed with the reason rather than retried forever. That
+   needs somewhere to put the reason. */
+ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS error TEXT;
+ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
