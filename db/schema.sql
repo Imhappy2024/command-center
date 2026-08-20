@@ -155,7 +155,7 @@ ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
 
    Platform APIs are never called from a request handler. The poller writes these
    tables and the read routes serve them, which is the only way a dashboard stays
-   responsive on top of quota-metered APIs â€” YouTube's 10,000 units a day cannot
+   responsive on top of quota-metered APIs — YouTube's 10,000 units a day cannot
    be bought, and every X read bills at half a cent.
    --------------------------------------------------------------------------- */
 

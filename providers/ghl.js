@@ -110,9 +110,9 @@ export async function verifyLocation(token, locationId, { signal } = {}){
    Normalisers.
 
    Everything below returns our own shapes, never a raw GHL payload. GHL is
-   inconsistent about field names across endpoints and API versions â€” contactId
+   inconsistent about field names across endpoints and API versions — contactId
    against contact.id, monetaryValue against value, createdAt against dateAdded,
-   camelCase query params on one route and snake_case on the next â€” so every one
+   camelCase query params on one route and snake_case on the next — so every one
    of those choices is absorbed here and nowhere else.
    --------------------------------------------------------------------------- */
 
@@ -214,7 +214,7 @@ const GHL_TO_CHANNEL = {
 };
 
 /* messageType looks like 'TYPE_SMS'. The numeric `type` field is undocumented
-   and inconsistent, so it is deliberately not consulted â€” an unrecognised
+   and inconsistent, so it is deliberately not consulted — an unrecognised
    channel becomes 'other' rather than a guess. */
 export function channelFromGhl(m){
   const raw = String(m?.messageType || m?.type || '').toUpperCase().replace(/^TYPE_/, '');
@@ -359,8 +359,8 @@ export async function sendMessage(token, { type, contactId, message, conversatio
   const { data } = await call(token, '/conversations/messages',
     { method: 'POST', body, signal });
 
-  /* The send response is not a message object â€” it carries ids and nothing else
-     â€” so the caller composes the mirror row from what it already knows. */
+  /* The send response is not a message object — it carries ids and nothing else
+     — so the caller composes the mirror row from what it already knows. */
   const id = data?.messageId || data?.msg?.id || data?.message?.id || data?.id;
   if (!id) {
     throw new GhlError('GHL accepted the send but returned no message id, so it cannot be recorded.',
