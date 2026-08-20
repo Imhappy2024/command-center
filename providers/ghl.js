@@ -304,20 +304,25 @@ export async function getOpportunity(token, opportunityId, { signal } = {}){
   return o?.id ? asOpportunity(o) : null;
 }
 
+/* The whole /conversations family wants Version: v3. Sent the dated version, the
+   search answers with an empty list rather than an error — the same silent-empty
+   failure that hid the opportunities bug. */
+const CONVERSATIONS_VERSION = 'v3';
+
 export async function searchConversations(token, locationId, { contactId, startAfterDate, limit = 100, signal } = {}){
   const { data } = await call(token, `/conversations/search${qs({
     locationId,
     contactId,
     startAfterDate,
     limit
-  })}`, { signal });
+  })}`, { signal, version: CONVERSATIONS_VERSION });
   return (data?.conversations || []).map(asConversation);
 }
 
 export async function listMessages(token, conversationId, { lastMessageId, limit = 100, signal } = {}){
   const { data } = await call(token,
     `/conversations/${encodeURIComponent(conversationId)}/messages${qs({ lastMessageId, limit })}`,
-    { signal });
+    { signal, version: CONVERSATIONS_VERSION });
   /* Nested on current API versions as { messages: { messages: [], lastMessageId } }
      and a bare array on older ones. */
   const inner = data?.messages;
@@ -372,12 +377,22 @@ export async function updateContact(token, contactId, fields = {}, { signal } = 
   return c?.id ? asContact(c) : null;
 }
 
-export async function sendMessage(token, { type, contactId, message, conversationId, signal } = {}){
-  const body = { type, contactId, message };
+export async function sendMessage(token, { type, contactId, message, conversationId, fromNumber, emailFrom, subject, signal } = {}){
+  /* status is a required field on this endpoint, not an optional one. Omitting it
+     is rejected outright. 'pending' is the honest value for a message just handed
+     over: GHL moves it to delivered or failed itself. */
+  const body = { type, contactId, message, status: 'pending' };
+
   if (conversationId) body.conversationId = conversationId;
+  /* Both optional. Left unset, GHL sends from the sub-account's own configured
+     number or address, which is what we want — picking one here would mean
+     guessing at the location's telephony setup. */
+  if (fromNumber) body.fromNumber = fromNumber;
+  if (emailFrom) body.emailFrom = emailFrom;
+  if (subject) body.subject = subject;
 
   const { data } = await call(token, '/conversations/messages',
-    { method: 'POST', body, signal });
+    { method: 'POST', body, signal, version: CONVERSATIONS_VERSION });
 
   /* The send response is not a message object — it carries ids and nothing else
      — so the caller composes the mirror row from what it already knows. */

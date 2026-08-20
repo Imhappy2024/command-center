@@ -298,7 +298,10 @@ export function ghlRoutes({ env, auth }){
           unread: Boolean(row.last_in) &&
             (!row.last_out || Date.parse(row.last_in) > Date.parse(row.last_out)),
           created: longDate(row.date_added),
-          ghlId: row.opportunity_id
+          ghlId: row.opportunity_id,
+          /* Needed for the deep link into GHL, which addresses contacts rather
+             than opportunities. */
+          contactId: row.contact_id || null
         };
       })
       .filter(l => wantStage === 'all' || l.stage === wantStage);

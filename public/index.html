@@ -979,6 +979,11 @@ main{min-width:0;display:flex;flex-direction:column}
       </div>
     </div>
 
+    <!-- Leads has its own banner. Errors used to route to the Inbox's, which is
+         inside a hidden view, so a failed send reported itself where nobody could
+         see it and read as "nothing happened". -->
+    <div class="err" id="ld-banner" hidden></div>
+
     <div class="stagebar" id="ld-stages"></div>
 
     <div class="mailwrap" id="ld-wrap">
@@ -2393,6 +2398,22 @@ function emptyPipeline(){
       + ' never been synced, so this pipeline is empty because nothing was fetched — '
       + 'not because there are no leads.</small>' + retry + '</div>';
   }
+  /* Synced, with contacts, but no pipelines and so no opportunities. This is not a
+     failure and not an empty CRM — it is a sub-account that does not use GHL's
+     Opportunities feature. Worth saying outright, because every other message here
+     implies waiting will fix it and waiting will not. */
+  const dry = scope.filter(s => s.status === 'done'
+    && !s.usesPipelines && (s.mirrored?.contacts || 0) > 0);
+  if (dry.length && LD.stage === 'all') {
+    const total = dry.reduce((n, s) => n + (s.mirrored.contacts || 0), 0);
+    return '<div class="empty"><b>Synced, but no opportunities exist</b>'
+      + '<small>' + total.toLocaleString() + ' contact' + (total === 1 ? '' : 's')
+      + ' mirrored across ' + (dry.length === 1 ? escL(dry[0].label) : dry.length + ' sub-accounts')
+      + ', and no pipelines at all. This view is built on GHL <b>Opportunities</b>, so contacts '
+      + 'alone will not appear — waiting will not change that. Either create a pipeline in GHL '
+      + 'and move contacts into it, or ask for the Leads view to fall back to contacts.</small></div>';
+  }
+
   /* Genuinely synced and genuinely empty, or filtered to a stage with nothing in
      it. Only now is the original wording true. */
   return '<div class="empty"><b>No leads here</b><small>'
@@ -2510,7 +2531,14 @@ function drawLeadDetail(){
         + escL((CHANNELS.find(c => c.k === LD.channel) || {}).label) + '\u2026"></textarea>'
         + '<div class="crow"><button class="btn primary" data-lact="send">Send</button>'
         + '<button class="btn" data-lact="note">Log a note</button>'
-        + '<span class="cfrom" style="margin-left:auto">Posts to ' + escL(loc.name) + '</span></div>'
+        /* Which number or address it sends from is GHL's decision, not ours: the
+           API takes an optional fromNumber and we deliberately leave it unset,
+           because guessing at a sub-account's telephony setup is how a message
+           goes out from the wrong line. Said here so the sender is not a mystery. */
+        + '<span class="cfrom" style="margin-left:auto">' + escL(loc.name)
+        + ' · sends from its default '
+        + (LD.channel === 'email' ? 'address' : LD.channel === 'sms' ? 'number' : 'channel')
+        + '</span></div>'
       + '</div>';
   } else {
     const f = (k, v, key) => '<div class="frow"><span class="k">' + k + '</span><span class="v">'
@@ -2628,9 +2656,28 @@ function drawLeadDetail(){
       }
       return;
     }
-    b.textContent = a === 'call' ? 'Dialling' : a === 'task' ? 'Task created' : a === 'note' ? 'Logged' : 'Opening';
-    b.disabled = true;
-    if (a !== 'ghl') syncPulse('Saved');
+    /* These four used to flip their own label and flash "Saved" while doing
+       nothing at all. Two of them can be made real without an endpoint; the other
+       two say plainly that they are not built rather than claiming success. */
+
+    if (a === 'call') {
+      if (!l.phone) return banner('No phone number on this contact in GHL.');
+      /* A tel: link is the honest version of a Call button. Click-to-call would
+         need the location's telephony provider, which the API does not expose. */
+      window.location.href = 'tel:' + l.phone.replace(/[^\d+]/g, '');
+      return;
+    }
+
+    if (a === 'ghl') {
+      if (!l.contactId) return banner('This lead has no contact record in GHL to open.');
+      window.open('https://app.gohighlevel.com/v2/location/' + encodeURIComponent(l.loc)
+        + '/contacts/detail/' + encodeURIComponent(l.contactId), '_blank', 'noopener');
+      return;
+    }
+
+    banner(a === 'task'
+      ? 'Creating GHL tasks is not built yet. Use Open in GHL for now.'
+      : 'Logging notes is not built yet. Use Open in GHL for now.');
   });
 }
 
@@ -3138,10 +3185,36 @@ const post = (url, body) => api(url, {
 
 const msgUrl = m => `/api/mail/${encodeURIComponent(m.acct)}/${encodeURIComponent(m.id)}`;
 
+/* One banner per view that has one, written to whichever view is on screen.
+
+   This was previously hardwired to the Inbox's banner. Every error raised from the
+   Leads view — a failed send, a rejected stage change, a warning that the first
+   sync had not finished — was rendered inside a hidden section. From the user's
+   side the action simply did nothing, which is the worst possible way for an error
+   to behave. */
+const BANNERS = { inbox: 'ib-banner', leads: 'ld-banner' };
+
+function activeView(){
+  const on = document.querySelector('.view.on');
+  return on ? on.id.replace(/^v-/, '') : 'inbox';
+}
+
 function banner(text, kind){
-  const el = document.getElementById('ib-banner');
+  const targets = Object.values(BANNERS)
+    .map(id => document.getElementById(id))
+    .filter(Boolean);
+
+  /* Cleared everywhere, so a stale message cannot linger on a view the user
+     switches back to later. */
+  for (const el of targets) el.hidden = true;
+  if (!text) return;
+
+  const el = document.getElementById(BANNERS[activeView()])
+    /* A view with no banner of its own still gets its errors seen rather than
+       swallowed: the Inbox's is the fallback and is at least reachable. */
+    || document.getElementById(BANNERS.inbox);
   if (!el) return;
-  if (!text) { el.hidden = true; return; }
+
   el.textContent = text;
   el.hidden = false;
   el.style.borderColor = kind === 'ok' ? '#4E9E7E55' : '';
