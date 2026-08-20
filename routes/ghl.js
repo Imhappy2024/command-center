@@ -17,7 +17,8 @@ import { query } from '../db/index.js';
 import { ipLimiter, rawLabels } from '../lib/ghl-webhook.js';
 import {
   backfillDetached, everSynced, tokenFor,
-  upsertContact, upsertOpportunity, upsertMessage
+  upsertContact, upsertOpportunity, upsertMessage,
+  syncStatus, startBackfill, startAllBackfills
 } from '../lib/ghl-sync.js';
 import { toUiStage, toGhlStage, statusForUiStage, UI_STAGES } from '../lib/ghl-stages.js';
 import { resume, run as limited } from '../lib/ghl-limiter.js';
@@ -165,6 +166,36 @@ export function ghlRoutes({ env, auth }){
       if (!gone) return res.status(404).json({ error: 'no such sub-account' });
       res.json({ ok: true });
     }));
+
+  /* ---------------- sync status ----------------
+
+     Backfill fires on a successful connect and, for env-seeded sub-accounts, at
+     boot. That covers the happy path and leaves two holes: a run that fails
+     halfway has no way back, and a seeded location never passes through the
+     sheet where progress would be shown. These three routes are both fixes. */
+
+  r.get('/api/ghl/sync', auth.require, guarded('api/ghl/sync', async (req, res) => {
+    res.json({ locations: await syncStatus() });
+  }));
+
+  /* 202, not 200: a backfill is minutes. The response says it was accepted, and
+     GET /api/ghl/sync is where the outcome shows up. */
+  r.post('/api/ghl/sync/:locationId', auth.require,
+    guarded('api/ghl/sync:one', async (req, res) => {
+      const out = await startBackfill(req.params.locationId, {
+        env,
+        /* Discards the resume cursor. What you want after editing the stage map,
+           since resuming would skip everything already paged. */
+        full: req.query.full === '1'
+      });
+      if (out.error) return res.status(out.status).json({ error: out.error });
+      res.status(202).json({ ok: true });
+    }));
+
+  r.post('/api/ghl/sync', auth.require, guarded('api/ghl/sync:all', async (req, res) => {
+    const out = await startAllBackfills({ env, full: req.query.full === '1' });
+    res.status(202).json({ ok: true, started: out.started });
+  }));
 
   /* ---------------- reads ----------------
 

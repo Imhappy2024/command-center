@@ -7,6 +7,7 @@ import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
 import { PROVIDERS, missingVars } from './lib/oauth.js';
 import { seedFromEnv } from './lib/ghl-seed.js';
+import { backfillPending } from './lib/ghl-sync.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -109,6 +110,15 @@ const server = app.listen(PORT, '0.0.0.0', () => {
     + 'full pass daily');
   console.log(`  social:   poll every ${app.locals.background?.socialMinutes ?? '—'}m `
     + '(platform APIs are never called from a request)');
+
+  /* Any sub-account that has never completed a backfill, or whose last one
+     failed, gets one now. Env-seeded locations never pass through the connect
+     sheet, so without this their first sync would wait on the reconcile timer.
+     A location already 'done' is left alone — restarting it every deploy would
+     re-page the entire history. Detached, and after listen(), so the health
+     check is answering before any of it starts. */
+  backfillPending({ env }).catch(err =>
+    console.error('[ghl:sync] could not start pending backfills:', err.message));
 
   /* Reported through missingVars, the same check the connect sheet uses, and
      enumerated from PROVIDERS so a provider added later is covered without
