@@ -132,6 +132,42 @@ Payload values are not trusted either. Opportunity and message events re-read
 from GHL with that location's own token, so the worst a forged webhook achieves is
 a read of a record that already exists.
 
+### Sync status, and re-running one
+
+A first sync is minutes, not seconds, so it is visible and restartable rather than
+fire-and-forget.
+
+| Route | Does |
+|---|---|
+| `GET /api/ghl/sync` | Per location: `status`, `startedAt`, `finishedAt`, live `counts`, `error` |
+| `POST /api/ghl/sync/:locationId` | `202` starts or restarts one; `409` if already running |
+| `POST /api/ghl/sync` | `202`, every location that is idle or failed |
+
+Add `?full=1` to discard the resume cursor and start over — **this is what you
+want after editing `lib/ghl-stages.js`**, because resuming would skip everything
+already paged and never re-evaluate the mapping you just changed.
+
+Status is `idle | running | done | failed` on `sync_state`, with progress counts
+in its `cursor` column as JSON. A row left `running` by a crash is reported as
+`failed`, since otherwise it would block restarts forever.
+
+Where it shows:
+
+- **The connect sheet** stays open after a successful connect and reports progress,
+  with a Retry button if the run fails. Closing it stops the polling, not the sync.
+- **The Leads header** carries standing state — syncing with a live count, failed
+  and clickable to retry, or the number of synced sub-accounts.
+- **The sub-account submenu** marks a never-synced location with `!` and a tooltip
+  saying so. An empty pipeline because nothing synced must never look like an
+  empty pipeline because there are no leads.
+- **Refresh and Re-sync are different.** Refresh re-reads the mirror; Re-sync
+  re-pulls from GHL.
+
+At boot, anything `idle` or `failed` gets a run — env-seeded sub-accounts never
+pass through the sheet, so otherwise their first sync would wait on the reconcile
+timer. A `done` location is left alone; restarting it every deploy would re-page
+its whole history.
+
 ### Stage names
 
 GHL stage names are user-defined per pipeline and will not match the six the UI
@@ -418,6 +454,9 @@ All of these need a session. API routes answer `401` JSON; page routes redirect 
 | `GET /api/ghl/leads/:id/thread` | `{ thread }` — mirror only |
 | `POST /api/ghl/leads/:id/message` | `{ channel, body }` |
 | `PATCH /api/ghl/leads/:id` | `{ stage?, expectedStage?, name?, phone?, email?, owner?, value? }`; `409` if GHL moved it first |
+| `GET /api/ghl/sync` | Per-location backfill status and live counts |
+| `POST /api/ghl/sync/:locationId` | `202` start/restart; `409` if running. `?full=1` discards the cursor |
+| `POST /api/ghl/sync` | `202`, every idle or failed location |
 | `POST /webhooks/ghl` | **Open, no session.** Allow-listed by `locationId` |
 | `GET /api/social?range=7\|28\|90` | `{ platforms, configured, notice }` — snapshot tables only |
 | `GET /api/social/ads?range=` | `{ ads, configured, notice }`; `ads` is `null` when no ad account is connected |
