@@ -149,3 +149,65 @@ CREATE TABLE IF NOT EXISTS sync_state (
    needs somewhere to put the reason. */
 ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS error TEXT;
 ALTER TABLE webhook_events ADD COLUMN IF NOT EXISTS processed_at TIMESTAMPTZ;
+
+/* ---------------------------------------------------------------------------
+   Social metrics.
+
+   Platform APIs are never called from a request handler. The poller writes these
+   tables and the read routes serve them, which is the only way a dashboard stays
+   responsive on top of quota-metered APIs â€” YouTube's 10,000 units a day cannot
+   be bought, and every X read bills at half a cent.
+   --------------------------------------------------------------------------- */
+
+/* Daily snapshots. Instagram retains user-level insights for 90 days only, so any
+   history beyond that exists here and nowhere else. One row per account per day;
+   re-running a day's fetch corrects it rather than duplicating. */
+CREATE TABLE IF NOT EXISTS social_metrics (
+  account_id   TEXT NOT NULL,
+  day          DATE NOT NULL,
+  followers    INTEGER,
+  reach        INTEGER,
+  views        INTEGER,
+  interactions INTEGER,
+  posts        INTEGER,
+  raw          JSONB NOT NULL DEFAULT '{}',
+  fetched_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (account_id, day)
+);
+
+CREATE TABLE IF NOT EXISTS social_posts (
+  id           TEXT PRIMARY KEY,          -- '<accountId>:<mediaId>'
+  account_id   TEXT NOT NULL,
+  platform     TEXT NOT NULL,
+  external_id  TEXT NOT NULL,
+  title        TEXT,
+  permalink    TEXT,
+  published_at TIMESTAMPTZ,
+  reach        INTEGER NOT NULL DEFAULT 0,
+  views        INTEGER NOT NULL DEFAULT 0,
+  shares       INTEGER NOT NULL DEFAULT 0,
+  interactions INTEGER NOT NULL DEFAULT 0,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS social_posts_acct ON social_posts (account_id, published_at DESC);
+
+CREATE TABLE IF NOT EXISTS ads_daily (
+  account_id   TEXT NOT NULL,
+  day          DATE NOT NULL,
+  campaign_id  TEXT NOT NULL DEFAULT '',   -- '' is the account-level roll-up
+  campaign     TEXT,
+  objective    TEXT,
+  status       TEXT,
+  spend        NUMERIC(14,2) NOT NULL DEFAULT 0,
+  reach        INTEGER NOT NULL DEFAULT 0,
+  results      INTEGER NOT NULL DEFAULT 0,
+  currency     TEXT,
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (account_id, day, campaign_id)
+);
+
+/* Deliberately absent from all three tables: impressions, reel plays, page-level
+   impressions, page-likes growth, and Instagram's profile_views,
+   website_clicks, email_contacts, phone_call_clicks and get_directions_clicks.
+   Every one of them was deprecated or removed between v22.0 and November 2025. A
+   column for any of them would fill with nulls while looking like it worked. */
