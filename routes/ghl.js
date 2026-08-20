@@ -9,6 +9,8 @@ import { accountsFor, upsertStaticToken, deleteAccount } from '../lib/accounts.j
 import { verifyLocation, GhlError } from '../providers/ghl.js';
 import { query } from '../db/index.js';
 import { ipLimiter, rawLabels } from '../lib/ghl-webhook.js';
+import { backfillDetached } from '../lib/ghl-sync.js';
+import { resume } from '../lib/ghl-limiter.js';
 import { guarded } from './guard.js';
 
 const safeLabel = v => String(v || '').trim().slice(0, 24);
@@ -72,8 +74,18 @@ export function ghlRoutes({ env, auth }){
         label,
         color: safeColor(b.color),
         token,
-        meta: { locationName: found.name }
+        meta: { locationName: found.name },
+        /* The owner typed this label, so no later env seed may overwrite it. */
+        labelSource: 'user'
       });
+
+      /* A replaced token clears the limiter's stop from the old one's 401s. */
+      resume(locationId);
+
+      /* Not awaited: a first sync pages through thousands of records and the
+         sheet has to close now. Progress lands in sync_state, and the read
+         routes say "first sync has not finished" until it does. */
+      backfillDetached(locationId, env);
 
       res.json({ ok: true, id, location: { id: locationId, name: found.name } });
     }));

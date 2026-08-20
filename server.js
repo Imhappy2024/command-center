@@ -6,6 +6,7 @@ import { initCrypto } from './lib/crypto.js';
 import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
 import { PROVIDERS, missingVars } from './lib/oauth.js';
+import { seedFromEnv } from './lib/ghl-seed.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -78,6 +79,16 @@ try {
       'Check DATABASE_URL points at a reachable Postgres instance.');
 }
 
+/* GHL sub-accounts declared as GHL_TOKEN_* / GHL_LOCATION_* pairs. Runs before
+   listen() so the locations exist by the first request, and never fails boot: a
+   bad pair is named in the log and skipped. Steady-state redeploys make no API
+   calls at all, because an unchanged token is detected without verifying. */
+const seed = await seedFromEnv(env);
+if (seed.declared) {
+  console.log(`GHL env sub-accounts: ${seed.declared} declared, `
+    + `${seed.seeded} written, ${seed.skipped} skipped`);
+}
+
 const app = createApp({ env, publicDir: PUBLIC });
 
 const server = app.listen(PORT, '0.0.0.0', () => {
@@ -91,6 +102,11 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  auth:     ${gate}`);
   console.log('  tokens:   Postgres, AES-256-GCM at rest');
   console.log(`  origin:   ${env.PUBLIC_URL}`);
+  /* Stated at boot rather than left silent. This endpoint writes to the lead
+     mirror and takes no secret; the locationId allow-list is what contains it. */
+  console.log('  webhooks: /webhooks/ghl OPEN — unauthenticated, allow-listed by locationId');
+  console.log(`  ghl sync: reconcile every ${app.locals.background?.intervalMinutes ?? '—'}m, `
+    + 'full pass daily');
 
   /* Reported through missingVars, the same check the connect sheet uses, and
      enumerated from PROVIDERS so a provider added later is covered without
