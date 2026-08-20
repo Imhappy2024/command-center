@@ -9,12 +9,18 @@
 
 import express from 'express';
 import { accountsFor, upsertStaticToken, deleteAccount } from '../lib/accounts.js';
-import { verifyLocation, GhlError } from '../providers/ghl.js';
+import {
+  verifyLocation, GhlError, CHANNEL_TO_GHL,
+  searchConversations, sendMessage, getOpportunity, updateContact, updateOpportunity
+} from '../providers/ghl.js';
 import { query } from '../db/index.js';
 import { ipLimiter, rawLabels } from '../lib/ghl-webhook.js';
-import { backfillDetached, everSynced } from '../lib/ghl-sync.js';
-import { toUiStage } from '../lib/ghl-stages.js';
-import { resume } from '../lib/ghl-limiter.js';
+import {
+  backfillDetached, everSynced, tokenFor,
+  upsertContact, upsertOpportunity, upsertMessage
+} from '../lib/ghl-sync.js';
+import { toUiStage, toGhlStage, statusForUiStage, UI_STAGES } from '../lib/ghl-stages.js';
+import { resume, run as limited } from '../lib/ghl-limiter.js';
 import { guarded } from './guard.js';
 
 const safeLabel = v => String(v || '').trim().slice(0, 24);
@@ -28,9 +34,6 @@ const asLocation = a => ({
   color: a.color,
   status: a.status
 });
-
-const NOT_BUILT =
-  'Connecting a sub-account works, but writing back to GHL is not built yet.';
 
 /* A lead id is '<locationId>:<opportunityId>'. Split on the first colon only:
    GHL ids are alphanumeric, but the location half is what scopes every query and
@@ -308,10 +311,250 @@ export function ghlRoutes({ env, auth }){
     });
   }));
 
-  for (const [method, path] of [['post', '/api/ghl/leads/:id/message'], ['patch', '/api/ghl/leads/:id']]) {
-    r[method](path, auth.require, express.json(), (req, res) =>
-      res.status(501).json({ error: NOT_BUILT }));
+  /* ---------------- writes ----------------
+
+     Every write goes to GHL first and is mirrored from its response, so the
+     dashboard is correct before the webhook lands rather than waiting on it.
+     Nothing here writes to the mirror speculatively: if GHL rejects the call,
+     the mirror is untouched and the UI reverts. */
+
+  /* The lead, from the mirror, with its location proved against the allow-list.
+     Returns a string on failure so the caller can answer with the right status. */
+  async function loadLead(rawId){
+    const { locationId, opportunityId } = splitLeadId(rawId);
+    if (!locationId) return { error: 'malformed lead id', status: 400 };
+
+    const allowed = new Set((await locations()).map(a => a.id.replace(/^ghl:/, '')));
+    if (!allowed.has(locationId)) return { error: 'no such sub-account', status: 404 };
+
+    const { rows } = await query(
+      `SELECT location_id, opportunity_id, contact_id, pipeline_id, stage_id,
+              stage_name, status, value, name
+         FROM ghl_opportunities
+        WHERE location_id = $1 AND opportunity_id = $2 AND NOT deleted`,
+      [locationId, opportunityId]);
+    if (!rows.length) return { error: 'no such lead', status: 404 };
+
+    return { locationId, opportunityId, row: rows[0] };
   }
+
+  /* The stages of the pipeline this opportunity sits in, from the mirror. */
+  async function stagesOf(locationId, pipelineId){
+    if (!pipelineId) return [];
+    const { rows } = await query(
+      `SELECT stages FROM ghl_pipelines WHERE location_id = $1 AND pipeline_id = $2`,
+      [locationId, pipelineId]);
+    return Array.isArray(rows[0]?.stages) ? rows[0].stages : [];
+  }
+
+  /* What a GHL opportunity's stage means in the UI's six. Needs the pipeline to
+     turn a stage id into the name the map keys on. */
+  async function uiStageOf(locationId, opp){
+    const stages = await stagesOf(locationId, opp.pipelineId);
+    const name = stages.find(s => s.id === opp.stageId)?.name || null;
+    return toUiStage(name, opp.status);
+  }
+
+  /* GhlError carries the actionable wording and a kind the UI can branch on.
+     Anything else is reported as itself rather than dressed up as a GHL error. */
+  const failWrite = (res, err) => {
+    if (err instanceof GhlError) {
+      return res.status(400).json({ error: err.message, kind: err.kind });
+    }
+    console.error('[api/ghl:write]', err.message);
+    return res.status(400).json({ error: err.message });
+  };
+
+  r.post('/api/ghl/leads/:id/message', auth.require, express.json(),
+    guarded('api/ghl/leads:message', async (req, res) => {
+      const found = await loadLead(req.params.id);
+      if (found.error) return res.status(found.status).json({ error: found.error });
+
+      const { locationId, row } = found;
+      if (!row.contact_id) {
+        return res.status(400).json({ error: 'This lead has no contact in GHL, so there is nobody to message.' });
+      }
+
+      const channel = String(req.body?.channel || 'sms').toLowerCase();
+      const text = String(req.body?.body ?? '').trim();
+      const type = CHANNEL_TO_GHL[channel];
+
+      if (!type) {
+        return res.status(400).json({
+          error: `channel must be one of ${Object.keys(CHANNEL_TO_GHL).join(', ')}`
+        });
+      }
+      if (!text) return res.status(400).json({ error: 'Nothing to send.' });
+
+      try {
+        const token = await tokenFor(locationId);
+
+        /* An existing thread is reused when there is one. GHL opens a new
+           conversation on its own when conversationId is omitted, so there is no
+           create call to make — and inventing one would risk a duplicate thread. */
+        const convos = await limited(locationId,
+          () => searchConversations(token, locationId, { contactId: row.contact_id, limit: 1 }));
+
+        const sent = await limited(locationId, () => sendMessage(token, {
+          type,
+          contactId: row.contact_id,
+          message: text,
+          conversationId: convos[0]?.conversationId
+        }));
+
+        /* origin='dashboard' and GHL's own message id as the key. The
+           OutboundMessage webhook that follows collides here and does nothing,
+           which is the whole echo suppression. */
+        const sentAt = new Date().toISOString();
+        await upsertMessage(locationId, {
+          messageId: sent.messageId,
+          conversationId: sent.conversationId,
+          contactId: row.contact_id,
+          direction: 'out',
+          channel,
+          body: text,
+          sentAt
+        }, 'dashboard');
+
+        /* Shaped like a thread row so the UI can swap its optimistic one out. */
+        res.json({
+          message: {
+            dir: 'out',
+            channel,
+            body: text,
+            day: dayLabel(sentAt),
+            time: clockLabel(sentAt),
+            sentAt
+          }
+        });
+      } catch (err) {
+        return failWrite(res, err);
+      }
+    }));
+
+  r.patch('/api/ghl/leads/:id', auth.require, express.json(),
+    guarded('api/ghl/leads:patch', async (req, res) => {
+      const found = await loadLead(req.params.id);
+      if (found.error) return res.status(found.status).json({ error: found.error });
+
+      const { locationId, opportunityId, row } = found;
+      const b = req.body || {};
+
+      const contactFields = {};
+      for (const f of ['name', 'phone', 'email', 'owner']) {
+        if (b[f] !== undefined) contactFields[f] = String(b[f] ?? '').trim();
+      }
+
+      const wantStage = b.stage === undefined ? null : String(b.stage).toLowerCase();
+      const wantValue = b.value === undefined ? null : Number(b.value);
+
+      if (wantValue !== null && !Number.isFinite(wantValue)) {
+        return res.status(400).json({ error: 'value must be a number' });
+      }
+      if (wantStage && !UI_STAGES.includes(wantStage)) {
+        return res.status(400).json({ error: `stage must be one of ${UI_STAGES.join(', ')}` });
+      }
+      if (!Object.keys(contactFields).length && !wantStage && wantValue === null) {
+        return res.status(400).json({ error: 'nothing to update' });
+      }
+
+      let token;
+      try { token = await tokenFor(locationId); }
+      catch (err) { return failWrite(res, err); }
+
+      /* ---- the stage conflict guard ----
+         A GHL workflow may have moved this lead while the dashboard held a stale
+         value. Writing blind would revert the automation, so the current stage is
+         re-read from GHL — not from the mirror, which the same webhook delay
+         would have left equally stale. */
+      let live = null;
+      if (wantStage && b.expectedStage !== undefined) {
+        try {
+          live = await limited(locationId, () => getOpportunity(token, opportunityId));
+        } catch (err) { return failWrite(res, err); }
+        if (!live) return res.status(404).json({ error: 'This lead no longer exists in GHL.' });
+
+        const actual = await uiStageOf(locationId, live);
+        if (actual !== String(b.expectedStage).toLowerCase()) {
+          /* Mirrored first: the dashboard should show GHL's truth immediately,
+             not just be told about it. */
+          await upsertOpportunity(locationId, live);
+          return res.status(409).json({
+            error: `GHL has already moved this lead to ${actual}.`,
+            stage: actual
+          });
+        }
+      }
+
+      /* Contact first, then opportunity, so a failure part-way through is
+         reported against a known order rather than an arbitrary one. */
+      const applied = [];
+
+      if (Object.keys(contactFields).length) {
+        if (!row.contact_id) {
+          return res.status(400).json({ error: 'This lead has no contact in GHL to edit.' });
+        }
+        try {
+          const updated = await limited(locationId,
+            () => updateContact(token, row.contact_id, contactFields));
+          if (updated) await upsertContact(locationId, updated);
+          applied.push(...Object.keys(contactFields));
+        } catch (err) {
+          return failWrite(res, err);
+        }
+      }
+
+      if (wantStage || wantValue !== null) {
+        const patch = {};
+
+        if (wantStage) {
+          const stages = await stagesOf(locationId, row.pipeline_id);
+          if (!stages.length) {
+            return res.status(400).json({
+              error: 'This lead\'s pipeline has not been mirrored yet, so its stages are unknown. Try again after the next sync.',
+              applied
+            });
+          }
+          const target = toGhlStage(wantStage, stages, 'open');
+          if (!target) {
+            /* Reported rather than guessed. Moving the lead to an arbitrary
+               stage because the names do not line up is worse than refusing. */
+            return res.status(400).json({
+              error: `No stage in this pipeline maps to "${wantStage}". Rename a GHL stage or edit lib/ghl-stages.js.`,
+              applied
+            });
+          }
+          patch.pipelineStageId = target.id;
+          patch.pipelineId = row.pipeline_id;
+          /* won and lost are status changes in GHL, not just moves. Writing the
+             stage alone would leave the opportunity open in every GHL report. */
+          patch.status = statusForUiStage(wantStage);
+        }
+
+        if (wantValue !== null) patch.monetaryValue = wantValue;
+
+        try {
+          const updated = await limited(locationId,
+            () => updateOpportunity(token, opportunityId, patch));
+          if (updated) await upsertOpportunity(locationId, updated);
+          if (wantStage) applied.push('stage');
+          if (wantValue !== null) applied.push('value');
+        } catch (err) {
+          /* Honest partial failure: the contact edits above did land, and saying
+             otherwise would make the UI revert a change GHL has accepted. */
+          if (applied.length) {
+            const detail = err instanceof GhlError ? err.message : err.message;
+            return res.status(400).json({
+              error: `Saved ${applied.join(' and ')}, but the opportunity update failed: ${detail}`,
+              applied
+            });
+          }
+          return failWrite(res, err);
+        }
+      }
+
+      res.json({ ok: true, applied });
+    }));
 
   /* ---------------- inbound webhooks ----------------
 
