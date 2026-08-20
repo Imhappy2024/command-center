@@ -144,6 +144,19 @@ CREATE TABLE IF NOT EXISTS sync_state (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+/* A backfill that failed halfway needs to be visible before it can be restarted,
+   and env-seeded sub-accounts never pass through the connect sheet, so there is
+   no moment where progress would otherwise be shown. Both wants the same thing:
+   state that can be read and re-run.
+
+   Progress counts ride in the existing `cursor` column as JSON rather than
+   earning columns of their own — {"contacts":340,"opportunities":82,...} — since
+   the per-resource rows already use that column for a pagination cursor and the
+   summary row has no pagination to record. */
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'idle';
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ;
+ALTER TABLE sync_state ADD COLUMN IF NOT EXISTS finished_at TIMESTAMPTZ;
+
 /* The webhook receiver is unauthenticated, so a payload that fails validation is
    kept and marked processed with the reason rather than retried forever. That
    needs somewhere to put the reason. */
