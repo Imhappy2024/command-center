@@ -2271,6 +2271,10 @@ function drawLeadList(){
   el.querySelectorAll('[data-lead]').forEach(b => b.onclick = () => {
     const l = LEADS.find(x => x.id === b.dataset.lead);
     l.unread = false; LD.sel = l.id; drawLeads();
+    /* Threads are fetched on open rather than with the list, for the same reason
+       mail bodies are: one request per lead beats pulling every conversation
+       nobody has asked to read. */
+    loadThread(l.id);
   });
 }
 
@@ -2360,25 +2364,95 @@ function drawLeadDetail(){
   el.querySelectorAll('[data-ltab]').forEach(b => b.onclick = () => { LD.tab = b.dataset.ltab; drawLeadDetail(); });
   el.querySelectorAll('[data-chan]').forEach(b => b.onclick = () => { LD.channel = b.dataset.chan; drawLeadDetail(); });
 
+  /* Stage moves carry the stage they are moving *from*. The server re-reads GHL
+     and answers 409 if a workflow got there first, which is the one case where
+     reverting is wrong — GHL is right and the screen was stale. */
   const sel = document.getElementById('ld-stage');
-  if (sel) sel.onchange = () => { l.stage = sel.value; syncPulse('Stage updated'); drawLeads(); };
+  if (sel) sel.onchange = async () => {
+    const was = l.stage;
+    const next = sel.value;
+    if (next === was) return;
 
-  el.querySelectorAll('[data-field]').forEach(i => i.onchange = () => {
-    l[i.dataset.field] = i.value; syncPulse('Saved'); drawLeadList();
+    l.stage = next;
+    syncPulse('Stage updated');
+    drawLeads();
+
+    try {
+      await api('/api/ghl/leads/' + encodeURIComponent(l.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ stage: next, expectedStage: was })
+      });
+      await load();
+    } catch (err) {
+      if (err.status === 409 && err.body?.stage) {
+        l.stage = err.body.stage;
+        banner('GHL had already moved this lead to ' + err.body.stage + '.');
+      } else {
+        l.stage = was;
+        banner(err.message);
+      }
+      drawLeads();
+    }
+  };
+
+  el.querySelectorAll('[data-field]').forEach(i => i.onchange = async () => {
+    const field = i.dataset.field;
+    const was = l[field];
+    const next = i.value;
+    if (next === was) return;
+
+    l[field] = next;
+    syncPulse('Saved');
+    drawLeadList();
+
+    try {
+      await api('/api/ghl/leads/' + encodeURIComponent(l.id), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [field]: next })
+      });
+      await load();
+    } catch (err) {
+      l[field] = was;
+      banner(err.message);
+      drawLeads();
+    }
   });
 
-  el.querySelectorAll('[data-lact]').forEach(b => b.onclick = () => {
+  el.querySelectorAll('[data-lact]').forEach(b => b.onclick = async () => {
     const a = b.dataset.lact;
     if (a === 'send') {
       const ta = document.getElementById('ld-msg');
       const text = ta.value.trim();
       if (!text) return;
-      (THREADS[l.id] ||= []).push({ dir:'out', channel:LD.channel, body:text,
-        day:'Today', time:new Date().toTimeString().slice(0,5) });
+
+      /* Painted first so the thread feels immediate, then confirmed. The row is
+         held by identity so the failure path removes this one and not whichever
+         row happens to be last by then. */
+      const optimistic = { dir:'out', channel:LD.channel, body:text,
+        day:'Today', time:new Date().toTimeString().slice(0,5), pending:true };
+      const thread = (THREADS[l.id] ||= []);
+      thread.push(optimistic);
+      const wasLast = l.last, wasKey = l.sortKey;
       l.last = 'now'; l.sortKey = Date.now();
-      if (l.stage === 'new') l.stage = 'contacted';
-      syncPulse('Sent via GHL');
+      syncPulse('Sending…');
       drawLeads();
+
+      try {
+        await post('/api/ghl/leads/' + encodeURIComponent(l.id) + '/message',
+          { channel: LD.channel, body: text });
+        syncPulse('Sent via GHL');
+        /* Reloads rather than patching the row in place: the server has the real
+           message id and timestamp, and the stage may have moved in GHL. */
+        await load();
+      } catch (err) {
+        const at = thread.indexOf(optimistic);
+        if (at >= 0) thread.splice(at, 1);
+        l.last = wasLast; l.sortKey = wasKey;
+        banner(err.message);
+        drawLeads();
+      }
       return;
     }
     b.textContent = a === 'call' ? 'Dialling' : a === 'task' ? 'Task created' : a === 'note' ? 'Logged' : 'Opening';
@@ -2699,7 +2773,15 @@ let PROVIDERS_CFG = {};
 async function api(url, options){
   const r = await fetch(url, options);
   const body = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(body.error || `${r.status} ${r.statusText}`);
+  if (!r.ok) {
+    /* The status and the payload ride along on the error. A 409 from a lead
+       stage write carries the stage GHL actually holds, and the handler needs
+       both to tell a conflict apart from a plain failure. */
+    const err = new Error(body.error || `${r.status} ${r.statusText}`);
+    err.status = r.status;
+    err.body = body;
+    throw err;
+  }
   return body;
 }
 
@@ -2809,6 +2891,10 @@ async function load(){
     banner(warnings.length ? warnings.join(' · ') : null);
 
     drawAll(); drawCal(); drawLeads(); drawSocial();
+
+    /* Keeps the open conversation in step with the list. After a send this is
+       what replaces the optimistic row with the server's own. */
+    if (LD.sel && LEADS.some(l => l.id === LD.sel)) await loadThread(LD.sel);
   } catch (err) {
     banner('Could not load: ' + err.message);
     drawAll(); drawCal(); drawLeads(); drawSocial();
@@ -2850,6 +2936,20 @@ async function openMessage(id){
     if (wasUnread) m.unread = true;
     banner(err.message);
     drawAll();
+  }
+}
+
+/* One lead's message history. Left alone in demo mode, where buildDemo() owns
+   THREADS. A failure leaves whatever was already there rather than blanking the
+   pane, and reports itself. */
+async function loadThread(id){
+  if (CAL.demo || !id) return;
+  try {
+    const out = await api('/api/ghl/leads/' + encodeURIComponent(id) + '/thread');
+    THREADS[id] = out.thread || [];
+    drawLeadDetail();
+  } catch (err) {
+    banner('Could not load the conversation: ' + err.message);
   }
 }
 
