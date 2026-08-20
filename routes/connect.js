@@ -4,7 +4,8 @@ import express from 'express';
 import { PROVIDERS, isConfigured, exchangeCode } from '../lib/oauth.js';
 import { newState, newVerifier, challengeFor, setPending, readPending, STATE_COOKIE, clearCookie }
   from '../lib/session.js';
-import { listAccounts, upsertOAuth, upsertImap, renameAccount, deleteAccount } from '../lib/accounts.js';
+import { listAccounts, upsertOAuth, upsertImap, renameAccount, deleteAccount, nextColour }
+  from '../lib/accounts.js';
 import { guarded } from './guard.js';
 import { verify as verifyImap } from '../providers/imap.js';
 
@@ -45,17 +46,27 @@ export function connectRoutes({ env, auth, secret }){
     return true;
   };
 
+  /* One endpoint, one source of truth for what is configured. Each sheet filters
+     this map by feed — the mailbox sheet on 'mail', the social sheet on 'social'
+     — so the greying-out logic is written once.
+
+     Derived providers are excluded. A Facebook Page row exists in PROVIDERS so
+     feed filtering and refresh semantics resolve for it, but it is produced by
+     discovering a Meta grant and there is nothing to connect it with directly. */
   r.get('/api/accounts', auth.require, guarded('api/accounts', async (req, res) => {
     res.json({
-        canConnect: Boolean(env.ENCRYPTION_KEY),
-        providers: Object.fromEntries(
-          Object.keys(PROVIDERS).map(name => [name, {
-            label: PROVIDERS[name].label,
-            feeds: PROVIDERS[name].feeds,
+      canConnect: Boolean(env.ENCRYPTION_KEY),
+      providers: Object.fromEntries(
+        Object.entries(PROVIDERS)
+          .filter(([, p]) => !p.derived)
+          .map(([name, p]) => [name, {
+            label: p.label,
+            feeds: p.feeds,
+            blurb: p.blurb || null,
             configured: isConfigured(name, env),
-            setupHint: PROVIDERS[name].setupHint
+            setupHint: p.setupHint
           }])
-        ),
+      ),
       accounts: await listAccounts()
     });
   }));
@@ -111,7 +122,10 @@ export function connectRoutes({ env, auth, secret }){
     const p = PROVIDERS[name];
     if (!p || !p.oauth) return res.status(404).send('Unknown provider');
 
-    const fail = msg => res.redirect('/#inbox?error=' + encodeURIComponent(msg));
+    /* Errors return to the view the connection was started from, so a failed
+       Meta grant reports itself on Social rather than on the Inbox. */
+    const view = (p.feeds || []).includes('social') ? 'social' : 'inbox';
+    const fail = msg => res.redirect(`/#${view}?error=` + encodeURIComponent(msg));
     if (req.query.error) {
       return fail(`${p.label} refused: ${req.query.error_description || req.query.error}`);
     }
@@ -130,6 +144,10 @@ export function connectRoutes({ env, auth, secret }){
         redirect: redirectUri(req, env, name),
         verifier: pending.v
       });
+
+      /* The grant itself is always a row. For Meta it is the row that holds the
+         renewable user token and the one a disconnect should cascade from, even
+         though it is not what the Social view reads. */
       await upsertOAuth({
         provider: name,
         uid: record.uid,
@@ -139,9 +157,41 @@ export function connectRoutes({ env, auth, secret }){
         refreshToken: record.refreshToken,
         accessToken: record.accessToken,
         expiresAt: record.expiresAt,
-        scope: record.scope
+        scope: record.grantedScopes || record.scope
       });
-      res.redirect('/#inbox?connected=' + encodeURIComponent(record.email || p.label));
+
+      /* One grant, several accounts. Meta returns a row per Page, per linked
+         Instagram account and per ad account; every other provider has no
+         discover() and lands exactly one row, as before.
+
+         A short list is not an error. Facebook's dialog lets the user pick which
+         Pages to grant, so one Page out of four is a correct outcome. */
+      let assets = [];
+      if (p.discover) {
+        assets = await p.discover(record.accessToken, env, record);
+        for (const a of assets) {
+          await upsertOAuth({
+            provider: a.provider,
+            uid: a.uid,
+            email: a.display,
+            /* The label the user typed names the grant. Discovered assets are
+               named after themselves, because "Business" repeated across four
+               Pages tells you nothing in a sidebar. */
+            label: (a.display || a.provider).slice(0, 24),
+            color: a.color || await nextColour(),
+            refreshToken: a.token,
+            accessToken: a.token,
+            expiresAt: a.expiresAt ?? null,
+            scope: record.grantedScopes || record.scope,
+            meta: a.meta || {}
+          });
+        }
+      }
+
+      const what = assets.length
+        ? `${assets.length} ${assets.length === 1 ? 'account' : 'accounts'}`
+        : (record.email || p.label);
+      res.redirect(`/#${view}?connected=` + encodeURIComponent(what));
     } catch (err) {
       console.error(`[connect:${name}]`, err.message);
       fail(`${p.label} connection failed: ${err.message}`);
