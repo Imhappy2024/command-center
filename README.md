@@ -11,7 +11,7 @@ Nothing fabricates data. A view with no source says so and names what it needs.
 |---|---|---|
 | Inbox | Gmail, Microsoft Graph, IMAP | live |
 | Calendar | Google Calendar, Microsoft Graph | live |
-| Leads | GoHighLevel, two-way | live |
+| Leads | Supabase (GHL mirror), send via GHL | live |
 | Social | Meta (Pages, Instagram, Ads), YouTube, X | live; metrics and ads only |
 | Overview, Tasks, Notes, Properties, Financial, Systems | — | empty states |
 
@@ -77,106 +77,116 @@ Tokens and app passwords are AES-256-GCM ciphertext in Postgres, keyed from
 
 ## Leads
 
-GoHighLevel, one sub-account per Private Integration Token. **GHL is the source
-of truth and Postgres holds a read mirror**, which is what makes this tractable:
+GHL data comes from **Supabase**, and command-center only reads it. An external
+pipeline — a backfill script and n8n webhooks — owns GHL -> Supabase. There is no
+sync here, no cursors, no rate limiting, and nothing to connect.
 
 ```
-Reads   GHL --webhook--> webhook_events --> mirror tables --> dashboard
-Writes  dashboard --> GHL API --> webhook --> mirror tables --> dashboard
+GHL API --> backfill + webhooks --> Supabase --> command-center reads
 ```
 
-Exactly two things write to the mirror — the webhook processor and the sync job.
-No request handler does. There is no conflict resolution anywhere in the lead code
-because there are never two writable copies.
+Read routes never call GHL. `/api/ghl/leads`, `/api/ghl/leads/:id/thread`,
+`/api/ghl/leads/:id/detail` and `/api/ghl/stages` are Supabase queries.
 
-Read routes never call GHL. `/api/ghl/leads` and `/api/ghl/leads/:id/thread` are
-mirror queries, so the Leads view is fast and independent of GHL's rate limits.
+### Sub-accounts
 
-### Connecting
+They come from `ghl_location`, with brand from `company` and a lead count per
+location. There is no connect step and no **+ Connect GHL** button: a sub-account
+is in the sidebar because the pipeline ingested it, and the list grows on its own
+as the ingest token's scope widens.
 
-Either paste a token in **+ Connect GHL**, or declare pairs in the environment
-(below) and they connect at boot. Both verify the token against
-`GET /locations/{id}` before storing it, so a bad token or a missing scope is a
-specific message rather than a pipeline that silently never fills.
+Only one location is populated today — Folio Excel, 3,296 leads. The sidebar
+renders whatever rows exist rather than a fixed four.
 
-Scopes the token needs:
+If `ghl_location` is empty the view says the data has not been ingested and points
+at the pipeline. It does not offer a button, because nothing on that screen could
+fix it.
 
-```
-contacts.readonly contacts.write
-opportunities.readonly opportunities.write
-conversations.readonly conversations.write
-conversations/message.readonly conversations/message.write
-locations.readonly users.readonly
-```
+`ghl_location` is also the allow-list the unauthenticated webhook is checked
+against. It used to be the `accounts` table, which meant a token had to be pasted
+before a webhook would be accepted.
 
-A first sync pages pipelines, then contacts, then opportunities, then
-conversations from the last `GHL_BACKFILL_DAYS`. It runs detached, resumes from a
-cursor if interrupted, and until it finishes the Leads view says so rather than
-showing an empty pipeline.
+### Stages
+
+Real stages, from `ghl_pipeline_stage`, in `position` order, per location. The
+cards used to be a hardcoded six — New, Contacted, Qualified, Proposal, Won, Lost
+— which matched no pipeline that exists. Folio's are Qualified, Demo Scheduled,
+Demo Complete, Proposal Sent, Long Term Follow Up, Closed Won, Onboard Initiated:
+three of those collapsed into one card and four could not be shown at all.
+`lib/ghl-stages.js` and its pattern mapping are gone.
+
+Two things worth knowing:
+
+- **Scoped through `ghl_pipeline`, not `ghl_pipeline_stage.ghl_location_id`.**
+  That column is NULL on every stage row in the mirror, so filtering the stage
+  table on it returns nothing — which the write path reads as "this pipeline has
+  no stages" and refuses a stage change over.
+- **Status is not the stage.** GHL tracks `open | won | lost | abandoned`
+  separately, and this data has a "Closed Won" stage sitting at status `open`. The
+  UI takes won/lost from `status` and never infers it from a stage name, and a
+  stage change no longer overwrites status with a guess.
+
+With "All locations" selected, stages are folded by name — two pipelines both
+having "Proposal Sent" is one card. That is why the leads filter keys on the stage
+NAME: a folded card has no single id to offer.
+
+### Sending — the one GHL call left
+
+Reads come from Supabase. Sends go to GHL, because GHL owns delivery, and the
+record comes back through the webhook. The dashboard never inserts a message row
+on its own.
+
+Echo suppression is the message id: on a successful POST the returned
+`messageId` is inserted with `origin='dashboard'`, and the webhook GHL fires back
+carries the same id, so `ON CONFLICT DO NOTHING` makes it a no-op. There is no
+echo table.
+
+Two live-verified corrections to the send reference:
+
+- `conversationId` is **not** a request field — it appears only in the response.
+  The previous build sent it and GHL ignored it.
+- There is **no From-name field**. `emailFrom` sets the address; the display name
+  comes from the sender GHL has verified.
+
+`ghl_message.ghl_conversation_id` is NOT NULL, so when GHL returns no
+conversation id there is nowhere to put the optimistic row. It is skipped and left
+to the webhook rather than inserted blind, which would throw and make a successful
+send look failed.
+
+Sending needs a token. Being listed does not: a location with no `GHL_TOKEN_*`
+pair is readable and marked read-only in the sidebar.
 
 ### Webhooks — unauthenticated
 
-Point a GHL workflow's **Custom Webhook** action at `POST /webhooks/ghl` and have
-it set an `event` field to one of `contact.created`, `contact.updated`,
-`opportunity.created`, `opportunity.updated`, `opportunity.stage`,
-`message.inbound`, `message.outbound`, `note.created`.
+`/webhooks/ghl` stays, and is still the reason the dashboard is not stale. GHL's
+Custom Webhook action posts no HMAC, so there is nothing to verify; the locationId
+allow-list is what contains it. Raw payloads land in `webhook_events` and a worker
+drains them into Supabase, so an unexpected shape is debuggable rather than lost.
 
-There is no signature and no shared secret. GHL's Custom Webhook action sends no
-HMAC, so there was never a signature to verify. **What contains it is the
-locationId allow-list**: a payload naming a location you have not connected writes
-nothing, is stored with the reason, and still answers 200, so a prober cannot tell
-a valid location from an invalid one. The body is capped at 256KB and the endpoint
-at 60 requests per minute per IP.
+Three shapes handled explicitly:
 
-Payload values are not trusted either. Opportunity and message events re-read
-from GHL with that location's own token, so the worst a forged webhook achieves is
-a read of a record that already exists.
+- **Inbound messages carry no ids at all** — no message id, no conversation id.
+  They land in `ghl_message_inbox`, with the conversation id recovered from asset
+  URLs in the body where one is present. Nothing goes into `ghl_message` without a
+  natural key, because redelivery would duplicate it.
+- **`opportunity.stage` carries no pipeline data.** It is a trigger, left in
+  `webhook_events` for the ingest pipeline to diff.
+- **Absent is not null.** Contact payloads omit unset fields, so a column is only
+  written when its key is PRESENT. Treating absent as null wipes populated data.
 
-### Sync status, and re-running one
+### Refresh, and what is not here
 
-A first sync is minutes, not seconds, so it is visible and restartable rather than
-fire-and-forget.
+**Refresh** re-reads Supabase. That is the only action left.
 
-| Route | Does |
-|---|---|
-| `GET /api/ghl/sync` | Per location: `status`, `startedAt`, `finishedAt`, live `counts`, `error` |
-| `POST /api/ghl/sync/:locationId` | `202` starts or restarts one; `409` if already running |
-| `POST /api/ghl/sync` | `202`, every location that is idle or failed |
+**Re-sync is gone**, along with the connect sheet, the first-sync progress panel
+and the per-location sync markers. command-center cannot start, stop or retry an
+ingest run. The Leads header instead reports the pipeline's own health from
+`ghl_sync_log` — failing feeds, feeds that have never completed — as a statement,
+not a button.
 
-Add `?full=1` to discard the resume cursor and start over — **this is what you
-want after editing `lib/ghl-stages.js`**, because resuming would skip everything
-already paged and never re-evaluate the mapping you just changed.
+`POST /api/ghl/sync` and `POST /api/ghl/sync/:locationId` still answer, with `501`
+and an explanation, so anything still calling them is told why.
 
-Status is `idle | running | done | failed` on `sync_state`, with progress counts
-in its `cursor` column as JSON. A row left `running` by a crash is reported as
-`failed`, since otherwise it would block restarts forever.
-
-Where it shows:
-
-- **The connect sheet** stays open after a successful connect and reports progress,
-  with a Retry button if the run fails. Closing it stops the polling, not the sync.
-- **The Leads header** carries standing state — syncing with a live count, failed
-  and clickable to retry, or the number of synced sub-accounts.
-- **The sub-account submenu** marks a never-synced location with `!` and a tooltip
-  saying so. An empty pipeline because nothing synced must never look like an
-  empty pipeline because there are no leads.
-- **Refresh and Re-sync are different.** Refresh re-reads the mirror; Re-sync
-  re-pulls from GHL.
-
-At boot, anything `idle` or `failed` gets a run — env-seeded sub-accounts never
-pass through the sheet, so otherwise their first sync would wait on the reconcile
-timer. A `done` location is left alone; restarting it every deploy would re-page
-its whole history.
-
-### Stage names
-
-GHL stage names are user-defined per pipeline and will not match the six the UI
-shows. `lib/ghl-stages.js` is the whole translation and the one file to edit when a
-pipeline is renamed. `status` wins over the stage name, since a workflow can close
-a deal without moving it, and an unmatched name falls back to `contacted` rather
-than being dropped.
-
-Writing a stage the pipeline has no counterpart for is refused, not approximated.
 
 ### What is not built
 
@@ -367,8 +377,9 @@ with the variable it needs.
 | `AGENT_TIMEZONE` | server zone | IANA zone deciding whether a row shows a clock, `Yesterday` or a date. Also drives the lead list's `12m` / `2h` / `Aug 4` column |
 | `PGSSLMODE` | — | `disable` if your Postgres rejects TLS. Railway's private hostname is detected automatically |
 
-**GoHighLevel** — none required. Omit them all and sub-accounts are added through
-the Connect sheet instead.
+**GoHighLevel** — none required. Sub-accounts come from `ghl_location` in Supabase
+and are readable without any token. A `GHL_TOKEN_*` / `GHL_LOCATION_*` pair adds
+one thing: the ability to SEND from that location.
 
 | Variable | Default | Notes |
 |---|---|---|
@@ -398,7 +409,6 @@ lib/normalise.js           Shared message and event shaping
 lib/ghl-sync.js            Mirror writers, backfill, reconciliation
 lib/ghl-webhook.js         Payload validation and the async processor
 lib/ghl-limiter.js         Per-location request pacing
-lib/ghl-stages.js          GHL stage name <-> UI stage
 lib/ghl-seed.js            GHL_TOKEN_* / GHL_LOCATION_* pairs, read at boot
 lib/social-sync.js         The social poller and its snapshot writers
 db/schema.sql              accounts, webhook_events, GHL mirror, social snapshots

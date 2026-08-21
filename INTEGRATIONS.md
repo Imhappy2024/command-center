@@ -248,7 +248,7 @@ Use `calendarView`, **not** `/me/events`. Only calendarView expands recurring ev
 
 ## 4. GHL (leads) — Private Integration Tokens
 
-**Not OAuth.** The UI already reflects this: the connect sheet asks for a Location ID, a token, a label and a colour. No redirect.
+**Not OAuth.** And no longer entered in the UI: there is no connect sheet. Sub-accounts come from `ghl_location` in Supabase, and a token is supplied as `GHL_TOKEN_<NAME>` / `GHL_LOCATION_<NAME>` purely so that location can SEND. No redirect.
 
 ### What a PIT is
 

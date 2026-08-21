@@ -13,27 +13,22 @@
    reaching for the API. */
 
 import express from 'express';
-import { upsertStaticToken, deleteAccount } from '../lib/accounts.js';
 import {
-  verifyLocation, GhlError, CHANNEL_TO_GHL,
+  GhlError, CHANNEL_TO_GHL,
   sendMessage, updateContact, updateOpportunity
 } from '../providers/ghl.js';
 import { query } from '../db/index.js';
 import { ipLimiter, rawLabels } from '../lib/ghl-webhook.js';
 import {
-  locations as ghlLocations, tokenFor,
+  subAccounts, allowedLocationIds, sendableLocationIds, tokenFor,
   leadRows, leadTotal, loadLead as loadLeadRow,
-  threadFor, pendingInbound, conversationsFor, stagesFor,
+  threadFor, pendingInbound, conversationsFor, stagesFor, stageCounts,
   customValuesFor, attributionFor, notesFor, tasksFor, appointmentsFor,
   ingestStatus, locationProfile,
   isActivity, activityLabel, channelOf, dirOf
 } from '../lib/ghl-data.js';
-import { toUiStage, toGhlStage, statusForUiStage, UI_STAGES } from '../lib/ghl-stages.js';
-import { resume, run as limited } from '../lib/ghl-limiter.js';
+import { run as limited } from '../lib/ghl-limiter.js';
 import { guarded } from './guard.js';
-
-const safeLabel = v => String(v || '').trim().slice(0, 24);
-const safeColor = v => (/^#[0-9a-f]{6}$/i.test(String(v || '')) ? String(v) : '#8E9BA8');
 
 /* A lead id is '<locationId>:<contactId>', or '<locationId>:o_<opportunityId>'
    for the rare opportunity with no mirrored contact. Split on the first colon
@@ -120,100 +115,56 @@ function flatten(html){
 export function ghlRoutes({ env, auth }){
   const r = express.Router();
 
-  /* Shape the Leads view expects for its sub-account submenu.
+  /* Sub-accounts, straight from ghl_location.
+
+     There is no connect endpoint. command-center holds no GHL connection to
+     make: a location is in the sidebar because the ingest pipeline ingested it,
+     and it leaves the same way. What used to be POST and DELETE here were the
+     two halves of a connection model that no longer exists.
 
      `senders` used to be mirrored by a GHL phone-number read. That read is gone,
-     so the addresses come from the location profile in Supabase and the number
-     list is deliberately empty rather than faked: GHL's sending numbers are not
-     in the mirror, which is a gap in the ingest pipeline and not something to
-     paper over here. Empty means the composer lets GHL pick its own default,
-     which is what it already did whenever the cache was cold. */
-  const asLocation = (a, profile) => ({
-    id: a.locationId,
-    name: a.label,
-    short: String(a.label || '').split(' ')[0],
-    color: a.color,
-    status: a.status,
-    senders: profile
-      ? {
+     so addresses come from the location profile and the number list is empty
+     rather than faked — GHL's sending numbers are not in the mirror, which is a
+     gap in the ingest pipeline and not something to paper over here.
+
+     `sendable` is separate from being listed. Reading needs nothing; sending
+     needs a token in command-center's own accounts table. */
+  r.get('/api/ghl/locations', auth.require, guarded('api/ghl/locations', async (req, res) => {
+    const [rows, sendable] = await Promise.all([subAccounts(), sendableLocationIds()]);
+
+    const locations = await Promise.all(rows.map(async a => {
+      const profile = await locationProfile(a.id);
+      const emails = profile
+        ? [...new Set([profile.business_email, profile.email].filter(Boolean))]
+        : [];
+      return {
+        ...a,
+        sendable: sendable.has(a.id),
+        senders: {
           numbers: [],
           /* Stated, not implied. Without this the composer cannot tell "this
              sub-account has no number" from "we do not know", and it disabled
              Send for the second case — which would block every SMS. */
           numbersUnavailable: true,
-          emails: [...new Set([profile.business_email, profile.email].filter(Boolean))],
-          /* Primary, for the single-address case the composer shows inline. */
-          email: profile.business_email || profile.email || null
+          emails,
+          email: emails[0] || null
         }
-      : null
-  });
+      };
+    }));
 
-  async function locationList(){
-    const rows = await ghlLocations();
-    return Promise.all(rows.map(async a => asLocation(a, await locationProfile(a.locationId))));
-  }
-
-  r.get('/api/ghl/locations', auth.require, guarded('api/ghl/locations', async (req, res) => {
-    res.json({ locations: await locationList() });
+    res.json({ locations });
   }));
 
-  r.post('/api/ghl/locations', auth.require, express.json(),
-    guarded('api/ghl/locations:create', async (req, res) => {
-      if (!env.ENCRYPTION_KEY) {
-        return res.status(403).json({ error: 'ENCRYPTION_KEY is not set, so there is nowhere safe to store a token.' });
-      }
-
-      const b = req.body || {};
-      const locationId = String(b.locationId || '').trim();
-      const token = String(b.token || '').trim();
-      const label = safeLabel(b.label);
-
-      if (!/^[A-Za-z0-9]{15,30}$/.test(locationId)) {
-        return res.status(400).json({ error: 'Location ID looks wrong. It is the string after /location/ in the sub-account URL.' });
-      }
-      if (token.length < 20) {
-        return res.status(400).json({ error: 'That does not look like a Private Integration Token.' });
-      }
-      if (!label) return res.status(400).json({ error: 'Give the sub-account a label.' });
-
-      /* Verified before it is stored. The token's only remaining job is sending,
-         and a bad paste that is not caught here becomes a failed send at the
-         moment someone is trying to reply to a customer. */
-      let found;
-      try {
-        found = await verifyLocation(token, locationId);
-      } catch (err) {
-        if (err instanceof GhlError) return res.status(400).json({ error: err.message, kind: err.kind });
-        return res.status(400).json({ error: `Could not reach GHL: ${err.message}` });
-      }
-
-      const id = await upsertStaticToken({
-        provider: 'ghl',
-        uid: locationId,
-        display: found.name,
-        label,
-        color: safeColor(b.color),
-        token,
-        meta: { locationName: found.name },
-        labelSource: 'user'
-      });
-
-      /* A replaced token clears the limiter's stop from the old one's 401s. */
-      resume(locationId);
-
-      /* No backfill is started. command-center does not run the sync; connecting
-         a sub-account grants it read scope over what the pipeline has already
-         put in Supabase, and the ability to send. */
-      res.json({ ok: true, id, location: { id: locationId, name: found.name } });
-    }));
-
-  r.delete('/api/ghl/locations/:id', auth.require,
-    guarded('api/ghl/locations:delete', async (req, res) => {
-      const id = req.params.id.startsWith('ghl:') ? req.params.id : `ghl:${req.params.id}`;
-      const gone = await deleteAccount(id);
-      if (!gone) return res.status(404).json({ error: 'no such sub-account' });
-      res.json({ ok: true });
-    }));
+  /* The stage cards. Real stages, real counts, pipeline order — never a fixed
+     six, because they differ per location and change. */
+  r.get('/api/ghl/stages', auth.require, guarded('api/ghl/stages', async (req, res) => {
+    const which = String(req.query.location || 'all');
+    const allowed = await allowedLocationIds();
+    if (which !== 'all' && !allowed.has(which)) {
+      return res.status(404).json({ error: 'no such sub-account' });
+    }
+    res.json({ stages: await stageCounts(which === 'all' ? null : which) });
+  }));
 
   /* ---------------- ingest status ----------------
 
@@ -222,22 +173,12 @@ export function ghlRoutes({ env, auth }){
      'pending' has never completed, and that is worth seeing. */
 
   r.get('/api/ghl/sync', auth.require, guarded('api/ghl/sync', async (req, res) => {
-    const status = await ingestStatus();
-    res.json({
-      /* Kept under `locations` for the existing panel, with the pipeline view
-         alongside it. */
-      locations: (await ghlLocations()).map(a => ({
-        locationId: a.locationId,
-        label: a.label,
-        status: a.status,
-        lastError: a.lastError || null
-      })),
-      ingest: status
-    });
+    res.json({ ingest: await ingestStatus() });
   }));
 
-  /* Both kept mounted rather than deleted, so the button that calls them gets an
-     explanation instead of a 404 that reads as a bug. */
+  /* Kept mounted rather than deleted so anything still calling them is told why
+     rather than getting a 404 that reads as a bug. The Re-sync button they
+     existed for is gone from the UI. */
   const notOurs = (req, res) => res.status(501).json({
     error: 'command-center no longer runs the GHL sync. The backfill script and the n8n '
       + 'webhooks own GHL -> Supabase; this dashboard only reads the result. '
@@ -251,18 +192,12 @@ export function ghlRoutes({ env, auth }){
 
   /* Which locations this request covers, and what to warn about. */
   async function scope(which){
-    const all = await ghlLocations();
+    const all = await subAccounts();
     const chosen = (!which || which === 'all')
       ? all
-      : all.filter(a => a.locationId === which || a.id === which);
+      : all.filter(a => a.id === which);
 
     const warnings = [];
-    for (const a of chosen) {
-      if (a.status !== 'ok') {
-        warnings.push({ account: a.id, label: a.label,
-          error: a.lastError || 'The token was rejected. Rotate it and reconnect. Reading still works; sending will not.' });
-      }
-    }
 
     /* One warning for the pipeline as a whole, because a stalled ingest is the
        reason a lead would look out of date and there is no per-location signal
@@ -277,7 +212,7 @@ export function ghlRoutes({ env, auth }){
       }
     } catch { /* the panel is a nicety; never fail a read over it */ }
 
-    return { ids: chosen.map(a => a.locationId), warnings };
+    return { ids: chosen.map(a => a.id), warnings };
   }
 
   /* Newest activity first. The stage filter is applied after mapping, because a
@@ -298,6 +233,8 @@ export function ghlRoutes({ env, auth }){
           + 'Filter by sub-account or stage to narrow it.' });
     }
 
+    /* The stage NAME, because that is what the cards show and because a card
+       folded across pipelines has no single stage id to match on. */
     const wantStage = String(req.query.stage || 'all');
     const leads = rows
       .map(row => {
@@ -312,10 +249,16 @@ export function ghlRoutes({ env, auth }){
           source: row.source || '',
           /* A name, never an id. Resolved in SQL through staff and ghl_user. */
           owner: row.contact_owner || row.opp_owner || '',
-          /* A contact with no opportunity has no stage in GHL — stage belongs to
-             an opportunity, not to a person. 'new' rather than toUiStage's
-             fallback, which would assert something untrue about 3,000 people. */
-          stage: hasOpportunity ? toUiStage(row.stage_name, row.status) : 'new',
+          /* GHL's own stage, not a six-way approximation of it. A contact with
+             no opportunity has no stage at all — stage belongs to an
+             opportunity, not to a person — and that is now said with null
+             rather than asserted as "new" about 3,000 people. */
+          stageId: row.stage_id || null,
+          stageName: row.stage_name || null,
+          /* open | won | lost | abandoned, from GHL. This, not the stage name,
+             is what decides whether a lead is still live: "Closed Won" as a
+             stage name and a status of open do disagree in this data. */
+          status: row.status || null,
           /* NUMERIC arrives from pg as a string. */
           value: Number(row.value) || 0,
           tags: Array.isArray(row.tags) ? row.tags : [],
@@ -329,7 +272,7 @@ export function ghlRoutes({ env, auth }){
           hasOpportunity
         };
       })
-      .filter(l => wantStage === 'all' || l.stage === wantStage);
+      .filter(l => wantStage === 'all' || l.stageName === wantStage);
 
     res.json({ leads, warnings });
   }));
@@ -340,7 +283,7 @@ export function ghlRoutes({ env, auth }){
     const parts = splitLeadId(rawId);
     if (!parts.locationId) return { error: 'malformed lead id', status: 400 };
 
-    const allowed = new Set((await ghlLocations()).map(a => a.locationId));
+    const allowed = await allowedLocationIds();
     if (!allowed.has(parts.locationId)) return { error: 'no such sub-account', status: 404 };
 
     const found = await loadLeadRow(parts.locationId, parts);
@@ -559,6 +502,20 @@ export function ghlRoutes({ env, auth }){
          uses the sub-account's default. Naming one would mean guessing. */
       const fromNumber = undefined;
 
+      /* Being listed and being sendable are different things now. A location is
+         readable because the pipeline ingested it; sending needs a GHL token,
+         which lives in command-center's own accounts table and arrives through
+         GHL_TOKEN_* seeding. Said before the attempt, because the alternative is
+         an "Unknown connection ghl:..." thrown from the token lookup. */
+      if (!(await sendableLocationIds()).has(locationId)) {
+        return res.status(400).json({
+          error: 'No GHL send token for this sub-account. Reading works without one, but sending '
+            + `needs GHL_TOKEN_<NAME> with GHL_LOCATION_<NAME>=${locationId} and the `
+            + 'conversations/message.write scope.',
+          kind: 'validation'
+        });
+      }
+
       let sent;
       try {
         const token = await tokenFor(locationId);
@@ -655,14 +612,15 @@ export function ghlRoutes({ env, auth }){
         if (b[f] !== undefined) contactFields[f] = String(b[f] ?? '').trim();
       }
 
-      const wantStage = b.stage === undefined ? null : String(b.stage).toLowerCase();
+      /* A real ghl_stage_id, validated against this location's pipeline below.
+         It used to be one of six invented keys mapped onto GHL's stage names by
+         pattern, which silently merged Qualified, Demo Scheduled and Demo
+         Complete into one and could not express the other four at all. */
+      const wantStage = b.stageId === undefined ? null : String(b.stageId).trim();
       const wantValue = b.value === undefined ? null : Number(b.value);
 
       if (wantValue !== null && !Number.isFinite(wantValue)) {
         return res.status(400).json({ error: 'value must be a number' });
-      }
-      if (wantStage && !UI_STAGES.includes(wantStage)) {
-        return res.status(400).json({ error: `stage must be one of ${UI_STAGES.join(', ')}` });
       }
       if (!Object.keys(contactFields).length && !wantStage && wantValue === null) {
         return res.status(400).json({ error: 'nothing to update' });
@@ -692,14 +650,13 @@ export function ghlRoutes({ env, auth }){
          is only as fresh as the ingest pipeline. A move GHL made in the last few
          minutes can still be reverted by a write from here. Narrowing that
          window is the pipeline's job, not a reason to call GHL. */
-      if (wantStage && b.expectedStage !== undefined) {
-        const actual = toUiStage(opportunity.stageName, opportunity.status);
-        if (actual !== String(b.expectedStage).toLowerCase()) {
-          return res.status(409).json({
-            error: `GHL has already moved this lead to ${actual}.`,
-            stage: actual
-          });
-        }
+      if (wantStage && b.expectedStageId !== undefined
+          && String(b.expectedStageId) !== String(opportunity.stageId || '')) {
+        return res.status(409).json({
+          error: `GHL has already moved this lead to ${opportunity.stageName || 'another stage'}.`,
+          stageId: opportunity.stageId,
+          stageName: opportunity.stageName
+        });
       }
 
       /* Contact first, then opportunity, so a failure part-way through is
@@ -749,15 +706,22 @@ export function ghlRoutes({ env, auth }){
               applied
             });
           }
-          const target = toGhlStage(wantStage, stages, 'open');
+          /* The id has to belong to THIS opportunity's pipeline. Passing a stage
+             id from another pipeline is the one way this endpoint could move a
+             lead somewhere nobody could see it. */
+          const target = stages.find(s => s.id === wantStage);
           if (!target) {
             return res.status(400).json({
-              error: `No stage in this pipeline maps to ${wantStage}.`,
+              error: 'That stage is not in this opportunity\'s pipeline.',
+              kind: 'validation',
               applied
             });
           }
           patch.pipelineStageId = target.id;
-          patch.status = statusForUiStage(wantStage);
+          /* Status is left alone. GHL tracks open/won/lost separately from the
+             stage, and this data has a "Closed Won" stage sitting at status
+             open — so inferring one from the other would overwrite a fact with
+             a guess. Change status explicitly when that is what is wanted. */
         }
         if (wantValue !== null) patch.monetaryValue = wantValue;
 
@@ -774,14 +738,12 @@ export function ghlRoutes({ env, auth }){
         try {
           await query(
             `UPDATE ghl_opportunity
-                SET ghl_stage_id = COALESCE($2, ghl_stage_id),
-                    status        = COALESCE($3, status),
-                    monetary_value = COALESCE($4, monetary_value),
-                    updated_at    = now()
+                SET ghl_stage_id   = COALESCE($2, ghl_stage_id),
+                    monetary_value = COALESCE($3, monetary_value),
+                    updated_at     = now()
               WHERE ghl_opportunity_id = $1`,
             [opportunity.id,
              wantStage ? patch.pipelineStageId : null,
-             wantStage ? patch.status : null,
              wantValue !== null ? wantValue : null]);
         } catch (err) {
           console.error('[api/ghl:patch] wrote to GHL but not to Supabase:', err.message);
