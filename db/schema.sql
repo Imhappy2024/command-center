@@ -53,89 +53,26 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 CREATE INDEX IF NOT EXISTS wh_unprocessed ON webhook_events (provider, processed) WHERE NOT processed;
 
 /* ---------------------------------------------------------------------------
-   GHL lead mirror.
+   NOT HERE: the GHL mirror.
 
-   GHL is the source of truth; these tables are a read mirror. Exactly two
-   writers: the webhook processor and the sync job. No request handler writes
-   here, which is why there is no conflict resolution anywhere in this codebase
-   — there are never two writable copies of a lead.
+   ghl_contacts, ghl_pipelines, ghl_opportunities and ghl_messages used to be
+   created here, and command-center filled them by paging the GHL API. That is
+   gone. Supabase is the source of truth now, an external pipeline (a backfill
+   script and n8n webhooks) owns GHL -> Supabase, and this dashboard reads
+   lead, ghl_message, ghl_opportunity and the rest through lib/ghl-data.js.
 
-   Every primary key is '<locationId>:<recordId>'. Two sub-accounts can hold the
-   same opportunity id without colliding, and a webhook can never write into a
-   location it did not come from, because the locationId half is taken from the
-   connected-accounts allow-list rather than from the payload.
+   Which means this file runs against a database it does not own. It may only
+   create command-center's OWN tables: accounts, webhook_events, sync_state and
+   the social ones below.
+
+   It must never CREATE, ALTER or DROP anything named ghl_*, lead, appointment,
+   or any portal table. A CREATE TABLE IF NOT EXISTS against a portal table that
+   already exists is worse than an error — it succeeds, changes nothing, and
+   leaves the code reading columns that are not there.
    --------------------------------------------------------------------------- */
 
-CREATE TABLE IF NOT EXISTS ghl_contacts (
-  id            TEXT PRIMARY KEY,              -- '<locationId>:<contactId>'
-  location_id   TEXT NOT NULL,
-  contact_id    TEXT NOT NULL,
-  name          TEXT,
-  first_name    TEXT,
-  last_name     TEXT,
-  phone         TEXT,
-  email         TEXT,
-  source        TEXT,
-  owner         TEXT,
-  tags          JSONB NOT NULL DEFAULT '[]',
-  custom        JSONB NOT NULL DEFAULT '{}',
-  date_added    TIMESTAMPTZ,
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  seen_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
-  deleted       BOOLEAN NOT NULL DEFAULT false,
-  UNIQUE (location_id, contact_id)
-);
-CREATE INDEX IF NOT EXISTS ghl_contacts_loc ON ghl_contacts (location_id) WHERE NOT deleted;
-
-CREATE TABLE IF NOT EXISTS ghl_pipelines (
-  id            TEXT PRIMARY KEY,              -- '<locationId>:<pipelineId>'
-  location_id   TEXT NOT NULL,
-  pipeline_id   TEXT NOT NULL,
-  name          TEXT,
-  stages        JSONB NOT NULL DEFAULT '[]',   -- [{id, name, position}]
-  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (location_id, pipeline_id)
-);
-
-CREATE TABLE IF NOT EXISTS ghl_opportunities (
-  id             TEXT PRIMARY KEY,             -- '<locationId>:<opportunityId>'
-  location_id    TEXT NOT NULL,
-  opportunity_id TEXT NOT NULL,
-  contact_id     TEXT,
-  pipeline_id    TEXT,
-  stage_id       TEXT,
-  stage_name     TEXT,
-  status         TEXT,                         -- open|won|lost|abandoned
-  name           TEXT,
-  value          NUMERIC(14,2) NOT NULL DEFAULT 0,
-  owner          TEXT,
-  date_added     TIMESTAMPTZ,
-  updated_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  seen_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-  deleted        BOOLEAN NOT NULL DEFAULT false,
-  UNIQUE (location_id, opportunity_id)
-);
-CREATE INDEX IF NOT EXISTS ghl_opps_loc ON ghl_opportunities (location_id) WHERE NOT deleted;
-CREATE INDEX IF NOT EXISTS ghl_opps_contact ON ghl_opportunities (location_id, contact_id);
-
-/* The primary key is GHL's own message id, and that IS the echo suppression.
-   A message sent from the dashboard is inserted here with origin='dashboard';
-   the OutboundMessage webhook that GHL fires straight back tries the same id and
-   ON CONFLICT DO NOTHING makes it a no-op. There is no separate echo table. */
-CREATE TABLE IF NOT EXISTS ghl_messages (
-  id              TEXT PRIMARY KEY,            -- '<locationId>:<messageId>'
-  location_id     TEXT NOT NULL,
-  conversation_id TEXT,
-  contact_id      TEXT NOT NULL,
-  direction       TEXT NOT NULL,               -- 'in' | 'out'
-  channel         TEXT NOT NULL,               -- sms|email|wa|fb|ig|call|other
-  body            TEXT,
-  sent_at         TIMESTAMPTZ NOT NULL,
-  origin          TEXT NOT NULL DEFAULT 'ghl', -- 'ghl' | 'dashboard'
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX IF NOT EXISTS ghl_msgs_contact ON ghl_messages (location_id, contact_id, sent_at);
-
+/* Kept: an interrupted job resumes from its cursor rather than starting over,
+   and the social poller still uses it. */
 CREATE TABLE IF NOT EXISTS sync_state (
   key         TEXT PRIMARY KEY,                -- 'ghl:<locationId>:contacts' etc
   cursor      TEXT,

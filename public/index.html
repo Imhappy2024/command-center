@@ -630,6 +630,35 @@ main{min-width:0;display:flex;flex-direction:column}
 .daysep{text-align:center;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.13em;
   text-transform:uppercase;color:var(--dimmer);margin:2px 0}
 
+/* An email's subject, above its body, so a thread of emails is scannable. */
+.bub .subj2{display:block;font-variation-settings:'wght' 600;margin-bottom:4px}
+
+/* A send that failed. Left in place rather than removed: a message that vanishes
+   reads as sent. */
+.bub.failed{background:#20100D;border-color:#43221B;color:var(--text)}
+.bub.failed .ch{color:var(--rust)}
+
+/* GHL activity records — opportunity moves, appointment bookings. Deliberately
+   not a bubble: nobody said these, and as bubbles they drown the conversation. */
+.actline{display:flex;align-items:center;gap:9px;margin:1px 0;color:var(--dimmer);
+  font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.11em;text-transform:uppercase}
+.actline::before,.actline::after{content:"";flex:1;height:1px;background:var(--edge)}
+
+/* Email header block. Only rendered on the email channel — Subject on an SMS
+   would be a field that goes nowhere. */
+.ehead{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-bottom:9px}
+.ehead label{display:flex;flex-direction:column;gap:3px;font-family:'IBM Plex Mono',monospace;
+  font-size:8.5px;letter-spacing:.11em;text-transform:uppercase;color:var(--dimmer)}
+.ehead label.wide{grid-column:1 / -1}
+.ehead input{background:var(--ink2);border:1px solid var(--edge);border-radius:7px;padding:7px 10px;
+  color:var(--text);font-family:inherit;font-size:12.5px;outline:0;letter-spacing:normal;text-transform:none}
+.ehead input:focus{border-color:var(--edge2)}
+
+/* Details-tab sections. */
+.dsec{border-top:1px solid var(--edge);padding-top:10px;margin-top:10px}
+.dsech{font-family:'IBM Plex Mono',monospace;font-size:8.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--dimmer);padding:0 14px 6px}
+
 .composer{border-top:1px solid var(--edge);padding:11px 14px;background:var(--panel)}
 .chanrow{display:flex;gap:4px;margin-bottom:9px}
 .chan{background:none;border:1px solid var(--edge);border-radius:6px;cursor:pointer;color:var(--dimmer);
@@ -2274,6 +2303,14 @@ const CHANNELS = [
 
 const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms', from:null };
 
+/* Kept beside THREADS rather than inside it. Activity records are GHL system
+   events, and pending rows are inbound webhooks that arrived with no ids — both
+   belong on the timeline but neither is a message, and folding them into THREADS
+   would make every consumer separate them again. */
+const ACTIVITY = {};
+const PENDING = {};
+const DETAIL = {};
+
 const locById = id => LOCATIONS.find(l => l.id === id);
 const stageLabel = k => (STAGES.find(s => s.k === k) || {}).label || k;
 const money = n => '\u20b1' + n.toLocaleString();
@@ -2489,8 +2526,12 @@ function senderControl(loc){
   const s = loc.senders;
 
   if (LD.channel === 'sms') {
-    if (!s) return 'Sender unknown until the first sync finishes';
+    if (!s) return 'Sender unknown';
     const nums = s.numbers || [];
+    /* GHL's sending numbers are not in the mirror, so there is nothing to pick
+       from and nothing to warn about. GHL uses the sub-account default, which is
+       what happened anyway whenever the old cache was cold. */
+    if (!nums.length && s.numbersUnavailable) return 'GHL sends from this sub-account’s default number';
     if (!nums.length) {
       return '<span style="color:var(--rust)">No number added in GHL</span>';
     }
@@ -2506,12 +2547,18 @@ function senderControl(loc){
   }
 
   if (LD.channel === 'email') {
-    /* Informational only. Unlike a number, this is not sent as the From — GHL
-       picks a verified sender, and there is no API to ask whether a given address
-       is one. Naming it here without forcing it is the honest middle. */
-    return s?.email
-      ? 'GHL sends as ' + escL(s.email) + ' or its verified default'
-      : 'GHL picks the verified sender';
+    /* A dropdown, not free text: GHL rejects an unverified sender, and it would
+       do so after the optimistic bubble had already claimed the mail was sent.
+       The options are the addresses the location profile carries. With one, it is
+       shown rather than hidden so the operator knows who the mail comes from. */
+    const addrs = (s?.emails && s.emails.length) ? s.emails : (s?.email ? [s.email] : []);
+    if (!addrs.length) return 'GHL picks its verified sender';
+    if (addrs.length === 1) return 'From ' + escL(addrs[0]);
+    const chosen = LD.from && addrs.includes(LD.from) ? LD.from : addrs[0];
+    return 'From <select class="stagesel" id="ld-from">'
+      + addrs.map(a => '<option value="' + escL(a) + '"'
+          + (a === chosen ? ' selected' : '') + '>' + escL(a) + '</option>').join('')
+      + '</select>';
   }
 
   /* WhatsApp and Facebook send as the connected asset, not as a number the API
@@ -2524,9 +2571,91 @@ function senderControl(loc){
 function canSend(loc){
   const s = loc.senders;
   if (!s) return true;                       // unknown; let GHL decide
-  if (LD.channel === 'sms')   return (s.numbers || []).length > 0;
-  if (LD.channel === 'email') return Boolean(s.email);
+  if (LD.channel === 'sms') {
+    /* Unknown is not the same as none. Sending numbers are not mirrored, so
+       disabling here would block every SMS on missing data rather than on a
+       missing number. */
+    return s.numbersUnavailable ? true : (s.numbers || []).length > 0;
+  }
+  /* Email always sends: GHL falls back to its verified default when no From is
+     named, and refusing here would be refusing on a guess. */
   return true;
+}
+
+/* Custom values, attribution, notes, tasks and appointments — everything the
+   Details tab shows that is not a column on the lead itself.
+
+   Rendered from Supabase through /detail, so the field NAME comes from
+   ghl_custom_field rather than from parsing a JSON blob, and every person is a
+   name resolved through staff or ghl_user rather than an id nobody can read. */
+function detailSections(l){
+  const d = DETAIL[l.id];
+  if (!d) return '<div class="fields"><div class="frow"><span class="k">Loading</span>'
+    + '<span class="v" style="color:var(--dimmer)">reading Supabase…</span></div></div>';
+
+  const rows = list => list.map(r =>
+    '<div class="frow"><span class="k">' + escL(r[0]) + '</span>'
+    + '<span class="v">' + escL(r[1]) + '</span></div>').join('');
+
+  const block = (title, inner, empty) =>
+    '<div class="dsec"><div class="dsech">' + escL(title) + '</div>'
+    + (inner || '<div class="frow"><span class="v" style="color:var(--dimmer)">'
+        + escL(empty) + '</span></div>')
+    + '</div>';
+
+  const out = [];
+
+  out.push(block('Custom fields',
+    rows(d.fields.map(f => [f.name, f.value])),
+    'None recorded in GHL.'));
+
+  /* Two rows, not one. First touch and last touch are the whole point of
+     attribution, and collapsing them loses it: for one lead here that is
+     folioexcel.com/#capture then folioexcel.com/. */
+  const first = d.attribution.find(a => a.which === 'first');
+  const last = d.attribution.find(a => a.which === 'last');
+  const touch = (label, a) => a
+    ? [[label, [a.source, a.campaign, a.url].filter(Boolean).join(' · ') || '(no detail)']]
+    : [];
+  out.push(block('Attribution',
+    rows([...touch('First touch', first), ...touch('Last touch', last)]),
+    'No attribution recorded.'));
+
+  out.push(block('Appointments',
+    rows(d.appointments.map(a => [
+      [a.day, a.time].filter(Boolean).join(' '),
+      [a.title, a.calendar, a.owner ? 'with ' + a.owner : null, a.status]
+        .filter(Boolean).join(' · ')
+    ])),
+    'None booked.'));
+
+  out.push(block('Tasks',
+    rows(d.tasks.map(t => [
+      t.done ? 'Done' : (t.due || 'No due date'),
+      [t.title, t.assignee].filter(Boolean).join(' · ')
+    ])),
+    'None open.'));
+
+  out.push(block('Notes',
+    rows(d.notes.map(n => [
+      n.at || '',
+      (n.author ? n.author + ': ' : '') + String(n.body).slice(0, 200)
+    ])),
+    'None written.'));
+
+  return out.join('');
+}
+
+/* Fetched once per lead and cached, because the Details tab is switched back and
+   forth and none of this changes between two clicks. */
+async function loadDetail(id){
+  if (CAL.demo || !id || DETAIL[id]) return;
+  try {
+    DETAIL[id] = await api('/api/ghl/leads/' + encodeURIComponent(id) + '/detail');
+    if (LD.sel === id && LD.tab === 'fields') drawLeadDetail();
+  } catch (err) {
+    banner('Could not load the lead details: ' + err.message);
+  }
 }
 
 function drawLeadDetail(){
@@ -2578,14 +2707,40 @@ function drawLeadDetail(){
 
   let body;
   if (LD.tab === 'thread') {
-    const t = THREADS[l.id] || [];
+    /* One chronological pass over three sources. Activity records render as a
+       slim marker rather than a bubble: they are things GHL did, not things
+       anyone said, and as bubbles they drown the conversation \u2014 one contact here
+       has 34 messages and 18 activity records. */
+    const items = [
+      ...(THREADS[l.id] || []).map(m => ({ ...m, _kind: 'msg' })),
+      ...(ACTIVITY[l.id] || []).map(a => ({ ...a, _kind: 'act' })),
+      ...(PENDING[l.id] || []).map(p => ({ ...p, _kind: 'msg', _unconf: true }))
+    ].sort((a, b) => (Date.parse(a.sentAt || 0) || 0) - (Date.parse(b.sentAt || 0) || 0));
+
     let lastDay = '';
-    const msgs = t.map(m => {
+    const msgs = items.map(m => {
       let sep = '';
-      if (m.day !== lastDay) { sep = '<div class="daysep">' + escL(m.day) + '</div>'; lastDay = m.day; }
+      if (m.day && m.day !== lastDay) {
+        sep = '<div class="daysep">' + escL(m.day) + '</div>';
+        lastDay = m.day;
+      }
+
+      if (m._kind === 'act') {
+        return sep + '<div class="actline"><span>' + escL(m.kind)
+          + (m.time ? ' \u00b7 ' + escL(m.time) : '') + '</span></div>';
+      }
+
       const ch = (CHANNELS.find(c => c.k === m.channel) || {}).label || m.channel;
-      return sep + '<div class="bub ' + m.dir + '">'
-        + '<span class="ch">' + ch + (m.dir === 'out' ? ' \u00b7 sent' : ' \u00b7 received') + '</span>'
+      const tail = m.failed ? ' \u00b7 not sent'
+                 : m.pending ? ' \u00b7 sending\u2026'
+                 : m._unconf ? ' \u00b7 not yet reconciled'
+                 : (m.dir === 'out' ? ' \u00b7 sent' : ' \u00b7 received');
+      return sep + '<div class="bub ' + m.dir + (m.failed ? ' failed' : '') + '">'
+        + '<span class="ch">' + ch + tail
+        + (m.actor ? ' \u00b7 ' + escL(m.actor) : '')
+        + (m.attachments ? ' \u00b7 ' + m.attachments + ' file' + (m.attachments === 1 ? '' : 's') : '')
+        + '</span>'
+        + (m.subject ? '<span class="subj2">' + escL(m.subject) + '</span>' : '')
         + escL(m.body) + '<span class="tm2">' + escL(m.time) + '</span></div>';
     }).join('');
 
@@ -2596,6 +2751,18 @@ function drawLeadDetail(){
         + '<div class="chanrow">' + CHANNELS.map(c =>
             '<button class="chan' + (LD.channel === c.k ? ' on' : '') + '" data-chan="' + c.k + '">'
             + c.label + '</button>').join('') + '</div>'
+        /* The channel switches the form. Email needs a header set; SMS and
+           WhatsApp do not, and showing Subject on an SMS would be a field that
+           goes nowhere \u2014 GHL only reads it on an Email send. */
+        + (LD.channel === 'email'
+            ? '<div class="ehead">'
+              + '<label>To<input id="ld-to" value="' + escL(l.email || '') + '"'
+              + ' placeholder="nobody@example.com"></label>'
+              + '<label>Cc<input id="ld-cc" placeholder="optional"></label>'
+              + '<label>Bcc<input id="ld-bcc" placeholder="optional"></label>'
+              + '<label class="wide">Subject<input id="ld-subj" placeholder="Required for email"></label>'
+              + '</div>'
+            : '')
         + '<textarea id="ld-msg" placeholder="Message ' + escL(l.name.split(' ')[0]) + ' by '
         + escL((CHANNELS.find(c => c.k === LD.channel) || {}).label) + '\u2026"></textarea>'
         + '<div class="crow"><button class="btn primary" data-lact="send"'
@@ -2620,12 +2787,20 @@ function drawLeadDetail(){
       + '<div class="frow"><span class="k">Sub-account</span><span class="v" style="color:'
         + loc.color + '">' + escL(loc.name) + '</span></div>'
       + f('GHL ID', l.ghlId)
-      + '</div></div>';
+      + '</div>'
+      + detailSections(l)
+      + '</div>';
   }
 
   el.innerHTML = head + tabs + body;
 
-  el.querySelectorAll('[data-ltab]').forEach(b => b.onclick = () => { LD.tab = b.dataset.ltab; drawLeadDetail(); });
+  el.querySelectorAll('[data-ltab]').forEach(b => b.onclick = () => {
+    LD.tab = b.dataset.ltab;
+    drawLeadDetail();
+    /* After the redraw, so the tab switches instantly and the sections fill in
+       when Supabase answers rather than holding the click. */
+    if (LD.tab === 'fields') loadDetail(l.id);
+  });
   el.querySelectorAll('[data-chan]').forEach(b => b.onclick = () => { LD.channel = b.dataset.chan; drawLeadDetail(); });
 
   /* Remembered across re-renders, so picking a second number does not snap back
@@ -2696,11 +2871,28 @@ function drawLeadDetail(){
       const text = ta.value.trim();
       if (!text) return;
 
+      const isEmail = LD.channel === 'email';
+      const subjEl = document.getElementById('ld-subj');
+      const subject = subjEl ? subjEl.value.trim() : '';
+
+      /* Blocked here as well as on the server, so the answer is instant and the
+         cursor lands in the field that is wrong. */
+      if (isEmail && !subject) {
+        banner('Email needs a subject.');
+        if (subjEl) subjEl.focus();
+        return;
+      }
+
+      const val = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
+      const list = v => v ? v.split(/[;,]/).map(x => x.trim()).filter(Boolean) : undefined;
+
       /* Painted first so the thread feels immediate, then confirmed. The row is
-         held by identity so the failure path removes this one and not whichever
+         held by identity so the failure path finds this one and not whichever
          row happens to be last by then. */
       const optimistic = { dir:'out', channel:LD.channel, body:text,
-        day:'Today', time:new Date().toTimeString().slice(0,5), pending:true };
+        subject: isEmail ? subject : null,
+        day:'Today', time:new Date().toTimeString().slice(0,5),
+        sentAt: new Date().toISOString(), pending:true };
       const thread = (THREADS[l.id] ||= []);
       thread.push(optimistic);
       const wasLast = l.last, wasKey = l.sortKey;
@@ -2710,18 +2902,32 @@ function drawLeadDetail(){
 
       try {
         const picker = document.getElementById('ld-from');
-        await post('/api/ghl/leads/' + encodeURIComponent(l.id) + '/message',
-          { channel: LD.channel, body: text, from: picker ? picker.value : undefined });
+        await post('/api/ghl/leads/' + encodeURIComponent(l.id) + '/message', {
+          channel: LD.channel,
+          body: text,
+          /* Email carries a rich body; SMS carries text. Sending HTML in the
+             text field arrives as visible markup. */
+          html: isEmail ? text.replace(/\n/g, '<br>') : undefined,
+          subject: isEmail ? subject : undefined,
+          to: isEmail ? (val('ld-to') || undefined) : undefined,
+          cc: isEmail ? list(val('ld-cc')) : undefined,
+          bcc: isEmail ? list(val('ld-bcc')) : undefined,
+          from: picker ? picker.value : undefined
+        });
         syncPulse('Sent via GHL');
         /* Reloads rather than patching the row in place: the server has the real
            message id and timestamp, and the stage may have moved in GHL. */
         await load();
       } catch (err) {
-        const at = thread.indexOf(optimistic);
-        if (at >= 0) thread.splice(at, 1);
+        /* Marked failed and left in place rather than removed. A message that
+           silently vanishes reads as sent; one labelled "not sent" does not, and
+           the text is still there to retry. */
+        optimistic.pending = false;
+        optimistic.failed = true;
         l.last = wasLast; l.sortKey = wasKey;
-        banner(err.message);
+        banner('Not sent: ' + err.message);
         drawLeads();
+        drawLeadDetail();
       }
       return;
     }
@@ -3446,6 +3652,8 @@ async function loadThread(id){
   try {
     const out = await api('/api/ghl/leads/' + encodeURIComponent(id) + '/thread');
     THREADS[id] = out.thread || [];
+    ACTIVITY[id] = out.activity || [];
+    PENDING[id] = out.pending || [];
     drawLeadDetail();
   } catch (err) {
     banner('Could not load the conversation: ' + err.message);

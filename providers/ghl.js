@@ -1,4 +1,4 @@
-﻿/* GoHighLevel, via Private Integration Tokens.
+/* GoHighLevel, via Private Integration Tokens.
 
    Not OAuth. A PIT is a long-lived scoped token generated in a sub-account's own
    UI. It behaves like a fixed access token: nothing renews it, and it only
@@ -7,45 +7,44 @@
 
    The consequence worth stating: when a token is rotated or revoked in GHL,
    calls simply start failing and the only fix is pasting a new one. So the first
-   401 sets status='reauth' and surfaces it rather than retrying forever. */
+   401 sets status='reauth' and surfaces it rather than retrying forever.
+
+   ---------------------------------------------------------------------------
+   THIS MODULE DOES NOT READ GHL DATA.
+
+   Supabase is the source of truth for contacts, opportunities, conversations
+   and messages; an external pipeline (a backfill script and n8n webhooks) fills
+   it, and command-center reads it through lib/ghl-data.js. What remains here is
+   the narrow set of calls that must reach GHL because GHL owns the side effect:
+
+     - sending a message, because GHL owns delivery
+     - verifying a token, because nothing else can prove it is valid and scoped
+     - the two record writes the detail panel makes
+
+   The paging, cursors and mirroring that used to live here are gone. If a screen
+   needs data that is not in Supabase, that is a gap in the ingest pipeline to
+   fix there, not a reason to add a read back into this file.
+   --------------------------------------------------------------------------- */
 
 const BASE = 'https://services.leadconnectorhq.com';
 
-/* The Version header is required. Omitting it produces failures that look like
-   auth problems and are not. */
 /* ---------------------------------------------------------------------------
-   The Version header, per endpoint.
+   The Version header, per endpoint. Required — omitting it produces failures
+   that look like auth problems and are not.
 
-   GHL has two API generations live at once. 'v3' is current; '2021-07-28' is the
-   previous one. Which a given endpoint accepts is not guessable, and getting it
-   wrong is rarely an error — several endpoints answer 200 with an empty list
-   instead, which is indistinguishable from "you have no data". That failure mode
-   cost this integration three separate debugging rounds: empty opportunities,
-   empty conversations, and sends that silently did nothing.
+   GHL has two API generations live at once. Which a given endpoint accepts is
+   not guessable, and getting it wrong is rarely an error: several endpoints
+   answer 200 with an empty list instead, which is indistinguishable from "you
+   have no data". That failure mode cost this integration three debugging rounds.
 
-   So it is a table, not a default with exceptions. Every entry says what it is
-   based on.
-
-     Endpoint                                  Version  Basis
-     GET  /locations/{id}                      v3       documented
-     GET  /contacts/                           dated    empirical, see below
-     PUT  /contacts/{id}                       v3       documented
-     GET  /opportunities/pipelines             v3       documented
-     GET  /opportunities/search                v3       documented
-     GET  /opportunities/{id}                  v3       documented
-     PUT  /opportunities/{id}                  v3       documented
-     GET  /conversations/search                v3       documented
-     GET  /conversations/{id}/messages         v3       documented
-     POST /conversations/messages              v3       documented
-     GET  /phone-system/numbers/location/{id}  v3       documented
-
-   GET /contacts/ is the one exception and the one entry not backed by docs: its
-   reference page does not render, and the dated version is mirroring thousands of
-   contacts in production right now. Working code beats a page that will not load,
-   so it stays until there is evidence to move it. */
+     Endpoint                        Version  Basis
+     GET  /locations/{id}            v3       documented
+     PUT  /contacts/{id}             v3       documented
+     PUT  /opportunities/{id}        v3       documented
+     POST /conversations/messages    v3       documented
+   --------------------------------------------------------------------------- */
 
 const V3 = 'v3';
-const DATED = '2021-07-28';
 const DEFAULT_VERSION = V3;
 
 const headers = (token, version = DEFAULT_VERSION) => ({
@@ -69,7 +68,7 @@ function classify(status, body){
       { status, kind: 'auth' });
   }
   if (status === 403) {
-    return new GhlError('The token is valid but missing scopes. It needs locations.readonly, contacts, opportunities and conversations.',
+    return new GhlError('The token is valid but missing scopes. Sending needs conversations/message.write; the detail panel also needs contacts.write and opportunities.write.',
       { status, kind: 'scope' });
   }
   if (status === 404) {
@@ -84,32 +83,16 @@ function classify(status, body){
 }
 
 /* Rate limits are per location: 100 requests per 10 seconds and 200k per day.
-   The headers are read so a caller can back off before being throttled rather
-   than after. */
+   Still read, and still respected, even though only sends remain — an outbound
+   burst is exactly the thing that trips a 429. */
 const readLimits = res => ({
   remaining: Number(res.headers.get('X-RateLimit-Remaining')),
   max: Number(res.headers.get('X-RateLimit-Max')),
   dailyRemaining: Number(res.headers.get('X-RateLimit-Daily-Remaining'))
 });
 
-/* The limiter needs to see the rate-limit headers, but the API functions below
-   all return normalised data with the headers stripped. Rather than thread a
-   reporter through nine signatures, call() publishes them here and
-   lib/ghl-limiter.js subscribes once. */
 let limitSink = null;
 export const onLimits = fn => { limitSink = fn; };
-
-/* Query string builder that drops absent values, so an optional cursor never
-   arrives at GHL as the literal string "undefined". */
-export function qs(params){
-  const out = new URLSearchParams();
-  for (const [k, v] of Object.entries(params)) {
-    if (v === undefined || v === null || v === '') continue;
-    out.set(k, String(v));
-  }
-  const s = out.toString();
-  return s ? `?${s}` : '';
-}
 
 export async function call(token, path, { method = 'GET', body, signal, version } = {}){
   const res = await fetch(`${BASE}${path}`, {
@@ -130,125 +113,25 @@ export async function call(token, path, { method = 'GET', body, signal, version 
   return { data: json, limits };
 }
 
-/* Proves a token before a row is written. A 200 means it is valid *and* scoped to
-   that location, which a token-shape check cannot tell you. */
+/* Proves a token before a row is written. A 200 means it is valid *and* scoped
+   to that location, which a token-shape check cannot tell you.
+
+   This is a GET, and it is the one read that stays: it reads a token's own
+   permissions, not GHL's business data. Without it a bad paste becomes a send
+   that fails much later, against a customer. */
 export async function verifyLocation(token, locationId, { signal } = {}){
   const { data } = await call(token, `/locations/${encodeURIComponent(locationId)}`, { signal });
   const loc = data?.location || data;
-  return {
-    id: loc?.id || locationId,
-    name: loc?.name || loc?.businessName || locationId,
-    /* The sub-account's own address. GHL treats a From that matches the location
-       admin email as already verified, which makes this the one sending address
-       obtainable from the API — there is no endpoint listing verified senders. */
-    email: loc?.email || null,
-    phone: loc?.phone || null
-  };
-}
-
-/* Active numbers for a sub-account.
-
-   Path parameter, not a query one, and Version: v3. skipNumberPool defaults to
-   true at GHL's end and is left that way: pool numbers rotate and are not
-   something to offer as a deliberate "send from" choice. */
-export async function listPhoneNumbers(token, locationId, { pageSize = 100, page = 0, signal } = {}){
-  const { data } = await call(token,
-    `/phone-system/numbers/location/${encodeURIComponent(locationId)}${qs({ pageSize, page })}`,
-    { signal, version: 'v3' });
-
-  const numbers = (data?.numbers || [])
-    .map(n => ({
-      phoneNumber: n.phoneNumber || null,
-      label: n.friendlyName || n.phoneNumber || null,
-      countryCode: n.countryCode || null
-    }))
-    .filter(n => n.phoneNumber);
-
-  return { numbers, total: Number(data?.total) || numbers.length };
-}
-
-/* ---------------------------------------------------------------------------
-   Normalisers.
-
-   Everything below returns our own shapes, never a raw GHL payload. GHL is
-   inconsistent about field names across endpoints and API versions — contactId
-   against contact.id, monetaryValue against value, createdAt against dateAdded,
-   camelCase query params on one route and snake_case on the next — so every one
-   of those choices is absorbed here and nowhere else.
-   --------------------------------------------------------------------------- */
-
-/* GHL returns dates as ISO strings on some endpoints and epoch milliseconds on
-   others. Both become an ISO string or null. */
-function iso(value){
-  if (value == null || value === '') return null;
-  const d = typeof value === 'number' || /^\d+$/.test(String(value))
-    ? new Date(Number(value))
-    : new Date(String(value));
-  return Number.isNaN(d.getTime()) ? null : d.toISOString();
-}
-
-/* customFields arrive as [{id, value}] or [{key, field_value}] depending on the
-   endpoint. Flattened to an object so the mirror column is queryable. */
-function customMap(fields){
-  if (!Array.isArray(fields)) return {};
-  const out = {};
-  for (const f of fields) {
-    const key = f?.key || f?.id;
-    if (!key) continue;
-    out[key] = f.value ?? f.field_value ?? f.fieldValue ?? null;
+  if (!loc?.id) {
+    throw new GhlError('GHL answered, but with no sub-account in the response.',
+      { status: 200, kind: 'other' });
   }
-  return out;
+  return { id: String(loc.id), name: loc.name || loc.businessName || locationId };
 }
-
-const asContact = c => ({
-  contactId: String(c.id),
-  name: c.contactName || c.name
-    || [c.firstName, c.lastName].filter(Boolean).join(' ')
-    || c.email || c.phone || '',
-  firstName: c.firstName || null,
-  lastName: c.lastName || null,
-  phone: c.phone || null,
-  email: c.email || null,
-  source: c.source || c.attributionSource?.utmSource || null,
-  owner: c.assignedTo || null,
-  tags: Array.isArray(c.tags) ? c.tags.map(String) : [],
-  custom: customMap(c.customFields || c.customField),
-  dateAdded: iso(c.dateAdded || c.createdAt)
-});
-
-const asPipeline = p => ({
-  pipelineId: String(p.id),
-  name: p.name || null,
-  stages: (p.stages || []).map(s => ({
-    id: String(s.id),
-    name: s.name || '',
-    position: Number(s.position ?? 0) || 0
-  }))
-});
-
-const asOpportunity = o => ({
-  opportunityId: String(o.id),
-  contactId: o.contactId ? String(o.contactId) : (o.contact?.id ? String(o.contact.id) : null),
-  pipelineId: o.pipelineId ? String(o.pipelineId) : null,
-  stageId: o.pipelineStageId ? String(o.pipelineStageId)
-         : (o.stageId ? String(o.stageId) : null),
-  status: String(o.status || 'open').toLowerCase(),
-  name: o.name || null,
-  value: Number(o.monetaryValue ?? o.value ?? 0) || 0,
-  owner: o.assignedTo || null,
-  dateAdded: iso(o.createdAt || o.dateAdded),
-  updatedAt: iso(o.updatedAt || o.dateUpdated)
-});
-
-const asConversation = c => ({
-  conversationId: String(c.id),
-  contactId: c.contactId ? String(c.contactId) : null,
-  lastMessageAt: iso(c.lastMessageDate || c.dateUpdated || c.dateAdded)
-});
 
 /* ---------------- channels ----------------
-   One map, used in both directions: the frontend's codes going out to GHL, and
-   GHL's message types coming back in. Kept together so they cannot drift. */
+   The frontend's codes going out to GHL. Kept as one map so the composer and
+   the send path cannot drift. */
 
 export const CHANNEL_TO_GHL = {
   sms: 'SMS',
@@ -258,208 +141,66 @@ export const CHANNEL_TO_GHL = {
   ig: 'IG'
 };
 
-const GHL_TO_CHANNEL = {
-  SMS: 'sms',
-  EMAIL: 'email',
-  WHATSAPP: 'wa',
-  FB: 'fb',
-  FACEBOOK: 'fb',
-  IG: 'ig',
-  INSTAGRAM: 'ig',
-  CALL: 'call',
-  VOICEMAIL: 'call',
-  GMB: 'other',
-  LIVE_CHAT: 'other',
-  REVIEW: 'other',
-  ACTIVITY: 'other'
-};
+/* Which channels carry a subject and a rich body rather than plain text. */
+export const IS_EMAIL_CHANNEL = channel => String(channel).toLowerCase() === 'email';
 
-/* messageType looks like 'TYPE_SMS'. The numeric `type` field is undocumented
-   and inconsistent, so it is deliberately not consulted — an unrecognised
-   channel becomes 'other' rather than a guess. */
-export function channelFromGhl(m){
-  const raw = String(m?.messageType || m?.type || '').toUpperCase().replace(/^TYPE_/, '');
-  return GHL_TO_CHANNEL[raw] || 'other';
-}
+/* ---------------- sending ----------------
 
-const asMessage = m => ({
-  messageId: String(m.id),
-  conversationId: m.conversationId ? String(m.conversationId) : null,
-  contactId: m.contactId ? String(m.contactId) : null,
-  direction: String(m.direction || '').toLowerCase() === 'inbound' ? 'in' : 'out',
-  channel: channelFromGhl(m),
-  body: m.body ?? m.message ?? null,
-  sentAt: iso(m.dateAdded || m.dateUpdated || m.createdAt)
-});
+   Field names verified against the live reference on 2026-08-21:
+   https://marketplace.gohighlevel.com/docs/ghl/conversations/send-a-new-message
 
-/* ---------------------------------------------------------------------------
-   Reads. The paged ones return { items, next }, where next is the cursor to
-   hand back, or null once the last page has been reached.
-   --------------------------------------------------------------------------- */
+   Two corrections that reference forced, both of the kind that fails silently:
 
-export async function listContacts(token, locationId, { startAfterId, startAfter, limit = 100, signal } = {}){
-  /* DATED, deliberately. The only endpoint here not on v3 — see the table above. */
-  const { data } = await call(token,
-    `/contacts/${qs({ locationId, limit, startAfterId, startAfter })}`,
-    { signal, version: DATED });
-  const items = (data?.contacts || []).map(asContact);
-  const meta = data?.meta || {};
-  /* GHL returns a next cursor even on the final page, so a page short of `limit`
-     is the only reliable end-of-list signal. */
-  const more = items.length >= limit && (meta.startAfterId || meta.startAfter);
-  return {
-    items,
-    next: more ? { startAfterId: meta.startAfterId, startAfter: meta.startAfter } : null
-  };
-}
+   - conversationId is NOT a request field. It appears only in the response. The
+     previous implementation sent it to continue a thread; GHL ignored it. GHL
+     groups by contact on its own, so threading still works — but nothing here
+     may claim to control it.
 
-export async function listPipelines(token, locationId, { signal } = {}){
-  const { data } = await call(token, `/opportunities/pipelines${qs({ locationId })}`, { signal });
-  return (data?.pipelines || []).map(asPipeline);
-}
+   - There is no From-name field. emailFrom sets the address; the display name
+     comes from the sender GHL has verified. A fromName input would have been a
+     box that changed nothing, which is worse than not offering it.
 
-/* contactId is not in the brief's parameter list, but the webhook processor
-   needs it: a Custom Webhook payload is contact-shaped, so when an opportunity
-   event arrives carrying no opportunity id, asking for that contact's
-   opportunities is the only way to find what changed. */
-export async function searchOpportunities(token, locationId, { pipelineId, contactId, startAfter, startAfterId, page, limit = 100, signal } = {}){
-  /* camelCase, and Version: v3. Both matter: this endpoint documents locationId
-     as required, and given location_id instead it does not error — it answers
-     with an empty list, which is indistinguishable from a sub-account that has no
-     opportunities. That is exactly how a mirror ends up silently empty. */
-  const { data } = await call(token, `/opportunities/search${qs({
-    locationId,
-    pipelineId,
-    contactId,
-    limit,
-    page,
-    startAfter,
-    startAfterId
-  })}`, { signal, version: 'v3' });
+   status is required, not optional. Omitting it is rejected outright, and
+   'pending' is the honest value for a message just handed over — GHL moves it to
+   delivered or failed itself. */
 
-  const items = (data?.opportunities || []).map(asOpportunity);
+const asArray = v => (Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []));
 
-  /* Two pagination schemes live on this endpoint depending on API version: a
-     meta cursor, or page/limit with a top-level total. Cursor is preferred when
-     offered; page counting is the fallback. A short page ends it either way. */
-  const meta = data?.meta || {};
-  if (items.length < limit) return { items, next: null };
+export async function sendMessage(token, {
+  type, contactId, message, html, subject,
+  emailFrom, emailTo, emailCc, emailBcc, emailReplyMode,
+  attachments, fromNumber, replyMessageId, signal
+} = {}){
+  const body = { type, contactId, status: 'pending' };
 
-  if (meta.startAfterId || meta.startAfter) {
-    return { items, next: { startAfterId: meta.startAfterId, startAfter: meta.startAfter } };
+  if (type === 'Email') {
+    /* html is the email body. Putting HTML in `message` sends the markup as
+       plain text, which is what "the email arrived full of tags" looks like. */
+    if (html) body.html = html;
+    if (message && !html) body.message = message;
+    if (subject) body.subject = subject;
+    if (emailFrom) body.emailFrom = emailFrom;
+    if (emailTo) body.emailTo = emailTo;
+    /* Arrays, not comma-separated strings. */
+    if (asArray(emailCc).length) body.emailCc = asArray(emailCc);
+    if (asArray(emailBcc).length) body.emailBcc = asArray(emailBcc);
+    if (emailReplyMode) body.emailReplyMode = emailReplyMode;
+  } else {
+    body.message = message;
+    /* Optional. Left unset, GHL sends from the sub-account's own configured
+       number — picking one here would mean guessing at its telephony setup. */
+    if (fromNumber) body.fromNumber = fromNumber;
   }
 
-  const total = Number(data?.total ?? meta.total);
-  const current = Number(page) || 1;
-  if (Number.isFinite(total) && current * limit >= total) return { items, next: null };
-  return { items, next: { page: current + 1 } };
-}
-
-export async function getOpportunity(token, opportunityId, { signal } = {}){
-  const { data } = await call(token,
-    `/opportunities/${encodeURIComponent(opportunityId)}`, { signal });
-  const o = data?.opportunity || data;
-  return o?.id ? asOpportunity(o) : null;
-}
-
-/* The whole /conversations family wants Version: v3. Sent the dated version, the
-   search answers with an empty list rather than an error — the same silent-empty
-   failure that hid the opportunities bug. */
-const CONVERSATIONS_VERSION = 'v3';
-
-export async function searchConversations(token, locationId, { contactId, startAfterDate, limit = 100, signal } = {}){
-  const { data } = await call(token, `/conversations/search${qs({
-    locationId,
-    contactId,
-    startAfterDate,
-    limit
-  })}`, { signal, version: CONVERSATIONS_VERSION });
-  return (data?.conversations || []).map(asConversation);
-}
-
-export async function listMessages(token, conversationId, { lastMessageId, limit = 100, signal } = {}){
-  const { data } = await call(token,
-    `/conversations/${encodeURIComponent(conversationId)}/messages${qs({ lastMessageId, limit })}`,
-    { signal, version: CONVERSATIONS_VERSION });
-  /* Nested on current API versions as { messages: { messages: [], lastMessageId } }
-     and a bare array on older ones. */
-  const inner = data?.messages;
-  const rows = Array.isArray(inner) ? inner : (inner?.messages || []);
-  return {
-    items: rows.map(asMessage).filter(m => m.sentAt),
-    next: inner?.nextPage && inner?.lastMessageId ? { lastMessageId: inner.lastMessageId } : null
-  };
-}
-
-/* ---------------------------------------------------------------------------
-   Writes.
-   --------------------------------------------------------------------------- */
-
-/* pipelineId and pipelineStageId are both REQUIRED by this endpoint, on every
-   call — not only when moving stage. Changing just the value still has to restate
-   where the opportunity already sits, or the request is rejected. The caller
-   therefore always passes the current pipeline and stage, and this refuses early
-   rather than letting GHL do it. */
-export async function updateOpportunity(token, opportunityId, { pipelineStageId, pipelineId, status, monetaryValue, name, signal } = {}){
-  if (!pipelineId || !pipelineStageId) {
-    throw new Error(
-      'updateOpportunity needs both pipelineId and pipelineStageId — GHL requires them '
-      + 'on every update, including one that only changes the value.');
-  }
-
-  const body = { pipelineId, pipelineStageId };
-  if (status !== undefined)        body.status = status;
-  if (monetaryValue !== undefined) body.monetaryValue = Number(monetaryValue) || 0;
-  if (name !== undefined)          body.name = name;
-
-  const { data } = await call(token, `/opportunities/${encodeURIComponent(opportunityId)}`,
-    { method: 'PUT', body, signal });
-  const o = data?.opportunity || data;
-  return o?.id ? asOpportunity(o) : null;
-}
-
-/* Takes our field names rather than GHL's, so the vocabulary translation stays
-   inside this module in both directions. A contact has no single name field in
-   GHL, so a display name is split on the first space. */
-export async function updateContact(token, contactId, fields = {}, { signal } = {}){
-  const body = {};
-  if (fields.name !== undefined) {
-    const parts = String(fields.name || '').trim().split(/\s+/).filter(Boolean);
-    body.firstName = parts.shift() || '';
-    body.lastName = parts.join(' ');
-  }
-  if (fields.phone !== undefined)  body.phone = fields.phone;
-  if (fields.email !== undefined)  body.email = fields.email;
-  if (fields.owner !== undefined)  body.assignedTo = fields.owner;
-  if (fields.source !== undefined) body.source = fields.source;
-  if (fields.tags !== undefined)   body.tags = fields.tags;
-  if (!Object.keys(body).length) throw new Error('updateContact called with no fields');
-
-  const { data } = await call(token, `/contacts/${encodeURIComponent(contactId)}`,
-    { method: 'PUT', body, signal });
-  const c = data?.contact || data;
-  return c?.id ? asContact(c) : null;
-}
-
-export async function sendMessage(token, { type, contactId, message, conversationId, fromNumber, emailFrom, subject, signal } = {}){
-  /* status is a required field on this endpoint, not an optional one. Omitting it
-     is rejected outright. 'pending' is the honest value for a message just handed
-     over: GHL moves it to delivered or failed itself. */
-  const body = { type, contactId, message, status: 'pending' };
-
-  if (conversationId) body.conversationId = conversationId;
-  /* Both optional. Left unset, GHL sends from the sub-account's own configured
-     number or address, which is what we want — picking one here would mean
-     guessing at the location's telephony setup. */
-  if (fromNumber) body.fromNumber = fromNumber;
-  if (emailFrom) body.emailFrom = emailFrom;
-  if (subject) body.subject = subject;
+  /* URLs, not multipart. Anything local must be uploaded somewhere first. */
+  if (asArray(attachments).length) body.attachments = asArray(attachments);
+  if (replyMessageId) body.replyMessageId = replyMessageId;
 
   const { data } = await call(token, '/conversations/messages',
-    { method: 'POST', body, signal, version: CONVERSATIONS_VERSION });
+    { method: 'POST', body, signal, version: V3 });
 
-  /* The send response is not a message object — it carries ids and nothing else
-     — so the caller composes the mirror row from what it already knows. */
+  /* The send response carries ids and nothing else, so the caller composes the
+     row it stores from what it already knows. */
   const id = data?.messageId || data?.msg?.id || data?.message?.id || data?.id;
   if (!id) {
     throw new GhlError('GHL accepted the send but returned no message id, so it cannot be recorded.',
@@ -467,6 +208,44 @@ export async function sendMessage(token, { type, contactId, message, conversatio
   }
   return {
     messageId: String(id),
-    conversationId: data?.conversationId ? String(data.conversationId) : (conversationId || null)
+    /* Response-only, and the only place a conversation id may come from. */
+    conversationId: data?.conversationId ? String(data.conversationId) : null
   };
+}
+
+/* ---------------- record writes ----------------
+
+   The detail panel edits a contact and moves an opportunity. Both are writes to
+   records GHL owns, so they go to GHL; the resulting change comes back through
+   the webhook and the ingest pipeline. Neither reads anything. */
+
+export async function updateOpportunity(token, opportunityId,
+  { pipelineStageId, pipelineId, status, monetaryValue, name, signal } = {}){
+  const body = {};
+  if (pipelineStageId) body.pipelineStageId = pipelineStageId;
+  if (pipelineId) body.pipelineId = pipelineId;
+  if (status) body.status = status;
+  if (monetaryValue !== undefined) body.monetaryValue = monetaryValue;
+  if (name) body.name = name;
+  if (!Object.keys(body).length) throw new Error('updateOpportunity called with no fields');
+
+  const { data } = await call(token, `/opportunities/${encodeURIComponent(opportunityId)}`,
+    { method: 'PUT', body, signal });
+  const o = data?.opportunity || data;
+  return o?.id ? { id: String(o.id) } : null;
+}
+
+export async function updateContact(token, contactId, fields = {}, { signal } = {}){
+  const body = {};
+  if (fields.firstName !== undefined) body.firstName = fields.firstName;
+  if (fields.lastName !== undefined)  body.lastName = fields.lastName;
+  if (fields.email !== undefined)     body.email = fields.email;
+  if (fields.phone !== undefined)     body.phone = fields.phone;
+  if (fields.tags !== undefined)      body.tags = fields.tags;
+  if (!Object.keys(body).length) throw new Error('updateContact called with no fields');
+
+  const { data } = await call(token, `/contacts/${encodeURIComponent(contactId)}`,
+    { method: 'PUT', body, signal });
+  const c = data?.contact || data;
+  return c?.id ? { id: String(c.id) } : null;
 }

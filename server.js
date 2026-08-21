@@ -7,7 +7,6 @@ import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
 import { PROVIDERS, missingVars } from './lib/oauth.js';
 import { seedFromEnv } from './lib/ghl-seed.js';
-import { backfillPending } from './lib/ghl-sync.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -93,40 +92,32 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`  auth:     ${gate}`);
   console.log('  tokens:   Postgres, AES-256-GCM at rest');
   console.log(`  origin:   ${env.PUBLIC_URL}`);
-  /* Stated at boot rather than left silent. This endpoint writes to the lead
-     mirror and takes no secret; the locationId allow-list is what contains it. */
+  /* Stated at boot rather than left silent. This endpoint writes into Supabase
+     and takes no secret; the locationId allow-list is what contains it. */
   console.log('  webhooks: /webhooks/ghl OPEN — unauthenticated, allow-listed by locationId');
-  console.log(`  ghl sync: reconcile every ${app.locals.background?.intervalMinutes ?? '—'}m, `
-    + 'full pass daily');
+  console.log('  ghl:      READ-ONLY from Supabase; sends go to GHL. '
+    + 'The ingest pipeline owns GHL -> Supabase.');
   console.log(`  social:   poll every ${app.locals.background?.socialMinutes ?? '—'}m `
     + '(platform APIs are never called from a request)');
 
-  /* Seeding, then any pending first sync — both after listen() and both
-     detached.
+  /* Seeding, after listen() and detached.
 
-     Seeding used to be awaited before listen(). It verifies each declared
-     GHL_TOKEN_* against GHL, which is a network round trip per new or rotated
-     token, and with four sub-accounts that pushed boot past Railway's 60-second
-     health check window: the container was killed for being unhealthy while it
-     sat waiting on someone else's API. Nothing that calls a third party belongs
-     in front of readiness.
+     It verifies each declared GHL_TOKEN_* against GHL, which is a network round
+     trip per new or rotated token, and with four sub-accounts that pushed boot
+     past Railway's 60-second health check window: the container was killed for
+     being unhealthy while it sat waiting on someone else's API. Nothing that
+     calls a third party belongs in front of readiness.
 
-     Chained rather than parallel, because a first backfill needs the rows the
-     seeder writes. */
+     No backfill follows it any more. The token exists so this dashboard can
+     SEND; filling Supabase is the ingest pipeline's job. */
   seedFromEnv(env)
     .then(seed => {
       if (seed.declared) {
         console.log(`GHL env sub-accounts: ${seed.declared} declared, `
           + `${seed.seeded} written, ${seed.skipped} skipped`);
       }
-      /* Any sub-account that has never completed a backfill, or whose last one
-         failed. Env-seeded locations never pass through the connect sheet, so
-         without this their first sync would wait on the reconcile timer. A
-         location already 'done' is left alone — restarting it every deploy would
-         re-page the entire history. */
-      return backfillPending({ env });
     })
-    .catch(err => console.error('[boot] seeding or first backfill failed:', err.message));
+    .catch(err => console.error('[boot] seeding failed:', err.message));
 
   /* Reported through missingVars, the same check the connect sheet uses, and
      enumerated from PROVIDERS so a provider added later is covered without
@@ -152,8 +143,8 @@ for (const signal of ['SIGTERM', 'SIGINT']) {
   process.on(signal, () => {
     console.log(`${signal} received, shutting down`);
     server.close(async () => {
-      /* Before the pool closes: the webhook worker and the reconciler both hold
-         queries, and closing under them would leave a batch half applied. */
+      /* Before the pool closes: the webhook worker and the social poller both
+         hold queries, and closing under them would leave a batch half applied. */
       await app.locals.background?.stop().catch(() => {});
       await close();
       process.exit(0);
