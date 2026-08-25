@@ -14,6 +14,9 @@ import express from 'express';
 import { query } from '../db/index.js';
 import { accountsFor } from '../lib/accounts.js';
 import { guarded } from './guard.js';
+import {
+  parseSchedule, nextRunAfter, pollerStatus, runNow, providerFamily, lastRuns
+} from '../lib/social-sync.js';
 
 const configured = env => Boolean(env.META_APP_ID && env.META_APP_SECRET);
 
@@ -274,6 +277,193 @@ export function socialRoutes({ env, auth }){
         : notice(accounts)
     });
   }));
+
+  /* ---------------- per-platform dashboards ----------------
+
+     One route per platform key, everything its dashboard needs in one answer:
+     the connected accounts with their daily series and recent posts, the ads
+     table for meta_ads, when each was last polled, and when the next scheduled
+     pass is. Nothing here calls a platform API — that is the poller's job, on
+     its schedule or on the Fetch now button below. */
+
+  const PLATFORM_KEYS = ['facebook', 'instagram', 'youtube', 'x', 'meta_ads'];
+  /* Which sign-in produces this platform's account rows. */
+  const GRANT = { facebook: 'meta', instagram: 'meta', meta_ads: 'meta', youtube: 'youtube', x: 'x' };
+
+  const scheduleInfo = async () => {
+    const sched = parseSchedule(env);
+    const runs = await lastRuns().catch(() => []);
+    const find = k => runs.find(r => r.key === k);
+    const fmt = t => String(t.h).padStart(2, '0') + ':' + String(t.m).padStart(2, '0');
+    return {
+      tz: sched.tz,
+      times: sched.times.map(fmt),
+      next: nextRunAfter(new Date(), sched).toISOString(),
+      lastScheduled: find('social:schedule')?.last_run || null,
+      lastManual: find('social:last-manual')?.last_run || null,
+      ...pollerStatus()
+    };
+  };
+
+  r.get('/api/social/platform/:key', auth.require, guarded('api/social/platform', async (req, res) => {
+    const key = String(req.params.key);
+    if (!PLATFORM_KEYS.includes(key)) return res.status(404).json({ error: 'unknown platform' });
+
+    const days = rangeOf(req.query.range);
+    const all = await accountsFor('social');
+    const accounts = all.filter(a => a.provider === key);
+    const schedule = await scheduleInfo();
+    const grant = GRANT[key];
+
+    if (!accounts.length) {
+      return res.json({
+        provider: key,
+        grant,
+        connected: false,
+        /* A Meta grant with no page found is different from no grant at all,
+           and the empty state should say which. */
+        grantConnected: grant === 'meta' ? all.some(a => a.provider === 'meta') : false,
+        configured: grant === 'meta' ? configured(env) : true,
+        range: days,
+        schedule,
+        accounts: []
+      });
+    }
+
+    const ids = accounts.map(a => a.id);
+    const runs = await lastRuns().catch(() => []);
+    const runOf = id => runs.find(r => r.key === `social:${id}`) || {};
+
+    let series = [];
+    let posts = [];
+    let ads = null;
+
+    if (key === 'meta_ads') {
+      const { rows } = await query(
+        `SELECT account_id, day, campaign_id, campaign, objective, status,
+                spend, reach, results, currency
+           FROM ads_daily
+          WHERE account_id = ANY($1) AND day >= (CURRENT_DATE - $2::int)
+          ORDER BY day ASC`,
+        [ids, days]);
+
+      const daily = rows.filter(r2 => r2.campaign_id === '').map(r2 => ({
+        account: r2.account_id, day: r2.day,
+        spend: Number(r2.spend) || 0, reach: Number(r2.reach) || 0, results: Number(r2.results) || 0
+      }));
+
+      /* Newest reading per campaign — Meta's date_preset is a rolling window,
+         so the latest row is "the last N days as of the last poll". */
+      const seen = new Set();
+      const campaigns = [];
+      for (const r2 of rows.slice().reverse()) {
+        if (r2.campaign_id === '' || seen.has(r2.account_id + ':' + r2.campaign_id)) continue;
+        seen.add(r2.account_id + ':' + r2.campaign_id);
+        campaigns.push({
+          account: r2.account_id,
+          name: r2.campaign || '(unnamed campaign)',
+          objective: r2.objective || '',
+          status: r2.status || 'Active',
+          spend: Number(r2.spend) || 0,
+          reach: Number(r2.reach) || 0,
+          results: Number(r2.results) || 0
+        });
+      }
+      ads = {
+        currency: rows.find(r2 => r2.currency)?.currency || null,
+        daily,
+        campaigns: campaigns.sort((a, b) => b.spend - a.spend)
+      };
+    } else {
+      const { rows } = await query(
+        `SELECT account_id, day, followers, reach, views, interactions, posts
+           FROM social_metrics
+          WHERE account_id = ANY($1) AND day >= (CURRENT_DATE - $2::int)
+          ORDER BY day ASC`,
+        [ids, days]);
+      series = rows.map(r2 => ({
+        account: r2.account_id,
+        day: r2.day,
+        followers: r2.followers == null ? null : Number(r2.followers),
+        reach: r2.reach == null ? null : Number(r2.reach),
+        views: r2.views == null ? null : Number(r2.views),
+        interactions: r2.interactions == null ? null : Number(r2.interactions),
+        posts: r2.posts == null ? null : Number(r2.posts)
+      }));
+
+      const { rows: prows } = await query(
+        `SELECT account_id, title, permalink, published_at, reach, views, shares, interactions
+           FROM social_posts
+          WHERE account_id = ANY($1)
+            AND published_at >= (now() - ($2::int || ' days')::interval)
+          ORDER BY published_at DESC
+          LIMIT 100`,
+        [ids, days]);
+      posts = prows.map(p2 => ({
+        account: p2.account_id,
+        title: p2.title || '(untitled)',
+        permalink: p2.permalink || null,
+        when: whenLabel(p2.published_at),
+        publishedAt: p2.published_at,
+        reach: Number(p2.reach) || 0,
+        views: Number(p2.views) || 0,
+        shares: Number(p2.shares) || 0,
+        interactions: Number(p2.interactions) || 0
+      }));
+    }
+
+    res.json({
+      provider: key,
+      grant,
+      connected: true,
+      configured: true,
+      range: days,
+      schedule,
+      accounts: accounts.map(a => ({
+        id: a.id,
+        label: a.label,
+        handle: a.email || a.label,
+        color: a.color,
+        status: a.status,
+        lastError: a.lastError || null,
+        lastRun: runOf(a.id).last_run || null,
+        lastPollError: runOf(a.id).last_error || null
+      })),
+      series,
+      posts,
+      ads
+    });
+  }));
+
+  /* ---------------- manual fetch ----------------
+
+     The one place a platform API is called outside the schedule, and only on a
+     click. `provider` is a family: youtube, x, or meta (which is facebook +
+     instagram + meta_ads, because one grant feeds all three). Runs to completion
+     and answers with the outcome, so the button can say what happened. 409
+     while a pass is already running — two clicks must not mean two X bills. */
+  r.post('/api/social/refresh', auth.require, express.json(), async (req, res) => {
+    const family = providerFamily(req.body?.provider);
+    if (!family) {
+      return res.status(400).json({ error: 'provider must be youtube, meta or x' });
+    }
+    if (pollerStatus().running) {
+      return res.status(409).json({ error: 'A fetch is already running.', ...pollerStatus() });
+    }
+    try {
+      const out = await runNow({ env, providers: family });
+      if (!out.ok) return res.status(409).json({ error: 'A fetch is already running.', ...out });
+      res.json({ ok: true, providers: family, accounts: out.accounts, polled: out.polled,
+                 failed: out.failed, results: out.results, schedule: await scheduleInfo() });
+    } catch (err) {
+      console.error('[api/social/refresh]', err.message);
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  r.get('/api/social/refresh/status', auth.require, async (req, res) => {
+    res.json(await scheduleInfo());
+  });
 
   /* Meta verifies a subscription by echoing hub.challenge back. Answering it
      correctly costs nothing and means the subscription can be set up before the

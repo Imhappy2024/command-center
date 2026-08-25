@@ -118,8 +118,12 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('  webhooks: /webhooks/ghl OPEN — unauthenticated, allow-listed by locationId');
   console.log('  ghl:      READ-ONLY from Supabase; sends go to GHL. '
     + 'The ingest pipeline owns GHL -> Supabase.');
-  console.log(`  social:   poll every ${app.locals.background?.socialMinutes ?? '—'}m `
-    + '(platform APIs are never called from a request)');
+  {
+    const so = app.locals.background?.social;
+    const times = so ? so.schedule.times.map(t => String(t.h).padStart(2, '0') + ':' + String(t.m).padStart(2, '0')).join(', ') : '—';
+    const next = so ? so.nextRun().toISOString() : '—';
+    console.log(`  social:   scheduled ${times} ${so?.schedule.tz ?? ''} · next ${next} · manual via Fetch now`);
+  }
 
   /* Seeding, after listen() and detached.
 

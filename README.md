@@ -266,24 +266,22 @@ and an explanation, so anything still calling them is told why.
 
 ## Social
 
-Metrics and ads. **No DMs** — Facebook and Instagram messaging needs Advanced
-Access, which is its own review cycle, and when it lands those threads belong in
-the Inbox as accounts rather than in a second messaging UI here.
+Sub-menu under the nav item: **Overview, YouTube, Meta, X**. Each platform view
+shows a connect button until an account for it exists, then a metrics dashboard —
+stat tiles, a per-day chart with a metric toggle, top posts, and the accounts
+behind it with when each was last pulled. Meta has three views under one grant:
+**FB Page, Instagram, Meta Ads**.
 
-Same shape as Leads: a poller writes snapshot tables, the read routes serve them,
-and **no platform API is ever called from a request handler**. That is not
-tidiness — YouTube's quota cannot be bought, Meta Ads throttles on a spend-scaled
-budget, and X bills per read.
+Data is pulled on a schedule — **06:00 and 12:00 America/Chicago** by default
+(`SOCIAL_SCHEDULE`, `SOCIAL_SCHEDULE_TZ`) — and on demand with **Fetch now**, which
+pulls only the family on screen: a YouTube click never bills an X read. One lock
+covers the scheduled pass and the button, so a click during the 06:00 run answers
+409 rather than starting a second pass. At boot, accounts that have *never* been
+polled get one pass after 45s so a fresh connection fills before its first slot;
+everything else waits for the schedule, because X bills per read and a redeploy
+is not a reason to spend.
 
-| Provider | Connects | Yields |
-|---|---|---|
-| Meta | one sign-in | a row per Page, per linked Instagram account, per ad account |
-| YouTube | separately | one channel |
-| X | separately | one account |
-
-LinkedIn is permanently out. The Community Management API needs a screencast and
-a live sign-off call for follower counts, and messaging is not available to
-commercial integrations at all. The view renders it as a dimmed "API closed" tile.
+The header states when the data was last pulled and when the next pull is.
 
 ### One Meta grant, several accounts
 
@@ -431,7 +429,7 @@ with the variable it needs.
 | `META_APP_ID` / `META_APP_SECRET` | Business-type app. Covers Pages, Instagram and Ads in one grant |
 | `META_WEBHOOK_VERIFY_TOKEN` | You invent it; Meta echoes it back at `GET /webhooks/meta` |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET` | OAuth 2.0 "Web App". **Reads bill at $0.005 each** |
-| `SOCIAL_POLL_MINUTES` | Default `60`, floors at `15`. How often the poller runs |
+| `SOCIAL_SCHEDULE` / `SOCIAL_SCHEDULE_TZ` | Default `60`, floors at `15`. How often the poller runs |
 
 **Behaviour**
 

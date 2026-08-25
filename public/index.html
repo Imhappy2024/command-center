@@ -717,6 +717,22 @@ main{min-width:0;display:flex;flex-direction:column}
 .tbl .name{color:var(--cream);font-variation-settings:'wght' 500}
 .tbl .sm{font-size:11px;color:var(--dimmer);display:block;margin-top:2px}
 .miniplat{display:inline-block;width:6px;height:6px;border-radius:2px;background:var(--c);margin-right:7px;vertical-align:1px}
+/* ---------- social dashboards ---------- */
+.sochart{width:100%;height:160px;display:block}
+.sochart rect{transition:opacity .12s}
+.sochart rect:hover{opacity:1 !important}
+.soaxis{display:flex;justify-content:space-between;font-family:'IBM Plex Mono',monospace;font-size:9px;
+  letter-spacing:.1em;color:var(--dimmer);text-transform:uppercase;padding:4px 2px 0}
+.sometrics{display:flex;gap:6px;flex-wrap:wrap}
+.sometric{background:none;border:1px solid var(--edge);border-radius:20px;color:var(--dim);cursor:pointer;
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+  padding:5px 11px;transition:.13s}
+.sometric:hover{border-color:var(--edge2);color:var(--text)}
+.sometric.on{background:var(--cream);border-color:var(--cream);color:#12161A}
+.soacct{display:flex;align-items:center;gap:9px;padding:9px 18px;border-top:1px solid #1C232A;font-size:12px;color:var(--dim)}
+.soacct .sdot{width:8px;height:8px;border-radius:50%;background:var(--c)}
+.soacct b{color:var(--text);font-variation-settings:'wght' 500}
+.soacct .mono{margin-left:auto;font-size:10.5px;color:var(--dimmer)}
 </style>
 </head>
 <body>
@@ -991,21 +1007,19 @@ main{min-width:0;display:flex;flex-direction:column}
   <!-- SOCIAL -->
   <section class="view" id="v-social">
     <div class="vhead">
-      <div><h1>Social</h1><p id="so-sub">No accounts connected.</p></div>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div><h1 id="so-title">Social</h1><p id="so-sub">No accounts connected.</p></div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <span class="synced" id="so-sched"></span>
         <select class="stagesel" id="so-range">
           <option value="7">Last 7 days</option>
           <option value="28" selected>Last 28 days</option>
           <option value="90">Last 90 days</option>
         </select>
+        <!-- Per platform. Reads the platform's API now, outside the 06:00 / 12:00
+             schedule, for the family the current view shows and nothing else. -->
+        <button class="btn" id="so-fetch" hidden>Fetch now</button>
         <button class="btn primary" id="so-connect">+ Connect account</button>
       </div>
-    </div>
-
-    <div class="ldtabs" style="border-bottom:1px solid var(--edge);margin-bottom:16px" id="so-tabs">
-      <button class="ldtab on" data-sotab="audience">Audience</button>
-      <button class="ldtab" data-sotab="ads">Meta Ads</button>
-      <button class="ldtab" data-sotab="content">Content</button>
     </div>
 
     <div id="so-body"></div>
@@ -3276,7 +3290,18 @@ let SOCIAL = [];
 let ADS = null;
 let POSTS = [];
 
-const SO = { tab:'audience', range:'28' };
+/* view: overview | youtube | meta | x. metaTab: facebook | instagram | meta_ads.
+   metric: the series each platform chart is showing, remembered per platform. */
+const SO = { view:'overview', metaTab:'facebook', range:'28', metric:{}, fetching:false };
+
+/* Per-platform dashboard data from /api/social/platform/:key, keyed by platform.
+   Cleared when the range changes, because every series inside is window-scoped. */
+let PLAT = {};
+
+/* Which sign-in produces which platform rows. One Meta grant feeds three. */
+const SO_GRANT = { facebook:'meta', instagram:'meta', meta_ads:'meta', youtube:'youtube', x:'x' };
+const SO_VIEW_KEYS = { youtube:['youtube'], x:['x'], meta:['facebook','instagram','meta_ads'] };
+const SO_VIEW_LABEL = { overview:'Overview', youtube:'YouTube', meta:'Meta', x:'X' };
 const platByK = k => PLATFORMS.find(p => p.k === k);
 const num = n => n >= 1e6 ? (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? (n/1e3).toFixed(1) + 'K' : String(n);
 const pesos = n => '\u20b1' + Math.round(n).toLocaleString();
@@ -3284,34 +3309,378 @@ const delta = d => d > 0 ? '<span class="up">\u25b2 ' + num(d) + '</span>'
                  : d < 0 ? '<span class="down">\u25bc ' + num(-d) + '</span>'
                  : '<span class="flat">no change</span>';
 
+/* ---------- sub-menu: Overview, YouTube, Meta, X ----------
+   Same mechanism as the GHL sub-accounts list: mounted under the nav item,
+   visible only while Social is the active view. */
+let soSubEl = null;
+function mountSocialSubnav(){
+  const item = document.querySelector('.navitem[data-target="social"]');
+  if (!item) return;
+  soSubEl = document.createElement('div');
+  soSubEl.className = 'subnav';
+  soSubEl.hidden = true;
+  item.after(soSubEl);
+  document.querySelectorAll('.navitem').forEach(b =>
+    b.addEventListener('click', () => { soSubEl.hidden = b.dataset.target !== 'social'; }));
+}
+
+/* Connected accounts for a view, from the same ACCOUNTS list the Inbox uses —
+   no second fetch just to draw four dots. */
+const soAccountsFor = keys => ACCOUNTS.filter(a => keys.includes(a.provider));
+
+function drawSocialSubnav(){
+  if (!soSubEl) return;
+  const row = (key, label, count, color, dot) =>
+    '<button class="subitem' + (SO.view === key ? ' on' : '') + '" data-soview="' + key + '">'
+    + '<span class="sdot" style="--c:' + color + '"></span>'
+    + '<span class="slabel">' + label + '</span>'
+    + '<span class="scount">' + (dot ? '<span class="dot ' + dot + '" style="display:inline-block"></span>' : (count || '')) + '</span></button>';
+
+  const state = keys => {
+    const acc = soAccountsFor(keys);
+    if (!acc.length) return 'off';
+    return acc.every(a => a.status === 'ok') ? 'ok' : 'warn';
+  };
+
+  soSubEl.innerHTML =
+    row('overview', 'Overview', SOCIAL.filter(s => s.status === 'ok').length, 'linear-gradient(135deg,#D9A441,#4E9E7E)')
+    + '<div class="subhead">Platforms</div>'
+    + row('youtube', 'YouTube', 0, '#C2553F', state(SO_VIEW_KEYS.youtube))
+    + row('meta',    'Meta',    0, '#5B8DEF', state(SO_VIEW_KEYS.meta))
+    + row('x',       'X',       0, '#8E9BA8', state(SO_VIEW_KEYS.x));
+
+  soSubEl.querySelectorAll('[data-soview]').forEach(b => b.onclick = () => {
+    SO.view = b.dataset.soview;
+    drawSocial();
+    loadSocialView();
+  });
+}
+
+/* Fetches the platform payloads the current view needs, in parallel, then
+   redraws. Overview needs none: it renders from the aggregate arrays load()
+   already fills. */
+async function loadSocialView(){
+  if (CAL.demo) return;
+  const keys = SO_VIEW_KEYS[SO.view];
+  if (!keys) return;
+  await Promise.all(keys.map(async k => {
+    try { PLAT[k] = await api('/api/social/platform/' + k + '?range=' + encodeURIComponent(SO.range)); }
+    catch (err) { PLAT[k] = { provider: k, error: err.message }; }
+  }));
+  drawSocial();
+}
+
 function drawSocial(){
   const body = document.getElementById('so-body');
   const sub  = document.getElementById('so-sub');
+  const title = document.getElementById('so-title');
+  const fetchBtn = document.getElementById('so-fetch');
+  const connectBtn = document.getElementById('so-connect');
 
-  if (!SOCIAL.length) {
-    sub.textContent = 'No accounts connected.';
-    body.innerHTML = '<div class="card flush"><div class="empty"><b>No social accounts connected</b>'
-      + '<small>One Meta sign-in covers your Facebook Page, Instagram and ad account. '
-      + 'YouTube and X connect separately.</small>'
-      + '<button class="btn primary" id="so-empty-connect" style="margin-top:4px">+ Connect account</button>'
-      + '</div></div>';
-    const e = document.getElementById('so-empty-connect');
-    if (e) e.onclick = soConnect;
-    return;
+  drawSocialSubnav();
+  title.textContent = SO.view === 'overview' ? 'Social' : SO_VIEW_LABEL[SO.view];
+
+  if (SO.view === 'overview') {
+    fetchBtn.hidden = true;
+    connectBtn.hidden = false;
+    drawSchedule(null);
+    if (!SOCIAL.length) {
+      sub.textContent = 'No accounts connected.';
+      body.innerHTML = '<div class="card flush"><div class="empty"><b>No social accounts connected</b>'
+        + '<small>Pick a platform in the sub-menu to connect it. One Meta sign-in covers your Facebook Page, '
+        + 'Instagram and ad account; YouTube and X connect separately.</small>'
+        + '<button class="btn primary" id="so-empty-connect" style="margin-top:4px">+ Connect account</button>'
+        + '</div></div>';
+      const e = document.getElementById('so-empty-connect');
+      if (e) e.onclick = soConnect;
+    } else {
+      const live = SOCIAL.filter(s => s.status === 'ok');
+      sub.textContent = live.length + ' of ' + SOCIAL.length + ' accounts live · '
+        + num(live.reduce((s, a) => s + a.followers, 0)) + ' total following';
+      body.innerHTML = audienceTab() + '<div style="height:14px"></div>' + contentTab();
+    }
+  } else {
+    /* Platform views own their connect button inside the empty state, and the
+       header button becomes the manual fetch. */
+    connectBtn.hidden = true;
+    const keys = SO_VIEW_KEYS[SO.view];
+    const connected = soAccountsFor(keys).length > 0;
+    fetchBtn.hidden = !connected;
+    fetchBtn.textContent = SO.fetching ? 'Fetching…' : 'Fetch now';
+    fetchBtn.disabled = SO.fetching;
+
+    const first = keys.map(k => PLAT[k]).find(Boolean);
+    drawSchedule(first?.schedule || null);
+
+    if (SO.view === 'meta') body.innerHTML = metaView();
+    else body.innerHTML = platformView(keys[0]);
+
+    sub.textContent = soSubtitle(keys);
   }
-
-  const live = SOCIAL.filter(s => s.status === 'ok');
-  sub.textContent = live.length + ' of ' + SOCIAL.length + ' accounts live \u00b7 '
-    + num(live.reduce((s, a) => s + a.followers, 0)) + ' total following';
-
-  if (SO.tab === 'audience') body.innerHTML = audienceTab();
-  if (SO.tab === 'ads')      body.innerHTML = adsTab();
-  if (SO.tab === 'content')  body.innerHTML = contentTab();
 
   body.querySelectorAll('[data-solink]').forEach(b => b.onclick = () =>
     window.open(b.dataset.solink, '_blank', 'noopener'));
+  body.querySelectorAll('[data-soconnect]').forEach(b => b.onclick = () => soConnectProvider(b.dataset.soconnect));
+  body.querySelectorAll('[data-sometric]').forEach(b => b.onclick = () => {
+    SO.metric[b.dataset.plat] = b.dataset.sometric; drawSocial();
+  });
+  body.querySelectorAll('[data-metatab]').forEach(b => b.onclick = () => {
+    SO.metaTab = b.dataset.metatab; drawSocial();
+  });
+
   const badge = document.querySelector('.navitem[data-target="social"] .badge');
   if (badge) badge.textContent = SOCIAL.filter(s => s.status !== 'ok').length || '';
+}
+
+function soSubtitle(keys){
+  const acc = soAccountsFor(keys);
+  if (!acc.length) return 'Not connected.';
+  const bad = acc.filter(a => a.status !== 'ok').length;
+  return acc.map(a => a.label).join(', ')
+    + (bad ? ' · ' + bad + ' need' + (bad === 1 ? 's' : '') + ' reconnecting' : '');
+}
+
+/* The header marker: when the data was last pulled and when it will be next.
+   Auto-refresh is 06:00 and 12:00 America/Chicago; the schedule object carries
+   the zone so this never hardcodes it. */
+function drawSchedule(sched){
+  const el = document.getElementById('so-sched');
+  if (!sched) { el.innerHTML = ''; return; }
+  const fmt = iso => new Date(iso).toLocaleString([], { timeZone: sched.tz, hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+  const last = sched.lastManual && (!sched.lastScheduled || sched.lastManual > sched.lastScheduled)
+    ? sched.lastManual : sched.lastScheduled;
+  el.innerHTML = '<span class="d" style="background:' + (sched.running ? 'var(--brass)' : 'var(--jade)') + '"></span>'
+    + (sched.running ? 'Fetching… ' : (last ? 'Data as of ' + fmt(last) + ' · ' : ''))
+    + 'auto ' + sched.times.join(' & ') + ' ' + shortTz(sched.tz) + ' · next ' + fmt(sched.next);
+  el.title = 'Scheduled refresh at ' + sched.times.join(' and ') + ' ' + sched.tz + '. Fetch now pulls immediately.';
+}
+const shortTz = tz => tz === 'America/Chicago' ? 'CT' : tz;
+
+/* ---------- connect ---------- */
+
+/* Per-platform connect: the same sheet the Inbox uses, jumped straight to the
+   label-and-colour step for that provider, so YouTube is one click and not a
+   choice from a list of things that are not YouTube. */
+function soConnectProvider(grant){
+  const cfg = PROVIDERS_CFG[grant];
+  if (cfg && cfg.configured === false) {
+    banner((cfg.setupHint || grant + ' is not configured on the server.'));
+    return;
+  }
+  openModal('social');
+  if (typeof step2 === 'function') step2(grant);
+}
+
+function connectCard(key, d){
+  const grant = SO_GRANT[key];
+  const cfg = PROVIDERS_CFG[grant] || {};
+  const label = { youtube:'YouTube', x:'X', meta:'Meta' }[grant] || grant;
+  const cost = grant === 'x'
+    ? ' Reads bill at $0.005 each; the schedule and the Fetch now button are the only things that read.'
+    : grant === 'meta'
+      ? ' One sign-in covers your Facebook Page, Instagram and ad account. Ads need Business Verification before they return data.'
+      : ' Uses the Google client already configured for Gmail, with the YouTube scopes.';
+  const unconfigured = cfg.configured === false;
+  const grantOnly = d && d.grantConnected && !d.connected;
+  return '<div class="card flush"><div class="empty">'
+    + '<b>' + (grantOnly ? 'Meta is connected, but no ' + { facebook:'Page', instagram:'Instagram account', meta_ads:'ad account' }[key] + ' was granted'
+                        : 'No ' + label + ' account connected') + '</b>'
+    + '<small>' + (grantOnly
+        ? 'Reconnect Meta and tick the asset in Facebook’s dialog; the pages you leave unticked never appear here.'
+        : (unconfigured ? (cfg.setupHint || label + ' is not configured on the server.') : cost.trim())) + '</small>'
+    + '<button class="btn primary" data-soconnect="' + grant + '" style="margin-top:4px"'
+    + (unconfigured ? ' disabled style="margin-top:4px;opacity:.45;cursor:not-allowed"' : '') + '>'
+    + (grantOnly ? 'Reconnect Meta' : '+ Connect ' + label) + '</button>'
+    + '</div></div>';
+}
+
+/* ---------- charts ----------
+   Inline SVG bars, one per day. A null is a gap, not a zero: a platform that
+   published no figure that day must not draw as a day with nothing happening. */
+function soChart(points, color, fmt){
+  if (!points.length) return '<div class="empty" style="padding:30px"><small>No daily readings in this window yet.</small></div>';
+  const W = 600, H = 150, P = 4;
+  const vals = points.map(p => p.v).filter(v => v != null);
+  const max = Math.max(1, ...vals);
+  const bw = (W - 2 * P) / points.length;
+  const bars = points.map((p, i) => {
+    if (p.v == null) return '';
+    const h = Math.max(1, Math.round((p.v / max) * (H - 2 * P)));
+    return '<rect x="' + (P + i * bw + 0.5).toFixed(1) + '" y="' + (H - P - h) + '" width="' + Math.max(1, bw - 1).toFixed(1)
+      + '" height="' + h + '" rx="1.5" fill="' + color + '" opacity=".78"><title>' + escS(p.day) + ': ' + escS(fmt(p.v)) + '</title></rect>';
+  }).join('');
+  return '<svg class="sochart" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">' + bars + '</svg>'
+    + '<div class="soaxis"><span>' + escS(points[0].day) + '</span><span>' + escS(points[points.length - 1].day) + '</span></div>';
+}
+
+/* Sum a metric across every account of a platform, per day. Followers are a
+   level, not a flow, so summing across accounts is still right — two pages'
+   followers add. */
+function soDaily(series, metric){
+  const byDay = new Map();
+  for (const r of series) {
+    if (r[metric] == null) continue;
+    byDay.set(r.day, (byDay.get(r.day) || 0) + r[metric]);
+  }
+  return [...byDay.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([day, v]) => ({ day, v }));
+}
+
+const SO_WORDS = {
+  youtube:   { followers:'Subscribers', posts:'Videos',  postTitle:'Top videos', color:'#C2553F' },
+  x:         { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'#8E9BA8' },
+  facebook:  { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'#5B8DEF' },
+  instagram: { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'#D9A441' }
+};
+
+/* ---------- a platform's dashboard ---------- */
+function platformView(key){
+  const d = PLAT[key];
+  const words = SO_WORDS[key] || SO_WORDS.facebook;
+  if (!d) return '<div class="card flush"><div class="empty"><b>Loading ' + (SO_VIEW_LABEL[SO.view] || key) + '…</b></div></div>';
+  if (d.error) return '<div class="card flush"><div class="empty"><b>Could not load</b><small>' + escS(d.error) + '</small></div></div>';
+  if (!d.connected) return connectCard(key, d);
+
+  const series = d.series || [];
+  const days = soDaily(series, 'followers');
+  const followersNow = days.length ? days[days.length - 1].v : 0;
+  const followersThen = days.length ? days[0].v : 0;
+  const sum = m => series.reduce((n, r) => n + (r[m] || 0), 0);
+  const reach = sum('reach'), views = sum('views'), inter = sum('interactions');
+  const eng = reach > 0 ? (inter / reach) * 100 : 0;
+
+  const stat = (k, v, m, tone) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
+    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div></div>';
+
+  const metric = SO.metric[key] || (key === 'youtube' ? 'views' : 'followers');
+  const metricsAvail = ['followers', 'reach', 'views', 'interactions'].filter(m => series.some(r => r[m] != null));
+  const toggles = metricsAvail.map(m =>
+    '<button class="sometric' + (m === metric ? ' on' : '') + '" data-sometric="' + m + '" data-plat="' + key + '">'
+    + (m === 'followers' ? words.followers : m) + '</button>').join('');
+
+  const posts = (d.posts || []).slice()
+    .sort((a, b) => (key === 'youtube' ? b.views - a.views : b.interactions - a.interactions))
+    .slice(0, 10);
+
+  const noData = !series.length;
+
+  return '<div class="grid g4" style="margin-bottom:14px">'
+    + stat(words.followers, num(followersNow), days.length > 1 ? delta(followersNow - followersThen) + ' in ' + SO.range + 'd' : 'no earlier reading')
+    + stat('Reach', num(reach), 'unique accounts, ' + SO.range + 'd')
+    + stat('Views', num(views), 'every appearance, ' + SO.range + 'd')
+    + stat('Engagement', eng.toFixed(2) + '%', 'interactions ÷ reach', eng > 0 ? 'up' : 'flat')
+    + '</div>'
+    + '<div class="card" style="margin-bottom:14px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    + '<h3>Daily ' + (metric === 'followers' ? words.followers.toLowerCase() : metric) + '</h3>'
+    + '<div class="sometrics">' + toggles + '</div></div>'
+    + (noData
+        ? '<div class="empty" style="padding:26px"><b>No data pulled yet</b><small>Connected, but nothing has been fetched from '
+          + (SO_VIEW_LABEL[SO.view] || key) + ' for this account. Use <b>Fetch now</b> above, or wait for the next scheduled pull.</small></div>'
+        : soChart(soDaily(series, metric), words.color, v => num(v)))
+    + '</div>'
+    + '<div class="card flush" style="margin-bottom:14px"><div class="cardhead"><h3>' + words.postTitle + '</h3>'
+    + '<span class="eyebrow">' + posts.length + ' of ' + (d.posts || []).length + ' · last ' + SO.range + ' days</span></div>'
+    + (posts.length
+        ? '<table class="tbl"><thead><tr><th>' + words.posts.replace(/s$/, '') + '</th>'
+          + (key !== 'youtube' && key !== 'x' ? '<th class="r">Reach</th>' : '')
+          + '<th class="r">Views</th><th class="r">Interactions</th><th class="r">Shares</th></tr></thead><tbody>'
+          + posts.map(pp => '<tr><td><span class="name">'
+              + (pp.permalink ? '<a href="' + escS(pp.permalink) + '" target="_blank" rel="noopener" style="color:inherit">' + escS(pp.title) + '</a>' : escS(pp.title))
+              + '</span><span class="sm">' + escS(pp.when) + '</span></td>'
+              + (key !== 'youtube' && key !== 'x' ? '<td class="r mono">' + num(pp.reach) + '</td>' : '')
+              + '<td class="r mono">' + num(pp.views) + '</td>'
+              + '<td class="r mono">' + num(pp.interactions) + '</td>'
+              + '<td class="r mono">' + num(pp.shares) + '</td></tr>').join('')
+          + '</tbody></table>'
+        : '<div class="empty"><small>No ' + words.posts.toLowerCase() + ' in this window.</small></div>')
+    + '</div>'
+    + accountsFooter(d);
+}
+
+function accountsFooter(d){
+  const fmt = iso => iso ? new Date(iso).toLocaleString() : 'never';
+  return '<div class="card flush"><div class="cardhead"><h3>Accounts</h3><span class="eyebrow">' + d.accounts.length + ' connected</span></div>'
+    + d.accounts.map(a =>
+        '<div class="soacct" style="--c:' + a.color + '"><span class="sdot"></span><b>' + escS(a.label) + '</b>'
+        + '<span>' + escS(a.handle) + '</span>'
+        + (a.status !== 'ok' ? '<span class="chip rust">Reauth</span>' : '')
+        + (a.lastPollError ? '<span class="chip rust" title="' + escS(a.lastPollError) + '">Last pull failed</span>' : '')
+        + '<span class="mono">pulled ' + fmt(a.lastRun) + '</span></div>').join('')
+    + '</div>';
+}
+
+/* ---------- Meta: three views under one grant ---------- */
+function metaView(){
+  const anyConnected = SO_VIEW_KEYS.meta.some(k => PLAT[k]?.connected);
+  const anyLoaded = SO_VIEW_KEYS.meta.some(k => PLAT[k]);
+  if (!anyLoaded) return '<div class="card flush"><div class="empty"><b>Loading Meta…</b></div></div>';
+  if (!anyConnected) return connectCard('facebook', PLAT.facebook || PLAT.instagram || PLAT.meta_ads);
+
+  const tabs = [['facebook', 'FB Page'], ['instagram', 'Instagram'], ['meta_ads', 'Meta Ads']];
+  const bar = '<div class="ldtabs" style="border-bottom:1px solid var(--edge);margin-bottom:16px">'
+    + tabs.map(([k, l]) => '<button class="ldtab' + (SO.metaTab === k ? ' on' : '') + '" data-metatab="' + k + '">' + l
+        + (PLAT[k] && !PLAT[k].connected ? ' <span class="chip" style="font-size:8px;margin-left:6px">not granted</span>' : '')
+        + '</button>').join('')
+    + '</div>';
+  return bar + (SO.metaTab === 'meta_ads' ? adsView() : platformView(SO.metaTab));
+}
+
+function adsView(){
+  const d = PLAT.meta_ads;
+  if (!d) return '<div class="card flush"><div class="empty"><b>Loading Meta Ads…</b></div></div>';
+  if (d.error) return '<div class="card flush"><div class="empty"><b>Could not load</b><small>' + escS(d.error) + '</small></div></div>';
+  if (!d.connected) return connectCard('meta_ads', d);
+
+  const ads = d.ads || { daily: [], campaigns: [], currency: null };
+  const cur = ads.currency || 'USD';
+  const money = n => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n); } catch { return cur + ' ' + Math.round(n).toLocaleString(); } };
+
+  /* Each daily row is a rolling 28-day snapshot as of that poll, so "current"
+     is the newest row per account, summed. */
+  const latestByAcct = new Map();
+  for (const r of ads.daily) latestByAcct.set(r.account, r);   // ascending by day; last wins
+  const latest = [...latestByAcct.values()];
+  const spend = latest.reduce((n, r) => n + r.spend, 0);
+  const results = latest.reduce((n, r) => n + r.results, 0);
+  const reach = latest.reduce((n, r) => n + r.reach, 0);
+  const cpl = results > 0 ? spend / results : 0;
+
+  const stat = (k, v, m, tone) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
+    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div></div>';
+
+  const metric = SO.metric.meta_ads || 'spend';
+  const toggles = ['spend', 'results', 'reach'].map(m =>
+    '<button class="sometric' + (m === metric ? ' on' : '') + '" data-sometric="' + m + '" data-plat="meta_ads">' + m + '</button>').join('');
+  const daily = soDaily(ads.daily.map(r => ({ day: r.day, spend: r.spend, results: r.results, reach: r.reach })), metric);
+
+  return '<div class="grid g4" style="margin-bottom:14px">'
+    + stat('Spend', money(spend), 'trailing 28d, as of last pull')
+    + stat('Results', String(results), 'leads / conversions')
+    + stat('Cost per result', results ? money(cpl) : '—', results ? 'spend ÷ results' : 'no results yet')
+    + stat('Reach', num(reach), 'unique accounts')
+    + '</div>'
+    + '<div class="card" style="margin-bottom:14px">'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
+    + '<h3>' + metric[0].toUpperCase() + metric.slice(1) + ' by pull date</h3><div class="sometrics">' + toggles + '</div></div>'
+    + (daily.length
+        ? soChart(daily, '#5B8DEF', v => metric === 'spend' ? money(v) : num(v))
+          + '<div class="notice" style="margin-top:12px">Each bar is the trailing 28-day figure as it stood on that day, '
+          + 'because Meta reports ads over a rolling window. A rising bar means the last 28 days are growing, not that one day spiked.</div>'
+        : '<div class="empty" style="padding:26px"><b>No ads data pulled yet</b><small>Use <b>Fetch now</b> above or wait for the next scheduled pull. '
+          + 'Ads need Business Verification before Meta returns anything.</small></div>')
+    + '</div>'
+    + '<div class="card flush" style="margin-bottom:14px"><div class="cardhead"><h3>Campaigns</h3><span class="eyebrow">' + ads.campaigns.length + ' · by spend</span></div>'
+    + (ads.campaigns.length
+        ? '<table class="tbl"><thead><tr><th>Campaign</th><th class="r">Spend</th><th class="r">Results</th><th class="r">CPR</th><th class="r">Reach</th><th class="r">Status</th></tr></thead><tbody>'
+          + ads.campaigns.map(c => '<tr><td><span class="name">' + escS(c.name) + '</span><span class="sm">' + escS(c.objective) + '</span></td>'
+              + '<td class="r mono">' + money(c.spend) + '</td><td class="r mono">' + c.results + '</td>'
+              + '<td class="r mono" style="color:' + (c.results && cpl && (c.spend / c.results) > cpl ? 'var(--rust)' : 'var(--jade)') + '">' + (c.results ? money(c.spend / c.results) : '—') + '</td>'
+              + '<td class="r mono">' + num(c.reach) + '</td>'
+              + '<td class="r"><span class="chip ' + (/active/i.test(c.status) ? 'jade' : '') + '" style="font-size:8.5px">' + escS(c.status) + '</span></td></tr>').join('')
+          + '</tbody></table>'
+        : '<div class="empty"><small>No campaigns in this window.</small></div>')
+    + '</div>'
+    + accountsFooter(d);
 }
 
 function audienceTab(){
@@ -3364,38 +3733,6 @@ function audienceTab(){
     + '</div></div>';
 }
 
-function adsTab(){
-  if (!ADS) {
-    return '<div class="card flush"><div class="empty"><b>No ad account connected</b>'
-      + '<small>Meta Ads needs Business Verification and the Marketing API Access Tier before it '
-      + 'returns data. The same Meta sign-in covers it.</small></div></div>';
-  }
-  const stat = (k, v, m, tone) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
-    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div></div>';
-
-  return '<div class="grid g4" style="margin-bottom:14px">'
-    + stat('Spend', pesos(ADS.spend), 'last ' + SO.range + ' days')
-    + stat('Leads', String(ADS.results), ADS.resultsDelta >= 0 ? '\u25b2 ' + ADS.resultsDelta + '%' : '\u25bc ' + (-ADS.resultsDelta) + '%',
-        ADS.resultsDelta >= 0 ? 'up' : 'down')
-    + stat('Cost per lead', pesos(ADS.spend / Math.max(1, ADS.results)), ADS.cplDelta <= 0 ? 'improving' : 'rising',
-        ADS.cplDelta <= 0 ? 'up' : 'down')
-    + stat('Reach', num(ADS.reach), 'unique accounts')
-    + '</div>'
-    + '<div class="card flush"><div class="cardhead"><h3>Campaigns</h3>'
-    + '<span class="eyebrow">Spend-based rate limits apply</span></div>'
-    + '<table class="tbl"><thead><tr><th>Campaign</th><th class="r">Spend</th>'
-    + '<th class="r">Leads</th><th class="r">CPL</th><th class="r">Status</th></tr></thead><tbody>'
-    + ADS.campaigns.map(c => '<tr><td><span class="name">' + escS(c.name) + '</span>'
-        + '<span class="sm">' + escS(c.objective) + '</span></td>'
-        + '<td class="r mono">' + pesos(c.spend) + '</td>'
-        + '<td class="r mono">' + c.results + '</td>'
-        + '<td class="r mono" style="color:' + (c.spend / Math.max(1, c.results) > ADS.spend / Math.max(1, ADS.results)
-            ? 'var(--rust)' : 'var(--jade)') + '">' + pesos(c.spend / Math.max(1, c.results)) + '</td>'
-        + '<td class="r"><span class="chip ' + (c.status === 'Active' ? 'jade' : '') + '" style="font-size:8.5px">'
-        + escS(c.status) + '</span></td></tr>').join('')
-    + '</tbody></table></div>';
-}
-
 function contentTab(){
   if (!POSTS.length) {
     return '<div class="card flush"><div class="empty"><b>No content yet</b>'
@@ -3423,26 +3760,48 @@ function contentTab(){
 
 const escS = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
-/* The same sheet the Inbox uses, filtered to providers that feed 'social'. Three
-   entries rather than five: Facebook, Instagram and Ads all arrive from the one
-   Meta grant, which the sheet's own copy says so nobody goes looking for the
-   missing two. */
+/* The same sheet the Inbox uses, filtered to providers that feed 'social'. */
 const soConnect = () => openModal('social');
 
-document.querySelectorAll('#so-tabs [data-sotab]').forEach(b => b.onclick = () => {
-  document.querySelectorAll('#so-tabs [data-sotab]').forEach(x => x.classList.remove('on'));
-  b.classList.add('on'); SO.tab = b.dataset.sotab; drawSocial();
-});
-/* The range is a server-side window — totals are summed and deltas computed
-   across it — so changing it has to refetch. Re-rendering alone would relabel the
-   same numbers with a different period, which is the one thing worse than
-   showing nothing. */
+/* The range is a server-side window — every series and total is scoped to it —
+   so changing it drops the platform cache and refetches, for the overview
+   aggregates and the open platform view both. */
 document.getElementById('so-range').onchange = e => {
   SO.range = e.target.value;
+  PLAT = {};
   drawSocial();
   load();
+  loadSocialView();
 };
 document.getElementById('so-connect').onclick = soConnect;
+
+/* Manual fetch for the platform family on screen. One click, one family: a
+   YouTube click never bills an X read. The server holds a lock, so a click
+   during the scheduled pass is answered with 409 rather than doubled. */
+document.getElementById('so-fetch').onclick = async () => {
+  const family = SO.view === 'meta' ? 'meta' : SO.view;
+  if (!SO_VIEW_KEYS[SO.view] || SO.fetching) return;
+  SO.fetching = true;
+  drawSocial();
+  try {
+    const out = await api('/api/social/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ provider: family })
+    });
+    const bad = (out.results || []).filter(r => !r.ok);
+    syncPulse(out.polled + ' fetched' + (out.failed ? ', ' + out.failed + ' failed' : ''));
+    if (bad.length) banner(bad.map(r => r.label + ': ' + r.error).join(' · '));
+  } catch (err) {
+    banner(err.status === 409 ? 'A fetch is already running — try again in a moment.' : 'Fetch failed: ' + err.message);
+  } finally {
+    SO.fetching = false;
+    PLAT = {};
+    await Promise.all([loadSocialView(), load()]);
+  }
+};
+
+mountSocialSubnav();
 
 
 /* ================= LOADERS =================
