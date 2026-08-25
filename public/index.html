@@ -3324,9 +3324,32 @@ function mountSocialSubnav(){
     b.addEventListener('click', () => { soSubEl.hidden = b.dataset.target !== 'social'; }));
 }
 
-/* Connected accounts for a view, from the same ACCOUNTS list the Inbox uses —
-   no second fetch just to draw four dots. */
-const soAccountsFor = keys => ACCOUNTS.filter(a => keys.includes(a.provider));
+/* Connected accounts for a view.
+
+   NOT from ACCOUNTS: that list is /api/accounts, which is listAccounts(), which
+   is accountsFor('mail') — mail accounts only. YouTube's feed is 'social', so a
+   connected channel never appears there, and every surface keyed on it read as
+   disconnected: no Fetch now button, "Not connected" in the subtitle, a dead
+   dot in the sub-menu.
+
+   The social sources are the ones that know. /api/social fills SOCIAL for the
+   four metric platforms, and each platform payload carries its own accounts —
+   the only place meta_ads ever shows up, since /api/social omits it. */
+function soAccountsFor(keys){
+  const out = new Map();
+  for (const s of SOCIAL) {
+    if (keys.includes(s.platform)) {
+      out.set(s.platform + ':' + (s.handle || ''),
+        { provider: s.platform, label: s.handle, status: s.status });
+    }
+  }
+  for (const k of keys) {
+    for (const a of (PLAT[k]?.accounts || [])) {
+      out.set(k + ':' + a.id, { provider: k, label: a.label, status: a.status });
+    }
+  }
+  return [...out.values()];
+}
 
 function drawSocialSubnav(){
   if (!soSubEl) return;

@@ -8,6 +8,30 @@ import { listAccounts, upsertOAuth, upsertImap, renameAccount, deleteAccount, ne
   from '../lib/accounts.js';
 import { guarded } from './guard.js';
 import { verify as verifyImap } from '../providers/imap.js';
+import { query } from '../db/index.js';
+
+/* Why a connect attempt failed, kept in the database rather than only in the
+   process log. A failed OAuth round trip shows the user a banner that is gone on
+   the next click, and the server-side reason — which is the useful half — lived
+   only in stdout. On a hosted deploy that means the one person who can read it
+   is whoever still has the log stream open. Recorded per provider, overwritten
+   each attempt, and cleared by a success, so it is always "what happened last
+   time" and never a growing table. */
+async function recordConnect(provider, error){
+  try {
+    await query(
+      `INSERT INTO sync_state (key, cursor, last_run, last_error, updated_at)
+       VALUES ($1, NULL, now(), $2, now())
+       ON CONFLICT (key) DO UPDATE SET
+         last_run   = now(),
+         last_error = EXCLUDED.last_error,
+         updated_at = now()`,
+      [`connect:${provider}`, error ? String(error).slice(0, 500) : null]);
+  } catch (err) {
+    /* Diagnostics must never be the reason a connection fails. */
+    console.error('[connect] could not record attempt:', err.message);
+  }
+}
 
 /* Built from PUBLIC_URL when it is set, never from request headers: Railway's
    proxy terminates TLS and hands the app http in req.protocol, so a
@@ -71,6 +95,23 @@ export function connectRoutes({ env, auth, secret }){
     });
   }));
 
+  /* The last connect attempt per provider. Answers "I clicked connect and
+     nothing appeared" without needing the deploy's log stream. */
+  r.get('/api/connect/diag', auth.require, guarded('api/connect:diag', async (req, res) => {
+    const { rows } = await query(
+      `SELECT key, last_run, last_error FROM sync_state
+        WHERE key LIKE 'connect:%' ORDER BY last_run DESC NULLS LAST`);
+    res.json({
+      accounts: (await listAccounts()).map(a => ({ id: a.id, provider: a.provider, status: a.status })),
+      attempts: rows.map(r2 => ({
+        provider: r2.key.replace(/^connect:/, ''),
+        at: r2.last_run,
+        ok: !r2.last_error,
+        error: r2.last_error
+      }))
+    });
+  }));
+
   r.post('/api/accounts/:id', auth.require, express.json(), guarded('api/accounts:rename', async (req, res) => {
     const { label, color } = req.body || {};
     const updated = await renameAccount(req.params.id, {
@@ -125,7 +166,13 @@ export function connectRoutes({ env, auth, secret }){
     /* Errors return to the view the connection was started from, so a failed
        Meta grant reports itself on Social rather than on the Inbox. */
     const view = (p.feeds || []).includes('social') ? 'social' : 'inbox';
-    const fail = msg => res.redirect(`/#${view}?error=` + encodeURIComponent(msg));
+    const fail = msg => {
+      /* Recorded before redirecting: the two pre-flight failures (state mismatch,
+         no code) never reach the try block below, and they are exactly the ones
+         that look like "nothing happened" from the browser. */
+      recordConnect(name, msg).catch(() => {});
+      return res.redirect(`/#${view}?error=` + encodeURIComponent(msg));
+    };
     if (req.query.error) {
       return fail(`${p.label} refused: ${req.query.error_description || req.query.error}`);
     }
@@ -191,10 +238,14 @@ export function connectRoutes({ env, auth, secret }){
       const what = assets.length
         ? `${assets.length} ${assets.length === 1 ? 'account' : 'accounts'}`
         : (record.email || p.label);
+      await recordConnect(name, null);
       res.redirect(`/#${view}?connected=` + encodeURIComponent(what));
     } catch (err) {
       console.error(`[connect:${name}]`, err.message);
-      fail(`${p.label} connection failed: ${err.message}`);
+      /* err.message, not the prettied banner text: the provider's own words are
+         what identify a disabled API or a channel-less Google account. */
+      await recordConnect(name, err.message);
+      res.redirect(`/#${view}?error=` + encodeURIComponent(`${p.label} connection failed: ${err.message}`));
     }
   });
 
