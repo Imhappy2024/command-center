@@ -344,6 +344,11 @@ export async function pageSeries(token, pageId, { since, until }){
 const IG_TOTAL_METRICS = 'views,accounts_engaged,total_interactions';
 const IG_TOTAL_DAYS = 30;
 
+/* Instagram refuses any insights request spanning more than 30 days:
+   "There cannot be more than 30 days (2592000 s) between since and until."
+   The poller asks for 90, so the reach series is read in chunks. */
+const IG_MAX_SPAN_DAYS = 30;
+
 const addDays = (d, n) => new Date(d.getTime() + n * 86400000);
 
 export async function igSeries(token, igId, { since, until }){
@@ -355,19 +360,22 @@ export async function igSeries(token, igId, { since, until }){
     return byDay.get(day);
   };
 
-  const { data } = await call(token, `/${igId}/insights`, {
-    metric: 'reach',
-    metric_type: 'time_series',
-    period: 'day',
-    since: dayString(since),
-    until: dayString(until)
-  });
+  for (let start = since; start < until; start = addDays(start, IG_MAX_SPAN_DAYS)) {
+    const stopMs = Math.min(addDays(start, IG_MAX_SPAN_DAYS).getTime(), until.getTime());
+    const { data } = await call(token, `/${igId}/insights`, {
+      metric: 'reach',
+      metric_type: 'time_series',
+      period: 'day',
+      since: dayString(start),
+      until: dayString(new Date(stopMs))
+    });
 
-  for (const metric of data?.data || []) {
-    for (const v of metric.values || []) {
-      const day = String(v.end_time || '').slice(0, 10);
-      if (!day) continue;
-      if (metric.name === 'reach') rowFor(day).reach = Number(v.value) || 0;
+    for (const metric of data?.data || []) {
+      for (const v of metric.values || []) {
+        const day = String(v.end_time || '').slice(0, 10);
+        if (!day) continue;
+        if (metric.name === 'reach') rowFor(day).reach = Number(v.value) || 0;
+      }
     }
   }
 
@@ -459,12 +467,29 @@ export async function igPosts(token, igId, { limit = 25 } = {}){
   return out;
 }
 
+/* Post reach, expanded inline on the posts request.
+
+   Inlining is worth one round trip instead of one per post, but it couples the
+   two: a metric Meta has retired fails the WHOLE posts request, not just the
+   stats, which is how a dead post_impressions_unique took the Page's post list
+   down with it. So the expansion is attempted, and if Meta rejects the metric
+   the same request is repeated without it — posts listed, reach null. Two calls
+   in the worst case rather than twenty-six. */
+const POST_FIELDS = 'id,message,permalink_url,created_time,shares';
+const POST_INSIGHT = 'insights.metric(post_impressions_unique){values}';
+
 export async function pagePosts(token, pageId, { limit = 25 } = {}){
-  const { data } = await call(token, `/${pageId}/posts`, {
-    fields: 'id,message,permalink_url,created_time,shares,'
-      + 'insights.metric(post_impressions_unique){values}',
-    limit
-  });
+  let data;
+  try {
+    ({ data } = await call(token, `/${pageId}/posts`, {
+      fields: `${POST_FIELDS},${POST_INSIGHT}`,
+      limit
+    }));
+  } catch (err) {
+    if (!isBadMetric(err)) throw err;
+    console.warn('[meta] post insight metric no longer accepted; listing posts without reach');
+    ({ data } = await call(token, `/${pageId}/posts`, { fields: POST_FIELDS, limit }));
+  }
 
   return (data?.data || []).map(p => {
     const reachMetric = (p.insights?.data || [])
