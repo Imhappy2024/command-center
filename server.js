@@ -84,7 +84,7 @@ try {
    create triggers costs live updates, not the dashboard. */
 try {
   await applyNotifyTriggers();
-  console.log('live triggers: applied (ghl_location INSERT -> NOTIFY cc_changes)');
+  console.log('live triggers: applied (ghl_location, lead, ghl_opportunity, ghl_message, ghl_message_inbox -> NOTIFY cc_changes)');
 } catch (err) {
   console.error('live triggers: NOT applied — live updates are off:', err.message);
 }
