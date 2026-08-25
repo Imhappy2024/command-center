@@ -206,32 +206,97 @@ export async function discover(accessToken, env, record){
 /* ---------------------------------------------------------------------------
    Facebook Page insights.
 
-   page_impressions_unique is the *reach* metric, despite the name. The plain
-   page_impressions variant is the one removed in November 2025, along with page
-   likes growth and the by-language, by-city and by-country breakdowns. Only reach
-   survives at page level.
+   This comment used to say the opposite: that page_impressions was removed and
+   only page_impressions_unique survived. It is the other way round.
+   page_impressions_unique — reach, despite the name — is deprecated above v25,
+   and page_impressions is what still answers. Getting this backwards is what
+   made every Page pull fail with "(#100) The value must be a valid insights
+   metric", so it is worth stating plainly rather than leaving the old wording
+   to mislead the next reader.
+
+   Also gone, in November 2025: page likes growth, and the by-language, by-city
+   and by-country breakdowns. None are requested here.
    --------------------------------------------------------------------------- */
 
 const dayString = d => d.toISOString().slice(0, 10);
 
-export async function pageSeries(token, pageId, { since, until }){
-  const { data } = await call(token, `/${pageId}/insights`, {
-    metric: 'page_impressions_unique,page_post_engagements',
-    period: 'day',
-    since: dayString(since),
-    until: dayString(until)
+/* Page metrics Meta still accepts with period=day.
+
+   page_impressions_unique — the Page's unique-reach metric — is deprecated above
+   v25, and asking for it is what failed every Page pull with
+   "(#100) The value must be a valid insights metric". Nothing replaces it:
+   page_impressions_paid_unique and page_impressions_viral_unique cover only paid
+   and virally-amplified reach, and presenting either as "reach" would be exactly
+   the relabelling this file refuses everywhere else. Page reach is therefore
+   null, and the dashboard renders it as absent rather than as a measured zero.
+
+   page_impressions is total appearances including repeats, which is the
+   definition of views the Social view already states, so it fills views. */
+const PAGE_METRICS = ['page_impressions', 'page_post_engagements', 'page_views_total'];
+
+const isBadMetric = err =>
+  Number(err?.code) === 100 && /valid insights metric/i.test(err?.message || '');
+
+/* Meta retires Page metrics on a rolling calendar — another tranche landed in
+   June 2026 — and the error names no metric, so a single dead entry takes the
+   whole request down with it. The set is therefore probed, not trusted: ask for
+   all of them, and only if Meta objects, ask for each alone and keep what
+   survives. Memoised for the life of the process, so the probe costs one pass
+   after a deprecation rather than one per poll. */
+let pageMetricMemo = null;
+
+async function pageInsights(token, pageId, since, until){
+  const ask = metrics => call(token, `/${pageId}/insights`, {
+    metric: metrics.join(','), period: 'day',
+    since: dayString(since), until: dayString(until)
   });
+
+  if (pageMetricMemo) {
+    if (!pageMetricMemo.length) return [];
+    return (await ask(pageMetricMemo)).data?.data || [];
+  }
+
+  try {
+    const { data } = await ask(PAGE_METRICS);
+    pageMetricMemo = PAGE_METRICS;
+    return data?.data || [];
+  } catch (err) {
+    if (!isBadMetric(err)) throw err;
+  }
+
+  const good = [];
+  const out = [];
+  for (const m of PAGE_METRICS) {
+    try {
+      const { data } = await ask([m]);
+      good.push(m);
+      out.push(...(data?.data || []));
+    } catch (err) {
+      if (!isBadMetric(err)) throw err;
+      console.warn(`[meta] page metric no longer accepted, dropped: ${m}`);
+    }
+  }
+  pageMetricMemo = good;
+  if (!good.length) {
+    console.warn('[meta] no page insight metric is still accepted; only followers will be recorded');
+  }
+  return out;
+}
+
+export async function pageSeries(token, pageId, { since, until }){
+  const series = await pageInsights(token, pageId, since, until);
 
   /* Graph returns one object per metric, each with its own values array. Folded
      into one row per day. */
   const byDay = new Map();
-  for (const metric of data?.data || []) {
+  for (const metric of series) {
     for (const v of metric.values || []) {
       const day = String(v.end_time || '').slice(0, 10);
       if (!day) continue;
       const row = byDay.get(day) || { day, followers: null, reach: null, views: null, interactions: null, posts: null, raw: {} };
-      if (metric.name === 'page_impressions_unique') row.reach = Number(v.value) || 0;
+      if (metric.name === 'page_impressions') row.views = Number(v.value) || 0;
       if (metric.name === 'page_post_engagements') row.interactions = Number(v.value) || 0;
+      if (metric.name === 'page_views_total') row.raw.pageViews = Number(v.value) || 0;
       byDay.set(day, row);
     }
   }
@@ -265,26 +330,77 @@ export async function pageSeries(token, pageId, { since, until }){
    why none are read at all in this pass.
    --------------------------------------------------------------------------- */
 
+/* views, accounts_engaged and total_interactions accept ONLY
+   metric_type=total_value, which returns one aggregate for the whole range and
+   no per-day breakdown. reach is the single account metric that still supports
+   time_series. Asking for all four together is what failed the pull with
+   "(#100) The following metrics ... should be specified with parameter
+   metric_type=total_value".
+
+   So: reach comes back as a series in one call, and the other three are read a
+   day at a time. Capped at the most recent 30 days, which covers the 7- and
+   28-day ranges completely; on the 90-day range the older days carry reach but
+   no views, and the chart draws those as gaps rather than as zeroes. */
+const IG_TOTAL_METRICS = 'views,accounts_engaged,total_interactions';
+const IG_TOTAL_DAYS = 30;
+
+const addDays = (d, n) => new Date(d.getTime() + n * 86400000);
+
 export async function igSeries(token, igId, { since, until }){
+  const byDay = new Map();
+  const rowFor = day => {
+    if (!byDay.has(day)) {
+      byDay.set(day, { day, followers: null, reach: null, views: null, interactions: null, posts: null, raw: {} });
+    }
+    return byDay.get(day);
+  };
+
   const { data } = await call(token, `/${igId}/insights`, {
-    metric: 'reach,views,accounts_engaged,total_interactions',
+    metric: 'reach',
+    metric_type: 'time_series',
     period: 'day',
     since: dayString(since),
     until: dayString(until)
   });
 
-  const byDay = new Map();
   for (const metric of data?.data || []) {
     for (const v of metric.values || []) {
       const day = String(v.end_time || '').slice(0, 10);
       if (!day) continue;
-      const row = byDay.get(day) || { day, followers: null, reach: null, views: null, interactions: null, posts: null, raw: {} };
-      const n = Number(v.value) || 0;
-      if (metric.name === 'reach') row.reach = n;
-      if (metric.name === 'views') row.views = n;
-      if (metric.name === 'total_interactions') row.interactions = n;
-      if (metric.name === 'accounts_engaged') row.raw.accountsEngaged = n;
-      byDay.set(day, row);
+      if (metric.name === 'reach') rowFor(day).reach = Number(v.value) || 0;
+    }
+  }
+
+  /* Newest first, so a rate limit part-way through leaves the most recent days
+     filled rather than the oldest. */
+  const floor = dayString(since);
+  for (let i = 0; i < IG_TOTAL_DAYS; i++) {
+    const day = addDays(until, -i);
+    const key = dayString(day);
+    if (key < floor) break;
+    try {
+      const { data: t } = await call(token, `/${igId}/insights`, {
+        metric: IG_TOTAL_METRICS,
+        metric_type: 'total_value',
+        period: 'day',
+        since: key,
+        until: dayString(addDays(day, 1))
+      });
+      const row = rowFor(key);
+      for (const metric of t?.data || []) {
+        const n = Number(metric.total_value?.value) || 0;
+        if (metric.name === 'views') row.views = n;
+        if (metric.name === 'total_interactions') row.interactions = n;
+        if (metric.name === 'accounts_engaged') row.raw.accountsEngaged = n;
+      }
+    } catch (err) {
+      /* A rate limit stops the backfill and keeps what is already collected;
+         the next pass resumes. Anything else is a real fault and propagates. */
+      if (err.isRateLimit) {
+        console.warn(`[meta] IG daily totals stopped at ${key}: ${err.message}`);
+        break;
+      }
+      throw err;
     }
   }
 
