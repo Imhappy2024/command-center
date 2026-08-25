@@ -537,15 +537,55 @@ export function parseUsage(header){
 
 const DATE_PRESET = { 7: 'last_7d', 28: 'last_28d', 90: 'last_90d' };
 
-export async function adsInsights(token, actId, { days = 28 } = {}){
-  const preset = DATE_PRESET[days] || 'last_28d';
+/* Ads insights are NOT the organic deprecations.
 
-  const { data, usage } = await call(token, `/${actId}/insights`, {
-    fields: 'campaign_id,campaign_name,objective,spend,reach,actions,account_currency',
+   The note on ads_daily used to say impressions were "deliberately absent,
+   deprecated". That is true of PAGE and INSTAGRAM impressions and false of ads:
+   the Marketing API still returns impressions, clicks, ctr, cpc, cpm and
+   frequency, and those are most of what a person buying ads actually reads.
+   Conflating the two cost this dashboard every efficiency metric it has.
+
+   RICH is what we want; CORE is what an ads account is guaranteed to answer.
+   Probed the same way page metrics are, so a field Meta retires costs one pass
+   rather than the whole pull. */
+const ADS_CORE = 'campaign_id,campaign_name,objective,spend,reach,actions,account_currency';
+const ADS_RICH = ADS_CORE + ',impressions,clicks,ctr,cpc,cpm,frequency,inline_link_clicks';
+
+const isBadField = err =>
+  Number(err?.code) === 100 && /(valid|unknown|nonexisting) field|does not exist/i.test(err?.message || '');
+
+let adsFieldMemo = null;
+
+export async function adsInsights(token, actId, { days = 90 } = {}){
+  const preset = DATE_PRESET[days] || 'last_90d';
+
+  /* time_increment=1 is the whole point of this rewrite. Without it Meta returns
+     ONE aggregate row per campaign for the range, which is why every pull wrote
+     a single row stamped with the pull date and the chart drew one bar covering
+     28 days of activity. With it, one row per campaign PER DAY, stamped with the
+     day the delivery actually happened. */
+  const ask = fields => call(token, `/${actId}/insights`, {
+    fields,
     date_preset: preset,
     level: 'campaign',
-    limit: 200
+    time_increment: 1,
+    limit: 500
   });
+
+  let data, usage;
+  if (adsFieldMemo) {
+    ({ data, usage } = await ask(adsFieldMemo));
+  } else {
+    try {
+      ({ data, usage } = await ask(ADS_RICH));
+      adsFieldMemo = ADS_RICH;
+    } catch (err) {
+      if (!isBadField(err)) throw err;
+      console.warn('[meta] ads: a rich insight field was rejected, falling back to core fields');
+      ({ data, usage } = await ask(ADS_CORE));
+      adsFieldMemo = ADS_CORE;
+    }
+  }
 
   /* "Results" is whatever the campaign optimises for, so it is read from the
      actions breakdown rather than assumed to be one action type. Lead-shaped
@@ -563,27 +603,36 @@ export async function adsInsights(token, actId, { days = 28 } = {}){
     return Number(conv?.value) || 0;
   };
 
-  const campaigns = (data?.data || []).map(row => ({
+  const n = v => Number(v) || 0;
+
+  /* One row per campaign per day. date_start is the delivery day, which is the
+     column the chart plots — not the day we happened to ask. */
+  const rows = (data?.data || []).map(row => ({
+    day: String(row.date_start || '').slice(0, 10),
     campaignId: String(row.campaign_id || ''),
     name: row.campaign_name || '(unnamed campaign)',
     objective: row.objective || '',
-    spend: Number(row.spend) || 0,
-    reach: Number(row.reach) || 0,
+    spend: n(row.spend),
+    reach: n(row.reach),
+    impressions: n(row.impressions),
+    clicks: n(row.clicks),
+    linkClicks: n(row.inline_link_clicks),
+    /* ctr, cpc, cpm and frequency are returned per row, but they are ratios and
+       cannot be summed across days or campaigns. They are recomputed from the
+       totals wherever an aggregate is shown; these are kept only so a single
+       day's row is complete. */
+    ctr: n(row.ctr),
+    cpc: n(row.cpc),
+    cpm: n(row.cpm),
+    frequency: n(row.frequency),
     results: resultsOf(row.actions),
     currency: row.account_currency || null
-  }));
+  })).filter(r => r.day);
 
   return {
-    campaigns,
+    rows,
     usagePercent: parseUsage(usage),
-    /* Account-level roll-up summed from the campaign rows rather than fetched
-       again. One request instead of two, and the numbers cannot disagree. */
-    rollup: campaigns.reduce((acc, c) => ({
-      spend: acc.spend + c.spend,
-      reach: acc.reach + c.reach,
-      results: acc.results + c.results,
-      currency: c.currency || acc.currency
-    }), { spend: 0, reach: 0, results: 0, currency: null })
+    currency: rows.find(r => r.currency)?.currency || null
   };
 }
 

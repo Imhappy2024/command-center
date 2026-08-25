@@ -156,8 +156,28 @@ CREATE TABLE IF NOT EXISTS ads_daily (
   PRIMARY KEY (account_id, day, campaign_id)
 );
 
-/* Deliberately absent from all three tables: impressions, reel plays, page-level
+/* Delivery metrics, added after the fact. ads_daily is command-center's own
+   table, so extending it is ours to do; the rule about never altering a table
+   is about ghl_*, lead, appointment and the rest of the portal's schema.
+
+   Ratios are stored as well as the counts they derive from. The counts are what
+   an aggregate is computed from — a CTR cannot be averaged across days — and the
+   ratio columns only ever describe the single row they sit on. */
+ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS impressions BIGINT   NOT NULL DEFAULT 0;
+ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS clicks      BIGINT   NOT NULL DEFAULT 0;
+ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS link_clicks BIGINT   NOT NULL DEFAULT 0;
+ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS ctr         NUMERIC(14,4) NOT NULL DEFAULT 0;
+ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS cpc         NUMERIC(14,4) NOT NULL DEFAULT 0;
+ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS cpm         NUMERIC(14,4) NOT NULL DEFAULT 0;
+ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS frequency   NUMERIC(14,4) NOT NULL DEFAULT 0;
+
+/* Deliberately absent from the ORGANIC tables: reel plays, page-level
    impressions, page-likes growth, and Instagram's profile_views,
    website_clicks, email_contacts, phone_call_clicks and get_directions_clicks.
    Every one of them was deprecated or removed between v22.0 and November 2025. A
-   column for any of them would fill with nulls while looking like it worked. */
+   column for any of them would fill with nulls while looking like it worked.
+
+   This never applied to ads. The Marketing API still returns impressions,
+   clicks, ctr, cpc, cpm and frequency, and reading the note as though it did is
+   what left the ads table with three columns and the ads view with no
+   efficiency metric at all. */

@@ -339,40 +339,122 @@ export function socialRoutes({ env, auth }){
     let ads = null;
 
     if (key === 'meta_ads') {
+      /* Campaign rows only. The campaign_id='' roll-up is written per day too,
+         but summing the campaigns here means the totals on screen and the rows
+         under them are the same arithmetic and cannot drift apart. */
       const { rows } = await query(
         `SELECT account_id, day, campaign_id, campaign, objective, status,
-                spend, reach, results, currency
+                spend, reach, results, currency, impressions, clicks, link_clicks
            FROM ads_daily
-          WHERE account_id = ANY($1) AND day >= (CURRENT_DATE - $2::int)
+          WHERE account_id = ANY($1)
+            AND campaign_id <> ''
+            AND day >= (CURRENT_DATE - $2::int)
           ORDER BY day ASC`,
         [ids, days]);
 
-      const daily = rows.filter(r2 => r2.campaign_id === '').map(r2 => ({
-        account: r2.account_id, day: r2.day,
-        spend: Number(r2.spend) || 0, reach: Number(r2.reach) || 0, results: Number(r2.results) || 0
-      }));
+      const n = v => Number(v) || 0;
+      const BLANK = () => ({ spend: 0, reach: 0, results: 0, impressions: 0, clicks: 0, linkClicks: 0 });
+      const add = (acc, r) => {
+        acc.spend += n(r.spend); acc.reach += n(r.reach); acc.results += n(r.results);
+        acc.impressions += n(r.impressions); acc.clicks += n(r.clicks); acc.linkClicks += n(r.link_clicks);
+        return acc;
+      };
 
-      /* Newest reading per campaign — Meta's date_preset is a rolling window,
-         so the latest row is "the last N days as of the last poll". */
-      const seen = new Set();
-      const campaigns = [];
-      for (const r2 of rows.slice().reverse()) {
-        if (r2.campaign_id === '' || seen.has(r2.account_id + ':' + r2.campaign_id)) continue;
-        seen.add(r2.account_id + ':' + r2.campaign_id);
-        campaigns.push({
-          account: r2.account_id,
-          name: r2.campaign || '(unnamed campaign)',
-          objective: r2.objective || '',
-          status: r2.status || 'Active',
-          spend: Number(r2.spend) || 0,
-          reach: Number(r2.reach) || 0,
-          results: Number(r2.results) || 0
-        });
+      /* Every ratio is derived here, from summed counts. A CTR cannot be
+         averaged across days or campaigns — that weights a $2 day the same as a
+         $900 one — and cost per result is undefined, not zero, with no results. */
+      const derive = t => ({
+        ...t,
+        ctr: t.impressions ? (t.clicks / t.impressions) * 100 : null,
+        cpc: t.clicks ? t.spend / t.clicks : null,
+        cpm: t.impressions ? (t.spend / t.impressions) * 1000 : null,
+        cpa: t.results ? t.spend / t.results : null,
+        frequency: t.reach ? t.impressions / t.reach : null
+      });
+
+      const dayMap = new Map();
+      const campMap = new Map();
+      const acctMap = new Map();
+
+      for (const r of rows) {
+        const day = String(r.day).slice(0, 10);
+        /* Keyed by day AND account, and sent as raw counts. The account filter
+           in the browser sums whichever rows it keeps and derives the ratios
+           from that sum — deriving them here would mean re-averaging an average
+           the moment a filter was applied. */
+        const dk = day + '|' + r.account_id;
+        if (!dayMap.has(dk)) dayMap.set(dk, { day, account: r.account_id, ...BLANK() });
+        add(dayMap.get(dk), r);
+
+        const ck = r.account_id + ':' + r.campaign_id;
+        if (!campMap.has(ck)) {
+          campMap.set(ck, {
+            id: r.campaign_id,
+            account: r.account_id,
+            name: r.campaign || '(unnamed campaign)',
+            objective: r.objective || '',
+            status: r.status || 'Active',
+            days: new Map(),
+            ...BLANK()
+          });
+        }
+        const c = campMap.get(ck);
+        add(c, r);
+        c.days.set(day, (c.days.get(day) || 0) + n(r.spend));
+
+        if (!acctMap.has(r.account_id)) acctMap.set(r.account_id, BLANK());
+        add(acctMap.get(r.account_id), r);
       }
+
+      const daily = [...dayMap.values()]
+        .sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
+
+      /* The day axis the sparklines align to. */
+      const axis = [...new Set(daily.map(d => d.day))].sort();
+
+      const campaigns = [...campMap.values()]
+        .map(c => {
+          const { days: dmap, ...rest } = c;
+          return {
+            ...derive(rest),
+            /* A spend sparkline per row, aligned to the same day axis as the
+               chart above it, so a campaign that stopped delivering is visible
+               without opening anything. */
+            spark: axis.map(day => dmap.get(day) || 0)
+          };
+        })
+        .sort((a, b) => b.spend - a.spend);
+
+      const totals = derive([...rows].reduce((acc, r) => add(acc, r), BLANK()));
+
+      /* The window immediately before this one, for the deltas. Absent it the
+         deltas are null and the tiles say so rather than implying a flat trend. */
+      const { rows: prevRows } = await query(
+        `SELECT COALESCE(SUM(spend),0) AS spend, COALESCE(SUM(results),0) AS results,
+                COALESCE(SUM(impressions),0) AS impressions, COALESCE(SUM(clicks),0) AS clicks
+           FROM ads_daily
+          WHERE account_id = ANY($1) AND campaign_id <> ''
+            AND day <  (CURRENT_DATE - $2::int)
+            AND day >= (CURRENT_DATE - ($2::int * 2))`,
+        [ids, days]);
+      const prev = derive({
+        spend: n(prevRows[0]?.spend), results: n(prevRows[0]?.results),
+        impressions: n(prevRows[0]?.impressions), clicks: n(prevRows[0]?.clicks),
+        reach: 0, linkClicks: 0
+      });
+
       ads = {
-        currency: rows.find(r2 => r2.currency)?.currency || null,
+        currency: rows.find(r => r.currency)?.currency || null,
+        axis,
         daily,
-        campaigns: campaigns.sort((a, b) => b.spend - a.spend)
+        campaigns,
+        totals,
+        previous: prevRows.length && n(prevRows[0]?.spend) > 0 ? prev : null,
+        byAccount: accounts.map(a => ({
+          id: a.id,
+          label: a.label,
+          ...derive(acctMap.get(a.id) || BLANK())
+        }))
       };
     } else {
       const { rows } = await query(

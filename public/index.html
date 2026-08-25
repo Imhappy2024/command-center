@@ -733,6 +733,42 @@ main{min-width:0;display:flex;flex-direction:column}
 .soacct .sdot{width:8px;height:8px;border-radius:50%;background:var(--c)}
 .soacct b{color:var(--text);font-variation-settings:'wght' 500}
 .soacct .mono{margin-left:auto;font-size:10.5px;color:var(--dimmer)}
+
+/* ---------- ads dashboard ---------- */
+.adsflags{display:flex;flex-direction:column;gap:1px;margin-bottom:14px}
+.adsflag{display:flex;align-items:flex-start;gap:10px;padding:11px 15px;background:var(--panel);
+  border:1px solid var(--edge);font-size:12.5px;color:var(--text);line-height:1.5}
+.adsflag:first-child{border-radius:3px 3px 0 0}
+.adsflag:last-child{border-radius:0 0 3px 3px}
+.adsflag:only-child{border-radius:3px}
+.adsflag .fmark{flex:none;width:17px;height:17px;border-radius:3px;display:grid;place-items:center;
+  font-size:10px;font-weight:700;margin-top:1px}
+.adsflag.stop  .fmark{background:rgba(194,85,63,.17);color:var(--rust)}
+.adsflag.watch .fmark{background:rgba(217,164,65,.17);color:var(--brass)}
+.adsflag.good  .fmark{background:rgba(78,158,126,.17);color:var(--jade)}
+.adsflag b{font-variation-settings:'wght' 600}
+.adsflag small{display:block;color:var(--dim);font-size:11.5px;margin-top:2px}
+
+.adscombo{width:100%;height:210px;display:block}
+.adslegend{display:flex;gap:16px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--dim);padding-top:9px}
+.adslegend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.adslegend .ln{width:14px;height:2px;border-radius:0}
+
+.adsbar{position:relative;height:4px;background:#1C232B;border-radius:2px;margin-top:5px;overflow:hidden}
+.adsbar>i{position:absolute;inset:0 auto 0 0;background:var(--c,#5B8DEF);border-radius:2px}
+.spark{display:block;width:74px;height:20px}
+th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+th.sortable:hover{color:var(--text)}
+th.sortable .caret{opacity:.45;font-size:8px;margin-left:3px}
+th.sortable.on .caret{opacity:1;color:var(--brass)}
+.acctpick{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.acctpick button{background:none;border:1px solid var(--edge);border-radius:20px;color:var(--dim);cursor:pointer;
+  font-size:11.5px;padding:6px 13px;transition:.13s;display:flex;align-items:center;gap:7px}
+.acctpick button:hover{border-color:var(--edge2);color:var(--text)}
+.acctpick button.on{background:var(--cream);border-color:var(--cream);color:#12161A}
+.acctpick button .amt{font-family:'IBM Plex Mono',monospace;font-size:10.5px;opacity:.75}
+.bench{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.06em;color:var(--dimmer);
+  text-transform:uppercase;margin-top:3px}
 </style>
 </head>
 <body>
@@ -3292,7 +3328,16 @@ let POSTS = [];
 
 /* view: overview | youtube | meta | x. metaTab: facebook | instagram | meta_ads.
    metric: the series each platform chart is showing, remembered per platform. */
-const SO = { view:'overview', metaTab:'facebook', range:'28', metric:{}, fetching:false };
+const SO = { view:'overview', metaTab:'facebook', range:'28', metric:{}, fetching:false,
+  /* Ads view: which ad account is in focus, how the campaign table is sorted,
+     and which efficiency metric the line on the combo chart draws. */
+  adsAcct:'all', adsSort:{ col:'spend', dir:-1 }, adsLine:'cpa' };
+
+/* Meta's own 2026 averages, used only as a reference line and to decide when a
+   row is worth flagging. Shown as "avg", never as a target: a $66 cost per lead
+   is excellent in one vertical and terrible in another, and the dashboard has no
+   way to know which this is. */
+const ADS_BENCH = { ctr: 1.49, cpm: 14.19, frequency: 3.0 };
 
 /* Per-platform dashboard data from /api/social/platform/:key, keyed by platform.
    Cleared when the range changes, because every series inside is window-scoped. */
@@ -3406,6 +3451,8 @@ function drawSocial(){
   if (SO.view === 'overview') {
     fetchBtn.hidden = true;
     connectBtn.hidden = false;
+    connectBtn.textContent = '+ Connect account';
+    connectBtn.onclick = soConnect;
     drawSchedule(null);
     if (!SOCIAL.length) {
       sub.textContent = 'No accounts connected.';
@@ -3423,11 +3470,17 @@ function drawSocial(){
       body.innerHTML = audienceTab() + '<div style="height:14px"></div>' + contentTab();
     }
   } else {
-    /* Platform views own their connect button inside the empty state, and the
-       header button becomes the manual fetch. */
-    connectBtn.hidden = true;
+    /* An empty platform offers Connect inside its empty state. A connected one
+       still needs the button: one YouTube channel does not mean one channel is
+       all there is, and hiding it made a second channel — or a second ad
+       account — impossible to add from here. It becomes "+ Add" so it reads as
+       another one rather than as repairing the first. */
     const keys = SO_VIEW_KEYS[SO.view];
     const connected = soAccountsFor(keys).length > 0;
+    const grant = SO_GRANT[keys[0]];
+    connectBtn.hidden = !connected;
+    connectBtn.textContent = '+ Add ' + ({ youtube:'channel', meta:'Meta account', x:'X account' }[grant] || 'account');
+    connectBtn.onclick = () => soConnectProvider(grant);
     fetchBtn.hidden = !connected;
     fetchBtn.textContent = SO.fetching ? 'Fetching…' : 'Fetch now';
     fetchBtn.disabled = SO.fetching;
@@ -3449,6 +3502,20 @@ function drawSocial(){
   });
   body.querySelectorAll('[data-metatab]').forEach(b => b.onclick = () => {
     SO.metaTab = b.dataset.metatab; drawSocial();
+  });
+  body.querySelectorAll('[data-adsacct]').forEach(b => b.onclick = () => {
+    SO.adsAcct = b.dataset.adsacct; drawSocial();
+  });
+  body.querySelectorAll('[data-adsline]').forEach(b => b.onclick = () => {
+    SO.adsLine = b.dataset.adsline; drawSocial();
+  });
+  /* Same column twice reverses it; a new column starts descending, because the
+     question is almost always "which is the biggest". Name is the exception. */
+  body.querySelectorAll('[data-adssort]').forEach(b => b.onclick = () => {
+    const col = b.dataset.adssort;
+    if (SO.adsSort.col === col) SO.adsSort.dir *= -1;
+    else SO.adsSort = { col, dir: col === 'name' ? 1 : -1 };
+    drawSocial();
   });
 
   const badge = document.querySelector('.navitem[data-target="social"] .badge');
@@ -3638,6 +3705,8 @@ function platformView(key){
 
 function accountsFooter(d){
   const fmt = iso => iso ? new Date(iso).toLocaleString() : 'never';
+  const grant = d.grant || SO_GRANT[d.provider];
+  const what = { youtube:'another channel', meta:'another Meta account', x:'another X account' }[grant] || 'another account';
   return '<div class="card flush"><div class="cardhead"><h3>Accounts</h3><span class="eyebrow">' + d.accounts.length + ' connected</span></div>'
     + d.accounts.map(a =>
         '<div class="soacct" style="--c:' + a.color + '"><span class="sdot"></span><b>' + escS(a.label) + '</b>'
@@ -3645,6 +3714,13 @@ function accountsFooter(d){
         + (a.status !== 'ok' ? '<span class="chip rust">Reauth</span>' : '')
         + (a.lastPollError ? '<span class="chip rust" title="' + escS(a.lastPollError) + '">Last pull failed</span>' : '')
         + '<span class="mono">pulled ' + fmt(a.lastRun) + '</span></div>').join('')
+    /* Connecting again adds a row rather than replacing one: accounts are keyed
+       by the provider's own account id, so a second channel is a second row and
+       reconnecting the same one just refreshes its tokens. */
+    + '<div class="soacct" style="--c:var(--edge2)">'
+    + '<button class="btn" data-soconnect="' + grant + '">+ Connect ' + what + '</button>'
+    + '<span class="sm" style="color:var(--dimmer);margin-left:2px">Sign in with a different account to add it alongside these.</span>'
+    + '</div>'
     + '</div>';
 }
 
@@ -3670,134 +3746,289 @@ function adsView(){
   if (d.error) return '<div class="card flush"><div class="empty"><b>Could not load</b><small>' + escS(d.error) + '</small></div></div>';
   if (!d.connected) return connectCard('meta_ads', d);
 
-  const ads = d.ads || { daily: [], campaigns: [], currency: null };
+  const ads = d.ads || {};
   const cur = ads.currency || 'USD';
-  const money = n => { try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: cur, maximumFractionDigits: 0 }).format(n); } catch { return cur + ' ' + Math.round(n).toLocaleString(); } };
+  const money = n => {
+    if (n == null) return '—';
+    try { return new Intl.NumberFormat(undefined, { style:'currency', currency:cur, maximumFractionDigits: n < 100 ? 2 : 0 }).format(n); }
+    catch { return cur + ' ' + Math.round(n).toLocaleString(); }
+  };
+  const pct = n => n == null ? '—' : n.toFixed(2) + '%';
+  const ratio = n => n == null ? '—' : n.toFixed(2);
 
-  /* Each daily row is a rolling 28-day snapshot as of that poll, so "current"
-     is the newest row per account, summed. */
-  const latestByAcct = new Map();
-  for (const r of ads.daily) latestByAcct.set(r.account, r);   // ascending by day; last wins
-  const latest = [...latestByAcct.values()];
-  const spend = latest.reduce((n, r) => n + r.spend, 0);
-  const results = latest.reduce((n, r) => n + r.results, 0);
-  const reach = latest.reduce((n, r) => n + r.reach, 0);
-  const cpl = results > 0 ? spend / results : 0;
+  /* Counts sum; ratios never do. Everything below re-derives from the counts it
+     kept, so an account filter cannot silently average an average. */
+  const derive = t => ({
+    ...t,
+    ctr: t.impressions ? (t.clicks / t.impressions) * 100 : null,
+    cpc: t.clicks ? t.spend / t.clicks : null,
+    cpm: t.impressions ? (t.spend / t.impressions) * 1000 : null,
+    cpa: t.results ? t.spend / t.results : null,
+    frequency: t.reach ? t.impressions / t.reach : null
+  });
+  const BLANK = () => ({ spend:0, reach:0, results:0, impressions:0, clicks:0, linkClicks:0 });
+  const addUp = rows2 => derive(rows2.reduce((a, r) => {
+    a.spend += r.spend||0; a.reach += r.reach||0; a.results += r.results||0;
+    a.impressions += r.impressions||0; a.clicks += r.clicks||0; a.linkClicks += r.linkClicks||0;
+    return a;
+  }, BLANK()));
 
-  const stat = (k, v, m, tone) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
-    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div></div>';
+  const inScope = r => SO.adsAcct === 'all' || r.account === SO.adsAcct;
+  const campaigns = (ads.campaigns || []).filter(inScope);
+  const dailyRows = (ads.daily || []).filter(inScope);
+  const totals = addUp(campaigns);
 
-  const metric = SO.metric.meta_ads || 'spend';
-  const toggles = ['spend', 'results', 'reach'].map(m =>
-    '<button class="sometric' + (m === metric ? ' on' : '') + '" data-sometric="' + m + '" data-plat="meta_ads">' + m + '</button>').join('');
-  const daily = soDaily(ads.daily.map(r => ({ day: r.day, spend: r.spend, results: r.results, reach: r.reach })), metric);
+  /* ---------- account picker ---------- */
+  const picker = (ads.byAccount || []).length > 1
+    ? '<div class="acctpick">'
+      + '<button class="' + (SO.adsAcct === 'all' ? 'on' : '') + '" data-adsacct="all">All accounts'
+      + '<span class="amt">' + money((ads.totals || {}).spend) + '</span></button>'
+      + ads.byAccount.map(a => '<button class="' + (SO.adsAcct === a.id ? 'on' : '') + '" data-adsacct="' + escS(a.id) + '">'
+          + escS(a.label) + '<span class="amt">' + money(a.spend) + '</span></button>').join('')
+      + '</div>'
+    : '';
 
-  return '<div class="grid g4" style="margin-bottom:14px">'
-    + stat('Spend', money(spend), 'trailing 28d, as of last pull')
-    + stat('Results', String(results), 'leads / conversions')
-    + stat('Cost per result', results ? money(cpl) : '—', results ? 'spend ÷ results' : 'no results yet')
-    + stat('Reach', num(reach), 'unique accounts')
+  /* ---------- what needs attention ----------
+     The research on paid dashboards is consistent on this: the table tells you
+     what happened, the flags tell you what to do. Ranked by money at stake, and
+     every one names the number that triggered it. Marked with a letter as well
+     as a colour, because roughly one man in twelve cannot separate the red from
+     the green. */
+  const flags = [];
+  for (const c of campaigns) {
+    if (c.spend > 0 && !c.results) {
+      flags.push({ kind:'stop', mark:'!', weight:c.spend,
+        title:'<b>' + escS(c.name) + '</b> has spent ' + money(c.spend) + ' for no results',
+        note:'Nothing has converted in this window. Either the objective is not what you are counting, or the campaign needs pausing.' });
+    } else if (c.cpa != null && totals.cpa != null && c.cpa > totals.cpa * 1.5 && c.spend > totals.spend * 0.05) {
+      flags.push({ kind:'watch', mark:'▲', weight:c.spend,
+        title:'<b>' + escS(c.name) + '</b> costs ' + money(c.cpa) + ' per result',
+        note:'That is ' + Math.round((c.cpa / totals.cpa - 1) * 100) + '% above the ' + money(totals.cpa) + ' account average.' });
+    }
+    if (c.frequency != null && c.frequency > ADS_BENCH.frequency) {
+      flags.push({ kind:'watch', mark:'↻', weight:c.spend,
+        title:'<b>' + escS(c.name) + '</b> is at frequency ' + ratio(c.frequency),
+        note:'The same people are seeing it repeatedly. Above 3 this usually shows up as a falling CTR and a rising CPM — the point at which creative is refreshed.' });
+    }
+    if (c.ctr != null && c.ctr < 1 && c.impressions > 1000) {
+      flags.push({ kind:'watch', mark:'▾', weight:c.spend,
+        title:'<b>' + escS(c.name) + '</b> has a ' + pct(c.ctr) + ' click-through rate',
+        note:'Meta’s 2026 average is ' + ADS_BENCH.ctr + '%. A CTR this far below it is usually the creative or the audience, not the budget.' });
+    }
+  }
+  if (!flags.length && campaigns.length) {
+    flags.push({ kind:'good', mark:'✓', weight:0,
+      title:'Nothing needs attention',
+      note:'No campaign is spending without results, over frequency 3, or more than 50% above the account’s average cost per result.' });
+  }
+  flags.sort((a, b) => b.weight - a.weight);
+
+  const flagHtml = flags.length
+    ? '<div class="adsflags">' + flags.slice(0, 5).map(f =>
+        '<div class="adsflag ' + f.kind + '"><span class="fmark">' + f.mark + '</span>'
+        + '<span>' + f.title + '<small>' + f.note + '</small></span></div>').join('') + '</div>'
+    : '';
+
+  /* ---------- headline ---------- */
+  const prev = SO.adsAcct === 'all' ? ads.previous : null;
+  const move = (now, before, goodDown) => {
+    if (before == null || !before || now == null) return { m:'no prior period', t:'flat' };
+    const p = Math.round(((now - before) / before) * 100);
+    if (!p) return { m:'level on prior period', t:'flat' };
+    const better = goodDown ? p < 0 : p > 0;
+    return { m:(p > 0 ? '▲ ' : '▼ ') + Math.abs(p) + '% on prior ' + SO.range + 'd', t: better ? 'up' : 'down' };
+  };
+  const stat = (k, v, m, tone, extra) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
+    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div>'
+    + (extra ? '<div class="bench">' + extra + '</div>' : '') + '</div>';
+
+  const mSpend = move(totals.spend, prev?.spend, false);
+  const mRes = move(totals.results, prev?.results, false);
+  const mCpa = move(totals.cpa, prev?.cpa, true);
+  const mCtr = move(totals.ctr, prev?.ctr, false);
+
+  const tiles = '<div class="grid g3" style="margin-bottom:14px">'
+    + stat('Spend', money(totals.spend), mSpend.m, mSpend.t)
+    + stat('Results', String(totals.results), mRes.m, mRes.t)
+    + stat('Cost per result', money(totals.cpa), totals.cpa == null ? 'nothing has converted' : mCpa.m, totals.cpa == null ? 'flat' : mCpa.t)
     + '</div>'
+    + '<div class="grid g3" style="margin-bottom:14px">'
+    + stat('Click-through rate', pct(totals.ctr), totals.ctr == null ? 'no impressions recorded' : mCtr.m, totals.ctr == null ? 'flat' : mCtr.t,
+        'avg ' + ADS_BENCH.ctr + '%')
+    + stat('CPM', money(totals.cpm), totals.impressions ? num(totals.impressions) + ' impressions' : 'no impressions recorded', 'flat',
+        'avg ' + money(ADS_BENCH.cpm))
+    + stat('Frequency', ratio(totals.frequency), totals.reach ? num(totals.reach) + ' people reached' : 'no reach recorded',
+        totals.frequency != null && totals.frequency > ADS_BENCH.frequency ? 'down' : 'flat',
+        'fatigue above ' + ADS_BENCH.frequency.toFixed(1))
+    + '</div>';
+
+  /* ---------- combo chart ----------
+     Spend as bars, one efficiency metric as a line over it. Spend alone says
+     nothing about whether the money worked, and the line is the half that does;
+     reading them apart is what the single-bar chart made impossible. */
+  const axis = ads.axis || [];
+  const byDay = new Map();
+  for (const r of dailyRows) {
+    if (!byDay.has(r.day)) byDay.set(r.day, BLANK());
+    const a = byDay.get(r.day);
+    a.spend += r.spend||0; a.reach += r.reach||0; a.results += r.results||0;
+    a.impressions += r.impressions||0; a.clicks += r.clicks||0;
+  }
+  const series = axis.map(day => ({ day, ...derive(byDay.get(day) || BLANK()) }));
+
+  const LINES = { cpa:['Cost per result', money], ctr:['CTR', pct], cpm:['CPM', money], frequency:['Frequency', ratio] };
+  const lineKey = SO.adsLine;
+  const [lineLabel, lineFmt] = LINES[lineKey] || LINES.cpa;
+  const lineToggle = Object.entries(LINES).map(([k, v]) =>
+    '<button class="sometric' + (k === lineKey ? ' on' : '') + '" data-adsline="' + k + '">' + v[0] + '</button>').join('');
+
+  const chart = series.length
+    ? comboChart(series, lineKey, lineFmt, money)
+      + '<div class="adslegend"><span><i style="background:#5B8DEF"></i>Spend per day</span>'
+      + '<span><i class="ln" style="background:var(--brass)"></i>' + lineLabel + '</span>'
+      + '<span style="margin-left:auto;color:var(--dimmer)">' + series.length + ' days · hover a bar for that day</span></div>'
+    : '<div class="empty" style="padding:30px"><b>No daily data yet</b>'
+      + '<small>Use <b>Fetch now</b> above. Each pull asks Meta for a per-day breakdown, so one pull fills the whole window.</small></div>';
+
+  /* ---------- campaign table ---------- */
+  const SORTS = {
+    name:  c => c.name.toLowerCase(),
+    spend: c => c.spend,
+    results: c => c.results,
+    cpa:   c => c.cpa == null ? Infinity : c.cpa,
+    ctr:   c => c.ctr == null ? -1 : c.ctr,
+    cpm:   c => c.cpm == null ? -1 : c.cpm,
+    frequency: c => c.frequency == null ? -1 : c.frequency,
+    reach: c => c.reach
+  };
+  const sorted = campaigns.slice().sort((a, b) => {
+    const f = SORTS[SO.adsSort.col] || SORTS.spend;
+    const x = f(a), y = f(b);
+    return (x < y ? -1 : x > y ? 1 : 0) * SO.adsSort.dir;
+  });
+  const maxSpend = Math.max(1, ...campaigns.map(c => c.spend));
+
+  const th = (col, label, right) => '<th class="sortable' + (SO.adsSort.col === col ? ' on' : '') + (right ? ' r' : '')
+    + '" data-adssort="' + col + '">' + label
+    + '<span class="caret">' + (SO.adsSort.col === col ? (SO.adsSort.dir < 0 ? '▼' : '▲') : '◆') + '</span></th>';
+
+  const rowHtml = c => {
+    const bad = c.spend > 0 && !c.results;
+    const hot = c.frequency != null && c.frequency > ADS_BENCH.frequency;
+    const cpaTone = c.cpa == null ? 'var(--dimmer)'
+      : (totals.cpa != null && c.cpa > totals.cpa * 1.5) ? 'var(--rust)'
+      : (totals.cpa != null && c.cpa < totals.cpa) ? 'var(--jade)' : 'var(--text)';
+    return '<tr>'
+      + '<td><span class="name">' + (bad ? '<span title="spending with no results" style="color:var(--rust);margin-right:5px">!</span>' : '')
+        + escS(c.name) + '</span>'
+      + '<span class="sm">' + escS(c.objective || 'no objective') + ' · ' + escS(shortAcct(c.account, ads)) + '</span>'
+      + '<div class="adsbar" style="--c:' + (bad ? 'var(--rust)' : '#5B8DEF') + '"><i style="width:' + Math.max(2, (c.spend / maxSpend) * 100).toFixed(1) + '%"></i></div></td>'
+      + '<td>' + sparkline(c.spark, bad ? '#C2553F' : '#5B8DEF') + '</td>'
+      + '<td class="r mono">' + money(c.spend) + '</td>'
+      + '<td class="r mono">' + c.results + '</td>'
+      + '<td class="r mono" style="color:' + cpaTone + '">' + money(c.cpa) + '</td>'
+      + '<td class="r mono">' + pct(c.ctr) + '</td>'
+      + '<td class="r mono">' + money(c.cpm) + '</td>'
+      + '<td class="r mono" style="color:' + (hot ? 'var(--brass)' : 'inherit') + '">' + ratio(c.frequency) + '</td>'
+      + '<td class="r mono">' + num(c.reach) + '</td>'
+      + '</tr>';
+  };
+
+  const table = '<div class="card flush" style="margin-bottom:14px">'
+    + '<div class="cardhead"><h3>Campaigns</h3>'
+    + '<span class="eyebrow">' + sorted.length + ' · click a column to sort</span></div>'
+    + (sorted.length
+        ? '<div style="overflow-x:auto"><table class="tbl">'
+          + '<thead><tr>' + th('name', 'Campaign') + '<th>Spend trend</th>'
+          + th('spend', 'Spend', true) + th('results', 'Results', true) + th('cpa', 'Cost / result', true)
+          + th('ctr', 'CTR', true) + th('cpm', 'CPM', true) + th('frequency', 'Freq.', true) + th('reach', 'Reach', true)
+          + '</tr></thead><tbody>' + sorted.map(rowHtml).join('') + '</tbody></table></div>'
+        : '<div class="empty"><small>No campaigns delivered in this window.</small></div>')
+    + '</div>';
+
+  return picker + flagHtml + tiles
     + '<div class="card" style="margin-bottom:14px">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    + '<h3>' + metric[0].toUpperCase() + metric.slice(1) + ' by pull date</h3><div class="sometrics">' + toggles + '</div></div>'
-    + (daily.length
-        ? soChart(daily, '#5B8DEF', v => metric === 'spend' ? money(v) : num(v))
-          + '<div class="notice" style="margin-top:12px">Each bar is the trailing 28-day figure as it stood on that day, '
-          + 'because Meta reports ads over a rolling window. A rising bar means the last 28 days are growing, not that one day spiked.</div>'
-        : '<div class="empty" style="padding:26px"><b>No ads data pulled yet</b><small>Use <b>Fetch now</b> above or wait for the next scheduled pull. '
-          + 'Ads need Business Verification before Meta returns anything.</small></div>')
-    + '</div>'
-    + '<div class="card flush" style="margin-bottom:14px"><div class="cardhead"><h3>Campaigns</h3><span class="eyebrow">' + ads.campaigns.length + ' · by spend</span></div>'
-    + (ads.campaigns.length
-        ? '<table class="tbl"><thead><tr><th>Campaign</th><th class="r">Spend</th><th class="r">Results</th><th class="r">CPR</th><th class="r">Reach</th><th class="r">Status</th></tr></thead><tbody>'
-          + ads.campaigns.map(c => '<tr><td><span class="name">' + escS(c.name) + '</span><span class="sm">' + escS(c.objective) + '</span></td>'
-              + '<td class="r mono">' + money(c.spend) + '</td><td class="r mono">' + c.results + '</td>'
-              + '<td class="r mono" style="color:' + (c.results && cpl && (c.spend / c.results) > cpl ? 'var(--rust)' : 'var(--jade)') + '">' + (c.results ? money(c.spend / c.results) : '—') + '</td>'
-              + '<td class="r mono">' + num(c.reach) + '</td>'
-              + '<td class="r"><span class="chip ' + (/active/i.test(c.status) ? 'jade' : '') + '" style="font-size:8.5px">' + escS(c.status) + '</span></td></tr>').join('')
-          + '</tbody></table>'
-        : '<div class="empty"><small>No campaigns in this window.</small></div>')
-    + '</div>'
+    + '<h3>Daily spend and ' + lineLabel.toLowerCase() + '</h3><div class="sometrics">' + lineToggle + '</div></div>'
+    + chart + '</div>'
+    + table
     + accountsFooter(d);
 }
 
-function audienceTab(){
-  const cards = PLATFORMS.map(p => {
-    const a = SOCIAL.find(s => s.platform === p.k);
-    if (!p.ok) {
-      return '<div class="pcard dim" style="--c:' + p.color + '">'
-        + '<div class="ptop"><span class="pname">' + p.label + '</span>'
-        + '<span class="chip rust" style="font-size:8.5px">API closed</span></div>'
-        + '<div class="v" style="color:var(--dimmer)">\u2014</div>'
-        + '<div class="lbl">Not available</div>'
-        + '<div class="d" style="color:var(--dimmer);line-height:1.55">Metrics need Community Management '
-        + 'API approval, which requires a live technical sign-off.</div>'
-        + '<button class="btn" style="margin-top:10px;width:100%" data-solink="https://www.linkedin.com/feed/">'
-        + 'Open LinkedIn</button></div>';
-    }
-    if (!a) {
-      return '<div class="pcard dim" style="--c:' + p.color + '">'
-        + '<div class="ptop"><span class="pname">' + p.label + '</span>'
-        + '<span class="chip" style="font-size:8.5px">Not connected</span></div>'
-        + '<div class="v" style="color:var(--dimmer)">\u2014</div>'
-        + '<div class="lbl">' + p.via + '</div></div>';
-    }
-    const dead = a.status !== 'ok';
-    return '<div class="pcard' + (dead ? ' dim' : '') + '" style="--c:' + p.color + '">'
-      + '<div class="ptop"><span class="pname">' + p.label + '</span>'
-      + (dead ? '<span class="chip rust" style="font-size:8.5px">Reauth</span>'
-              : '<span class="chip" style="font-size:8.5px">' + escS(a.handle) + '</span>') + '</div>'
-      + '<div class="v">' + num(a.followers) + '</div>'
-      + '<div class="lbl">Followers</div>'
-      + '<div class="d">' + delta(a.followerDelta) + ' in ' + SO.range + 'd</div>'
-      + '<div class="sub2">'
-        + '<div><b>' + num(a.reach) + '</b><small>Reach</small></div>'
-        + '<div><b>' + num(a.views) + '</b><small>Views</small></div>'
-        + '<div><b>' + a.engagement.toFixed(2) + '%</b><small>Eng. rate</small></div>'
-      + '</div></div>';
+const shortAcct = (id, ads) => (ads.byAccount || []).find(a => a.id === id)?.label || id.replace(/^meta_ads:/, '');
+
+/* Spend bars with an efficiency line over them, on two independent scales.
+
+   Two scales because the units are unrelated — dollars against a percentage —
+   and forcing them onto one axis would flatten whichever is smaller into the
+   floor. Each is labelled with its own maximum so nobody reads the crossing
+   point as meaningful. A day with no value in the line series breaks it rather
+   than dropping to zero: no delivery is not a cost of nothing. */
+function comboChart(series, lineKey, lineFmt, money){
+  const W = 760, H = 200, PAD_L = 4, PAD_R = 4, TOP = 14, BOT = 18;
+  const n = series.length;
+  const maxSpend = Math.max(1, ...series.map(d => d.spend || 0));
+  const lineVals = series.map(d => d[lineKey]).filter(v => v != null && isFinite(v));
+  const maxLine = lineVals.length ? Math.max(...lineVals) : 0;
+  const bw = (W - PAD_L - PAD_R) / Math.max(1, n);
+  const plotH = H - TOP - BOT;
+
+  const bars = series.map((d, i) => {
+    const h = Math.max(1, Math.round(((d.spend || 0) / maxSpend) * plotH));
+    const x = PAD_L + i * bw;
+    return '<rect x="' + (x + 0.6).toFixed(1) + '" y="' + (TOP + plotH - h) + '" width="' + Math.max(1, bw - 1.2).toFixed(1)
+      + '" height="' + h + '" rx="1.5" fill="#5B8DEF" opacity=".62"><title>' + escS(d.day) + '\n'
+      + 'Spend ' + escS(money(d.spend || 0)) + '\n' + 'Results ' + (d.results || 0)
+      + (d[lineKey] != null ? '\n' + escS(lineFmt(d[lineKey])) : '') + '</title></rect>';
   }).join('');
 
-  return '<div class="notice"><b>Reading these numbers.</b> Reach counts unique accounts, '
-    + 'views counts every appearance including repeats, so views is always larger. Impressions no longer '
-    + 'exists: Meta folded it into views in April 2025, and any tool still showing it is relabelling '
-    + 'the same data. Engagement rate here is interactions divided by reach, not by followers.</div>'
-    + '<div class="grid g3" style="margin-bottom:14px">' + cards + '</div>'
-    + '<div class="card flush"><div class="cardhead"><h3>Where messages go</h3>'
-    + '<span class="eyebrow">By design</span></div>'
-    + '<div style="padding:15px 18px;font-size:12.5px;color:var(--dim);line-height:1.7">'
-    + 'Facebook Page and Instagram DMs are threads with a counterparty and a reply box, which is the same '
-    + 'shape as email. They land in the Inbox as two more accounts instead of a second messaging UI here. '
-    + 'YouTube has no DMs at all, only comments, which show under Content.'
-    + '</div></div>';
-}
-
-function contentTab(){
-  if (!POSTS.length) {
-    return '<div class="card flush"><div class="empty"><b>No content yet</b>'
-      + '<small>Posts from every connected account appear here, ranked by the metric that '
-      + 'actually predicts growth.</small></div></div>';
+  let path = '';
+  if (maxLine > 0) {
+    let open = false;
+    series.forEach((d, i) => {
+      const v = d[lineKey];
+      const x = PAD_L + i * bw + bw / 2;
+      if (v == null || !isFinite(v)) { open = false; return; }
+      const y = TOP + plotH - (v / maxLine) * plotH;
+      path += (open ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
+      open = true;
+    });
   }
-  return '<div class="notice">Ranked by <b>shares per reach</b> rather than likes. '
-    + 'Shares move content into feeds that likes never reach, which is why it predicts growth '
-    + 'and a like count does not.</div>'
-    + '<div class="card flush"><div class="cardhead"><h3>Top posts</h3>'
-    + '<span class="eyebrow">Last ' + SO.range + ' days</span></div>'
-    + '<table class="tbl"><thead><tr><th>Post</th><th class="r">Reach</th><th class="r">Views</th>'
-    + '<th class="r">Shares</th><th class="r">Share rate</th></tr></thead><tbody>'
-    + POSTS.slice().sort((a, b) => (b.shares / b.reach) - (a.shares / a.reach)).map(p => {
-        const pl = platByK(p.platform);
-        return '<tr><td><span class="name"><span class="miniplat" style="--c:' + pl.color + '"></span>'
-        + escS(p.title) + '</span><span class="sm">' + pl.label + ' \u00b7 ' + escS(p.when) + '</span></td>'
-        + '<td class="r mono">' + num(p.reach) + '</td>'
-        + '<td class="r mono">' + num(p.views) + '</td>'
-        + '<td class="r mono">' + p.shares + '</td>'
-        + '<td class="r mono" style="color:var(--brass)">' + (p.shares / p.reach * 100).toFixed(2) + '%</td></tr>';
-      }).join('')
-    + '</tbody></table></div>';
+
+  const dots = maxLine > 0 ? series.map((d, i) => {
+    const v = d[lineKey];
+    if (v == null || !isFinite(v)) return '';
+    const x = PAD_L + i * bw + bw / 2;
+    const y = TOP + plotH - (v / maxLine) * plotH;
+    return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2" fill="var(--brass)"><title>'
+      + escS(d.day) + ': ' + escS(lineFmt(v)) + '</title></circle>';
+  }).join('') : '';
+
+  return '<svg class="adscombo" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">'
+    + '<line x1="0" y1="' + (TOP + plotH) + '" x2="' + W + '" y2="' + (TOP + plotH) + '" stroke="var(--edge)" stroke-width="1"/>'
+    + bars
+    + (path ? '<path d="' + path.trim() + '" fill="none" stroke="var(--brass)" stroke-width="1.6" stroke-linejoin="round"/>' : '')
+    + dots
+    + '</svg>'
+    + '<div class="soaxis"><span>' + escS(series[0].day) + ' · peak spend ' + escS(money(maxSpend)) + '</span>'
+    + '<span>' + (maxLine > 0 ? 'peak ' + escS(lineFmt(maxLine)) + ' · ' : '') + escS(series[series.length - 1].day) + '</span></div>';
 }
 
-const escS = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+/* A row-height spend trend. Deliberately unlabelled: it is there to show shape
+   — still running, tailing off, never started — not to be read for values. */
+function sparkline(points, color){
+  if (!points || !points.length) return '';
+  const W = 74, H = 20;
+  const max = Math.max(...points);
+  if (!max) return '<span class="sm" style="color:var(--dimmer)">no spend</span>';
+  const step = W / Math.max(1, points.length - 1);
+  const d = points.map((v, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (H - 1 - (v / max) * (H - 3)).toFixed(1)).join(' ');
+  const area = d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z';
+  return '<svg class="spark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
+    + '<path d="' + area + '" fill="' + color + '" opacity=".13"/>'
+    + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.3"/></svg>';
+}
+
 
 /* The same sheet the Inbox uses, filtered to providers that feed 'social'. */
 const soConnect = () => openModal('social');
