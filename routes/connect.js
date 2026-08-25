@@ -4,7 +4,7 @@ import express from 'express';
 import { PROVIDERS, isConfigured, exchangeCode } from '../lib/oauth.js';
 import { newState, newVerifier, challengeFor, setPending, readPending, STATE_COOKIE, clearCookie }
   from '../lib/session.js';
-import { listAccounts, upsertOAuth, upsertImap, renameAccount, deleteAccount, nextColour }
+import { listAccounts, listAll, upsertOAuth, upsertImap, renameAccount, deleteAccount, nextColour }
   from '../lib/accounts.js';
 import { guarded } from './guard.js';
 import { verify as verifyImap } from '../providers/imap.js';
@@ -102,7 +102,9 @@ export function connectRoutes({ env, auth, secret }){
       `SELECT key, last_run, last_error FROM sync_state
         WHERE key LIKE 'connect:%' ORDER BY last_run DESC NULLS LAST`);
     res.json({
-      accounts: (await listAccounts()).map(a => ({ id: a.id, provider: a.provider, status: a.status })),
+      /* listAll, not listAccounts: the latter is accountsFor('mail') and would
+         hide every social account from the diagnostic built to find them. */
+      accounts: (await listAll()).map(a => ({ id: a.id, provider: a.provider, status: a.status })),
       attempts: rows.map(r2 => ({
         provider: r2.key.replace(/^connect:/, ''),
         at: r2.last_run,
