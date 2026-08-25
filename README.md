@@ -192,20 +192,51 @@ Three shapes handled explicitly:
 
 ### Live updates
 
-`db/notify-triggers.sql` puts an AFTER INSERT trigger on `ghl_location` that
-fires `pg_notify('cc_changes', {tbl, op, ids})`. The server holds one dedicated
-LISTEN connection (session pooler — LISTEN works in session mode, silently never
-fires in transaction mode) and fans payloads out to open dashboards over SSE at
+`db/notify-triggers.sql` puts AFTER triggers on `ghl_location`, `lead`,
+`ghl_opportunity`, `ghl_message` and `ghl_message_inbox` that fire
+`pg_notify('cc_changes', {tbl, op, location, contact, conversation})`. UPDATE
+triggers carry `WHEN (OLD.* IS DISTINCT FROM NEW.*)`, so the ingest pipeline
+re-upserting an unchanged row wakes nobody. The server holds one dedicated LISTEN
+connection (session pooler — LISTEN works in session mode, silently never fires in
+transaction mode) and fans payloads out to open dashboards over SSE at
 `GET /api/ghl/events`.
 
-Payloads are ids only. The browser fetches exactly the row named —
-`GET /api/ghl/locations/:id` for a new sub-account — and appends it, so a new
-location appears in the sidebar without a reload and without re-reading anything
-already on screen.
+Payloads are **ids only**. The browser fetches exactly the row named:
+
+| Event | Browser fetches | Redraws |
+|---|---|---|
+| `ghl_location` INSERT | `GET /api/ghl/locations/:id` | sidebar entry appended |
+| `lead` or `ghl_opportunity` change | `GET /api/ghl/leads/:id` | that lead's card; stage counts if an opportunity moved |
+| `ghl_message` / `ghl_message_inbox` change | that lead's row, and `…/thread` **only if that thread is open or cached** | that card and that conversation |
+
+Events are queued and flushed together 400ms later. Up to 20 changed leads are
+fetched one by one; more than that — a bulk re-ingest — becomes one
+`?since=<cursor>` delta. Nothing ever re-reads the whole table because of an
+event. A live message arriving while a reply is half-typed does not wipe the
+draft.
 
 The trigger file is applied at boot, idempotently, and is the one sanctioned
-touch of a portal table — explicitly requested, additive only, and non-fatal: a
+touch of portal tables — explicitly requested, additive only, and non-fatal: a
 role without trigger privileges costs live updates, not the dashboard.
+
+### Cache
+
+IndexedDB in the browser, one key-value store. A reload paints sub-accounts,
+leads and any previously opened conversations from cache before the network
+answers, then fetches `GET /api/ghl/leads?since=<cursor>` — only rows changed
+since the newest one held — and merges by id.
+
+The cursor is the largest `changedAt` the server has returned, where `changedAt`
+is the newest of the lead's `updated_at`, its opportunity's `updated_at`, and its
+newest message by both sent time and ingest time (a backfilled message carries an
+old sent time but a new ingest time, and a cursor on sent time alone would never
+see it). It is the server's clock, so a browser with the wrong time cannot skip
+rows.
+
+**Refresh** is the escape hatch: it forces a full read and overwrites the cache.
+A lead you have clicked stays read across a merge unless a newer message has
+actually landed. Cache failure — private window, cleared site data, IndexedDB off
+— degrades to "no cache", never to a broken page.
 
 ### Refresh, and what is not here
 

@@ -283,24 +283,10 @@ export function ghlRoutes({ env, auth, live = null }){
      The row cap is stated in the response rather than silently applied. */
   const LEAD_ROWS = 1000;
 
-  r.get('/api/ghl/leads', auth.require, guarded('api/ghl/leads', async (req, res) => {
-    const { ids, warnings } = await scope(req.query.location);
-    if (!ids.length) return res.json({ leads: [], warnings });
-
-    const rows = await leadRows(ids, LEAD_ROWS);
-
-    if (rows.length === LEAD_ROWS) {
-      const total = await leadTotal(ids);
-      warnings.push({ account: 'ghl', label: 'Leads',
-        error: `Showing the ${LEAD_ROWS} most recently active of ${total.toLocaleString()} leads. `
-          + 'Filter by sub-account or stage to narrow it.' });
-    }
-
-    /* The stage NAME, because that is what the cards show and because a card
-       folded across pipelines has no single stage id to match on. */
-    const wantStage = String(req.query.stage || 'all');
-    const leads = rows
-      .map(row => {
+  /* One lead row, shaped for the list. Shared by the list, the delta and the
+     single-lead refetch so a live update can never produce a row that differs
+     in shape from the one it replaces. */
+  function shapeLead(row){
         const sortKey = row.activity ? Date.parse(row.activity) : 0;
         const hasOpportunity = Boolean(row.opportunity_id);
         return {
@@ -332,12 +318,56 @@ export function ghlRoutes({ env, auth, live = null }){
           created: longDate(row.date_added),
           ghlId: row.opportunity_id || null,
           contactId: row.contact_id || null,
-          hasOpportunity
+          hasOpportunity,
+          /* The delta cursor. The browser keeps the max it has seen and asks
+             for rows changed after it — server clock, never the browser's. */
+          changedAt: row.changed_at || null
         };
-      })
+  }
+
+  r.get('/api/ghl/leads', auth.require, guarded('api/ghl/leads', async (req, res) => {
+    const { ids, warnings } = await scope(req.query.location);
+    if (!ids.length) return res.json({ leads: [], warnings, delta: false });
+
+    /* ?since=<iso> returns only rows changed after that instant. Malformed
+       values are refused rather than silently treated as "everything", because
+       the browser would then merge a full list believing it was a delta. */
+    let since = null;
+    if (req.query.since) {
+      const t = Date.parse(String(req.query.since));
+      if (Number.isNaN(t)) return res.status(400).json({ error: 'since must be an ISO timestamp' });
+      since = new Date(t).toISOString();
+    }
+
+    const rows = await leadRows(ids, LEAD_ROWS, { since });
+
+    if (!since && rows.length === LEAD_ROWS) {
+      const total = await leadTotal(ids);
+      warnings.push({ account: 'ghl', label: 'Leads',
+        error: `Showing the ${LEAD_ROWS} most recently active of ${total.toLocaleString()} leads. `
+          + 'Filter by sub-account or stage to narrow it.' });
+    }
+
+    /* The stage NAME, because that is what the cards show and because a card
+       folded across pipelines has no single stage id to match on. */
+    const wantStage = String(req.query.stage || 'all');
+    const leads = rows.map(shapeLead)
       .filter(l => wantStage === 'all' || l.stageName === wantStage);
 
-    res.json({ leads, warnings });
+    res.json({ leads, warnings, delta: Boolean(since), serverTime: new Date().toISOString() });
+  }));
+
+  /* One lead, shaped exactly like a list row. The live path fetches this when a
+     lead, opportunity or message event names a contact: that row and nothing
+     else, so a change to one lead never re-reads the other 3,000. */
+  r.get('/api/ghl/leads/:id', auth.require, guarded('api/ghl/leads:one', async (req, res) => {
+    const found = await loadLead(req.params.id);
+    if (found.error) return res.status(found.status).json({ error: found.error });
+    if (!found.contactId) return res.status(404).json({ error: 'no such lead' });
+
+    const rows = await leadRows([found.locationId], 1, { contactId: found.contactId });
+    if (!rows.length) return res.status(404).json({ error: 'no such lead' });
+    res.json({ lead: shapeLead(rows[0]) });
   }));
 
   /* Resolves a lead id against the allow-list, then against Supabase. Returns a

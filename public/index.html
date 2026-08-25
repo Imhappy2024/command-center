@@ -2244,6 +2244,99 @@ let GHL_ERR = null;
 /* Filled from /api/ghl/stages. Never hardcoded: stages are per pipeline and
    change, and the six invented ones matched no real pipeline. */
 let STAGES = [];
+
+/* ---------- cache ----------
+
+   IndexedDB, one key-value store. A reload paints from here before the network
+   answers, then asks the server only for what changed since the newest row it
+   holds. Every accessor swallows its own failure: a private window, a cleared
+   site, or a browser with IndexedDB off means "no cache", never a broken page. */
+const CC_CACHE = (() => {
+  const NAME = 'cc-cache', STORE = 'kv';
+  let dbp = null;
+  const open = () => dbp ||= new Promise((res, rej) => {
+    if (!window.indexedDB) return rej(new Error('no IndexedDB'));
+    const r = indexedDB.open(NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+  return {
+    async get(k){
+      try {
+        const db = await open();
+        return await new Promise((res, rej) => {
+          const q = db.transaction(STORE, 'readonly').objectStore(STORE).get(k);
+          q.onsuccess = () => res(q.result ?? null);
+          q.onerror = () => rej(q.error);
+        });
+      } catch { return null; }
+    },
+    async set(k, v){
+      try {
+        const db = await open();
+        await new Promise((res, rej) => {
+          const t = db.transaction(STORE, 'readwrite');
+          t.objectStore(STORE).put(v, k);
+          t.oncomplete = res; t.onerror = () => rej(t.error);
+        });
+      } catch { /* cache is a convenience */ }
+    },
+    async clear(){
+      try {
+        const db = await open();
+        await new Promise((res, rej) => {
+          const t = db.transaction(STORE, 'readwrite');
+          t.objectStore(STORE).clear();
+          t.oncomplete = res; t.onerror = () => rej(t.error);
+        });
+      } catch { /* nothing to clear */ }
+    }
+  };
+})();
+
+/* The delta cursor: the newest changedAt the server has told us about. It is the
+   server clock, so a browser with the wrong time cannot skip rows. null means
+   "never loaded" and forces a full read. */
+let GHL_CURSOR = null;
+let FORCE_FULL = false;
+
+function advanceCursor(out){
+  for (const l of out?.leads || []) {
+    if (l.changedAt && (!GHL_CURSOR || l.changedAt > GHL_CURSOR)) GHL_CURSOR = l.changedAt;
+  }
+  /* A full read that found nothing still moves the cursor, otherwise every later
+     load would be another full read. */
+  if (!GHL_CURSOR && out?.serverTime && !out?.delta) GHL_CURSOR = out.serverTime;
+}
+
+/* Upsert by id. A row the user has read stays read unless a newer message has
+   actually landed: the server derives unread from timestamps and knows nothing
+   about a click made ten seconds ago. */
+function mergeLeads(rows){
+  const byId = new Map(LEADS.map(l => [l.id, l]));
+  for (const r of rows) {
+    const cur = byId.get(r.id);
+    if (cur && cur.unread === false && r.unread && r.sortKey === cur.sortKey) r.unread = false;
+    byId.set(r.id, r);
+  }
+  LEADS = [...byId.values()];
+}
+
+const saveLeadsCache = () => CC_CACHE.set('ghl:leads', { leads: LEADS, cursor: GHL_CURSOR, savedAt: Date.now() });
+const saveLocationsCache = () => CC_CACHE.set('ghl:locations', LOCATIONS);
+
+/* Paint from cache before the first network round trip. Resolved once, and
+   load() waits on it so the first fetch can be a delta rather than everything. */
+const CACHE_READY = (async () => {
+  if (CAL.demo) return;
+  const [locs, leads] = await Promise.all([CC_CACHE.get('ghl:locations'), CC_CACHE.get('ghl:leads')]);
+  if (Array.isArray(locs) && locs.length) LOCATIONS = locs;
+  if (leads?.leads?.length) { LEADS = leads.leads; GHL_CURSOR = leads.cursor || null; }
+  if (LOCATIONS.length || LEADS.length) {
+    try { drawLeads(); } catch { /* the view may not be mounted yet */ }
+  }
+})();
 const CHANNELS = [
   { k:'sms',   label:'SMS' },
   { k:'email', label:'Email' },
@@ -3049,9 +3142,73 @@ function startLiveUpdates(){
   if (CAL.demo || !window.EventSource) return;
   const es = new EventSource('/api/ghl/events');
 
+  /* Events are queued and flushed together 400ms later. One lead changing is
+     one fetch; the ingest pipeline re-upserting three thousand is ONE delta
+     fetch rather than three thousand single ones. Either way nothing re-reads
+     the whole database. */
+  const Q = { leads: new Set(), threads: new Set(), stages: false, timer: null };
+  const schedule = () => { Q.timer ||= setTimeout(flushLive, 400); };
+
+  async function flushLive(){
+    Q.timer = null;
+    const leadIds = [...Q.leads]; Q.leads.clear();
+    const threadIds = [...Q.threads]; Q.threads.clear();
+    const stages = Q.stages; Q.stages = false;
+
+    try {
+      if (leadIds.length > 20) {
+        /* Bulk change: one delta against the cursor. */
+        const out = await api('/api/ghl/leads' + (GHL_CURSOR ? '?since=' + encodeURIComponent(GHL_CURSOR) : ''));
+        if (out.delta) mergeLeads(out.leads || []); else LEADS = out.leads || [];
+        advanceCursor(out);
+      } else {
+        for (const id of leadIds) {
+          try {
+            const out = await api('/api/ghl/leads/' + encodeURIComponent(id));
+            if (out.lead) { mergeLeads([out.lead]); advanceCursor({ leads: [out.lead] }); }
+          } catch (err) {
+            /* 404 is a lead outside what this dashboard may see; not an error. */
+            if (err.status !== 404) console.error('live: lead refetch failed', id, err.message);
+          }
+        }
+      }
+      if (leadIds.length) { saveLeadsCache(); drawLeadList(); drawLeadHeader(); }
+    } catch (err) {
+      console.error('live: lead update failed', err.message);
+    }
+
+    /* Only conversations already held, open now or read before and cached. A
+       message for a lead nobody has opened costs nothing until they do. */
+    for (const id of threadIds) {
+      if (THREADS[id] || LD.sel === id) await loadThread(id);
+    }
+
+    if (stages) loadStages();
+  }
+
   es.onmessage = async e => {
     let ev;
     try { ev = JSON.parse(e.data); } catch { return; }
+
+    const leadId = ev.location && ev.contact ? ev.location + ':' + ev.contact : null;
+
+    /* Task 5: a lead row changed, or its opportunity did, which is what puts
+       stage and value on the card. */
+    if (leadId && (ev.tbl === 'lead' || ev.tbl === 'ghl_opportunity')) {
+      Q.leads.add(leadId);
+      if (ev.tbl === 'ghl_opportunity') Q.stages = true;
+      schedule();
+      return;
+    }
+
+    /* Task 7: a message. That lead's thread, and that lead's row (last
+       activity, unread) — nothing else. */
+    if (leadId && (ev.tbl === 'ghl_message' || ev.tbl === 'ghl_message_inbox')) {
+      Q.leads.add(leadId);
+      Q.threads.add(leadId);
+      schedule();
+      return;
+    }
 
     if (ev.tbl === 'ghl_location' && ev.op === 'INSERT' && ev.location) {
       /* Redelivery-safe: the trigger fires per row, but an id already on screen
@@ -3061,6 +3218,7 @@ function startLiveUpdates(){
         const out = await api('/api/ghl/locations/' + encodeURIComponent(ev.location));
         if (!out.location || locById(out.location.id)) return;
         LOCATIONS.push(out.location);
+        saveLocationsCache();
         /* Only the surfaces the new row appears on. The lead list, the open
            conversation and everything else already loaded are left alone. */
         drawLeadSubnav();
@@ -3081,9 +3239,12 @@ document.getElementById('ld-refresh').onclick = async e => {
   const b = e.currentTarget;
   b.textContent = 'Refreshing…'; b.disabled = true;
   try {
+    /* Refresh means "read it all again", not "what changed": it is the one
+       escape hatch if the cache ever disagrees with the database. */
+    FORCE_FULL = true;
     await Promise.all([load(), loadStages(), loadIngest()]);
     syncPulse('Refreshed');
-  } finally { b.textContent = 'Refresh'; b.disabled = false; }
+  } finally { FORCE_FULL = false; b.textContent = 'Refresh'; b.disabled = false; }
 };
 
 makeSplitter('ld-wrap', 'ld-gutter', 34);
@@ -3392,6 +3553,9 @@ let loading = false;
 async function load(){
   if (loading || CAL.demo) return;
   loading = true;
+  /* So the first fetch after a reload can be a delta against the cached cursor
+     rather than a full read of every lead. */
+  await CACHE_READY;
   try {
     const acc = await api('/api/accounts');
     ACCOUNTS = acc.accounts;
@@ -3408,7 +3572,10 @@ async function load(){
       ACCOUNTS.length ? api(`/api/mail?folder=${encodeURIComponent(folder)}&account=${encodeURIComponent(acct)}`) : null,
       ACCOUNTS.length ? api(`/api/calendar?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}&account=all`) : null,
       api('/api/ghl/locations'),
-      api('/api/ghl/leads?location=' + encodeURIComponent(LD.loc) + '&stage=' + encodeURIComponent(LD.stage)),
+      /* Every location, every stage: both filters are applied in the browser,
+         and a delta only makes sense over one stable set. ?since= asks for rows
+         changed after the newest we hold; Refresh forces the full read. */
+      api('/api/ghl/leads' + (GHL_CURSOR && !FORCE_FULL ? '?since=' + encodeURIComponent(GHL_CURSOR) : '')),
       api('/api/social?range=' + encodeURIComponent(SO.range)),
       api('/api/social/ads?range=' + encodeURIComponent(SO.range)),
       api('/api/social/posts?range=' + encodeURIComponent(SO.range)),
@@ -3435,7 +3602,16 @@ async function load(){
       ? (locs.reason?.body?.detail || locs.reason?.message || 'request failed')
       : null;
     LOCATIONS = val(locs, 'locations', []);
-    LEADS = val(leads, 'leads', []);
+    /* A delta merges into what is held; a full read replaces it. Either way the
+       cursor advances and the cache is written, so the next reload paints from
+       this and asks only for what follows. */
+    if (leads.status === 'fulfilled' && leads.value) {
+      if (leads.value.delta) mergeLeads(leads.value.leads || []);
+      else LEADS = leads.value.leads || [];
+      advanceCursor(leads.value);
+      saveLeadsCache();
+    }
+    if (locs.status === 'fulfilled' && locs.value) saveLocationsCache();
     INGEST = val(sync, 'ingest', null);
     SOCIAL = val(social, 'platforms', []);
     ADS = val(ads, 'ads', null);
@@ -3513,15 +3689,45 @@ async function openMessage(id){
    pane, and reports itself. */
 async function loadThread(id){
   if (CAL.demo || !id) return;
+
+  /* Cached first, so opening a conversation you have read before is instant,
+     then the network answer replaces it. */
+  if (!THREADS[id]) {
+    const c = await CC_CACHE.get('ghl:thread:' + id);
+    if (c?.thread) {
+      THREADS[id] = c.thread; ACTIVITY[id] = c.activity || []; PENDING[id] = c.pending || [];
+      if (LD.sel === id) drawLeadDetail();
+    }
+  }
+
   try {
     const out = await api('/api/ghl/leads/' + encodeURIComponent(id) + '/thread');
     THREADS[id] = out.thread || [];
     ACTIVITY[id] = out.activity || [];
     PENDING[id] = out.pending || [];
-    drawLeadDetail();
+    CC_CACHE.set('ghl:thread:' + id, { thread: THREADS[id], activity: ACTIVITY[id], pending: PENDING[id] });
+    if (LD.sel === id) redrawDetailKeepingDraft();
   } catch (err) {
     banner('Could not load the conversation: ' + err.message);
   }
+}
+
+/* A live message arriving while a reply is half-typed must not wipe the reply.
+   drawLeadDetail rebuilds the composer from scratch, so the draft is lifted out
+   and put back. */
+function redrawDetailKeepingDraft(){
+  const keep = {};
+  for (const id of ['ld-msg', 'ld-subj', 'ld-to', 'ld-cc', 'ld-bcc']) {
+    const el = document.getElementById(id);
+    if (el && el.value) keep[id] = el.value;
+  }
+  const active = document.activeElement?.id;
+  drawLeadDetail();
+  for (const [id, v] of Object.entries(keep)) {
+    const el = document.getElementById(id);
+    if (el) el.value = v;
+  }
+  if (active && keep[active]) document.getElementById(active)?.focus();
 }
 
 /* The OAuth callback returns to /#inbox?connected=<email> or ?error=<msg>. Show
