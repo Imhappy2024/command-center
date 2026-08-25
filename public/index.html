@@ -2235,6 +2235,12 @@ let THREADS = {};
    pretends otherwise. */
 let INGEST = null;
 
+/* Why the locations read failed, when it did. An empty sidebar has two causes —
+   an empty table and a failed query — and rendering both as "Not ingested yet"
+   sent the owner debugging the ingest pipeline when the server could not reach
+   the database at all. */
+let GHL_ERR = null;
+
 /* Filled from /api/ghl/stages. Never hardcoded: stages are per pipeline and
    change, and the six invented ones matched no real pipeline. */
 let STAGES = [];
@@ -2311,8 +2317,9 @@ function drawLeadSubnav(){
          l.opportunities + ' opportunities',
          l.sendable ? null : 'read-only — no send token'].filter(Boolean).join(' · '))).join('')
     /* No connect button. Nothing here can be fixed from this screen: locations
-       appear when the ingest pipeline ingests them. */
-    : '<div class="subempty">Not ingested yet</div>';
+       appear when the ingest pipeline ingests them — unless the read itself
+       failed, which is a different fact and must not wear the same words. */
+    : '<div class="subempty">' + (GHL_ERR ? 'Database unreachable' : 'Not ingested yet') + '</div>';
 
   ldSubEl.innerHTML = html;
   ldSubEl.querySelectorAll('[data-loc]').forEach(b => b.onclick = () => {
@@ -2373,6 +2380,12 @@ function drawStages(){
    first cannot be fixed from this screen, and says so rather than showing a
    button that would pretend otherwise. */
 function emptyPipeline(){
+  if (GHL_ERR) {
+    return '<div class="empty"><b>Could not read the database</b>'
+      + '<small>' + escL(GHL_ERR) + '</small>'
+      + '<small style="margin-top:6px">Open <b>/api/ghl/diag</b> for which database this '
+      + 'server is connected to and what it can see.</small></div>';
+  }
   if (!LOCATIONS.length) {
     return '<div class="empty"><b>No GHL data ingested yet</b>'
       + '<small>Sub-accounts appear here once the ingest pipeline has written them to '
@@ -3418,6 +3431,9 @@ async function load(){
       end: parseWhen(e.end, e.allDay)
     })).filter(e => e.start && e.end);
 
+    GHL_ERR = locs.status === 'rejected'
+      ? (locs.reason?.body?.detail || locs.reason?.message || 'request failed')
+      : null;
     LOCATIONS = val(locs, 'locations', []);
     LEADS = val(leads, 'leads', []);
     INGEST = val(sync, 'ingest', null);
@@ -3428,6 +3444,13 @@ async function load(){
     const warnings = [mail, cal, locs, leads]
       .flatMap(r => (r.status === 'fulfilled' && r.value?.warnings) || [])
       .map(w => `${w.label || w.account}: ${w.error}`);
+    /* A rejected fetch is a louder fact than any warning a successful one
+       carries, and it used to vanish entirely. */
+    for (const [label, r] of [['Mail', mail], ['Calendar', cal], ['GHL', locs], ['Leads', leads]]) {
+      if (r.status === 'rejected') {
+        warnings.unshift(label + ': ' + (r.reason?.body?.detail || r.reason?.message || 'request failed'));
+      }
+    }
     banner(warnings.length ? warnings.join(' · ') : null);
 
     drawAll(); drawCal(); drawLeads(); drawSocial();

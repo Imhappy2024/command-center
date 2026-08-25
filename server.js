@@ -101,6 +101,15 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Command Center listening on 0.0.0.0:${PORT}`);
   console.log(`  auth:     ${gate}`);
   console.log('  tokens:   Postgres, AES-256-GCM at rest');
+  /* Which database, at a glance. "Not ingested yet" on screen with a Railway
+     Postgres host in this line is the whole diagnosis. */
+  try {
+    const u = new URL(env.DATABASE_URL);
+    const kind = /supabase\.com$/.test(u.hostname) ? 'supabase'
+               : /railway/.test(u.hostname) ? 'RAILWAY — not the Supabase pooler!'
+               : 'other';
+    console.log(`  database: ${u.hostname}:${u.port || 5432} (${kind})`);
+  } catch { console.log('  database: DATABASE_URL did not parse as a URL'); }
   console.log(`  origin:   ${env.PUBLIC_URL}`);
   /* Stated at boot rather than left silent. This endpoint writes into Supabase
      and takes no secret; the locationId allow-list is what contains it. */

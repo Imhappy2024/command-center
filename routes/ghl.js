@@ -196,6 +196,43 @@ export function ghlRoutes({ env, auth, live = null }){
     res.json({ ingest: await ingestStatus() });
   }));
 
+  /* One URL that answers "why is the sidebar empty". Which database this
+     process is actually connected to, whether the portal tables are reachable
+     and how many rows they hold, and whether the live trigger exists. Every
+     check reports its own failure instead of taking the endpoint down. */
+  r.get('/api/ghl/diag', auth.require, async (req, res) => {
+    const out = { db: null, counts: {}, liveTrigger: null, errors: [] };
+
+    try {
+      const u = new URL(env.DATABASE_URL);
+      out.db = `${u.hostname}:${u.port || 5432}`;
+      out.dbKind = /supabase\.com$/.test(u.hostname) ? 'supabase'
+                 : /railway/.test(u.hostname) ? 'railway (NOT the Supabase pooler)'
+                 : 'other';
+    } catch { out.db = 'DATABASE_URL did not parse'; }
+
+    /* Literals, never interpolated input. */
+    for (const tbl of ['ghl_location', 'lead', 'ghl_message', 'ghl_opportunity']) {
+      try {
+        const { rows } = await query(`SELECT COUNT(*)::int AS n FROM ${tbl}`);
+        out.counts[tbl] = rows[0].n;
+      } catch (err) {
+        out.counts[tbl] = null;
+        out.errors.push(`${tbl}: ${err.message}`);
+      }
+    }
+
+    try {
+      const { rows } = await query(
+        `SELECT COUNT(*)::int AS n FROM pg_trigger WHERE tgname = 'cc_notify_location'`);
+      out.liveTrigger = rows[0].n > 0;
+    } catch (err) {
+      out.errors.push('trigger check: ' + err.message);
+    }
+
+    res.json(out);
+  });
+
   /* Kept mounted rather than deleted so anything still calling them is told why
      rather than getting a 404 that reads as a bug. The Re-sync button they
      existed for is gone from the UI. */
