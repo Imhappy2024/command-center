@@ -3586,11 +3586,27 @@ function platformView(key){
 
   const noData = !series.length;
 
+  /* A metric with no reading at all in the window is not zero — the platform
+     does not publish it. Facebook page-level reach was deprecated above Graph
+     v25 and YouTube and X have never exposed a unique-reach figure, so printing
+     "0" claims a measurement nobody made. Absent reads as a dash.
+
+     Engagement is interactions over reach, so it is uncomputable when reach is
+     absent. Rather than show a dash in a tile that could carry something real,
+     that slot becomes Interactions, which every one of these platforms does
+     publish. */
+  const published = m => series.some(r => r[m] != null);
+  const tile = (label, m, value, note) => published(m)
+    ? stat(label, value, note)
+    : stat(label, '\u2014', 'not published by ' + (SO_VIEW_LABEL[SO.view] || key));
+
   return '<div class="grid g4" style="margin-bottom:14px">'
     + stat(words.followers, num(followersNow), days.length > 1 ? delta(followersNow - followersThen) + ' in ' + SO.range + 'd' : 'no earlier reading')
-    + stat('Reach', num(reach), 'unique accounts, ' + SO.range + 'd')
-    + stat('Views', num(views), 'every appearance, ' + SO.range + 'd')
-    + stat('Engagement', eng.toFixed(2) + '%', 'interactions ÷ reach', eng > 0 ? 'up' : 'flat')
+    + tile('Reach', 'reach', num(reach), 'unique accounts, ' + SO.range + 'd')
+    + tile('Views', 'views', num(views), 'every appearance, ' + SO.range + 'd')
+    + (published('reach')
+        ? stat('Engagement', eng.toFixed(2) + '%', 'interactions \u00f7 reach', eng > 0 ? 'up' : 'flat')
+        : tile('Interactions', 'interactions', num(inter), 'likes, comments, shares, ' + SO.range + 'd'))
     + '</div>'
     + '<div class="card" style="margin-bottom:14px">'
     + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
