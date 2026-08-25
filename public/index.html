@@ -1044,7 +1044,7 @@ const MENU = [
   ['calendar','Calendar','GCal',''],
   ['tasks','Tasks','ClickUp',''],
   ['notes','Notes','Vault',''],
-  ['leads','Leads','GHL',''],
+  ['leads','GHL','Supabase',''],
   ['properties','Properties','Postgres',''],
   ['financial','Financial','Ledger',''],
   ['social','Social','5 networks',''],
@@ -3021,6 +3021,47 @@ async function loadIngest(){
     INGEST = out.ingest || null;
   } catch { /* the marker keeps its last state */ }
 }
+
+/* ---------- live updates ----------
+
+   GET /api/ghl/events is an SSE stream of the database's own triggers: ids only,
+   {tbl, op, location, contact, conversation}. The contract is incremental — an
+   event names the row that changed and the browser fetches exactly that row.
+   Nothing here refetches a list.
+
+   Today only ghl_location INSERT is wired (a new sub-account appears in the
+   sidebar without a reload, existing rows untouched). lead and ghl_message
+   arrive in later steps and will branch off the same stream. */
+function startLiveUpdates(){
+  if (CAL.demo || !window.EventSource) return;
+  const es = new EventSource('/api/ghl/events');
+
+  es.onmessage = async e => {
+    let ev;
+    try { ev = JSON.parse(e.data); } catch { return; }
+
+    if (ev.tbl === 'ghl_location' && ev.op === 'INSERT' && ev.location) {
+      /* Redelivery-safe: the trigger fires per row, but an id already on screen
+         is a no-op rather than a duplicate sidebar entry. */
+      if (locById(ev.location)) return;
+      try {
+        const out = await api('/api/ghl/locations/' + encodeURIComponent(ev.location));
+        if (!out.location || locById(out.location.id)) return;
+        LOCATIONS.push(out.location);
+        /* Only the surfaces the new row appears on. The lead list, the open
+           conversation and everything else already loaded are left alone. */
+        drawLeadSubnav();
+        drawLeadHeader();
+        syncPulse('New sub-account: ' + out.location.name);
+      } catch (err) {
+        console.error('live: could not fetch new location', err.message);
+      }
+    }
+  };
+  /* No onerror handling on purpose: EventSource reconnects itself, honouring
+     the server's retry hint, and a transient drop needs no UI. */
+}
+startLiveUpdates();
 
 /* Re-reads Supabase. Not a re-sync: it asks the database what it holds now. */
 document.getElementById('ld-refresh').onclick = async e => {

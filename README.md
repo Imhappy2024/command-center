@@ -11,7 +11,7 @@ Nothing fabricates data. A view with no source says so and names what it needs.
 |---|---|---|
 | Inbox | Gmail, Microsoft Graph, IMAP | live |
 | Calendar | Google Calendar, Microsoft Graph | live |
-| Leads | Supabase (GHL mirror), send via GHL | live |
+| GHL (leads) | Supabase (GHL mirror), send via GHL | live |
 | Social | Meta (Pages, Instagram, Ads), YouTube, X | live; metrics and ads only |
 | Overview, Tasks, Notes, Properties, Financial, Systems | — | empty states |
 
@@ -173,6 +173,23 @@ Three shapes handled explicitly:
   `webhook_events` for the ingest pipeline to diff.
 - **Absent is not null.** Contact payloads omit unset fields, so a column is only
   written when its key is PRESENT. Treating absent as null wipes populated data.
+
+### Live updates
+
+`db/notify-triggers.sql` puts an AFTER INSERT trigger on `ghl_location` that
+fires `pg_notify('cc_changes', {tbl, op, ids})`. The server holds one dedicated
+LISTEN connection (session pooler — LISTEN works in session mode, silently never
+fires in transaction mode) and fans payloads out to open dashboards over SSE at
+`GET /api/ghl/events`.
+
+Payloads are ids only. The browser fetches exactly the row named —
+`GET /api/ghl/locations/:id` for a new sub-account — and appends it, so a new
+location appears in the sidebar without a reload and without re-reading anything
+already on screen.
+
+The trigger file is applied at boot, idempotently, and is the one sanctioned
+touch of a portal table — explicitly requested, additive only, and non-fatal: a
+role without trigger privileges costs live updates, not the dashboard.
 
 ### Refresh, and what is not here
 

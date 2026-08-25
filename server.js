@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { migrate, close } from './db/index.js';
+import { migrate, applyNotifyTriggers, close } from './db/index.js';
 import { initCrypto } from './lib/crypto.js';
 import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
@@ -77,6 +77,16 @@ try {
 } catch (err) {
   die('Cannot start. Database migration failed: ' + err.message,
       'Check DATABASE_URL points at a reachable Postgres instance.');
+}
+
+/* The live-update triggers on the portal tables (db/notify-triggers.sql).
+   Explicitly requested, additive only, and non-fatal: a role that may not
+   create triggers costs live updates, not the dashboard. */
+try {
+  await applyNotifyTriggers();
+  console.log('live triggers: applied (ghl_location INSERT -> NOTIFY cc_changes)');
+} catch (err) {
+  console.error('live triggers: NOT applied — live updates are off:', err.message);
 }
 
 const app = createApp({ env, publicDir: PUBLIC });

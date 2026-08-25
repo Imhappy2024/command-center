@@ -49,6 +49,25 @@ export async function migrate(){
   await query(sql);
 }
 
+/* The live-update triggers, kept in their own file because they touch portal
+   tables and schema.sql must never do that. Idempotent (CREATE OR REPLACE plus
+   DROP/CREATE TRIGGER), and non-fatal: a role without trigger privileges means
+   no live updates, not no dashboard — the caller logs the reason and boots on. */
+export async function applyNotifyTriggers(){
+  const sql = await readFile(path.join(HERE, 'notify-triggers.sql'), 'utf8');
+  await query(sql);
+}
+
+/* A dedicated single connection, outside the pool. LISTEN binds to one backend
+   connection for its lifetime, and a pooled client that gets recycled takes its
+   subscriptions with it. Session-pooler note: LISTEN works in session mode,
+   which is what DATABASE_URL is documented to be; in transaction mode it
+   silently never fires. */
+export function dedicatedClient(){
+  const url = process.env.DATABASE_URL;
+  return new pg.Client({ connectionString: url, ssl: sslFor(url) });
+}
+
 export async function close(){
   if (!pool) return;
   await pool.end().catch(() => {});

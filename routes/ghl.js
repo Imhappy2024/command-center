@@ -112,7 +112,7 @@ function flatten(html){
     .trim();
 }
 
-export function ghlRoutes({ env, auth }){
+export function ghlRoutes({ env, auth, live = null }){
   const r = express.Router();
 
   /* Sub-accounts, straight from ghl_location.
@@ -129,10 +129,9 @@ export function ghlRoutes({ env, auth }){
 
      `sendable` is separate from being listed. Reading needs nothing; sending
      needs a token in command-center's own accounts table. */
-  r.get('/api/ghl/locations', auth.require, guarded('api/ghl/locations', async (req, res) => {
-    const [rows, sendable] = await Promise.all([subAccounts(), sendableLocationIds()]);
-
-    const locations = await Promise.all(rows.map(async a => {
+  async function shapeLocations(rows){
+    const sendable = await sendableLocationIds();
+    return Promise.all(rows.map(async a => {
       const profile = await locationProfile(a.id);
       const emails = profile
         ? [...new Set([profile.business_email, profile.email].filter(Boolean))]
@@ -151,9 +150,30 @@ export function ghlRoutes({ env, auth }){
         }
       };
     }));
+  }
 
-    res.json({ locations });
+  r.get('/api/ghl/locations', auth.require, guarded('api/ghl/locations', async (req, res) => {
+    res.json({ locations: await shapeLocations(await subAccounts()) });
   }));
+
+  /* One location, same shape as a list row. This is what the live path fetches
+     when a ghl_location INSERT is announced: the new row and nothing else, so an
+     added sub-account never triggers a re-read of the ones already on screen. */
+  r.get('/api/ghl/locations/:id', auth.require, guarded('api/ghl/locations:one', async (req, res) => {
+    const rows = await subAccounts(String(req.params.id));
+    if (!rows.length) return res.status(404).json({ error: 'no such sub-account' });
+    res.json({ location: (await shapeLocations(rows))[0] });
+  }));
+
+  /* Server-sent events: NOTIFY payloads from the triggers in
+     db/notify-triggers.sql, fanned out as they arrive. Ids only — the browser
+     fetches the row it cares about through the routes above.
+
+     Guarded on the handler, not on the object: with background:false the app
+     passes a stop-only stub (truthy, no handler), and mounting undefined is an
+     Express throw at assembly time — the test that promises no database
+     connection is exactly the one that would have crashed. */
+  if (live?.handler) r.get('/api/ghl/events', auth.require, live.handler);
 
   /* The stage cards. Real stages, real counts, pipeline order — never a fixed
      six, because they differ per location and change. */
