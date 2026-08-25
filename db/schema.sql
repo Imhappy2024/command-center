@@ -171,6 +171,17 @@ ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS cpc         NUMERIC(14,4) NOT NUL
 ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS cpm         NUMERIC(14,4) NOT NULL DEFAULT 0;
 ALTER TABLE ads_daily ADD COLUMN IF NOT EXISTS frequency   NUMERIC(14,4) NOT NULL DEFAULT 0;
 
+/* Rows written by the previous ads writer, which stored ONE trailing-28-day
+   aggregate per campaign stamped with the day it was fetched. Alongside the real
+   per-day rows they double-count: a single such row carried $1,660 of spend and
+   8,129 of reach, which is four weeks of activity masquerading as one Tuesday.
+
+   They are identifiable without ambiguity — spend but no impressions and no
+   clicks, which Meta never returns for a day that actually delivered, because
+   billing is on impressions. Safe to re-run: after the first pass it matches
+   nothing, and a correctly-fetched row can never match it. */
+DELETE FROM ads_daily WHERE spend > 0 AND impressions = 0 AND clicks = 0;
+
 /* Deliberately absent from the ORGANIC tables: reel plays, page-level
    impressions, page-likes growth, and Instagram's profile_views,
    website_clicks, email_contacts, phone_call_clicks and get_directions_clicks.

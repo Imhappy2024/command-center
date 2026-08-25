@@ -362,14 +362,27 @@ export function socialRoutes({ env, auth }){
 
       /* Every ratio is derived here, from summed counts. A CTR cannot be
          averaged across days or campaigns — that weights a $2 day the same as a
-         $900 one — and cost per result is undefined, not zero, with no results. */
-      const derive = t => ({
+         $900 one — and cost per result is undefined, not zero, with no results.
+
+         reach is NOT summable either, and unlike the ratios it looks like it is.
+         It counts unique people, so adding 22 days of it counts anyone who saw
+         an ad on three days three times. The summed figure came out ABOVE total
+         impressions, which is impossible, and dragged frequency to 0.70 — also
+         impossible, since frequency cannot be below 1. A true window reach needs
+         its own query against the same window, which is a different request per
+         range; until that exists, window-level reach and the frequency derived
+         from it are null and the view shows a dash.
+
+         Per-DAY reach is untouched and correct, which is where peakFrequency
+         comes from. */
+      const derive = (t, oneDay) => ({
         ...t,
+        reach: oneDay ? t.reach : null,
         ctr: t.impressions ? (t.clicks / t.impressions) * 100 : null,
         cpc: t.clicks ? t.spend / t.clicks : null,
         cpm: t.impressions ? (t.spend / t.impressions) * 1000 : null,
         cpa: t.results ? t.spend / t.results : null,
-        frequency: t.reach ? t.impressions / t.reach : null
+        frequency: oneDay && t.reach ? t.impressions / t.reach : null
       });
 
       const dayMap = new Map();
@@ -409,6 +422,17 @@ export function socialRoutes({ env, auth }){
       const daily = [...dayMap.values()]
         .sort((a, b) => a.day < b.day ? -1 : a.day > b.day ? 1 : 0);
 
+      /* The highest single-day frequency a campaign reached in the window. This
+         is the fatigue signal — computed per day, where reach is real — and it
+         replaces the window-level frequency that could not be derived. */
+      const peakFreq = new Map();
+      for (const r of rows) {
+        if (!n(r.reach)) continue;
+        const f = n(r.impressions) / n(r.reach);
+        const k = r.account_id + ':' + r.campaign_id;
+        if (f > (peakFreq.get(k) || 0)) peakFreq.set(k, f);
+      }
+
       /* The day axis the sparklines align to. */
       const axis = [...new Set(daily.map(d => d.day))].sort();
 
@@ -416,7 +440,8 @@ export function socialRoutes({ env, auth }){
         .map(c => {
           const { days: dmap, ...rest } = c;
           return {
-            ...derive(rest),
+            ...derive(rest, false),
+            peakFrequency: peakFreq.get(c.account + ':' + c.id) || null,
             /* A spend sparkline per row, aligned to the same day axis as the
                chart above it, so a campaign that stopped delivering is visible
                without opening anything. */
@@ -425,7 +450,8 @@ export function socialRoutes({ env, auth }){
         })
         .sort((a, b) => b.spend - a.spend);
 
-      const totals = derive([...rows].reduce((acc, r) => add(acc, r), BLANK()));
+      const totals = derive([...rows].reduce((acc, r) => add(acc, r), BLANK()), false);
+      totals.peakFrequency = Math.max(0, ...[...peakFreq.values()]) || null;
 
       /* The window immediately before this one, for the deltas. Absent it the
          deltas are null and the tiles say so rather than implying a flat trend. */
@@ -441,7 +467,7 @@ export function socialRoutes({ env, auth }){
         spend: n(prevRows[0]?.spend), results: n(prevRows[0]?.results),
         impressions: n(prevRows[0]?.impressions), clicks: n(prevRows[0]?.clicks),
         reach: 0, linkClicks: 0
-      });
+      }, false);
 
       ads = {
         currency: rows.find(r => r.currency)?.currency || null,
@@ -453,7 +479,7 @@ export function socialRoutes({ env, auth }){
         byAccount: accounts.map(a => ({
           id: a.id,
           label: a.label,
-          ...derive(acctMap.get(a.id) || BLANK())
+          ...derive(acctMap.get(a.id) || BLANK(), false)
         }))
       };
     } else {

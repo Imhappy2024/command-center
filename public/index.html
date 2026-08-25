@@ -3758,20 +3758,29 @@ function adsView(){
 
   /* Counts sum; ratios never do. Everything below re-derives from the counts it
      kept, so an account filter cannot silently average an average. */
-  const derive = t => ({
+  const derive = (t, oneDay) => ({
     ...t,
+    /* Mirrors the server exactly. reach counts unique people, so summing days
+       counts the same person once per day they saw an ad — it came out above
+       total impressions, which cannot happen. Null at window level, real per
+       day. */
+    reach: oneDay ? t.reach : null,
     ctr: t.impressions ? (t.clicks / t.impressions) * 100 : null,
     cpc: t.clicks ? t.spend / t.clicks : null,
     cpm: t.impressions ? (t.spend / t.impressions) * 1000 : null,
     cpa: t.results ? t.spend / t.results : null,
-    frequency: t.reach ? t.impressions / t.reach : null
+    frequency: oneDay && t.reach ? t.impressions / t.reach : null
   });
   const BLANK = () => ({ spend:0, reach:0, results:0, impressions:0, clicks:0, linkClicks:0 });
-  const addUp = rows2 => derive(rows2.reduce((a, r) => {
-    a.spend += r.spend||0; a.reach += r.reach||0; a.results += r.results||0;
-    a.impressions += r.impressions||0; a.clicks += r.clicks||0; a.linkClicks += r.linkClicks||0;
-    return a;
-  }, BLANK()));
+  const addUp = rows2 => {
+    const t = derive(rows2.reduce((a, r) => {
+      a.spend += r.spend||0; a.reach += r.reach||0; a.results += r.results||0;
+      a.impressions += r.impressions||0; a.clicks += r.clicks||0; a.linkClicks += r.linkClicks||0;
+      return a;
+    }, BLANK()), false);
+    t.peakFrequency = Math.max(0, ...rows2.map(r => r.peakFrequency || 0)) || null;
+    return t;
+  };
 
   const inScope = r => SO.adsAcct === 'all' || r.account === SO.adsAcct;
   const campaigns = (ads.campaigns || []).filter(inScope);
@@ -3805,10 +3814,10 @@ function adsView(){
         title:'<b>' + escS(c.name) + '</b> costs ' + money(c.cpa) + ' per result',
         note:'That is ' + Math.round((c.cpa / totals.cpa - 1) * 100) + '% above the ' + money(totals.cpa) + ' account average.' });
     }
-    if (c.frequency != null && c.frequency > ADS_BENCH.frequency) {
+    if (c.peakFrequency != null && c.peakFrequency > ADS_BENCH.frequency) {
       flags.push({ kind:'watch', mark:'↻', weight:c.spend,
-        title:'<b>' + escS(c.name) + '</b> is at frequency ' + ratio(c.frequency),
-        note:'The same people are seeing it repeatedly. Above 3 this usually shows up as a falling CTR and a rising CPM — the point at which creative is refreshed.' });
+        title:'<b>' + escS(c.name) + '</b> peaked at frequency ' + ratio(c.peakFrequency) + ' in a day',
+        note:'The same people are seeing it repeatedly. Above 3 this usually shows up as a falling CTR and a rising CPM — the point at which creative gets refreshed.' });
     }
     if (c.ctr != null && c.ctr < 1 && c.impressions > 1000) {
       flags.push({ kind:'watch', mark:'▾', weight:c.spend,
@@ -3855,10 +3864,13 @@ function adsView(){
     + '<div class="grid g3" style="margin-bottom:14px">'
     + stat('Click-through rate', pct(totals.ctr), totals.ctr == null ? 'no impressions recorded' : mCtr.m, totals.ctr == null ? 'flat' : mCtr.t,
         'avg ' + ADS_BENCH.ctr + '%')
-    + stat('CPM', money(totals.cpm), totals.impressions ? num(totals.impressions) + ' impressions' : 'no impressions recorded', 'flat',
-        'avg ' + money(ADS_BENCH.cpm))
-    + stat('Frequency', ratio(totals.frequency), totals.reach ? num(totals.reach) + ' people reached' : 'no reach recorded',
-        totals.frequency != null && totals.frequency > ADS_BENCH.frequency ? 'down' : 'flat',
+    + stat('Impressions', num(totals.impressions), totals.cpm != null ? money(totals.cpm) + ' CPM' : 'no impressions recorded', 'flat',
+        'cpm avg ' + money(ADS_BENCH.cpm))
+    /* Peak single day, not the window. Unique reach cannot be summed across
+       days, so a window frequency cannot be derived from these rows at all —
+       and the highest day is the one that would show fatigue anyway. */
+    + stat('Peak frequency', ratio(totals.peakFrequency), totals.peakFrequency == null ? 'no reach recorded' : 'highest single day',
+        totals.peakFrequency != null && totals.peakFrequency > ADS_BENCH.frequency ? 'down' : 'flat',
         'fatigue above ' + ADS_BENCH.frequency.toFixed(1))
     + '</div>';
 
@@ -3874,7 +3886,7 @@ function adsView(){
     a.spend += r.spend||0; a.reach += r.reach||0; a.results += r.results||0;
     a.impressions += r.impressions||0; a.clicks += r.clicks||0;
   }
-  const series = axis.map(day => ({ day, ...derive(byDay.get(day) || BLANK()) }));
+  const series = axis.map(day => ({ day, ...derive(byDay.get(day) || BLANK(), true) }));
 
   const LINES = { cpa:['Cost per result', money], ctr:['CTR', pct], cpm:['CPM', money], frequency:['Frequency', ratio] };
   const lineKey = SO.adsLine;
@@ -3898,8 +3910,8 @@ function adsView(){
     cpa:   c => c.cpa == null ? Infinity : c.cpa,
     ctr:   c => c.ctr == null ? -1 : c.ctr,
     cpm:   c => c.cpm == null ? -1 : c.cpm,
-    frequency: c => c.frequency == null ? -1 : c.frequency,
-    reach: c => c.reach
+    frequency: c => c.peakFrequency == null ? -1 : c.peakFrequency,
+    impressions: c => c.impressions
   };
   const sorted = campaigns.slice().sort((a, b) => {
     const f = SORTS[SO.adsSort.col] || SORTS.spend;
@@ -3914,7 +3926,7 @@ function adsView(){
 
   const rowHtml = c => {
     const bad = c.spend > 0 && !c.results;
-    const hot = c.frequency != null && c.frequency > ADS_BENCH.frequency;
+    const hot = c.peakFrequency != null && c.peakFrequency > ADS_BENCH.frequency;
     const cpaTone = c.cpa == null ? 'var(--dimmer)'
       : (totals.cpa != null && c.cpa > totals.cpa * 1.5) ? 'var(--rust)'
       : (totals.cpa != null && c.cpa < totals.cpa) ? 'var(--jade)' : 'var(--text)';
@@ -3929,8 +3941,8 @@ function adsView(){
       + '<td class="r mono" style="color:' + cpaTone + '">' + money(c.cpa) + '</td>'
       + '<td class="r mono">' + pct(c.ctr) + '</td>'
       + '<td class="r mono">' + money(c.cpm) + '</td>'
-      + '<td class="r mono" style="color:' + (hot ? 'var(--brass)' : 'inherit') + '">' + ratio(c.frequency) + '</td>'
-      + '<td class="r mono">' + num(c.reach) + '</td>'
+      + '<td class="r mono" style="color:' + (hot ? 'var(--brass)' : 'inherit') + '">' + ratio(c.peakFrequency) + '</td>'
+      + '<td class="r mono">' + num(c.impressions) + '</td>'
       + '</tr>';
   };
 
@@ -3941,7 +3953,7 @@ function adsView(){
         ? '<div style="overflow-x:auto"><table class="tbl">'
           + '<thead><tr>' + th('name', 'Campaign') + '<th>Spend trend</th>'
           + th('spend', 'Spend', true) + th('results', 'Results', true) + th('cpa', 'Cost / result', true)
-          + th('ctr', 'CTR', true) + th('cpm', 'CPM', true) + th('frequency', 'Freq.', true) + th('reach', 'Reach', true)
+          + th('ctr', 'CTR', true) + th('cpm', 'CPM', true) + th('frequency', 'Peak freq.', true) + th('impressions', 'Impressions', true)
           + '</tr></thead><tbody>' + sorted.map(rowHtml).join('') + '</tbody></table></div>'
         : '<div class="empty"><small>No campaigns delivered in this window.</small></div>')
     + '</div>';
