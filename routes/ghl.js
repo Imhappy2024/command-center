@@ -17,7 +17,9 @@ import {
   GhlError, CHANNEL_TO_GHL,
   sendMessage, updateContact, updateOpportunity
 } from '../providers/ghl.js';
-import { query } from '../db/index.js';
+/* Portal-table queries (send path, stage mirror, diag counts) use the GHL
+   pool; the webhook receiver's INSERT into webhook_events uses ours. */
+import { query as ownQuery, ghlQuery as query, describeDb, ownDbUrl, ghlDbUrl } from '../db/index.js';
 import { ipLimiter, rawLabels } from '../lib/ghl-webhook.js';
 import {
   subAccounts, allowedLocationIds, sendableLocationIds, tokenFor,
@@ -201,15 +203,19 @@ export function ghlRoutes({ env, auth, live = null }){
      and how many rows they hold, and whether the live trigger exists. Every
      check reports its own failure instead of taking the endpoint down. */
   r.get('/api/ghl/diag', auth.require, async (req, res) => {
-    const out = { db: null, counts: {}, liveTrigger: null, errors: [] };
-
-    try {
-      const u = new URL(env.DATABASE_URL);
-      out.db = `${u.hostname}:${u.port || 5432}`;
-      out.dbKind = /supabase\.com$/.test(u.hostname) ? 'supabase'
-                 : /railway/.test(u.hostname) ? 'railway (NOT the Supabase pooler)'
-                 : 'other';
-    } catch { out.db = 'DATABASE_URL did not parse'; }
+    const own = describeDb(ownDbUrl());
+    const ghl = describeDb(ghlDbUrl());
+    const out = {
+      /* What the GHL screens read from. This is the one that has to say
+         supabase for the sidebar to fill. */
+      ghlDb: { ...ghl, via: process.env.SUPABASE_DB_URL ? 'SUPABASE_DB_URL' : 'DATABASE_URL (fallback)' },
+      /* Where accounts and webhook_events live. Railway is fine here. */
+      ownDb: { ...own, via: 'DATABASE_URL' },
+      counts: {},
+      liveTrigger: null,
+      errors: []
+    };
+    if (ghl.warning) out.errors.push('SUPABASE_DB_URL: ' + ghl.warning);
 
     /* Literals, never interpolated input. */
     for (const tbl of ['ghl_location', 'lead', 'ghl_message', 'ghl_opportunity']) {
@@ -833,7 +839,7 @@ export function ghlRoutes({ env, auth, live = null }){
     const { eventType, externalId } = rawLabels(req.body);
 
     try {
-      await query(
+      await ownQuery(
         `INSERT INTO webhook_events (provider, event_type, external_id, payload)
          VALUES ('ghl', $1, $2, $3)`,
         [eventType, externalId, req.body ?? {}]

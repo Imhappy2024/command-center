@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { migrate, applyNotifyTriggers, close } from './db/index.js';
+import { migrate, applyNotifyTriggers, close, describeDb, ownDbUrl, ghlDbUrl } from './db/index.js';
 import { initCrypto } from './lib/crypto.js';
 import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
@@ -101,15 +101,17 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Command Center listening on 0.0.0.0:${PORT}`);
   console.log(`  auth:     ${gate}`);
   console.log('  tokens:   Postgres, AES-256-GCM at rest');
-  /* Which database, at a glance. "Not ingested yet" on screen with a Railway
-     Postgres host in this line is the whole diagnosis. */
-  try {
-    const u = new URL(env.DATABASE_URL);
-    const kind = /supabase\.com$/.test(u.hostname) ? 'supabase'
-               : /railway/.test(u.hostname) ? 'RAILWAY — not the Supabase pooler!'
-               : 'other';
-    console.log(`  database: ${u.hostname}:${u.port || 5432} (${kind})`);
-  } catch { console.log('  database: DATABASE_URL did not parse as a URL'); }
+  /* Both databases, by role. "Not ingested yet" on screen with anything but
+     supabase on the ghl line is the whole diagnosis. */
+  const own = describeDb(ownDbUrl());
+  const ghl = describeDb(ghlDbUrl());
+  console.log(`  own db:   ${own.host}:${own.port} (${own.kind}) — accounts, webhook_events, social`);
+  console.log(`  ghl db:   ${ghl.host}:${ghl.port} (${ghl.kind}) via `
+    + (env.SUPABASE_DB_URL ? 'SUPABASE_DB_URL' : 'DATABASE_URL fallback — set SUPABASE_DB_URL'));
+  if (ghl.warning) console.error(`  ghl db:   WARNING ${ghl.warning}`);
+  if (ghl.kind !== 'supabase') {
+    console.error('  ghl db:   WARNING this is not Supabase; the GHL screens will find no tables here');
+  }
   console.log(`  origin:   ${env.PUBLIC_URL}`);
   /* Stated at boot rather than left silent. This endpoint writes into Supabase
      and takes no secret; the locationId allow-list is what contains it. */

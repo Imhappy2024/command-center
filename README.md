@@ -88,6 +88,22 @@ GHL API --> backfill + webhooks --> Supabase --> command-center reads
 Read routes never call GHL. `/api/ghl/leads`, `/api/ghl/leads/:id/thread`,
 `/api/ghl/leads/:id/detail` and `/api/ghl/stages` are Supabase queries.
 
+### Two databases
+
+| Variable | Holds | Where |
+|---|---|---|
+| `DATABASE_URL` | command-center's own tables — `accounts` (mail tokens), `webhook_events`, `sync_state`, `social_*` | Railway Postgres |
+| `SUPABASE_DB_URL` | the portal's GHL tables — `lead`, `ghl_*`, `appointment` | Supabase, **session pooler on 5432** |
+
+They are deliberately separate. Pointing `DATABASE_URL` at Supabase would orphan
+every connected mailbox's token. With `SUPABASE_DB_URL` unset, GHL reads fall back to
+`DATABASE_URL` — the single-database layout — and the boot log says so.
+
+`GET /api/ghl/diag` reports both connections by host and kind, per-table counts,
+and whether the live trigger exists. If the sidebar is empty, open it first: the
+three silent-empty causes (wrong database, RLS-blocked role, genuinely empty) read
+differently there.
+
 ### Sub-accounts
 
 They come from `ghl_location`, with brand from `company` and a lead count per
