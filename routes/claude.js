@@ -206,25 +206,48 @@ export function claudeRoutes({ env, auth }){
      Parsed into rows so the UI can group and act on them rather than showing a
      wall of terminal output. The name is everything before the last colon that
      precedes a URL, because the names themselves contain colons and spaces. */
+  /* `claude mcp list` prints two different shapes, and a parser that only knows
+     one of them silently drops the other -- which is exactly what happened: a
+     server added from this page never appeared, so adding looked broken when it
+     had worked.
+
+       claude.ai Front: https://mcp.frontapp.com/mcp - ✓ Connected
+       cctest: https://example.com/mcp (HTTP) - ✗ Failed to connect
+
+     Parsed from the right rather than the left: the status follows the last
+     " - ", an optional "(HTTP)" transport marker sits before it, and only then
+     is the remainder split into name and target. Splitting on the first colon
+     would cut "https" off the URL. */
   function parseMcpList(text){
     const rows = [];
     for (const raw of String(text || '').split('\n')) {
       const line = raw.replace(/\x1B\[[0-?]*[ -\/]*[@-~]/g, '').trim();
-      if (!line || /^Checking MCP server health/i.test(line)) continue;
-      const m = /^(.*?):\s*(\S+)\s*-\s*(.*)$/.exec(line);
-      if (!m) continue;
-      const status = m[3].trim();
+      if (!line || /^Checking MCP server health/i.test(line) || !line.includes(':')) continue;
+
+      const cut = line.lastIndexOf(' - ');
+      if (cut < 0) continue;
+      const status = line.slice(cut + 3).trim();
+      let left = line.slice(0, cut).trim();
+
+      let transport = '';
+      const tm = /\s\(([A-Za-z]+)\)$/.exec(left);
+      if (tm) { transport = tm[1].toLowerCase(); left = left.slice(0, tm.index).trim(); }
+
+      const c = left.indexOf(': ');
+      if (c < 0) continue;
+      const name = left.slice(0, c).trim();
+      const target = left.slice(c + 2).trim();
+      if (!name || !target) continue;
+
       rows.push({
-        name: m[1].trim(),
-        url: m[2].trim(),
-        /* The glyph is the signal; keep the words for the tooltip. */
+        name, url: target, transport,
         state: /connected/i.test(status) && !/not/i.test(status) ? 'connected'
              : /auth/i.test(status) ? 'needs-auth'
              : /fail/i.test(status) ? 'failed' : 'unknown',
         status,
-        /* claude.ai-prefixed servers come from the account, not from a local
+        /* claude.ai-prefixed servers come from the account rather than a local
            config, which is why they cannot be removed from here. */
-        source: /^claude\.ai\b/.test(m[1].trim()) ? 'account' : 'local'
+        source: /^claude\.ai\b/.test(name) ? 'account' : 'local'
       });
     }
     return rows;
@@ -243,7 +266,14 @@ export function claudeRoutes({ env, auth }){
         failed: servers.filter(s2 => s2.state === 'failed').length
       },
       text: out.stdout || out.stderr || '',
-      error: out.error
+      error: out.error,
+      /* Measured, not assumed: `claude mcp list` reports a health check, and a
+         healthy server is NOT the same as one a turn can use. On this build a
+         headless `claude -p` run registers MCP servers as "pending" and ends up
+         with no mcp__ tools at all -- with the account connectors, with a local
+         config, and with an explicit --mcp-config. So the panel must not imply
+         Claude can reach these from here. */
+      usableInTurns: false
     });
   });
 

@@ -6706,13 +6706,25 @@ function ccConnectorsPanel(){
 
   return '<div class="ccpanel">'
     + ccPanelHead('Connectors',
-        'MCP servers Claude Code can reach.'
-        + (d ? ' <b>' + d.counts.connected + '</b> of ' + d.counts.total + ' connected'
+        'MCP servers configured for Claude Code.'
+        + (d ? ' <b>' + d.counts.connected + '</b> of ' + d.counts.total + ' pass their health check'
              + (d.counts.needsAuth ? ', ' + d.counts.needsAuth + ' need re-authenticating' : '')
              + (d.counts.failed ? ', ' + d.counts.failed + ' failing' : '') + '.' : '')
         + ' Ones marked <em>account</em> come from your Claude account — re-authenticate those in the Claude app, '
         + 'since this page cannot complete someone else\'s OAuth flow.',
         '<button class="tgl" id="cc-refresh">Refresh</button>')
+    /* The distinction that actually matters, stated where it is read. A green
+       badge here previously implied Claude could use the server, and it cannot. */
+    + (d && d.usableInTurns === false
+        ? '<div class="insrow" style="margin-bottom:12px"><span class="sev warn">i</span><span class="tx">'
+          + '<b>Connected does not yet mean usable here.</b> These badges are health checks. '
+          + 'Chats in Command Center run Claude Code non-interactively, and on this version a '
+          + 'non-interactive run finishes with no MCP tools attached — the servers register as '
+          + '<span class="mono">pending</span> and never arrive. Verified against the session\'s own '
+          + 'init frame with the account connectors, with a local config, and with an explicit '
+          + '<span class="mono">--mcp-config</span>. Use these connectors from the Claude app or the '
+          + 'CLI until that changes.</span></div>'
+        : '')
     + '<input class="ccsearch" id="cc-q" placeholder="Filter connectors" value="' + escS(CC.q) + '">'
     + rows
     + '<div class="ccrow" style="margin-top:14px;background:var(--panel2)">'
@@ -7756,17 +7768,37 @@ function ccBubble(m, idx){
     + '</div>';
 }
 
-/* Tool calls and thinking, collapsed. Open only when there is nothing else to
-   show yet, so a turn still working is not a blank rectangle. */
+/* Tool calls and thinking, always collapsed.
+
+   These used to open the newest step whenever a turn had no prose yet, which
+   meant every answer began by unfolding a wall of the model's internal
+   monologue. Nothing here opens itself now -- it is available, not presented.
+
+   Consecutive thinking blocks are merged into one row too. Claude emits a fresh
+   block after every tool call, so a turn with four tool calls produced nine
+   rows, most of them saying only "Thinking". */
+function ccMergeSteps(steps){
+  const out = [];
+  for (const t of steps) {
+    const prev = out[out.length - 1];
+    if (t.kind === 'thinking' && prev && prev.kind === 'thinking') {
+      prev.body = (prev.body || '') + (prev.body && t.body ? '\n\n' : '') + (t.body || '');
+      prev.runs = (prev.runs || 1) + 1;
+      continue;
+    }
+    out.push({ ...t });
+  }
+  return out;
+}
+
 function ccSteps(m){
-  const steps = m.steps || m.tools || [];
+  const steps = ccMergeSteps(m.steps || m.tools || []);
   if (!steps.length) return '';
-  const bare = !(m.text || '').trim();
-  return steps.map((t, n) => {
+  return steps.map(t => {
     const isThink = t.kind === 'thinking';
-    const open = bare && n === steps.length - 1 ? ' open' : '';
-    return '<details class="ccstep' + (isThink ? ' think' : '') + '"' + open + '>'
-      + '<summary><span class="tn">' + escS(isThink ? 'Thinking' : (t.name || 'Tool')) + '</span>'
+    const label = isThink ? 'Thinking' : (t.name || 'Tool');
+    return '<details class="ccstep' + (isThink ? ' think' : '') + '">'
+      + '<summary><span class="tn">' + escS(label) + '</span>'
       + '<span class="td">' + escS(t.detail || '') + '</span>'
       + '<span class="cv">' + (t.body ? 'details' : '') + '</span></summary>'
       + (t.body ? '<div class="sb">' + escS(String(t.body).slice(0, 8000)) + '</div>' : '')
