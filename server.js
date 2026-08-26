@@ -7,6 +7,7 @@ import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
 import { PROVIDERS, missingVars } from './lib/oauth.js';
 import { seedFromEnv } from './lib/ghl-seed.js';
+import { claudeIsLocal } from './routes/claude.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
@@ -118,6 +119,12 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   console.log('  webhooks: /webhooks/ghl OPEN — unauthenticated, allow-listed by locationId');
   console.log('  ghl:      READ-ONLY from Supabase; sends go to GHL. '
     + 'The ingest pipeline owns GHL -> Supabase.');
+  {
+    const local = claudeIsLocal(env);
+    console.log('  claude:   ' + (local
+      ? 'LOCAL — /api/claude runs Claude Code on this machine, billed to your subscription'
+      : 'hosted, so /api/claude is not mounted; use tools/claude-bridge.mjs on your own machine'));
+  }
   {
     const so = app.locals.background?.social;
     const times = so ? so.schedule.times.map(t => String(t.h).padStart(2, '0') + ':' + String(t.m).padStart(2, '0')).join(', ') : '—';

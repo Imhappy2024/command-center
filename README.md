@@ -392,6 +392,63 @@ every statement is idempotent, so there is nothing to migrate by hand.
 The server refuses to start if `APP_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_KEY` or
 `DATABASE_URL` is missing, and names the one that is.
 
+## Claude
+
+A Claude Code session inside the dashboard, billed to your Claude subscription
+rather than to API credits — Claude Code is a first-party client that is already
+signed in, so nothing here ever calls `/v1/messages`.
+
+**It only mounts when the app is running on your own machine.** The Railway
+deployment runs `AUTH_MODE=open`, and an endpoint that spawns a coding agent with
+filesystem access would hand a shell to anyone with the URL. `routes/claude.js`
+checks for the environment markers every hosted platform sets (`RAILWAY_*`,
+`RENDER`, `FLY_APP_NAME`, `DYNO`, `VERCEL`, `KUBERNETES_SERVICE_HOST`, …) and does
+not register the router if it finds one. The boot log says which way it went.
+
+Prerequisite: `npm i -g @anthropic-ai/claude-code`, then run `claude` once to sign
+in. `lib/claude-cli.js` finds the installed `cli.js` and spawns it with this
+process's own `node` — not through the `.cmd` shim, because Node refuses to spawn
+a `.cmd` without a shell and `shell: true` concatenates arguments instead of
+escaping them, which silently truncates any prompt containing a space.
+
+The panel exposes the model, effort and thinking toggles, permission mode, the
+tool allow-list, MCP servers (`--mcp-config`), plugin directories, extra working
+directories, subagents and settings JSON, and a system-prompt suffix.
+
+| Variable | Default | What it does |
+|---|---|---|
+| `CLAUDE_DIR` | the server's cwd | Working directory for turns |
+| `CLAUDE_WRITE` | unset | `1` adds Edit / Write / NotebookEdit / Bash to the allow-list |
+| `CLAUDE_YOLO` | unset | `1` removes the allow-list entirely (`--dangerously-skip-permissions`) |
+| `CLAUDE_LOCAL` | auto | `0` forces the router off, `1` forces it on — don't force it on |
+| `CLAUDE_CLI` | auto | Path to `cli.js` if it isn't where the search expects |
+
+Read-only by default. The browser may narrow the tool set per turn but can never
+widen it past what the process was started with.
+
+`tools/claude-bridge.mjs` does the same thing as a standalone process, for
+pointing the hosted dashboard at your machine. The in-app routes are simpler when
+the dashboard is local: same origin, no token, no CORS.
+
+## Installing on Windows, and updating
+
+`install/install.ps1` clones into `%LOCALAPPDATA%\CommandCenter`, installs
+dependencies, seeds `.env`, and adds a Desktop and Start Menu shortcut. The
+launcher (`install/Command Center.cmd` → `command-center.ps1`) supervises the
+process and opens the browser once the port answers.
+
+The sidebar shows the version, commit, and whether the working copy is dirty, and
+checks GitHub hourly for a newer commit on the current branch. **Update now**
+refuses if there are uncommitted changes, then runs `git pull --ff-only` and
+`npm install --omit=dev`. Because the launcher sets `CC_SUPERVISED=1`, a clean
+exit restarts into the new code and the page reloads itself; started any other
+way, `/api/app/restart` refuses and the banner says to restart it by hand.
+
+These routes are gated exactly like the Claude ones — `git pull` reachable from a
+public URL is remote code execution with a friendly name.
+
+See `install/README.md`, including why this is an installer and not a `.exe`.
+
 ## Provider setup
 
 ### Google
@@ -611,6 +668,23 @@ preformatted for display; `sortKey` is epoch ms and drives the merge order.
 `cal` is the `accounts.id`, the same value a message carries as `acct`. `start` and `end`
 are ISO 8601 for timed events and date-only `YYYY-MM-DD` for all-day ones, so the grid can
 place them on the viewer's calendar day rather than shifting them across midnight.
+
+### Local only
+
+Mounted only when no hosted-platform marker is present.
+
+| Route | Does |
+|---|---|
+| `GET /api/claude/health` | Whether the router is live, the cwd, the tool allow-list |
+| `GET /api/claude/auth` | `claude auth status` — proves turns bill to the subscription |
+| `GET/POST /api/claude/plugins` | List, enable, disable |
+| `GET /api/claude/mcp` | Configured MCP servers |
+| `POST /api/claude/chat` | One turn, SSE. `sessionId` resumes |
+| `POST /api/claude/stop` | Kill the running turn |
+| `GET /api/app/version` | Package version, commit, branch, dirty flag |
+| `GET /api/app/update-check` | Compares HEAD to the branch head on GitHub |
+| `POST /api/app/update` | `git pull --ff-only` + `npm install --omit=dev` |
+| `POST /api/app/restart` | Exits 0 so the launcher restarts. Needs `CC_SUPERVISED=1` |
 
 ## Known gaps
 

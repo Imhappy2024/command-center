@@ -1193,6 +1193,61 @@ main{min-width:0;display:flex;flex-direction:column}
   color:var(--dim);cursor:pointer;font:inherit;font-size:12px;padding:8px 0;transition:.14s}
 .privrow button.on{border-color:var(--brass);color:var(--cream);background:rgba(124,108,255,.09)}
 .thumbside img{width:100%;border-radius:var(--r-md);display:block;border:1px solid var(--edge)}
+.ccwrap{display:flex;flex-direction:column;height:calc(100vh - 190px);min-height:420px;
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
+  box-shadow:var(--shadow);overflow:hidden}
+.ccfeed{flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:18px}
+.ccmsg{display:flex;gap:12px;max-width:100%}
+.ccmsg .av{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;
+  font-family:var(--ff-display);font-size:11px;font-weight:700}
+.ccmsg.me .av{background:var(--panel3);color:var(--dim)}
+.ccmsg.ai .av{background:linear-gradient(150deg,var(--yt),var(--ig) 52%,var(--fb));color:#fff}
+.ccmsg .bd{min-width:0;flex:1}
+.ccmsg .bd p{font-size:13.5px;line-height:1.65;color:var(--text);margin:0 0 9px;white-space:pre-wrap;
+  overflow-wrap:anywhere}
+.ccmsg .bd p:last-child{margin-bottom:0}
+.ccmsg.me .bd p{color:var(--cream)}
+.ccmsg pre{background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:11px 13px;
+  overflow-x:auto;margin:0 0 9px}
+.ccmsg pre code{font-family:var(--ff-mono);font-size:12px;color:var(--text);white-space:pre}
+.ccmsg code.inl{font-family:var(--ff-mono);font-size:12px;background:var(--ink2);
+  border:1px solid var(--edge);border-radius:5px;padding:1px 5px}
+.cctool{display:flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:10.5px;
+  color:var(--dimmer);background:var(--ink2);border:1px solid var(--edge);border-radius:7px;
+  padding:6px 10px;margin-bottom:8px;width:max-content;max-width:100%}
+.cctool b{color:var(--dim);font-weight:400}
+.ccthinking{font-size:12px;color:var(--dimmer);font-style:italic;margin-bottom:8px}
+.cccomposer{border-top:1px solid var(--edge);padding:13px 15px;display:flex;gap:10px;align-items:flex-end}
+.cccomposer textarea{flex:1;background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);
+  color:var(--text);font:inherit;font-size:13.5px;padding:11px 13px;resize:none;min-height:44px;
+  max-height:180px;line-height:1.5}
+.cccomposer textarea:focus{outline:none;border-color:var(--edge2)}
+.ccmeta{display:flex;align-items:center;gap:10px;padding:0 15px 11px;font-family:var(--ff-mono);
+  font-size:10px;color:var(--dimmer)}
+.ccdots span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--brass);
+  margin-right:3px;animation:ccb 1.2s infinite}
+.ccdots span:nth-child(2){animation-delay:.15s}
+.ccdots span:nth-child(3){animation-delay:.3s}
+@keyframes ccb{0%,60%,100%{opacity:.25}30%{opacity:1}}
+.ccsetup{font-size:13px;color:var(--dim);line-height:1.7}
+.ccsetup ol{margin:12px 0 0;padding-left:20px}
+.ccsetup li{margin-bottom:12px}
+.ccsetup pre{background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:11px 13px;
+  overflow-x:auto;margin:7px 0 0}
+.ccsetup code{font-family:var(--ff-mono);font-size:12px;color:var(--cream)}
+
+.verline{display:flex;align-items:center;gap:7px;font-family:var(--ff-mono);font-size:9.5px;
+  color:var(--dimmer);padding-top:2px}
+.verline .up{color:var(--brass);cursor:pointer;text-decoration:underline;background:none;border:0;
+  font:inherit;padding:0}
+.updbar{position:fixed;bottom:18px;right:18px;z-index:70;max-width:340px;background:var(--panel2);
+  border:1px solid var(--brass);border-radius:var(--r-md);padding:13px 15px;
+  box-shadow:0 24px 50px -24px rgba(0,0,0,.8);display:none}
+.updbar.on{display:block}
+.updbar b{display:block;font-size:13px;color:var(--cream);margin-bottom:4px}
+.updbar p{font-size:12px;color:var(--dim);line-height:1.55;margin-bottom:10px}
+.updbar .row{display:flex;gap:7px}
+
 .thumbside .noimg2{width:100%;aspect-ratio:9/16;border-radius:var(--r-md);background:var(--ink2);
   border:1px solid var(--edge);display:grid;place-items:center;color:var(--dimmer);font-size:11.5px}
 
@@ -1329,6 +1384,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div class="eyebrow" style="margin-bottom:3px">Connections</div>
     <div id="rail-conn"></div>
     <div id="rail-auth"></div>
+    <div class="verline" id="ver-line"></div>
   </div>
 </aside>
 
@@ -1608,6 +1664,33 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div id="so-body"></div>
   </section>
 
+  <!-- CLAUDE -->
+  <section class="view" id="v-claude">
+    <div class="vhead">
+      <div><h1>Claude</h1><p id="cc-sub">Runs on your machine, on your subscription.</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="synced" id="cc-state"></span>
+        <select class="stagesel" id="cc-model">
+          <option value="">Default model</option>
+          <option value="opus">Opus</option>
+          <option value="sonnet">Sonnet</option>
+          <option value="haiku">Haiku</option>
+        </select>
+        <select class="stagesel" id="cc-effort" title="Effort is the thinking control — Claude Code has no separate thinking toggle">
+          <option value="">Default effort</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+          <option value="max">Max</option>
+        </select>
+        <button class="tgl" id="cc-newchat">New chat</button>
+        <button class="tgl" id="cc-config">Session</button>
+        <button class="tgl" id="cc-setup">Bridge</button>
+      </div>
+    </div>
+    <div id="cc-body"></div>
+  </section>
+
   <!-- SYSTEMS -->
   <section class="view" id="v-systems">
     <div class="vhead">
@@ -1636,6 +1719,14 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   </div>
 </div>
 <div class="toasts" id="so-toasts"></div>
+<div class="updbar" id="upd-bar">
+  <b id="upd-title">Update available</b>
+  <p id="upd-note"></p>
+  <div class="row">
+    <button class="btn primary" id="upd-go" style="flex:1">Update now</button>
+    <button class="btn" id="upd-later">Later</button>
+  </div>
+</div>
 
 <!-- clip player -->
 <div class="mwrap" id="cl-player">
@@ -1707,6 +1798,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
 <script>
 const ICON = {
   overview:'<path d="M3 3h7v7H3zM14 3h7v4h-7zM14 10h7v11h-7zM3 13h7v8H3z"/>',
+  claude:'<path d="M12 3.2l2.4 5.3 5.8.6-4.3 3.9 1.2 5.7-5.1-2.9-5.1 2.9 1.2-5.7L3.8 9.1l5.8-.6z"/>',
   inbox:'<path d="M4 4h16v10h-5l-1.5 3h-3L9 14H4z"/><path d="M4 14v6h16v-6"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   tasks:'<path d="M4 6l2 2 4-4"/><path d="M4 14l2 2 4-4"/><path d="M13 7h7M13 15h7"/>',
@@ -1727,6 +1819,7 @@ const MENU = [
   ['properties','Properties','Postgres',''],
   ['financial','Financial','Ledger',''],
   ['social','Social','5 networks',''],
+  ['claude','Claude','SUBSCRIPTION',''],
   ['systems','Systems','n8n','']
 ];
 const nav = document.getElementById('nav');
@@ -5976,6 +6069,754 @@ document.addEventListener('keydown', e => {
 });
 
 
+/* ================= VERSION AND UPDATES =================
+
+   Only meaningful on a local install: the endpoints behind this are mounted
+   only when the app is not running on a hosted platform, because `git pull`
+   reachable from a public URL is remote code execution with a friendly name.
+   On the hosted deployment these calls 404 and the line simply stays empty. */
+
+const VER = { info: null, check: null, busy: false, dismissed: false };
+
+async function verLoad(){
+  try {
+    const r = await fetch('/api/app/version');
+    if (!r.ok) return;                 // hosted build — nothing to show
+    VER.info = await r.json();
+    drawVersion();
+  } catch { /* nothing to show */ }
+
+  try {
+    const r = await fetch('/api/app/update-check');
+    if (!r.ok) return;
+    VER.check = await r.json();
+    drawVersion();
+  } catch { /* offline is not an error worth shouting about */ }
+}
+
+function drawVersion(){
+  const el = document.getElementById('ver-line');
+  if (!el || !VER.info) return;
+  const c = VER.check;
+  el.innerHTML = 'v' + escS(VER.info.version)
+    + (VER.info.commit ? ' · ' + escS(VER.info.commit) : '')
+    + (VER.info.dirty ? ' · <span style="color:var(--amber)">local edits</span>' : '')
+    + (c?.behind ? ' · <button class="up" id="ver-upd">update</button>'
+       : c?.ok ? ' · up to date' : '');
+  const b = document.getElementById('ver-upd');
+  if (b) b.onclick = () => { VER.dismissed = false; drawUpdBar(); };
+  drawUpdBar();
+}
+
+function drawUpdBar(){
+  const bar = document.getElementById('upd-bar');
+  if (!bar) return;
+  const c = VER.check;
+  const show = c?.behind && !VER.dismissed;
+  bar.classList.toggle('on', Boolean(show));
+  if (!show) return;
+  document.getElementById('upd-note').textContent =
+    (c.message ? '“' + c.message.slice(0, 90) + '”' : 'A newer commit is on ' + c.branch + '.')
+    + ' You are on ' + c.current + ', latest is ' + c.latest + '.';
+}
+
+async function verUpdate(){
+  if (VER.busy) return;
+  VER.busy = true;
+  const go = document.getElementById('upd-go');
+  go.disabled = true; go.textContent = 'Updating…';
+  try {
+    const r = await fetch('/api/app/update', { method:'POST' });
+    const j = await r.json();
+    if (!r.ok) { banner(j.error || 'Update failed.'); return; }
+    /* The new code is on disk; this process is still the old one. */
+    const restart = await fetch('/api/app/restart', { method:'POST' });
+    if (restart.ok) {
+      document.getElementById('upd-title').textContent = 'Restarting…';
+      document.getElementById('upd-note').textContent = 'Reloading in a moment.';
+      setTimeout(() => location.reload(), 3500);
+    } else {
+      document.getElementById('upd-title').textContent = 'Updated — restart needed';
+      document.getElementById('upd-note').textContent =
+        'Files are updated' + (j.deps === 'installed' ? ' and dependencies installed' : '')
+        + '. Stop and start Command Center to run the new version.';
+      go.textContent = 'Done';
+      go.disabled = false;
+      go.onclick = () => document.getElementById('upd-bar').classList.remove('on');
+    }
+  } catch (err) {
+    banner('Update failed: ' + err.message);
+  } finally {
+    VER.busy = false;
+    if (go.textContent === 'Updating…') { go.disabled = false; go.textContent = 'Update now'; }
+  }
+}
+
+document.getElementById('upd-go').onclick = verUpdate;
+document.getElementById('upd-later').onclick = () => {
+  VER.dismissed = true; drawUpdBar();
+};
+verLoad();
+/* Once an hour is plenty for a dashboard someone leaves open. */
+setInterval(() => { if (!VER.busy) verLoad(); }, 3600_000);
+
+
+/* ================= CLAUDE =================
+
+   This talks to a bridge on YOUR machine, never to Anthropic and never through
+   the dashboard's own server.
+
+   The reason is billing. A Pro/Max subscription cannot be spent from a web
+   application: Anthropic's OAuth profiles bind to an API organisation and are
+   credit-billed, and the documented answer for servers is Workload Identity
+   Federation, which is still the API. But Claude Code on your machine is
+   already signed in to that subscription and has a headless mode — so the
+   browser calls localhost, localhost runs `claude -p`, and the subscription
+   pays because Claude Code is what is running.
+
+   http://localhost counts as a potentially trustworthy origin, so an HTTPS page
+   is allowed to call it without mixed-content blocking. The Railway server is
+   not in the path at any point: it never sees a prompt, a reply, or a token. */
+
+const CC = {
+  url: localStorage.getItem('cc.url') || 'http://127.0.0.1:8787',
+  token: localStorage.getItem('cc.token') || '',
+  status: 'unknown',      // unknown | offline | unauthed | ready
+  mode: null,             // 'local' (this server spawns Claude) | 'bridge'
+  base: '',               // where the endpoints live
+  info: null,
+  messages: [],           // { role, text, tools:[] }
+  sessionId: null,
+  busy: false,
+  setup: false, config: false,
+  account: null, plugins: null, mcpList: null, loadingEnv: false,
+  abort: null
+};
+
+/* Session configuration. Every field maps to a real `claude` flag — MCP servers
+   to --mcp-config, plugin folders to --plugin-dir, agents to --agents, and so
+   on. Nothing here is decorative; if the CLI had no flag for it, it is not
+   offered. Kept in localStorage so a session survives a reload. */
+const CCFG_DEFAULTS = {
+  mcp: '', plugins: '', agents: '', addDirs: '', appendSystem: '', settings: '',
+  permissionMode: '', tools: [], noSkills: false
+};
+let CCFG = (() => {
+  try { return { ...CCFG_DEFAULTS, ...JSON.parse(localStorage.getItem('cc.cfg') || '{}') }; }
+  catch { return { ...CCFG_DEFAULTS }; }
+})();
+const ccfgSave = () => localStorage.setItem('cc.cfg', JSON.stringify(CCFG));
+
+const ccLines = v => String(v || '').split('\n').map(x => x.trim()).filter(Boolean);
+const ccfgActive = () => [
+  CCFG.settings.trim() && 'settings',
+  CCFG.mcp.trim() && 'MCP',
+  CCFG.plugins.trim() && 'plugins',
+  CCFG.agents.trim() && 'agents',
+  CCFG.addDirs.trim() && 'dirs',
+  CCFG.appendSystem.trim() && 'system',
+  CCFG.permissionMode && CCFG.permissionMode,
+  CCFG.tools.length && CCFG.tools.length + ' tools',
+  CCFG.noSkills && 'no skills'
+].filter(Boolean);
+
+const ccSave = () => {
+  localStorage.setItem('cc.url', CC.url);
+  localStorage.setItem('cc.token', CC.token);
+};
+
+/* Two ways this can be served, tried in that order.
+
+   1. Command Center itself is running on your machine. Then the server can
+      spawn Claude Code directly and the browser just calls its own origin —
+      no bridge, no token, no cross-origin anything. /api/claude only exists on
+      a local run; the hosted deployment never mounts it.
+   2. The dashboard is the hosted one, so the browser reaches past it to a
+      bridge you started on your machine.
+
+   Either way the turn runs through Claude Code on your subscription, and the
+   hosted server is never in the path. */
+async function ccProbe(){
+  CC.mode = null;
+  /* Same-origin first — if the dashboard is local this is the whole answer. */
+  try {
+    const r = await fetch('/api/claude/health', { signal: AbortSignal.timeout(4000) });
+    if (r.ok) {
+      const j = await r.json();
+      if (j.local) {
+        CC.mode = 'local';
+        CC.base = '/api/claude';
+        CC.status = 'ready';
+        CC.info = j;
+        if (!CC.account) ccLoadEnv();
+        return drawClaude();
+      }
+    }
+  } catch { /* not a local run; fall through to the bridge */ }
+
+  CC.mode = 'bridge';
+  CC.base = CC.url.replace(/\/+$/, '');
+  try {
+    const r = await fetch(CC.base + '/health', {
+      headers: CC.token ? { 'x-bridge-token': CC.token } : {},
+      signal: AbortSignal.timeout(4000)
+    });
+    const j = await r.json();
+    CC.status = j.authed ? 'ready' : 'unauthed';
+    CC.info = j.authed ? j : null;
+    if (j.authed && !CC.account) ccLoadEnv();
+  } catch {
+    /* Refused, blocked, wrong port — all the same to the reader: nothing there. */
+    CC.status = 'offline';
+    CC.info = null;
+  }
+  drawClaude();
+}
+
+/* The bridge needs its token header; the local server needs nothing, because
+   it is already behind the dashboard's own auth. */
+const ccHeaders = (extra = {}) =>
+  CC.mode === 'bridge' && CC.token ? { ...extra, 'x-bridge-token': CC.token } : extra;
+
+/* Account, plugins and MCP servers, read from Claude Code itself rather than
+   guessed at. Fired once when the bridge first answers. */
+async function ccLoadEnv(){
+  CC.loadingEnv = true;
+  const get = async path => {
+    try {
+      const r = await fetch(CC.base + path, { headers: ccHeaders(), signal: AbortSignal.timeout(45000) });
+      return await r.json();
+    } catch (err) { return { ok:false, error: err.message }; }
+  };
+  const [auth, plugins, mcp] = await Promise.all([get('/auth'), get('/plugins'), get('/mcp')]);
+  CC.account = auth.account || (auth.raw ? { raw: auth.raw } : { error: auth.error || 'unavailable' });
+  CC.plugins = plugins;
+  CC.mcpList = mcp;
+  CC.loadingEnv = false;
+  drawClaude();
+}
+
+function drawClaude(){
+  const body = document.getElementById('cc-body');
+  const state = document.getElementById('cc-state');
+  const sub = document.getElementById('cc-sub');
+  if (!body) return;
+
+  const dot = { ready:'var(--jade)', unauthed:'var(--amber)', offline:'var(--rust)', unknown:'var(--dimmer)' }[CC.status];
+  const label = { ready:'Bridge connected', unauthed:'Bridge found — token needed',
+                  offline:'No local Claude', unknown:'Checking…' }[CC.status];
+  state.innerHTML = '<span class="d" style="background:' + dot + '"></span>' + label
+    + (CC.info?.cwd ? ' · ' + escS(CC.info.cwd.split(/[\\/]/).pop()) : '');
+  if (CC.mode === 'local' && CC.status === 'ready') {
+    state.innerHTML = '<span class="d" style="background:var(--jade)"></span>Running locally'
+      + (CC.info?.cwd ? ' · ' + escS(CC.info.cwd.split(/[\\/]/).pop()) : '');
+  }
+
+  sub.textContent = CC.status === 'ready'
+    ? 'Running on your machine through Claude Code — your subscription, no API credits.'
+    : 'Runs on your machine, on your subscription.';
+
+  if (CC.setup || CC.status !== 'ready') { body.innerHTML = ccSetup(); wireClaudeSetup(body); return; }
+  if (CC.config) { body.innerHTML = ccConfig(); wireClaudeConfig(body); return; }
+  body.innerHTML = ccChat();
+  wireClaudeChat(body);
+  const feed = document.getElementById('cc-feed');
+  if (feed) feed.scrollTop = feed.scrollHeight;
+}
+
+function ccSetup(){
+  const origin = location.origin;
+
+  /* Nothing to configure on a local run — the server is already doing it. */
+  if (CC.mode === 'local') {
+    return '<div class="vwrap viz"><div class="vbody"><div class="ccsetup">'
+      + '<div class="insrow" style="border:0;padding:0 0 10px"><span class="sev good">✓</span><span class="tx">'
+      + '<b>Command Center is running on this machine</b>, so it runs Claude Code itself — no bridge needed. '
+      + 'Working folder <span class="mono">' + escS(CC.info?.cwd || '') + '</span>, '
+      + (CC.info?.writable ? 'and it may edit files there.' : 'read-only.')
+      + '</span></div>'
+      + ccAccountBlock()
+      + '<p style="font-size:11.5px;color:var(--dimmer);margin-top:14px;line-height:1.6">'
+      + 'Set <span class="mono">CLAUDE_DIR</span> to change the folder and <span class="mono">CLAUDE_WRITE=1</span> '
+      + 'to allow edits and shell. This endpoint is never mounted on the hosted deployment — that one is open to '
+      + 'anyone with the URL, and an agent with filesystem access behind it would be a shell for all of them.'
+      + '</p>'
+      + '<div style="margin-top:14px"><button class="tgl" id="cc-back">Back to chat</button></div>'
+      + '</div></div></div>';
+  }
+
+  return '<div class="vwrap viz"><div class="vbody"><div class="ccsetup">'
+    + (CC.status === 'offline'
+        ? '<div class="insrow" style="border:0;padding:0 0 12px"><span class="sev warn">i</span><span class="tx">'
+          + '<b>No bridge is answering on ' + escS(CC.url) + '.</b> It runs on your computer, not on the server — '
+          + 'start it in a terminal and this page will find it.</span></div>'
+        : CC.status === 'unauthed'
+          ? '<div class="insrow" style="border:0;padding:0 0 12px"><span class="sev warn">i</span><span class="tx">'
+            + 'A bridge is running but the token does not match. Paste the one it printed at startup.</span></div>'
+          : '')
+    + '<p style="font-size:12.5px;color:var(--dim);line-height:1.7;margin-bottom:4px">'
+    + 'A Claude subscription cannot be billed from a website — that route is the API, and the API costs credits. '
+    + 'Claude Code on your machine is already signed in to your subscription, so the dashboard talks to '
+    + '<b style="color:var(--cream)">it</b> instead. Prompts and replies never touch the Command Center server.'
+    + '</p>'
+    + '<p style="font-size:12.5px;color:var(--dim);line-height:1.7;margin:10px 0 0">'
+    + '<b style="color:var(--cream)">Simplest option:</b> run Command Center itself on your machine '
+    + '(<span class="mono">npm start</span>) and this page will run Claude Code directly — no bridge, no token. '
+    + 'The steps below are for using the hosted dashboard against your own machine.</p>'
+    + '<ol>'
+    + '<li>Make sure Claude Code is installed and signed in:<pre><code>claude --version</code></pre></li>'
+    + '<li>Start the bridge in the folder you want Claude to work in:'
+    + '<pre><code>node tools/claude-bridge.mjs --dir .</code></pre>'
+    + '<span style="font-size:12px;color:var(--dimmer)">Read-only by default. Add <code class="inl">--write</code> '
+    + 'to let it edit files and run commands.</span></li>'
+    + '<li>Paste the token it printed:'
+    + '<div class="two" style="margin-top:8px">'
+    + '<input class="fsearch" id="cc-in-url" style="min-width:0;width:100%" value="' + escS(CC.url) + '">'
+    + '<input class="fsearch" id="cc-in-token" style="min-width:0;width:100%" placeholder="bridge token" value="' + escS(CC.token) + '">'
+    + '</div></li>'
+    + '</ol>'
+    + ccAccountBlock()
+    + '<div style="display:flex;gap:8px;margin-top:16px">'
+    + '<button class="btn primary" id="cc-connect">Connect</button>'
+    + (CC.status === 'ready' ? '<button class="tgl" id="cc-back">Back to chat</button>' : '')
+    + '</div>'
+    + '<p style="font-size:11.5px;color:var(--dimmer);margin-top:16px;line-height:1.6">'
+    + 'The bridge listens on 127.0.0.1 only, requires that token on every request, and checks the calling origin '
+    + '(<span class="mono">' + escS(origin) + '</span>). Without those, any page you had open could drive a coding agent on your disk.'
+    + '</p>'
+    + '</div></div></div>';
+}
+
+/* Only tools the bridge would actually honour are offered. A checkbox that the
+   process will silently drop is worse than no checkbox. */
+const CC_ALL_TOOLS = ['Read','Glob','Grep','WebFetch','WebSearch','TodoWrite','Edit','Write','NotebookEdit','Bash','Task'];
+
+function ccConfig(){
+  const permitted = CC.info?.permitted || null;   // null means the bridge allows everything
+  const offer = permitted ? CC_ALL_TOOLS.filter(t => permitted.includes(t)) : CC_ALL_TOOLS;
+  const blocked = permitted ? CC_ALL_TOOLS.filter(t => !permitted.includes(t)) : [];
+
+  return '<div class="vwrap viz"><div class="vhead2"><h3>Session</h3>'
+    + '<span class="sub">applies to the next message</span><span class="grow" style="flex:1"></span>'
+    + '<button class="tgl" id="cc-cfgreset">Reset</button>'
+    + '<button class="btn primary" id="cc-cfgdone">Done</button></div><div class="vbody">'
+
+    + '<div class="fld"><label>MCP servers</label>'
+    + '<textarea id="cc-mcp" style="min-height:120px;font-family:var(--ff-mono);font-size:12px" '
+    + 'placeholder="paste an MCP config here">'
+    + escS(CCFG.mcp) + '</textarea>'
+    + '<div class="hint">Passed to <span class="mono">--mcp-config</span> with <span class="mono">--strict-mcp-config</span>, '
+    + 'so only these run — a server left in your global config cannot join a session this panel says is empty. '
+    + 'The outer <span class="mono">mcpServers</span> wrapper is optional.<br>'
+    + escS('{"github":{"command":"npx","args":["-y","@modelcontextprotocol/server-github"]}}')
+    + '</div></div>'
+
+    + '<div class="two">'
+    + '<div class="fld"><label>Plugin folders</label>'
+    + '<textarea id="cc-plugins" style="min-height:70px;font-family:var(--ff-mono);font-size:12px" '
+    + 'placeholder="/path/to/plugin-dir&#10;one per line">' + escS(CCFG.plugins) + '</textarea>'
+    + '<div class="hint"><span class="mono">--plugin-dir</span>, one per line.</div></div>'
+    + '<div class="fld"><label>Extra folders Claude may read</label>'
+    + '<textarea id="cc-dirs" style="min-height:70px;font-family:var(--ff-mono);font-size:12px" '
+    + 'placeholder="/another/repo&#10;one per line">' + escS(CCFG.addDirs) + '</textarea>'
+    + '<div class="hint"><span class="mono">--add-dir</span>, beyond the folder the bridge was started in.</div></div>'
+    + '</div>'
+
+    + '<div class="fld"><label>Custom agents</label>'
+    + '<textarea id="cc-agents" style="min-height:80px;font-family:var(--ff-mono);font-size:12px" '
+    + 'placeholder="paste an agents object here">'
+    + escS(CCFG.agents) + '</textarea>'
+    + '<div class="hint"><span class="mono">--agents</span>. Subagents Claude can delegate to.<br>'
+    + escS('{"reviewer":{"description":"Reviews code","prompt":"You are a code reviewer"}}')
+    + '</div></div>'
+
+    + ccPluginBlock()
+    + ccMcpBlock()
+
+    + '<div class="fld"><label>General settings</label>'
+    + '<textarea id="cc-settings" style="min-height:70px;font-family:var(--ff-mono);font-size:12px" '
+    + 'placeholder="a settings JSON object">' + escS(CCFG.settings) + '</textarea>'
+    + '<div class="hint"><span class="mono">--settings</span>. Merged over your usual Claude Code settings for this session only.</div></div>'
+
+    + '<div class="fld"><label>Extra system prompt</label>'
+    + '<textarea id="cc-sys" style="min-height:70px" placeholder="Appended to Claude Code\'s own system prompt">'
+    + escS(CCFG.appendSystem) + '</textarea>'
+    + '<div class="hint"><span class="mono">--append-system-prompt</span>.</div></div>'
+
+    + '<div class="fld"><label>Tools</label><div class="seg" style="flex-wrap:wrap">'
+    + offer.map(t => '<button class="' + (CCFG.tools.includes(t) ? 'on' : '') + '" data-cctool="' + t + '">' + t + '</button>').join('')
+    + '</div><div class="hint">'
+    + (CCFG.tools.length ? 'Only the selected tools are available.' : 'None selected, so the bridge\'s full set is used.')
+    + (blocked.length ? ' <span style="color:var(--dimmer)">The bridge is read-only, so ' + escS(blocked.join(', '))
+        + ' are not offered — restart it with <span class="mono">--write</span> to enable them.</span>' : '')
+    + '</div></div>'
+
+    + '<div class="two">'
+    + '<div class="fld"><label>Permission mode</label><select id="cc-perm">'
+    + [['','Bridge default'],['plan','Plan — think, do not act'],['acceptEdits','Accept edits'],
+       ['dontAsk','Do not ask'],['auto','Auto'],['default','Default']]
+        .map(([v,l]) => '<option value="' + v + '"' + (CCFG.permissionMode === v ? ' selected' : '') + '>' + escS(l) + '</option>').join('')
+    + '</select><div class="hint">Cannot escalate past what the bridge permits.</div></div>'
+    + '<div class="fld"><label>Skills</label>'
+    + '<button class="tgl' + (CCFG.noSkills ? '' : ' on') + '" id="cc-skills" style="width:100%;justify-content:center">'
+    + '<span class="box">' + (CCFG.noSkills ? '' : '✓') + '</span>Slash-command skills enabled</button>'
+    + '<div class="hint">Invoke one by typing <span class="mono">/name</span> at the start of a message, exactly as in the terminal.</div></div>'
+    + '</div>'
+
+    + '</div></div>';
+}
+
+/* Installed plugins, live from `claude plugin list`, with the enable and
+   disable verbs the CLI actually has. */
+function ccPluginBlock(){
+  const p2 = CC.plugins;
+  const body = !p2 ? 'Reading…'
+    : p2.ok === false ? escS(p2.error || p2.text || 'could not list plugins')
+    : escS(p2.text || '');
+  return '<div class="fld"><label style="display:flex;align-items:center">Installed plugins'
+    + '<button class="tgl" id="cc-plugrefresh" style="margin-left:auto;padding:4px 9px">Refresh</button></label>'
+    + '<pre style="background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:11px 13px;'
+    + 'overflow-x:auto;margin:0"><code style="font-family:var(--ff-mono);font-size:11.5px;color:var(--dim);'
+    + 'white-space:pre-wrap">' + body + '</code></pre>'
+    + '<div class="two" style="margin-top:8px">'
+    + '<input class="fsearch" id="cc-plugname" style="min-width:0;width:100%" placeholder="plugin name">'
+    + '<div style="display:flex;gap:6px">'
+    + '<button class="tgl" data-cplug="enable" style="flex:1;justify-content:center">Enable</button>'
+    + '<button class="tgl" data-cplug="disable" style="flex:1;justify-content:center">Disable</button>'
+    + '</div></div>'
+    + '<div class="hint">Installing and removing plugins is <span class="mono">claude plugin install</span> in the '
+    + 'terminal — the marketplace flow is interactive. Enable and disable work from here.</div></div>';
+}
+
+function ccMcpBlock(){
+  const m = CC.mcpList;
+  const body = !m ? 'Reading…'
+    : m.ok === false ? escS(m.error || m.text || 'could not list MCP servers')
+    : escS(m.text || '');
+  return '<div class="fld"><label>MCP servers Claude Code already has</label>'
+    + '<pre style="background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:11px 13px;'
+    + 'overflow-x:auto;margin:0"><code style="font-family:var(--ff-mono);font-size:11.5px;color:var(--dim);'
+    + 'white-space:pre-wrap">' + body + '</code></pre>'
+    + '<div class="hint">These are your saved servers. Anything pasted above <b>replaces</b> them for the session, '
+    + 'because the bridge sends <span class="mono">--strict-mcp-config</span>. Leave the box empty to use these instead. '
+    + 'Add permanent ones with <span class="mono">claude mcp add</span>.</div></div>';
+}
+
+function wireClaudeConfig(root){
+  const grab = () => {
+    CCFG.mcp = root.querySelector('#cc-mcp')?.value ?? CCFG.mcp;
+    CCFG.plugins = root.querySelector('#cc-plugins')?.value ?? CCFG.plugins;
+    CCFG.addDirs = root.querySelector('#cc-dirs')?.value ?? CCFG.addDirs;
+    CCFG.agents = root.querySelector('#cc-agents')?.value ?? CCFG.agents;
+    CCFG.appendSystem = root.querySelector('#cc-sys')?.value ?? CCFG.appendSystem;
+    CCFG.settings = root.querySelector('#cc-settings')?.value ?? CCFG.settings;
+    CCFG.permissionMode = root.querySelector('#cc-perm')?.value ?? CCFG.permissionMode;
+    ccfgSave();
+  };
+  ['#cc-mcp','#cc-plugins','#cc-dirs','#cc-agents','#cc-sys','#cc-settings'].forEach(sel => {
+    const e = root.querySelector(sel); if (e) e.oninput = grab;
+  });
+  const perm = root.querySelector('#cc-perm'); if (perm) perm.onchange = grab;
+  root.querySelectorAll('[data-cctool]').forEach(b => b.onclick = () => {
+    grab();
+    const t = b.dataset.cctool, i = CCFG.tools.indexOf(t);
+    if (i >= 0) CCFG.tools.splice(i, 1); else CCFG.tools.push(t);
+    ccfgSave(); drawClaude();
+  });
+  const sk = root.querySelector('#cc-skills');
+  if (sk) sk.onclick = () => { grab(); CCFG.noSkills = !CCFG.noSkills; ccfgSave(); drawClaude(); };
+  const pr = root.querySelector('#cc-plugrefresh');
+  if (pr) pr.onclick = () => { CC.plugins = null; CC.mcpList = null; drawClaude(); ccLoadEnv(); };
+  root.querySelectorAll('[data-cplug]').forEach(b => b.onclick = async () => {
+    const name = (root.querySelector('#cc-plugname')?.value || '').trim();
+    if (!name) { banner('Give the plugin name first.'); return; }
+    b.disabled = true;
+    try {
+      const r = await fetch(CC.base + '/plugins', {
+        method:'POST', headers: ccHeaders({ 'Content-Type':'application/json' }),
+        body: JSON.stringify({ action: b.dataset.cplug, name })
+      }).then(x => x.json());
+      if (r.ok) { toast(b.dataset.cplug + 'd ' + name); CC.plugins = null; ccLoadEnv(); }
+      else banner(r.error || r.text || 'That did not work.');
+    } catch (err) { banner(err.message); }
+    b.disabled = false;
+  });
+
+  const done = root.querySelector('#cc-cfgdone');
+  if (done) done.onclick = () => { grab(); CC.config = false; drawClaude(); };
+  const reset = root.querySelector('#cc-cfgreset');
+  if (reset) reset.onclick = () => { CCFG = { ...CCFG_DEFAULTS, tools: [] }; ccfgSave(); drawClaude(); };
+}
+
+/* Who is paying. subscriptionType coming back from `claude auth status` is the
+   evidence that this runs on the subscription and not on API credits — worth
+   showing rather than asserting. */
+function ccAccountBlock(){
+  const a = CC.account;
+  if (CC.status !== 'ready') return '';
+  if (!a) return '<div class="hint" style="margin-top:14px">Reading account…</div>';
+  if (a.error || a.raw) {
+    return '<div class="insrow" style="margin-top:12px"><span class="sev warn">i</span><span class="tx">'
+      + escS(a.raw || ('Could not read the account: ' + a.error)) + '</span></div>';
+  }
+  const billing = a.apiProvider === 'firstParty' && a.authMethod === 'claude.ai';
+  return '<div class="vwrap viz" style="margin-top:16px;box-shadow:none"><div class="vbody" style="padding:14px 15px">'
+    + '<div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">'
+    + '<span class="ai" style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;'
+    + 'background:linear-gradient(150deg,var(--yt),var(--ig) 52%,var(--fb));color:#fff;font-weight:700;font-size:12px">'
+    + escS((a.email || '?')[0].toUpperCase()) + '</span>'
+    + '<span><b style="display:block;font-size:13px;color:var(--cream)">' + escS(a.email || 'signed in') + '</b>'
+    + '<small style="font-size:11px;color:var(--dimmer)">' + escS(a.orgName || '') + '</small></span>'
+    + '<span class="grow" style="flex:1"></span>'
+    + (a.subscriptionType
+        ? '<span class="chip2 up">' + escS(a.subscriptionType) + ' subscription</span>' : '')
+    + '</div>'
+    + '<div class="hint" style="margin-top:10px">'
+    + (billing
+        ? 'Signed in through claude.ai as a first-party client, so turns are billed to this subscription — not to API credits.'
+        : 'This session authenticates as <span class="mono">' + escS(a.authMethod || '?') + '</span> via <span class="mono">'
+          + escS(a.apiProvider || '?') + '</span>. That is not the subscription path, so it may be billing API credits.')
+    + '</div>'
+    + '<div class="hint" style="margin-top:8px">To use a different account, run <span class="mono">claude auth login</span> '
+    + 'in the terminal — it opens a browser, so it cannot be done from this page — then reconnect here.</div>'
+    + '</div></div>';
+}
+
+function ccChat(){
+  const feed = CC.messages.length
+    ? CC.messages.map(ccBubble).join('')
+    : '<div class="vempty" style="margin:auto"><b>Ask Claude anything</b>'
+      + 'It is running in <span class="mono">' + escS(CC.info?.cwd || '') + '</span>'
+      + (CC.info?.writable ? ' and can edit files there.' : ' and can read files there, but not change them.')
+      + '</div>';
+
+  return '<div class="ccwrap">'
+    + '<div class="ccfeed" id="cc-feed">' + feed
+    + (CC.busy ? '<div class="ccmsg ai"><span class="av">C</span><div class="bd">'
+        + '<span class="ccdots"><span></span><span></span><span></span></span></div></div>' : '')
+    + '</div>'
+    + '<div class="cccomposer">'
+    + '<textarea id="cc-input" rows="1" placeholder="' + (CC.busy ? 'Working…' : 'Ask Claude — Enter to send, Shift+Enter for a new line') + '"'
+    + (CC.busy ? ' disabled' : '') + '></textarea>'
+    + (CC.busy
+        ? '<button class="tgl" id="cc-stop">Stop</button>'
+        : '<button class="btn primary" id="cc-send">Send</button>')
+    + '</div>'
+    + '<div class="ccmeta">'
+    + (ccfgActive().length ? escS(ccfgActive().join(' · ')) : (CC.info?.tools ? 'tools: ' + escS(CC.info.tools) : ''))
+    + (CC.sessionId ? '<span style="margin-left:auto">session ' + escS(CC.sessionId.slice(0, 8)) + '</span>' : '')
+    + '</div></div>';
+}
+
+/* Minimal markdown: fenced code, inline code, paragraphs. Everything is escaped
+   first — the text is model output, and rendering it as HTML would be an
+   injection hole with extra steps. */
+function ccRender(text){
+  const parts = String(text).split(/```/);
+  let out = '';
+  parts.forEach((chunk, i) => {
+    if (i % 2) {
+      const nl = chunk.indexOf('\n');
+      const code = nl >= 0 ? chunk.slice(nl + 1) : chunk;
+      out += '<pre><code>' + escS(code.replace(/\n$/, '')) + '</code></pre>';
+    } else {
+      for (const para of chunk.split(/\n{2,}/)) {
+        if (!para.trim()) continue;
+        out += '<p>' + escS(para).replace(/`([^`\n]+)`/g, '<code class="inl">$1</code>') + '</p>';
+      }
+    }
+  });
+  return out || '<p></p>';
+}
+
+function ccBubble(m){
+  return '<div class="ccmsg ' + (m.role === 'user' ? 'me' : 'ai') + '">'
+    + '<span class="av">' + (m.role === 'user' ? 'You' : 'C') + '</span>'
+    + '<div class="bd">'
+    + (m.tools || []).map(t => '<div class="cctool"><b>' + escS(t.name) + '</b>'
+        + (t.detail ? '<span>' + escS(t.detail) + '</span>' : '') + '</div>').join('')
+    + ccRender(m.text || '')
+    + '</div></div>';
+}
+
+function wireClaudeSetup(root){
+  const c = root.querySelector('#cc-connect');
+  if (c) c.onclick = async () => {
+    CC.url = (document.getElementById('cc-in-url').value || '').trim().replace(/\/+$/, '');
+    CC.token = (document.getElementById('cc-in-token').value || '').trim();
+    ccSave();
+    CC.setup = false;
+    await ccProbe();
+    if (CC.status !== 'ready') { CC.setup = true; drawClaude(); }
+  };
+  const b = root.querySelector('#cc-back');
+  if (b) b.onclick = () => { CC.setup = false; drawClaude(); };
+}
+
+function wireClaudeChat(root){
+  const ta = root.querySelector('#cc-input');
+  if (ta) {
+    /* Grows with the text rather than scrolling a two-line box. */
+    const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(180, ta.scrollHeight) + 'px'; };
+    ta.oninput = fit;
+    ta.onkeydown = e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ccSend(ta.value); }
+    };
+    if (!CC.busy) ta.focus();
+  }
+  const send = root.querySelector('#cc-send');
+  if (send) send.onclick = () => ccSend(document.getElementById('cc-input')?.value || '');
+  const stop = root.querySelector('#cc-stop');
+  if (stop) stop.onclick = ccStop;
+}
+
+async function ccSend(text){
+  const prompt = String(text || '').trim();
+  if (!prompt || CC.busy) return;
+
+  CC.messages.push({ role:'user', text: prompt, tools: [] });
+  const reply = { role:'assistant', text:'', tools: [] };
+  CC.messages.push(reply);
+  CC.busy = true;
+  drawClaude();
+
+  const ctrl = new AbortController();
+  CC.abort = ctrl;
+
+  try {
+    const res = await fetch(CC.base + '/chat', {
+      method: 'POST',
+      headers: ccHeaders({ 'Content-Type':'application/json' }),
+      body: JSON.stringify({
+        prompt,
+        sessionId: CC.sessionId,
+        model: document.getElementById('cc-model')?.value || undefined,
+        effort: document.getElementById('cc-effort')?.value || undefined,
+        mcp: CCFG.mcp.trim() || undefined,
+        pluginDirs: ccLines(CCFG.plugins),
+        addDirs: ccLines(CCFG.addDirs),
+        agents: CCFG.agents.trim() || undefined,
+        appendSystem: CCFG.appendSystem.trim() || undefined,
+        settings: CCFG.settings.trim() || undefined,
+        permissionMode: CCFG.permissionMode || undefined,
+        tools: CCFG.tools.length ? CCFG.tools : undefined,
+        noSkills: CCFG.noSkills || undefined
+      }),
+      signal: ctrl.signal
+    });
+
+    if (!res.ok || !res.body) {
+      let msg = 'Bridge returned ' + res.status;
+      try { msg = (await res.json()).error || msg; } catch {}
+      reply.text = msg;
+      CC.busy = false; CC.abort = null; drawClaude(); return;
+    }
+
+    const rd = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    /* Repaint on a timer rather than per token: a 60-token-a-second stream
+       would otherwise rebuild the whole feed 60 times a second. */
+    let dirty = false;
+    const paint = setInterval(() => { if (dirty) { dirty = false; ccPatch(reply); } }, 90);
+
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, i); buf = buf.slice(i + 2);
+        const ev = /^event: (.+)$/m.exec(frame)?.[1];
+        const dl = /^data: (.+)$/m.exec(frame)?.[1];
+        if (!ev || !dl) continue;
+        let d; try { d = JSON.parse(dl); } catch { continue; }
+        if (ccConsume(ev, d, reply)) dirty = true;
+      }
+    }
+    clearInterval(paint);
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      reply.text += (reply.text ? '\n\n' : '') + 'Lost the bridge: ' + err.message;
+    }
+  }
+
+  CC.busy = false; CC.abort = null;
+  if (!reply.text && !reply.tools.length) reply.text = '(no output)';
+  drawClaude();
+}
+
+/* Translates Claude Code's stream-json into what the feed shows. Returns true
+   when something changed. */
+function ccConsume(ev, d, reply){
+  if (ev === 'fatal') { reply.text += (reply.text ? '\n\n' : '') + d.error; return true; }
+  if (ev === 'done') return false;
+  if (ev !== 'msg') return false;
+
+  /* The init frame carries the session id, which is what makes the next turn a
+     continuation rather than a fresh conversation. */
+  if (d.type === 'system' && d.session_id) { CC.sessionId = d.session_id; return false; }
+  if (d.session_id && !CC.sessionId) CC.sessionId = d.session_id;
+
+  if (d.type === 'stream_event') {
+    const e = d.event;
+    if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta') {
+      reply.text += e.delta.text; return true;
+    }
+    return false;
+  }
+
+  if (d.type === 'assistant' && d.message?.content) {
+    for (const b of d.message.content) {
+      if (b.type === 'tool_use') {
+        const detail = b.input?.file_path || b.input?.pattern || b.input?.command || b.input?.url || '';
+        reply.tools.push({ name: b.name, detail: String(detail).slice(0, 90) });
+      }
+    }
+    return true;
+  }
+
+  if (d.type === 'result') {
+    /* The final text is authoritative — partial deltas can miss a tail. */
+    if (typeof d.result === 'string' && d.result.trim()) reply.text = d.result;
+    return true;
+  }
+  return false;
+}
+
+/* Patch only the last bubble while streaming. Rebuilding the feed would fight
+   the scroll position and drop the caret out of the composer. */
+function ccPatch(reply){
+  const feed = document.getElementById('cc-feed');
+  if (!feed) return;
+  const bubbles = feed.querySelectorAll('.ccmsg');
+  const last = bubbles[bubbles.length - (CC.busy ? 2 : 1)];
+  if (!last) { drawClaude(); return; }
+  const bd = last.querySelector('.bd');
+  if (!bd) return;
+  const stuck = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
+  bd.innerHTML = (reply.tools || []).map(t => '<div class="cctool"><b>' + escS(t.name) + '</b>'
+      + (t.detail ? '<span>' + escS(t.detail) + '</span>' : '') + '</div>').join('')
+    + ccRender(reply.text || '');
+  if (stuck) feed.scrollTop = feed.scrollHeight;
+}
+
+function ccStop(){
+  CC.abort?.abort();
+  fetch(CC.base + '/stop', { method:'POST', headers: ccHeaders() }).catch(() => {});
+  CC.busy = false; CC.abort = null; drawClaude();
+}
+
+document.getElementById('cc-setup').onclick = () => { CC.setup = !CC.setup; CC.config = false; drawClaude(); };
+document.getElementById('cc-config').onclick = () => { CC.config = !CC.config; CC.setup = false; drawClaude(); };
+document.getElementById('cc-newchat').onclick = () => {
+  CC.messages = []; CC.sessionId = null; drawClaude();
+};
+document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.target === 'claude') ccProbe();
+}));
+
+
 /* ================= SYSTEMS =================
 
    Automations run by hand. Six listed; Create a Clip is built.
@@ -6698,13 +7539,13 @@ function openSchedule(ids){
   th.innerHTML = first?.thumbUrl
     ? '<img src="' + escS(first.thumbUrl) + '" alt="">'
     : '<div class="noimg2">No thumbnail</div>';
-  drawSchedule();
+  drawSchedTargets();
   drawWhen();
   document.getElementById('cl-cal')?.classList.remove('on');
   document.getElementById('cl-sched').classList.add('on');
 }
 
-function drawSchedule(){
+function drawSchedTargets(){
   const host = document.getElementById('cl-accts');
   if (!host) return;
   if (!SY.destinations.length) {
@@ -6723,12 +7564,12 @@ function drawSchedule(){
     host.querySelectorAll('[data-clacct]').forEach(el => el.onclick = () => {
       const id = el.dataset.clacct;
       if (SY.schedTargets.has(id)) SY.schedTargets.delete(id); else SY.schedTargets.add(id);
-      drawSchedule();
+      drawSchedTargets();
     });
   }
   document.querySelectorAll('#cl-priv button').forEach(b => {
     b.classList.toggle('on', b.dataset.priv === SY.privacy);
-    b.onclick = () => { SY.privacy = b.dataset.priv; drawSchedule(); };
+    b.onclick = () => { SY.privacy = b.dataset.priv; drawSchedTargets(); };
   });
   const btn = document.getElementById('cl-dosched');
   if (btn) btn.disabled = !SY.schedTargets.size;
@@ -6832,9 +7673,9 @@ document.getElementById('cl-psched').onclick = () => { const id = SY.playing; cl
 document.getElementById('cl-addacct').onclick = openAddAccount;
 document.getElementById('cl-openopus').onclick = () => window.open('https://clip.opus.pro/dashboard', '_blank', 'noopener');
 document.getElementById('cl-allacct').onclick = () => {
-  SY.destinations.forEach(a => SY.schedTargets.add(a.postAccountId)); drawSchedule();
+  SY.destinations.forEach(a => SY.schedTargets.add(a.postAccountId)); drawSchedTargets();
 };
-document.getElementById('cl-noacct').onclick = () => { SY.schedTargets.clear(); drawSchedule(); };
+document.getElementById('cl-noacct').onclick = () => { SY.schedTargets.clear(); drawSchedTargets(); };
 document.getElementById('cl-dosched').onclick = doSchedule;
 document.getElementById('cl-whenbtn').onclick = e => {
   e.stopPropagation();
