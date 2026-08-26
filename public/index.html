@@ -835,6 +835,11 @@ main{min-width:0;display:flex;flex-direction:column}
   min-height:158px;box-shadow:var(--shadow);
   transition:border-color .2s var(--ease),transform .2s var(--ease)}
 .kpi:hover{border-color:var(--edge2);transform:translateY(-2px)}
+/* The tile whose metric the chart is currently drawing. Clicking a tile
+   charts it, so the chart and the tile need to agree visibly — otherwise
+   the click looks like it did nothing. */
+.kpi.sel{border-color:rgba(124,108,255,.6);
+  box-shadow:var(--shadow),0 0 0 3px rgba(124,108,255,.13)}
 .kpi .klab{font-size:12px;color:var(--dim);display:block;margin-bottom:10px;
   font-variation-settings:'wght' 500;letter-spacing:0;text-transform:none;font-family:inherit}
 .kpi .kval{font-size:33px;line-height:1;color:var(--cream);
@@ -845,7 +850,7 @@ main{min-width:0;display:flex;flex-direction:column}
 .kpi .kprev{margin-left:auto;font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
 /* Full width, along the floor of the card — the trend belongs to the whole
    tile, not tucked in a corner where it reads as decoration. */
-.kpi .kspark{display:block;width:calc(100% + 36px);height:42px;margin:auto -18px -14px;
+.kpi .kspark{display:block;width:calc(100% + 36px);height:46px;margin:auto -18px -14px;
   pointer-events:none}
 .chip2{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 8px;
   font-family:var(--ff-mono);font-size:10px;letter-spacing:.03em;border:1px solid transparent}
@@ -923,7 +928,9 @@ main{min-width:0;display:flex;flex-direction:column}
 .ptab:hover{border-color:var(--edge2);color:var(--text)}
 .ptab .sw{width:9px;height:9px;border-radius:3px;background:var(--c);flex:none}
 .ptab .cnt{font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
-.ptab.on{color:var(--cream);background:var(--panel2);border-color:var(--c)}
+.ptab.on{color:var(--cream);background:var(--panel2);
+  border-color:color-mix(in srgb,var(--c) 55%,transparent);
+  box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 12%,transparent)}
 
 /* ---- signal ---- */
 /* Signal beside its context, the way a control room reads: the series on the
@@ -946,6 +953,13 @@ main{min-width:0;display:flex;flex-direction:column}
     radial-gradient(120% 80% at 50% 0%,rgba(124,108,255,.07),transparent 62%);
 }
 .sigcard>*{position:relative}
+/* Inside the Signal panel the plot is not its own card — no second border,
+   no second shadow, no gap between the readout and the series it totals. */
+.siginner .vwrap{background:none;border:0;border-radius:0;box-shadow:none;margin:0}
+.siginner .vhead2{padding:4px 18px 0}
+.siginner .vbody{padding:8px 18px 4px}
+.sigcard .brushnote{padding-top:2px}
+.sigcard [data-brush]{background:none;border:0;box-shadow:none;margin:0}
 .sigtop{display:flex;align-items:flex-start;gap:12px;padding:17px 18px 0;flex-wrap:wrap}
 .sigtop h3{font-size:15px;color:var(--cream);font-variation-settings:'wght' 600;letter-spacing:-.015em}
 .sigtop p{font-size:11.5px;color:var(--dimmer);margin-top:3px;max-width:56ch}
@@ -4533,18 +4547,20 @@ function kpiSpark(values, color){
   const d = pts.map((v, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' '
     + (H - 5 - ((v - min) / span) * (H - 16)).toFixed(1)).join(' ');
   const id = 'sp' + Math.abs(pts.length * 7 + Math.round(max)).toString(36) + color.replace(/\W/g, '');
+  /* Full strength, not a ghost. The trend is the second thing read on the
+     card after the number, and at 50% on this ground it disappeared. */
   return '<svg class="kspark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">'
     + '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">'
-    + '<stop offset="0" stop-color="' + color + '" stop-opacity=".30"/>'
+    + '<stop offset="0" stop-color="' + color + '" stop-opacity=".34"/>'
     + '<stop offset="1" stop-color="' + color + '" stop-opacity="0"/></linearGradient></defs>'
     + '<path d="' + d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z" fill="url(#' + id + ')"/>'
-    + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.8" '
+    + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="2" '
     + 'stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>';
 }
 
 /* Stat tile: label, value, optional delta against a named period, optional
    trend. Values use proportional figures — tabular is for columns. */
-function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, spark = null, color = 'var(--s1)', bench = '', na = false, prev = '' } = {}){
+function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, spark = null, color = 'var(--brass)', bench = '', na = false, prev = '', sel = false } = {}){
   let chip = '';
   if (delta != null && isFinite(delta)) {
     const better = goodDown ? delta < 0 : delta > 0;
@@ -4554,7 +4570,7 @@ function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, sp
   } else if (deltaLabel) {
     chip = '<span class="chip2 flat">' + escS(deltaLabel) + '</span>';
   }
-  return '<div class="kpi">'
+  return '<div class="kpi' + (sel ? ' sel' : '') + '">'
     + '<span class="klab">' + escS(label) + '</span>'
     + '<div class="kval' + (na ? ' na' : '') + '">' + escS(value) + '</div>'
     + '<div class="kfoot">' + chip
@@ -4706,8 +4722,12 @@ function filterBar(d, key, { metrics = [], showSplit = true, showSearch = false 
    just to label a tab. */
 function platformStrip(){
   /* Platform hues, not series slots. These say "which network" beside a
-     word that also says it, so hue is never the only channel. */
+     word that also says it, so hue is never the only channel.
+
+     "All" leads, because the first question is usually how everything is
+     doing rather than how one network is. */
   const tabs = [
+    { id:'overview',  label:'All platforms', c:'var(--brass)', keys:['youtube','facebook','instagram','x'] },
     { id:'youtube',   label:'YouTube',   c:'var(--yt)', keys:['youtube'] },
     { id:'meta',      label:'Meta',      c:'var(--fb)', keys:['facebook','instagram','meta_ads'] },
     { id:'x',         label:'X',         c:'var(--xx)', keys:['x'] }
@@ -4812,10 +4832,17 @@ function mixPanel(d, rows, accounts){
     a0 = a1;
   }
 
-  return '<div class="vwrap viz"><div class="vhead2"><h3>Share of views</h3>'
+  /* The total belongs in the hole. A donut without it makes the reader add
+     the slices up to learn the one number they wanted. */
+  g += '<text x="' + cx + '" y="' + (cy - 1) + '" text-anchor="middle" font-family="var(--ff-display)"'
+    + ' font-size="17" font-weight="600" fill="var(--cream)">' + escS(compact(tot)) + '</text>'
+    + '<text x="' + cx + '" y="' + (cy + 13) + '" text-anchor="middle" font-family="var(--ff-mono)"'
+    + ' font-size="8" letter-spacing="1.2" fill="var(--dimmer)">VIEWS</text>';
+
+  return '<div class="vwrap viz"><div class="vhead2"><h3>Where views came from</h3>'
     + '<span class="sub">' + RANGE_N() + ' days</span></div><div class="vbody">'
     + '<div style="display:flex;gap:15px;align-items:center;flex-wrap:wrap">'
-    + '<svg width="96" height="96" viewBox="0 0 118 118" style="flex:none" role="img" aria-label="Share of views by account">' + g + '</svg>'
+    + '<svg width="104" height="104" viewBox="0 0 118 118" style="flex:none" role="img" aria-label="Share of views by account">' + g + '</svg>'
     + '<div style="flex:1;min-width:150px">' + vals.map(x => '<div class="mixrow"><i class="sw" style="background:' + hueFor(x.a.id) + '"></i>'
         + '<span class="l">' + escS(x.a.label) + '</span><span class="v">' + escS(compact(x.v)) + '</span>'
         + '<span class="p">' + Math.round((x.v / tot) * 100) + '%</span></div>').join('') + '</div>'
@@ -4872,8 +4899,13 @@ function performanceSection(d, key){
   const eng = (reach && inter != null) ? (inter / reach) * 100 : null;
 
   /* ---- KPI band. Clicking one charts it. ---- */
+  /* One accent across the band, as in the reference — a different hue per
+     tile implies the tiles are a series, and they are not. The charted one
+     is marked instead. */
+  const charted = picked0 => SO.metrics.length === 1 && SO.metrics[0] === picked0;
   const tile = (mk, label, value, opts) =>
-    '<div data-kpimetric="' + mk + '" style="cursor:pointer">' + kpi(label, value, opts) + '</div>';
+    '<div data-kpimetric="' + mk + '" style="cursor:pointer">'
+    + kpi(label, value, Object.assign({ color: 'var(--brass)', sel: charted(mk) }, opts)) + '</div>';
 
   const sparkOf = m => {
     const by = new Map();
@@ -4904,33 +4936,33 @@ function performanceSection(d, key){
     + tile('views', 'Views', views == null ? '—' : compact(views), {
         delta: SO.compare ? pctMove(views, prevVal('views')) : null,
         deltaLabel: views == null ? 'not published' : vsPrior,
-        prev: prevTxt('views'), spark: sparkOf('views'), color:'var(--s1)', na: views == null })
+        prev: prevTxt('views'), spark: sparkOf('views'), na: views == null })
     + tile('reach', 'Reach', reach == null ? '—' : compact(reach), {
         delta: SO.compare ? pctMove(reach, prevVal('reach')) : null,
         deltaLabel: reach == null ? 'not published by ' + (SO_VIEW_LABEL[SO.view] || key) : vsPrior,
-        prev: prevTxt('reach'), spark: sparkOf('reach'), color:'var(--s5)', na: reach == null })
+        prev: prevTxt('reach'), spark: sparkOf('reach'), na: reach == null })
     + tile('interactions', 'Interactions', inter == null ? '—' : compact(inter), {
         delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
         deltaLabel: inter == null ? 'not published' : vsPrior,
-        prev: prevTxt('interactions'), spark: sparkOf('interactions'), color:'var(--s4)', na: inter == null })
+        prev: prevTxt('interactions'), spark: sparkOf('interactions'), na: inter == null })
     + tile('followers', words.followers, fNow == null ? '—' : compact(fNow), {
         delta: (fNow != null && fThen) ? ((fNow - fThen) / fThen) * 100 : null,
         deltaLabel: levels.length > 1 ? 'across ' + RANGE_N() + 'd' : 'single reading',
-        spark: levels.map(r => r.followers).slice(-14), color:'var(--s3)', na: fNow == null })
+        spark: levels.map(r => r.followers).slice(-14), na: fNow == null })
     + '</div>'
     + '<div class="kpis grid g4">'
     + tile('interactions', 'Engagement rate', eng == null ? '—' : eng.toFixed(2) + '%', {
         deltaLabel: eng == null ? 'needs reach, which ' + (SO_VIEW_LABEL[SO.view] || key) + ' does not publish' : 'interactions ÷ reach',
-        color:'var(--s7)', na: eng == null })
+        na: eng == null })
     + tile('views', words.posts + ' published', String(posts.length), {
         deltaLabel: posts.length ? compact(Math.round(postViews / posts.length)) + ' views each on average' : 'none in this window',
-        color:'var(--s2)', na: !posts.length })
+        na: !posts.length })
     + tile('views', 'Busiest day', dayTotals[bestIdx] ? compact(dayTotals[bestIdx]) : '—', {
         deltaLabel: dayTotals[bestIdx] ? dayLabel(axis[bestIdx]) : 'no activity recorded',
-        color:'var(--s1)', na: !dayTotals[bestIdx] })
+        na: !dayTotals[bestIdx] })
     + tile('views', 'Views per active day', perDay == null ? '—' : compact(Math.round(perDay)), {
         deltaLabel: activeDays ? activeDays + ' of ' + axis.length + ' days had activity' : 'no activity recorded',
-        color:'var(--s6)', na: perDay == null })
+        na: perDay == null })
     + '</div>';
 
   /* ---- metric chips. More than one becomes small multiples: views and
@@ -5021,17 +5053,27 @@ function performanceSection(d, key){
   const full = axisOf(rows);
   const brush = full.length > 6 ? brushStrip(rows, full) : '';
 
+  /* Chips, readout, plot and brush are ONE panel. They were three stacked
+     cards, which read as three unrelated things when they are one
+     instrument: the chips choose what the plot draws, the readout totals
+     exactly what is on it, and the brush sets its window. */
   const signal = '<div class="sigcard viz">'
-    + '<div class="sigtop"><div><h3>Signal</h3><p>Pick metrics to chart. Drag the strip below to zoom into a stretch of days.</p></div></div>'
+    + '<div class="sigtop"><div><h3>Signal</h3>'
+    + '<p>Pick metrics to chart. Drag the strip below to zoom into a stretch of days.</p></div>'
+    + '<span class="grow" style="flex:1"></span>'
+    + (axis.length && !SO.table ? kindSeg : '') + '</div>'
     + '<div class="chiprow">' + chips + '</div>'
-    + readout + '</div>';
+    + readout
+    + '<div class="siginner">' + charts + '</div>'
+    + brush
+    + '</div>';
 
   /* Series on the left, what it means on the right. */
   return platformStrip()
     + filterBar(d, key, { metrics: [] })
     + band
     + '<div class="siggrid">'
-    +   '<div class="col">' + signal + charts + brush + '</div>'
+    +   '<div class="col">' + signal + '</div>'
     +   '<div class="col">' + mixPanel(d, zRows, accounts) + insights(d, key, zRows, prevRows) + '</div>'
     + '</div>'
     + accountsFooter(d);
