@@ -1,13 +1,13 @@
-﻿# Command Center launcher and supervisor (Windows).
+# Command Center launcher and supervisor (Windows).
 #
 # Two jobs:
 #   1. Start the server with CC_SUPERVISED=1, so the in-app "Update now" button
 #      can restart into the new code instead of just killing the process. That
-#      env var is the only thing /api/app/restart checks — without a supervisor
+#      env var is the only thing /api/app/restart checks -- without a supervisor
 #      it refuses, because exiting would leave nothing running.
 #   2. Open the dashboard once the port answers.
 #
-# A clean exit (code 0) is treated as "restart me" — that is what the update
+# A clean exit (code 0) is treated as "restart me" -- that is what the update
 # flow does. Any other exit code is a crash, and it stops so the error stays on
 # screen instead of scrolling past in a restart loop.
 
@@ -24,8 +24,11 @@ if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
 
 if (-not (Test-Path (Join-Path $root 'node_modules'))) {
   Write-Host "Installing dependencies (first run only)..." -ForegroundColor Cyan
-  npm install --omit=dev
-  if ($LASTEXITCODE -ne 0) { Read-Host "npm install failed. Press Enter to close"; exit 1 }
+  # npm writes progress to stderr; ErrorActionPreference is not 'Stop' here, but
+  # judge it by the exit code regardless.
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { npm install --omit=dev; $code = $LASTEXITCODE } finally { $ErrorActionPreference = $prev }
+  if ($code -ne 0) { Read-Host "npm install failed. Press Enter to close"; exit 1 }
 }
 
 if (-not (Test-Path (Join-Path $root '.env'))) {

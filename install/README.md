@@ -17,6 +17,19 @@ One line, in PowerShell:
 irm https://raw.githubusercontent.com/Imhappy2024/command-center/main/install/install.ps1 | iex
 ```
 
+If you would rather read it before running it, or want to pass `-Dir`:
+
+```powershell
+irm https://raw.githubusercontent.com/Imhappy2024/command-center/main/install/install.ps1 -OutFile "$env:TEMP\cc-install.ps1"
+powershell -ExecutionPolicy Bypass -File "$env:TEMP\cc-install.ps1"
+```
+
+Both scripts are deliberately plain ASCII and carry no byte-order mark. A BOM
+would stop `param` from being the first token, and PowerShell would parse the
+parameter block as a function call -- which is exactly how the first version of
+that one-liner failed. ASCII also means PowerShell 5.1, which decodes a BOM-less
+file as the system codepage, cannot turn the script's own messages into mojibake.
+
 It checks for git and Node 20+, clones into `%LOCALAPPDATA%\CommandCenter`,
 installs dependencies, copies `.env.example` to `.env`, and puts a **Command
 Center** shortcut on the Desktop and in the Start Menu.

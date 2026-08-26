@@ -443,8 +443,16 @@ the dashboard is local: same origin, no token, no CORS.
 
 ## Installing on Windows, and updating
 
+```powershell
+irm https://raw.githubusercontent.com/Imhappy2024/command-center/main/install/install.ps1 | iex
+```
+
 `install/install.ps1` clones into `%LOCALAPPDATA%\CommandCenter`, installs
-dependencies, seeds `.env`, and adds a Desktop and Start Menu shortcut. The
+dependencies, seeds `.env`, and adds a Desktop and Start Menu shortcut. Both
+`.ps1` files are plain ASCII with no BOM, because a BOM stops `param` from being
+the first token and breaks that one-liner. Native commands are judged by exit
+code, not by whether they wrote to stderr -- `git clone` reports progress there,
+and `$ErrorActionPreference = 'Stop'` would otherwise abort a healthy install. The
 launcher (`install/Command Center.cmd` → `command-center.ps1`) supervises the
 process and opens the browser once the port answers.
 

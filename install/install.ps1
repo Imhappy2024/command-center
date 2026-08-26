@@ -1,4 +1,4 @@
-﻿# Install Command Center on a Windows machine.
+# Install Command Center on a Windows machine.
 #
 #   irm https://raw.githubusercontent.com/Imhappy2024/command-center/main/install/install.ps1 | iex
 #
@@ -24,6 +24,19 @@ $ErrorActionPreference = 'Stop'
 function Step($m){ Write-Host "==> $m" -ForegroundColor Cyan }
 function Warn($m){ Write-Host "    $m" -ForegroundColor Yellow }
 
+# Run a native command and judge it by its exit code, not by whether it wrote to
+# stderr. git and npm both report ordinary progress on stderr -- `git clone` says
+# "Cloning into ..." there -- and with ErrorActionPreference = Stop, a host that
+# merges stderr into the pipeline turns that chatter into a terminating error and
+# the install dies partway through having done nothing wrong.
+function Native($exe, [string[]]$Arguments){
+  $prev = $ErrorActionPreference
+  $ErrorActionPreference = 'Continue'
+  try { & $exe @Arguments; $code = $LASTEXITCODE }
+  finally { $ErrorActionPreference = $prev }
+  if ($code -ne 0) { throw "$exe $($Arguments -join ' ') failed (exit $code)" }
+}
+
 Step 'Checking prerequisites'
 foreach ($cmd in 'git','node','npm') {
   if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) {
@@ -36,15 +49,18 @@ foreach ($cmd in 'git','node','npm') {
 # Node 20 is the floor (package.json engines); older Node fails on syntax the
 # app uses, and that failure is confusing rather than obvious.
 $major = [int]((node -v) -replace '^v(\d+).*$','$1')
-if ($major -lt 20) { Write-Host "Node $major is too old — Command Center needs 20 or newer." -ForegroundColor Red; exit 1 }
+if ($major -lt 20) { Write-Host "Node $major is too old -- Command Center needs 20 or newer." -ForegroundColor Red; exit 1 }
 Write-Host "    git, Node $major, npm OK"
 
 if (Test-Path (Join-Path $Dir '.git')) {
   Step "Updating the existing install at $Dir"
   Push-Location $Dir
-  # Never clobber local edits on an update — the same rule the in-app updater follows.
-  if (git status --porcelain) { Warn 'There are local changes; skipping the pull. Commit or stash them, then re-run.' }
-  else { git pull --ff-only }
+  # Never clobber local edits on an update -- the same rule the in-app updater follows.
+  # --untracked-files=no: a stray file in the folder is not a reason to refuse,
+  # same rule the in-app updater follows.
+  if (git status --porcelain --untracked-files=no) {
+    Warn 'There are local changes; skipping the pull. Commit or stash them, then re-run.'
+  } else { Native git @('pull','--ff-only') }
   Pop-Location
 } else {
   Step "Cloning into $Dir"
@@ -52,18 +68,18 @@ if (Test-Path (Join-Path $Dir '.git')) {
     Write-Host "$Dir already exists and is not a git checkout. Move it aside first." -ForegroundColor Red
     exit 1
   }
-  git clone --branch $Branch --depth 50 $Repo $Dir
+  Native git @('clone','--branch',$Branch,'--depth','50',$Repo,$Dir)
 }
 
 Push-Location $Dir
 Step 'Installing dependencies'
-npm install --omit=dev
-if ($LASTEXITCODE -ne 0) { Pop-Location; Write-Host 'npm install failed.' -ForegroundColor Red; exit 1 }
+try { Native npm @('install','--omit=dev') }
+catch { Pop-Location; Write-Host $_.Exception.Message -ForegroundColor Red; exit 1 }
 
 if (-not (Test-Path '.env')) {
   Step 'Creating .env from the example'
   Copy-Item '.env.example' '.env'
-  Warn 'Fill in .env before first use — at minimum DATABASE_URL and ENCRYPTION_KEY.'
+  Warn 'Fill in .env before first use -- at minimum DATABASE_URL and ENCRYPTION_KEY.'
 }
 Pop-Location
 
