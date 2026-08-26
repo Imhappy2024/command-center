@@ -1205,42 +1205,152 @@ main{min-width:0;display:flex;flex-direction:column}
   color:var(--dim);cursor:pointer;font:inherit;font-size:12px;padding:8px 0;transition:.14s}
 .privrow button.on{border-color:var(--brass);color:var(--cream);background:rgba(124,108,255,.09)}
 .thumbside img{width:100%;border-radius:var(--r-md);display:block;border:1px solid var(--edge)}
-.ccwrap{display:flex;flex-direction:column;height:calc(100vh - 190px);min-height:420px;
+.ccwrap{display:flex;flex-direction:column;height:calc(100vh - 190px);min-height:440px;
   background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
   box-shadow:var(--shadow);overflow:hidden}
-.ccfeed{flex:1;overflow-y:auto;padding:20px 22px;display:flex;flex-direction:column;gap:18px}
-.ccmsg{display:flex;gap:12px;max-width:100%}
-.ccmsg .av{width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;
-  font-family:var(--ff-display);font-size:11px;font-weight:700}
-.ccmsg.me .av{background:var(--panel3);color:var(--dim)}
-.ccmsg.ai .av{background:linear-gradient(150deg,var(--yt),var(--ig) 52%,var(--fb));color:#fff}
-.ccmsg .bd{min-width:0;flex:1}
-.ccmsg .bd p{font-size:13.5px;line-height:1.65;color:var(--text);margin:0 0 9px;white-space:pre-wrap;
-  overflow-wrap:anywhere}
-.ccmsg .bd p:last-child{margin-bottom:0}
-.ccmsg.me .bd p{color:var(--cream)}
-.ccmsg pre{background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:11px 13px;
-  overflow-x:auto;margin:0 0 9px}
-.ccmsg pre code{font-family:var(--ff-mono);font-size:12px;color:var(--text);white-space:pre}
-.ccmsg code.inl{font-family:var(--ff-mono);font-size:12px;background:var(--ink2);
-  border:1px solid var(--edge);border-radius:5px;padding:1px 5px}
-.cctool{display:flex;align-items:center;gap:8px;font-family:var(--ff-mono);font-size:10.5px;
-  color:var(--dimmer);background:var(--ink2);border:1px solid var(--edge);border-radius:7px;
-  padding:6px 10px;margin-bottom:8px;width:max-content;max-width:100%}
-.cctool b{color:var(--dim);font-weight:400}
-.ccthinking{font-size:12px;color:var(--dimmer);font-style:italic;margin-bottom:8px}
-.cccomposer{border-top:1px solid var(--edge);padding:13px 15px;display:flex;gap:10px;align-items:flex-end}
-.cccomposer textarea{flex:1;background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);
-  color:var(--text);font:inherit;font-size:13.5px;padding:11px 13px;resize:none;min-height:44px;
-  max-height:180px;line-height:1.5}
-.cccomposer textarea:focus{outline:none;border-color:var(--edge2)}
-.ccmeta{display:flex;align-items:center;gap:10px;padding:0 15px 11px;font-family:var(--ff-mono);
-  font-size:10px;color:var(--dimmer)}
+
+/* The feed is a reading column, not a chat log of bubbles. Claude's own surface
+   gives the assistant plain prose at a comfortable measure and marks the user's
+   turn instead — the opposite of the usual messenger layout, and much easier to
+   read for answers that run long. */
+.ccfeed{flex:1;overflow-y:auto;padding:26px 0 8px;scroll-behavior:smooth}
+.ccturn{max-width:760px;margin:0 auto;padding:0 26px 26px}
+.ccturn.me{padding-bottom:20px}
+
+/* User turn: a contained block, right-weighted, so the eye can find where each
+   exchange starts when scrolling back. */
+.ccturn.me .bd{background:var(--panel2);border:1px solid var(--edge2);
+  border-radius:14px 14px 4px 14px;padding:11px 14px;margin-left:auto;width:fit-content;max-width:88%}
+.ccturn.me .bd p{color:var(--cream)}
+
+.ccrole{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.ccrole .av{width:22px;height:22px;border-radius:7px;flex:none;display:grid;place-items:center;
+  font-family:var(--ff-display);font-size:10px;font-weight:700}
+.ccturn.ai .ccrole .av{background:var(--brass);color:#fff}
+.ccrole .who{font-size:11px;font-weight:600;color:var(--dim);letter-spacing:.02em}
+.ccrole .acts{margin-left:auto;display:flex;gap:4px;opacity:0;transition:opacity .12s}
+.ccturn:hover .ccrole .acts{opacity:1}
+.ccact{background:none;border:1px solid transparent;border-radius:6px;color:var(--dimmer);
+  font:inherit;font-size:10.5px;padding:2px 7px;cursor:pointer}
+.ccact:hover{background:var(--panel2);border-color:var(--edge);color:var(--cream)}
+
+/* Prose */
+.ccprose{font-size:14px;line-height:1.72;color:var(--text);overflow-wrap:anywhere}
+.ccprose p{margin:0 0 12px}
+.ccprose>*:last-child{margin-bottom:0}
+.ccprose h1,.ccprose h2,.ccprose h3,.ccprose h4{font-family:var(--ff-display);color:var(--cream);
+  line-height:1.3;margin:20px 0 9px;font-weight:600}
+.ccprose h1{font-size:19px}
+.ccprose h2{font-size:16.5px}
+.ccprose h3{font-size:14.5px}
+.ccprose h4{font-size:13.5px;color:var(--dim)}
+.ccprose>*:first-child{margin-top:0}
+.ccprose ul,.ccprose ol{margin:0 0 12px;padding-left:22px}
+.ccprose li{margin-bottom:5px}
+.ccprose li>ul,.ccprose li>ol{margin:5px 0 0}
+.ccprose blockquote{margin:0 0 12px;padding:2px 0 2px 14px;border-left:2px solid var(--edge2);
+  color:var(--dim)}
+.ccprose a{color:var(--brass);text-decoration:underline;text-underline-offset:2px}
+.ccprose hr{border:0;border-top:1px solid var(--edge);margin:18px 0}
+.ccprose strong{color:var(--cream);font-weight:600}
+.ccprose em{font-style:italic}
+.ccprose del{opacity:.6}
+.ccprose code.inl{font-family:var(--ff-mono);font-size:12.5px;background:var(--ink2);
+  border:1px solid var(--edge);border-radius:5px;padding:1px 5px;color:var(--cream)}
+
+/* Tables scroll inside their own box rather than widening the column. */
+.ccprose .tw{overflow-x:auto;margin:0 0 12px;border:1px solid var(--edge);border-radius:9px}
+.ccprose table{border-collapse:collapse;width:100%;font-size:12.5px}
+.ccprose th,.ccprose td{padding:7px 11px;text-align:left;border-bottom:1px solid var(--edge)}
+.ccprose th{background:var(--ink2);color:var(--dim);font-weight:600;white-space:nowrap}
+.ccprose tr:last-child td{border-bottom:0}
+
+/* Code blocks get a header with the language and a copy button — the single
+   most-used affordance in a coding chat. */
+.ccode{margin:0 0 12px;border:1px solid var(--edge);border-radius:10px;overflow:hidden;
+  background:var(--ink2)}
+.ccode .h{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel2);
+  border-bottom:1px solid var(--edge);font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
+.ccode .h .cp{margin-left:auto;background:none;border:0;color:var(--dimmer);font:inherit;
+  cursor:pointer;padding:1px 5px;border-radius:5px}
+.ccode .h .cp:hover{background:var(--panel3);color:var(--cream)}
+.ccode pre{margin:0;padding:12px 13px;overflow-x:auto}
+.ccode code{font-family:var(--ff-mono);font-size:12.5px;color:var(--text);white-space:pre;
+  line-height:1.6}
+
+/* Tool calls and thinking: collapsed by default. A transcript full of expanded
+   tool output is unreadable, and the detail matters only when something looks
+   wrong. */
+.ccstep{border:1px solid var(--edge);border-radius:9px;background:var(--ink2);margin:0 0 9px;
+  overflow:hidden}
+.ccstep>summary{display:flex;align-items:center;gap:9px;padding:7px 11px;cursor:pointer;
+  font-family:var(--ff-mono);font-size:11px;color:var(--dim);list-style:none}
+.ccstep>summary::-webkit-details-marker{display:none}
+.ccstep>summary:hover{background:var(--panel2)}
+.ccstep>summary .tn{color:var(--cream);font-weight:500}
+.ccstep>summary .td{color:var(--dimmer);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  min-width:0;flex:1}
+.ccstep>summary .cv{flex:none;color:var(--dimmer);font-size:9.5px}
+.ccstep[open]>summary{border-bottom:1px solid var(--edge)}
+.ccstep .sb{padding:10px 12px;font-family:var(--ff-mono);font-size:11.5px;color:var(--dim);
+  white-space:pre-wrap;overflow-x:auto;max-height:340px;overflow-y:auto;line-height:1.55}
+.ccstep.think>summary .tn{color:var(--dim);font-style:italic}
+
+/* Streaming caret */
+.cccaret{display:inline-block;width:7px;height:15px;margin-left:2px;vertical-align:-2px;
+  background:var(--brass);animation:ccbl 1s steps(2,start) infinite}
+@keyframes ccbl{0%,50%{opacity:1}50.01%,100%{opacity:0}}
+
+/* Composer */
+.cccomposer{border-top:1px solid var(--edge);padding:12px 26px 10px;background:var(--panel)}
+.ccbox{max-width:760px;margin:0 auto;background:var(--ink2);border:1px solid var(--edge2);
+  border-radius:var(--r-md);padding:9px 11px 8px;transition:border-color .12s}
+.ccbox:focus-within{border-color:var(--brass)}
+.ccbox textarea{width:100%;background:none;border:0;color:var(--text);font:inherit;font-size:14px;
+  line-height:1.6;resize:none;min-height:24px;max-height:220px;padding:2px 1px;display:block}
+.ccbox textarea:focus{outline:none}
+.ccbox textarea::placeholder{color:var(--dimmer)}
+.ccbar{display:flex;align-items:center;gap:7px;margin-top:7px}
+.ccbar .sel{background:var(--panel2);border:1px solid var(--edge);border-radius:7px;color:var(--dim);
+  font:inherit;font-size:11px;padding:3px 7px;cursor:pointer}
+.ccbar .sel:focus{outline:none;border-color:var(--edge2)}
+.ccbar .grow{flex:1}
+.ccgo{width:30px;height:30px;border-radius:9px;border:0;background:var(--brass);color:#fff;
+  cursor:pointer;display:grid;place-items:center;flex:none}
+.ccgo:disabled{background:var(--panel3);color:var(--dimmer);cursor:default}
+.ccstopb{height:30px;border-radius:9px;border:1px solid var(--edge2);background:var(--panel2);
+  color:var(--cream);font:inherit;font-size:11.5px;padding:0 11px;cursor:pointer;flex:none}
+.ccmeta{display:flex;align-items:center;gap:10px;max-width:760px;margin:7px auto 0;
+  font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer)}
+
 .ccdots span{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--brass);
   margin-right:3px;animation:ccb 1.2s infinite}
 .ccdots span:nth-child(2){animation-delay:.15s}
 .ccdots span:nth-child(3){animation-delay:.3s}
 @keyframes ccb{0%,60%,100%{opacity:.25}30%{opacity:1}}
+
+/* Empty state */
+.ccblank{max-width:560px;margin:auto;padding:40px 26px;text-align:center}
+.ccblank b{display:block;font-family:var(--ff-display);font-size:19px;color:var(--cream);
+  margin-bottom:7px}
+.ccblank p{font-size:13px;color:var(--dim);line-height:1.7}
+
+/* Sign-in flow */
+.ccauth{margin-top:12px;border:1px solid var(--brass);border-radius:var(--r-md);
+  background:var(--panel2);padding:13px 15px}
+.ccauth b{display:block;font-size:13px;color:var(--cream);margin-bottom:6px}
+.ccauth p{font-size:12px;color:var(--dim);line-height:1.6;margin-bottom:10px}
+.ccauth .lk{display:block;font-family:var(--ff-mono);font-size:11px;color:var(--brass);
+  background:var(--ink2);border:1px solid var(--edge);border-radius:8px;padding:9px 11px;
+  margin-bottom:10px;word-break:break-all;text-decoration:none}
+.ccauth .lk:hover{border-color:var(--brass)}
+.ccauth .row{display:flex;gap:7px;align-items:center}
+.ccauth input{flex:1;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
+  color:var(--text);font-family:var(--ff-mono);font-size:12px;padding:8px 10px}
+.ccauth input:focus{outline:none;border-color:var(--brass)}
+.ccauth .lg{font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer);white-space:pre-wrap;
+  max-height:120px;overflow-y:auto;margin-top:9px;line-height:1.5}
+
 .ccsetup{font-size:13px;color:var(--dim);line-height:1.7}
 .ccsetup ol{margin:12px 0 0;padding-left:20px}
 .ccsetup li{margin-bottom:12px}
@@ -6577,19 +6687,45 @@ function wireClaudeConfig(root){
   if (done) done.onclick = () => { grab(); CC.config = false; drawClaude(); };
   const reset = root.querySelector('#cc-cfgreset');
   if (reset) reset.onclick = () => { CCFG = { ...CCFG_DEFAULTS, tools: [] }; ccfgSave(); drawClaude(); };
+  wireClaudeAccount(root);
 }
 
-/* Who is paying. subscriptionType coming back from `claude auth status` is the
-   evidence that this runs on the subscription and not on API credits — worth
-   showing rather than asserting. */
+/* Who is paying, and how to change it.
+
+   subscriptionType from `claude auth status` is the evidence that this runs on
+   the subscription rather than on API credits, so it is shown rather than
+   asserted.
+
+   Signing in happens here instead of in a terminal: `claude auth login` prints
+   an authorize URL and runs a callback server, so the page can start it, hand
+   over the link, and wait. The link is opened by the user -- the server never
+   authenticates an account on their behalf. */
+
+const CCAUTH = { busy: false, url: '', log: '', needCode: false, err: '' };
+
 function ccAccountBlock(){
   const a = CC.account;
   if (CC.status !== 'ready') return '';
+
+  if (CCAUTH.busy || CCAUTH.url) return ccAuthFlow();
+
   if (!a) return '<div class="hint" style="margin-top:14px">Reading account…</div>';
-  if (a.error || a.raw) {
-    return '<div class="insrow" style="margin-top:12px"><span class="sev warn">i</span><span class="tx">'
-      + escS(a.raw || ('Could not read the account: ' + a.error)) + '</span></div>';
+
+  /* Signed out, or a status we could not parse. Either way the useful thing to
+     offer is a way in. */
+  if (a.error || a.raw || a.loggedIn === false) {
+    return '<div class="vwrap viz" style="margin-top:16px;box-shadow:none"><div class="vbody" style="padding:14px 15px">'
+      + '<b style="display:block;font-size:13px;color:var(--cream);margin-bottom:5px">Not signed in</b>'
+      + '<div class="hint">Claude Code is installed but no account is connected, so turns cannot run. '
+      + 'Signing in through claude.ai bills to your subscription.</div>'
+      + (a.raw || a.error ? '<div class="hint" style="margin-top:7px;font-family:var(--ff-mono);font-size:11px">'
+          + escS(a.raw || a.error) + '</div>' : '')
+      + '<div style="display:flex;gap:7px;margin-top:11px">'
+      + '<button class="btn primary" id="cc-login">Connect Claude account</button>'
+      + '<button class="tgl" id="cc-login-sso">Use SSO</button>'
+      + '</div></div></div>';
   }
+
   const billing = a.apiProvider === 'firstParty' && a.authMethod === 'claude.ai';
   return '<div class="vwrap viz" style="margin-top:16px;box-shadow:none"><div class="vbody" style="padding:14px 15px">'
     + '<div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">'
@@ -6608,66 +6744,383 @@ function ccAccountBlock(){
         : 'This session authenticates as <span class="mono">' + escS(a.authMethod || '?') + '</span> via <span class="mono">'
           + escS(a.apiProvider || '?') + '</span>. That is not the subscription path, so it may be billing API credits.')
     + '</div>'
-    + '<div class="hint" style="margin-top:8px">To use a different account, run <span class="mono">claude auth login</span> '
-    + 'in the terminal — it opens a browser, so it cannot be done from this page — then reconnect here.</div>'
+    + (Array.isArray(CC.info?.strippedForBilling) && CC.info.strippedForBilling.length
+        ? '<div class="hint" style="margin-top:7px">Ignoring <span class="mono">'
+          + escS(CC.info.strippedForBilling.join(', ')) + '</span> from the environment, which would otherwise '
+          + 'redirect turns to API billing.</div>'
+        : '')
+    + '<div style="display:flex;gap:7px;margin-top:11px">'
+    + '<button class="tgl" id="cc-login">Switch account</button>'
+    + '<button class="tgl" id="cc-logout">Sign out</button>'
+    + '</div>'
     + '</div></div>';
+}
+
+function ccAuthFlow(){
+  return '<div class="ccauth">'
+    + '<b>' + (CCAUTH.url ? 'Finish signing in' : 'Starting sign-in…') + '</b>'
+    + (CCAUTH.url
+        ? '<p>Open this in your browser and approve it. This page is waiting — it will '
+          + 'pick up the result on its own.</p>'
+          + '<a class="lk" href="' + escS(CCAUTH.url) + '" target="_blank" rel="noopener noreferrer">'
+          + escS(CCAUTH.url) + '</a>'
+          + '<p>If the browser cannot reach the callback, paste the code the page shows instead.</p>'
+          + '<div class="row"><input id="cc-authcode" placeholder="Authorization code" autocomplete="off" spellcheck="false">'
+          + '<button class="btn primary" id="cc-authsend">Submit</button>'
+          + '<button class="tgl" id="cc-authcancel">Cancel</button></div>'
+        : '<p>Asking Claude Code for a sign-in link.</p>'
+          + '<div class="row"><button class="tgl" id="cc-authcancel">Cancel</button></div>')
+    + (CCAUTH.err ? '<div class="hint" style="margin-top:9px;color:var(--rust)">' + escS(CCAUTH.err) + '</div>' : '')
+    + (CCAUTH.log ? '<div class="lg">' + escS(CCAUTH.log.slice(-1200)) + '</div>' : '')
+    + '</div>';
+}
+
+/* Starts the login and streams its output. Nothing is opened for the user --
+   the link is theirs to click. */
+async function ccLogin(opts){
+  CCAUTH.busy = true; CCAUTH.url = ''; CCAUTH.log = ''; CCAUTH.err = '';
+  drawClaude();
+  try {
+    const r = await fetch(CC.base + '/auth/login', {
+      method: 'POST', headers: ccHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(opts || {})
+    });
+    if (!r.ok || !r.body) {
+      let msg = 'Could not start the sign-in.';
+      try { msg = (await r.json()).error || msg; } catch { /* keep the default */ }
+      CCAUTH.busy = false; CCAUTH.err = msg; drawClaude(); return;
+    }
+    const rd = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    while (true) {
+      const { value, done } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let k;
+      while ((k = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, k); buf = buf.slice(k + 2);
+        const ev = (frame.match(/^event: (.*)$/m) || [])[1];
+        const dl = (frame.match(/^data: (.*)$/m) || [])[1];
+        if (!ev || !dl) continue;
+        let d; try { d = JSON.parse(dl); } catch { continue; }
+        if (ev === 'url') { CCAUTH.url = d.url; drawClaude(); }
+        else if (ev === 'log') { CCAUTH.log += d.text; ccAuthPaint(); }
+        else if (ev === 'fatal') { CCAUTH.err = d.error; drawClaude(); }
+        else if (ev === 'done') {
+          CCAUTH.busy = false; CCAUTH.url = '';
+          if (d.loggedIn) {
+            CC.account = d.account;
+            toast('Signed in as ' + (d.account?.email || 'your account'));
+            /* A different account can mean different tools and limits. */
+            CC.sessionId = null;
+            await ccProbe();
+          } else {
+            CCAUTH.err = 'Sign-in did not complete. Nothing changed.';
+          }
+          drawClaude();
+        }
+      }
+    }
+  } catch (err) {
+    CCAUTH.err = err.message;
+  }
+  CCAUTH.busy = false;
+  drawClaude();
+}
+
+/* Append to the log without redrawing the whole panel, so a half-typed code is
+   not wiped by the next line of output. */
+function ccAuthPaint(){
+  const el = document.querySelector('.ccauth .lg');
+  if (!el) { drawClaude(); return; }
+  el.textContent = CCAUTH.log.slice(-1200);
+  el.scrollTop = el.scrollHeight;
+}
+
+async function ccAuthCode(){
+  const el = document.getElementById('cc-authcode');
+  const code = (el?.value || '').trim();
+  if (!code) return;
+  try {
+    const r = await fetch(CC.base + '/auth/code', {
+      method: 'POST', headers: ccHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ code })
+    });
+    const j = await r.json();
+    if (!r.ok) { CCAUTH.err = j.error || 'That code was not accepted.'; drawClaude(); return; }
+    if (el) el.value = '';
+    CCAUTH.log += '\nCode submitted, waiting…\n';
+    ccAuthPaint();
+  } catch (err) { CCAUTH.err = err.message; drawClaude(); }
+}
+
+async function ccAuthCancel(){
+  try { await fetch(CC.base + '/auth/cancel', { method: 'POST', headers: ccHeaders() }); } catch { /* it may already be gone */ }
+  CCAUTH.busy = false; CCAUTH.url = ''; CCAUTH.err = ''; CCAUTH.log = '';
+  drawClaude();
+}
+
+async function ccLogout(){
+  if (!confirm('Sign this machine out of Claude? Turns will stop working until you sign in again.')) return;
+  try {
+    const r = await fetch(CC.base + '/auth/logout', { method: 'POST', headers: ccHeaders() });
+    const j = await r.json();
+    CC.sessionId = null;
+    CC.messages = [];
+    await ccProbe();
+    toast(j.loggedIn ? 'Still signed in — ' + (j.text || 'logout did not take effect') : 'Signed out');
+  } catch (err) { banner('Could not sign out: ' + err.message); }
 }
 
 function ccChat(){
   const feed = CC.messages.length
-    ? CC.messages.map(ccBubble).join('')
-    : '<div class="vempty" style="margin:auto"><b>Ask Claude anything</b>'
-      + 'It is running in <span class="mono">' + escS(CC.info?.cwd || '') + '</span>'
-      + (CC.info?.writable ? ' and can edit files there.' : ' and can read files there, but not change them.')
-      + '</div>';
+    ? CC.messages.map((m, i) => ccBubble(m, i)).join('')
+    : '<div class="ccblank"><b>What are we working on?</b>'
+      + '<p>Claude Code is running in <span class="mono">' + escS(CC.info?.cwd || '') + '</span> and can '
+      + (CC.info?.writable ? 'read and edit files there.' : 'read files there, but not change them.')
+      + '</p></div>';
+
+  /* The model and effort pickers live in the composer rather than the header:
+     they are per-message decisions, and reaching to the top of the page to
+     change one is the wrong shape. */
+  const models = [['', 'Model'], ['opus', 'Opus'], ['sonnet', 'Sonnet'], ['haiku', 'Haiku']];
+  const efforts = [['', 'Effort'], ['low', 'Low'], ['medium', 'Medium'], ['high', 'High'], ['max', 'Max']];
+  const sel = (id, opts, val) => '<select class="sel" id="' + id + '">'
+    + opts.map(([v, l]) => '<option value="' + v + '"' + (v === val ? ' selected' : '') + '>' + l + '</option>').join('')
+    + '</select>';
+
+  const arrow = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<path d="M12 19V5M5 12l7-7 7 7"/></svg>';
 
   return '<div class="ccwrap">'
     + '<div class="ccfeed" id="cc-feed">' + feed
-    + (CC.busy ? '<div class="ccmsg ai"><span class="av">C</span><div class="bd">'
+    + (CC.busy && !CC.streaming ? '<div class="ccturn ai"><div class="ccrole"><span class="av">C</span>'
+        + '<span class="who">Claude</span></div><div class="bd">'
         + '<span class="ccdots"><span></span><span></span><span></span></span></div></div>' : '')
     + '</div>'
-    + '<div class="cccomposer">'
-    + '<textarea id="cc-input" rows="1" placeholder="' + (CC.busy ? 'Working…' : 'Ask Claude — Enter to send, Shift+Enter for a new line') + '"'
+    + '<div class="cccomposer"><div class="ccbox">'
+    + '<textarea id="cc-input" rows="1" placeholder="'
+    + (CC.busy ? 'Claude is working…' : 'Reply to Claude…') + '"'
     + (CC.busy ? ' disabled' : '') + '></textarea>'
+    + '<div class="ccbar">'
+    + sel('cc-model2', models, CC.model || '')
+    + sel('cc-effort2', efforts, CC.effort || '')
+    + '<span class="grow"></span>'
     + (CC.busy
-        ? '<button class="tgl" id="cc-stop">Stop</button>'
-        : '<button class="btn primary" id="cc-send">Send</button>')
-    + '</div>'
+        ? '<button class="ccstopb" id="cc-stop">Stop</button>'
+        : '<button class="ccgo" id="cc-send" title="Send (Enter)">' + arrow + '</button>')
+    + '</div></div>'
     + '<div class="ccmeta">'
-    + (ccfgActive().length ? escS(ccfgActive().join(' · ')) : (CC.info?.tools ? 'tools: ' + escS(CC.info.tools) : ''))
+    + (ccfgActive().length ? escS(ccfgActive().join(' · ')) : (CC.info?.tools ? escS(CC.info.tools) : ''))
     + (CC.sessionId ? '<span style="margin-left:auto">session ' + escS(CC.sessionId.slice(0, 8)) + '</span>' : '')
-    + '</div></div>';
+    + '</div></div></div>';
 }
 
-/* Minimal markdown: fenced code, inline code, paragraphs. Everything is escaped
-   first — the text is model output, and rendering it as HTML would be an
-   injection hole with extra steps. */
-function ccRender(text){
-  const parts = String(text).split(/```/);
-  let out = '';
-  parts.forEach((chunk, i) => {
-    if (i % 2) {
-      const nl = chunk.indexOf('\n');
-      const code = nl >= 0 ? chunk.slice(nl + 1) : chunk;
-      out += '<pre><code>' + escS(code.replace(/\n$/, '')) + '</code></pre>';
-    } else {
-      for (const para of chunk.split(/\n{2,}/)) {
-        if (!para.trim()) continue;
-        out += '<p>' + escS(para).replace(/`([^`\n]+)`/g, '<code class="inl">$1</code>') + '</p>';
-      }
-    }
+/* Markdown, enough of it for what a coding assistant actually emits: fenced
+   code with a language tag, headings, both kinds of list, tables, blockquotes,
+   rules, links, and the inline run of bold/italic/strike/code.
+
+   Everything is escaped before any tag is inserted. This is model output, and a
+   renderer that trusts it is an injection hole with extra steps — so the order
+   is always escape first, then add markup, and every href is checked against a
+   scheme allow-list.
+
+   Hand-written rather than a library because the page has no bundler and a
+   markdown dependency would be the largest thing in it. */
+
+const MD_SAFE_SCHEME = /^(https?:|mailto:|#|\/)/i;
+const MD_PH = '￼';                 // placeholder for a protected code span
+
+function mdInline(t){
+  let out = escS(t);
+  /* Code spans first, with their contents held out of every later pass, so a
+     literal ** inside `code` is not turned into bold. */
+  const spans = [];
+  out = out.replace(/`([^`]+)`/g, (m, code) => {
+    spans.push('<code class="inl">' + code + '</code>');
+    return MD_PH + (spans.length - 1) + MD_PH;
   });
-  return out || '<p></p>';
+  out = out.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (m, text, href) =>
+    MD_SAFE_SCHEME.test(href)
+      ? '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' + text + '</a>'
+      : m);
+  /* Bare URLs, which models emit constantly. */
+  out = out.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g,
+    (m, pre, url) => pre + '<a href="' + url + '" target="_blank" rel="noopener noreferrer">' + url + '</a>');
+  out = out.replace(/\*\*\*([^*]+)\*\*\*/g, '<strong><em>$1</em></strong>');
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  out = out.replace(/(^|[^*\w])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+  out = out.replace(/(^|[^_\w])_([^_\n]+)_/g, '$1<em>$2</em>');
+  out = out.replace(/~~([^~]+)~~/g, '<del>$1</del>');
+  return out.replace(new RegExp(MD_PH + '(\\d+)' + MD_PH, 'g'), (m, n) => spans[Number(n)]);
 }
 
-function ccBubble(m){
-  return '<div class="ccmsg ' + (m.role === 'user' ? 'me' : 'ai') + '">'
-    + '<span class="av">' + (m.role === 'user' ? 'You' : 'C') + '</span>'
-    + '<div class="bd">'
-    + (m.tools || []).map(t => '<div class="cctool"><b>' + escS(t.name) + '</b>'
-        + (t.detail ? '<span>' + escS(t.detail) + '</span>' : '') + '</div>').join('')
-    + ccRender(m.text || '')
-    + '</div></div>';
+function mdTable(rows){
+  /* rows[1] is the delimiter line; everything else is cells. */
+  const cells = line => line.replace(/^\||\|$/g, '').split('|').map(c => c.trim());
+  const head = cells(rows[0]);
+  const body = rows.slice(2).map(cells);
+  return '<div class="tw"><table><thead><tr>'
+    + head.map(h => '<th>' + mdInline(h) + '</th>').join('')
+    + '</tr></thead><tbody>'
+    + body.map(r => '<tr>' + head.map((_, k) => '<td>' + mdInline(r[k] || '') + '</td>').join('') + '</tr>').join('')
+    + '</tbody></table></div>';
+}
+
+/* Nested lists, by indent width. */
+function mdList(items){
+  let out = '';
+  const open = [];
+  for (const it of items) {
+    const depth = Math.floor(it.indent / 2);
+    const tag = it.ordered ? 'ol' : 'ul';
+    while (open.length > depth + 1) { out += '</li></' + open.pop() + '>'; }
+    if (open.length === depth + 1) { out += '</li>'; }
+    else { out += '<' + tag + '>'; open.push(tag); }
+    out += '<li>' + mdInline(it.text);
+  }
+  while (open.length) { out += '</li></' + open.pop() + '>'; }
+  return out;
+}
+
+function mdRender(text){
+  const src = String(text == null ? '' : text);
+  if (!src.trim()) return '';
+  const lines = src.split('\n');
+  let out = '', k = 0;
+
+  while (k < lines.length) {
+    const line = lines[k];
+
+    /* fenced code */
+    const fence = line.match(/^\s*```+\s*([\w.+-]*)\s*$/);
+    if (fence) {
+      const lang = fence[1] || '';
+      const body = [];
+      k++;
+      while (k < lines.length && !/^\s*```+\s*$/.test(lines[k])) { body.push(lines[k]); k++; }
+      k++;                                              // the closing fence
+      const code = body.join('\n');
+      out += '<div class="ccode"><div class="h"><span>' + escS(lang || 'text') + '</span>'
+           + '<button class="cp" data-copy="' + escS(code) + '">Copy</button></div>'
+           + '<pre><code>' + escS(code) + '</code></pre></div>';
+      continue;
+    }
+
+    if (/^\s*$/.test(line)) { k++; continue; }
+
+    const h = line.match(/^(#{1,4})\s+(.*)$/);
+    if (h) { const n = h[1].length; out += '<h' + n + '>' + mdInline(h[2]) + '</h' + n + '>'; k++; continue; }
+
+    if (/^\s*([-*_])\s*\1\s*\1[\s\-*_]*$/.test(line)) { out += '<hr>'; k++; continue; }
+
+    /* table: a header row followed by a |---| delimiter */
+    if (/\|/.test(line) && k + 1 < lines.length && /^\s*\|?[\s:|-]+\|[\s:|-]*$/.test(lines[k + 1])) {
+      const rows = [];
+      while (k < lines.length && /\|/.test(lines[k])) { rows.push(lines[k]); k++; }
+      out += mdTable(rows);
+      continue;
+    }
+
+    if (/^\s*>\s?/.test(line)) {
+      const body = [];
+      while (k < lines.length && /^\s*>\s?/.test(lines[k])) { body.push(lines[k].replace(/^\s*>\s?/, '')); k++; }
+      out += '<blockquote>' + mdRender(body.join('\n')) + '</blockquote>';
+      continue;
+    }
+
+    const li = line.match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+    if (li) {
+      const items = [];
+      while (k < lines.length) {
+        const m = lines[k].match(/^(\s*)([-*+]|\d+[.)])\s+(.*)$/);
+        if (!m) {
+          /* one blank line inside a list is fine; two end it */
+          if (/^\s*$/.test(lines[k]) && k + 1 < lines.length && /^(\s*)([-*+]|\d+[.)])\s+/.test(lines[k + 1])) { k++; continue; }
+          break;
+        }
+        items.push({ indent: m[1].replace(/\t/g, '  ').length, ordered: /\d/.test(m[2]), text: m[3] });
+        k++;
+      }
+      out += mdList(items);
+      continue;
+    }
+
+    /* paragraph: consecutive lines that start nothing else */
+    const para = [];
+    while (k < lines.length && !/^\s*$/.test(lines[k])
+           && !/^\s*```/.test(lines[k]) && !/^#{1,4}\s/.test(lines[k])
+           && !/^\s*>\s?/.test(lines[k]) && !/^(\s*)([-*+]|\d+[.)])\s+/.test(lines[k])) {
+      para.push(lines[k]); k++;
+    }
+    if (para.length) out += '<p>' + mdInline(para.join('\n')).replace(/\n/g, '<br>') + '</p>';
+    else k++;
+  }
+  return out;
+}
+
+/* Kept under the old name so callers do not have to change. */
+function ccRender(text){ return mdRender(text); }
+
+/* One exchange. The assistant's turn is prose in a reading column; the user's
+   is a contained block. Steps — tool calls and thinking — sit above the prose,
+   collapsed, in the order they happened. */
+function ccBubble(m, idx){
+  const mine = m.role === 'user';
+  const acts = mine
+    ? '<button class="ccact" data-ccedit="' + idx + '">Edit</button>'
+      + '<button class="ccact" data-cccopy="' + idx + '">Copy</button>'
+    : '<button class="ccact" data-cccopy="' + idx + '">Copy</button>'
+      + '<button class="ccact" data-ccretry="' + idx + '">Retry</button>';
+
+  return '<div class="ccturn ' + (mine ? 'me' : 'ai') + '" data-cci="' + idx + '">'
+    + '<div class="ccrole">'
+    + (mine ? '' : '<span class="av">C</span>')
+    + '<span class="who">' + (mine ? 'You' : 'Claude') + '</span>'
+    + '<span class="acts">' + acts + '</span>'
+    + '</div>'
+    + '<div class="bd">' + ccSteps(m) + '<div class="ccprose">' + mdRender(m.text || '') + '</div></div>'
+    + '</div>';
+}
+
+/* Tool calls and thinking, collapsed. Open only when there is nothing else to
+   show yet, so a turn still working is not a blank rectangle. */
+function ccSteps(m){
+  const steps = m.steps || m.tools || [];
+  if (!steps.length) return '';
+  const bare = !(m.text || '').trim();
+  return steps.map((t, n) => {
+    const isThink = t.kind === 'thinking';
+    const open = bare && n === steps.length - 1 ? ' open' : '';
+    return '<details class="ccstep' + (isThink ? ' think' : '') + '"' + open + '>'
+      + '<summary><span class="tn">' + escS(isThink ? 'Thinking' : (t.name || 'Tool')) + '</span>'
+      + '<span class="td">' + escS(t.detail || '') + '</span>'
+      + '<span class="cv">' + (t.body ? 'details' : '') + '</span></summary>'
+      + (t.body ? '<div class="sb">' + escS(String(t.body).slice(0, 8000)) + '</div>' : '')
+      + '</details>';
+  }).join('');
+}
+
+/* The account controls appear in both the setup and session panels, so their
+   wiring lives in one place and is called from both. */
+function wireClaudeAccount(root){
+  const login = root.querySelector('#cc-login');
+  if (login) login.onclick = () => ccLogin({});
+  const sso = root.querySelector('#cc-login-sso');
+  if (sso) sso.onclick = () => ccLogin({ sso: true });
+  const out = root.querySelector('#cc-logout');
+  if (out) out.onclick = ccLogout;
+  const send = root.querySelector('#cc-authsend');
+  if (send) send.onclick = ccAuthCode;
+  const cancel = root.querySelector('#cc-authcancel');
+  if (cancel) cancel.onclick = ccAuthCancel;
+  const code = root.querySelector('#cc-authcode');
+  if (code) {
+    code.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ccAuthCode(); } };
+    code.focus();
+  }
 }
 
 function wireClaudeSetup(root){
@@ -6682,23 +7135,82 @@ function wireClaudeSetup(root){
   };
   const b = root.querySelector('#cc-back');
   if (b) b.onclick = () => { CC.setup = false; drawClaude(); };
+  wireClaudeAccount(root);
 }
 
 function wireClaudeChat(root){
   const ta = root.querySelector('#cc-input');
   if (ta) {
     /* Grows with the text rather than scrolling a two-line box. */
-    const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(180, ta.scrollHeight) + 'px'; };
+    const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(220, ta.scrollHeight) + 'px'; };
     ta.oninput = fit;
     ta.onkeydown = e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ccSend(ta.value); }
     };
+    if (CC.draft) { ta.value = CC.draft; CC.draft = ''; fit(); }
     if (!CC.busy) ta.focus();
   }
   const send = root.querySelector('#cc-send');
   if (send) send.onclick = () => ccSend(document.getElementById('cc-input')?.value || '');
   const stop = root.querySelector('#cc-stop');
   if (stop) stop.onclick = ccStop;
+
+  /* The composer's pickers mirror the header ones, so either stays correct. */
+  const m = root.querySelector('#cc-model2');
+  if (m) m.onchange = () => { CC.model = m.value; const h = document.getElementById('cc-model'); if (h) h.value = m.value; };
+  const ef = root.querySelector('#cc-effort2');
+  if (ef) ef.onchange = () => { CC.effort = ef.value; const h = document.getElementById('cc-effort'); if (h) h.value = ef.value; };
+
+  wireClaudeFeed(root);
+}
+
+/* Copy, retry and edit. Delegated from the feed so a redraw cannot leave dead
+   handlers behind, and so streaming does not have to re-attach anything. */
+function wireClaudeFeed(root){
+  const feed = root.querySelector('#cc-feed');
+  if (!feed) return;
+  feed.onclick = ev => {
+    const code = ev.target.closest('[data-copy]');
+    if (code) {
+      navigator.clipboard?.writeText(code.dataset.copy);
+      const was = code.textContent; code.textContent = 'Copied';
+      setTimeout(() => { code.textContent = was; }, 1200);
+      return;
+    }
+    const cp = ev.target.closest('[data-cccopy]');
+    if (cp) {
+      const msg = CC.messages[Number(cp.dataset.cccopy)];
+      if (msg) {
+        navigator.clipboard?.writeText(msg.text || '');
+        cp.textContent = 'Copied';
+        setTimeout(() => { cp.textContent = 'Copy'; }, 1200);
+      }
+      return;
+    }
+    const rt = ev.target.closest('[data-ccretry]');
+    if (rt) {
+      /* Drop this reply and everything after it, then resend the prompt that
+         produced it. Keeping the stale answer above the new one just makes the
+         transcript lie about what was asked. */
+      const i = Number(rt.dataset.ccretry);
+      const prompt = CC.messages[i - 1]?.role === 'user' ? CC.messages[i - 1].text : null;
+      if (!prompt) { banner('Nothing to retry — no prompt above this reply.'); return; }
+      CC.messages = CC.messages.slice(0, i - 1);
+      drawClaude();
+      ccSend(prompt);
+      return;
+    }
+    const ed = ev.target.closest('[data-ccedit]');
+    if (ed) {
+      const i = Number(ed.dataset.ccedit);
+      const msg = CC.messages[i];
+      if (!msg) return;
+      /* Editing a prompt means asking again from that point. */
+      CC.draft = msg.text || '';
+      CC.messages = CC.messages.slice(0, i);
+      drawClaude();
+    }
+  };
 }
 
 async function ccSend(text){
@@ -6772,8 +7284,8 @@ async function ccSend(text){
     }
   }
 
-  CC.busy = false; CC.abort = null;
-  if (!reply.text && !reply.tools.length) reply.text = '(no output)';
+  CC.busy = false; CC.abort = null; CC.streaming = false;
+  if (!reply.text && !(reply.steps || reply.tools || []).length) reply.text = '_(no output)_';
   drawClaude();
 }
 
@@ -6792,7 +7304,25 @@ function ccConsume(ev, d, reply){
   if (d.type === 'stream_event') {
     const e = d.event;
     if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta') {
-      reply.text += e.delta.text; return true;
+      reply.text += e.delta.text;
+      CC.streaming = true;          // the dots give way to real text
+      return true;
+    }
+    /* Extended thinking arrives as its own delta type. Kept in a collapsed
+       step: useful when an answer looks wrong, noise the rest of the time. */
+    if (e?.type === 'content_block_delta' && e.delta?.type === 'thinking_delta') {
+      const steps = (reply.steps ||= []);
+      const last = steps[steps.length - 1];
+      if (last && last.kind === 'thinking' && last.live) last.body += e.delta.thinking || '';
+      else steps.push({ kind:'thinking', name:'Thinking', detail:'', body: e.delta.thinking || '', live:true });
+      CC.streaming = true;
+      return true;
+    }
+    if (e?.type === 'content_block_stop') {
+      const steps = reply.steps || [];
+      const last = steps[steps.length - 1];
+      if (last && last.live) last.live = false;
+      return false;
     }
     return false;
   }
@@ -6801,10 +7331,38 @@ function ccConsume(ev, d, reply){
     for (const b of d.message.content) {
       if (b.type === 'tool_use') {
         const detail = b.input?.file_path || b.input?.pattern || b.input?.command || b.input?.url || '';
-        reply.tools.push({ name: b.name, detail: String(detail).slice(0, 90) });
+        const step = {
+          kind:'tool', id: b.id, name: b.name,
+          detail: String(detail).slice(0, 140),
+          /* The full input, so an unexpected call can actually be inspected. */
+          body: (() => { try { return JSON.stringify(b.input, null, 2); } catch { return ''; } })()
+        };
+        (reply.steps ||= []).push(step);
+        reply.tools.push(step);        // kept for anything still reading .tools
+      }
+      if (b.type === 'thinking' && b.thinking) {
+        (reply.steps ||= []).push({ kind:'thinking', name:'Thinking', detail:'', body: b.thinking });
       }
     }
     return true;
+  }
+
+  /* Tool results come back on a user frame. Attaching the output to the step
+     that asked for it is what makes the collapsed row worth opening. */
+  if (d.type === 'user' && d.message?.content) {
+    let touched = false;
+    for (const b of d.message.content) {
+      if (b.type !== 'tool_result') continue;
+      const step = (reply.steps || []).find(t => t.id === b.tool_use_id);
+      if (!step) continue;
+      const text = Array.isArray(b.content)
+        ? b.content.map(c => c.text || '').join('\n')
+        : (typeof b.content === 'string' ? b.content : '');
+      step.body = (step.body ? step.body + '\n\n— result —\n' : '') + text;
+      if (b.is_error) step.detail = (step.detail ? step.detail + ' · ' : '') + 'failed';
+      touched = true;
+    }
+    return touched;
   }
 
   if (d.type === 'result') {
@@ -6820,15 +7378,21 @@ function ccConsume(ev, d, reply){
 function ccPatch(reply){
   const feed = document.getElementById('cc-feed');
   if (!feed) return;
-  const bubbles = feed.querySelectorAll('.ccmsg');
-  const last = bubbles[bubbles.length - (CC.busy ? 2 : 1)];
-  if (!last) { drawClaude(); return; }
+  const turns = feed.querySelectorAll('.ccturn');
+  const last = turns[turns.length - 1];
+  if (!last || !last.classList.contains('ai')) { drawClaude(); return; }
   const bd = last.querySelector('.bd');
   if (!bd) return;
-  const stuck = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 60;
-  bd.innerHTML = (reply.tools || []).map(t => '<div class="cctool"><b>' + escS(t.name) + '</b>'
-      + (t.detail ? '<span>' + escS(t.detail) + '</span>' : '') + '</div>').join('')
-    + ccRender(reply.text || '');
+  /* Preserve which steps the reader has opened; a redraw that snaps them all
+     shut mid-stream is worse than no detail at all. */
+  const openIdx = new Set();
+  bd.querySelectorAll('.ccstep').forEach((d, i) => { if (d.open) openIdx.add(i); });
+  const stuck = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
+
+  bd.innerHTML = ccSteps(reply)
+    + '<div class="ccprose">' + mdRender(reply.text || '')
+    + (CC.busy ? '<span class="cccaret"></span>' : '') + '</div>';
+  bd.querySelectorAll('.ccstep').forEach((d, i) => { if (openIdx.has(i)) d.open = true; });
   if (stuck) feed.scrollTop = feed.scrollHeight;
 }
 
