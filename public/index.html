@@ -1066,6 +1066,136 @@ main{min-width:0;display:flex;flex-direction:column}
 .scorepill{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 7px;
   font-family:var(--ff-mono);font-size:10px;background:rgba(124,108,255,.15);color:var(--brass)}
 
+/* ---- composer ---- */
+.srcrow{display:flex;align-items:center;gap:11px;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:var(--r-md);padding:11px 14px;margin-bottom:12px}
+.srcrow .ic{color:var(--dimmer);flex:none;display:flex}
+.srcrow .nm{flex:1;font-size:13px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.srcrow .rm{background:none;border:0;color:var(--dim);cursor:pointer;font:inherit;font-size:12.5px;
+  text-decoration:underline;padding:0}
+.srcrow .rm:hover{color:var(--cream)}
+.bigbtn{width:100%;background:var(--cream);color:#12161A;border:0;border-radius:var(--r-md);
+  font-family:var(--ff-display);font-weight:600;font-size:15px;padding:14px;cursor:pointer;
+  transition:.15s var(--ease)}
+.bigbtn:hover:not(:disabled){filter:brightness(1.06)}
+.bigbtn:disabled{opacity:.35;cursor:not-allowed}
+.bigbtn.accent{background:var(--brass);color:#fff}
+.metarow{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:11px;font-size:12.5px}
+.metarow .mi{display:flex;align-items:center;gap:6px;color:var(--dim)}
+.metarow .mi b{color:var(--cream);font-variation-settings:'wght' 600}
+.metarow select{background:none;border:0;color:var(--cream);font:inherit;font-size:12.5px;cursor:pointer}
+.credits{margin-left:auto;display:flex;align-items:center;gap:6px;font-family:var(--ff-mono);
+  font-size:11px;color:var(--dim)}
+.credits .bolt{color:var(--brass)}
+
+.ctabs{display:flex;gap:2px;border-bottom:1px solid var(--edge);margin-bottom:16px}
+.ctab{background:none;border:0;border-bottom:2px solid transparent;color:var(--dim);cursor:pointer;
+  font:inherit;font-size:13px;padding:9px 15px;margin-bottom:-1px;transition:.15s}
+.ctab:hover{color:var(--text)}
+.ctab.on{color:var(--cream);border-bottom-color:var(--brass)}
+
+.ctlrow{display:flex;align-items:center;gap:20px;flex-wrap:wrap;margin-bottom:16px}
+.ctl2{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--dim)}
+.ctl2 select{background:var(--ink2);border:1px solid var(--edge);border-radius:8px;color:var(--cream);
+  font:inherit;font-size:12.5px;padding:6px 9px;cursor:pointer}
+.sw2{position:relative;width:36px;height:20px;border-radius:20px;background:var(--panel2);
+  border:1px solid var(--edge);cursor:pointer;flex:none;transition:.16s}
+.sw2::after{content:'';position:absolute;left:2px;top:1px;width:15px;height:15px;border-radius:50%;
+  background:var(--dim);transition:.16s}
+.sw2.on{background:rgba(124,108,255,.3);border-color:var(--brass)}
+.sw2.on::after{left:18px;background:var(--brass)}
+
+/* ---- projects ---- */
+.projgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.projcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
+  overflow:hidden;box-shadow:var(--shadow);cursor:pointer;transition:.18s var(--ease);text-align:left}
+.projcard:hover{border-color:var(--edge2);transform:translateY(-2px)}
+.projcard .ph{aspect-ratio:16/9;background:var(--ink2);position:relative;display:grid;place-items:center;
+  overflow:hidden}
+.projcard .ph img{width:100%;height:100%;object-fit:cover}
+.projcard .ph .badge2{position:absolute;right:8px;bottom:8px;background:rgba(0,0,0,.75);color:#fff;
+  font-family:var(--ff-mono);font-size:10px;padding:2px 6px;border-radius:5px}
+.projcard .pb{padding:12px 13px 13px}
+.projcard .pt{font-size:13px;color:var(--cream);line-height:1.35;margin-bottom:7px;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.projcard .pm{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--dimmer)}
+
+/* ---- clip cards ---- */
+.clipcard{position:relative}
+.clipcard .thumbwrap{position:relative;cursor:pointer;background:#000}
+.clipcard .thumbwrap img{width:100%;aspect-ratio:9/16;object-fit:cover;display:block}
+.clipcard .thumbwrap .noimg{width:100%;aspect-ratio:9/16;background:var(--ink2);display:grid;
+  place-items:center;color:var(--dimmer);font-size:11.5px;text-align:center;padding:14px}
+.clipcard .dur{position:absolute;right:7px;top:7px;background:rgba(0,0,0,.78);color:#fff;
+  font-family:var(--ff-mono);font-size:10px;padding:2px 6px;border-radius:5px}
+.clipcard .play{position:absolute;inset:0;display:grid;place-items:center;opacity:0;transition:.16s;
+  background:rgba(0,0,0,.28)}
+.clipcard .thumbwrap:hover .play{opacity:1}
+.clipcard .play span{width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.92);
+  display:grid;place-items:center;color:#12161A;font-size:15px;padding-left:3px}
+.clipcard .pick{position:absolute;left:8px;top:8px;width:22px;height:22px;border-radius:50%;
+  border:1.5px solid rgba(255,255,255,.75);background:rgba(0,0,0,.4);cursor:pointer;display:grid;
+  place-items:center;color:#fff;font-size:11px;z-index:2;transition:.14s}
+.clipcard .pick.on{background:var(--brass);border-color:var(--brass)}
+.clipcard.sel{border-color:var(--brass);box-shadow:var(--shadow),0 0 0 3px rgba(124,108,255,.14)}
+.clipacts{display:flex;gap:4px;margin-top:auto;padding-top:8px}
+.iconbtn{flex:1;display:grid;place-items:center;background:none;border:1px solid var(--edge);
+  border-radius:8px;color:var(--dim);cursor:pointer;padding:7px 0;transition:.14s}
+.iconbtn:hover{border-color:var(--edge2);color:var(--cream);background:var(--panel2)}
+.iconbtn.danger:hover{border-color:var(--rust);color:var(--rust)}
+.iconbtn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.scoreline{display:flex;align-items:center;gap:8px}
+.scorenum{font-family:var(--ff-display);font-size:19px;font-weight:600;letter-spacing:-.02em}
+
+.bulkbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--panel2);
+  border:1px solid var(--edge2);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px}
+.bulkbar .cnt2{font-size:13px;color:var(--cream);font-variation-settings:'wght' 600}
+
+/* ---- modals ---- */
+.mwrap{position:fixed;inset:0;z-index:75;display:none;align-items:center;justify-content:center;
+  padding:24px;background:rgba(4,6,10,.62);backdrop-filter:blur(4px)}
+.mwrap.on{display:flex}
+.mbox{background:var(--panel);border:1px solid var(--edge2);border-radius:var(--r-lg);
+  box-shadow:0 40px 90px -40px rgba(0,0,0,.9);max-height:88vh;display:flex;flex-direction:column;
+  width:min(940px,96vw);overflow:hidden}
+.mbox.narrow{width:min(560px,96vw)}
+.mhead{display:flex;align-items:flex-start;gap:12px;padding:17px 19px 14px;border-bottom:1px solid var(--edge)}
+.mhead h3{font-family:var(--ff-display);font-size:16px;font-weight:600;color:var(--cream);letter-spacing:-.015em}
+.mhead p{font-size:12.5px;color:var(--dim);margin-top:3px}
+.mbody{padding:18px 19px;overflow-y:auto;flex:1}
+.mfoot{display:flex;align-items:center;gap:9px;padding:14px 19px;border-top:1px solid var(--edge)}
+.xbtn{background:none;border:0;color:var(--dim);cursor:pointer;font-size:20px;line-height:1;padding:0 2px}
+.xbtn:hover{color:var(--cream)}
+
+.playerbox{width:min(420px,94vw)}
+.playerbox video{width:100%;max-height:70vh;background:#000;display:block;border-radius:var(--r-md)}
+
+.schedgrid{display:grid;grid-template-columns:1fr 240px;gap:18px}
+@media(max-width:820px){.schedgrid{grid-template-columns:1fr}}
+.acctlist{display:flex;flex-direction:column;gap:6px;max-height:230px;overflow-y:auto}
+.acctrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--edge);
+  border-radius:var(--r-md);cursor:pointer;background:var(--ink2);transition:.14s}
+.acctrow:hover{border-color:var(--edge2)}
+.acctrow.on{border-color:var(--brass);background:rgba(124,108,255,.08)}
+.acctrow img{width:26px;height:26px;border-radius:50%;flex:none;object-fit:cover}
+.acctrow .ai{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
+  background:var(--panel2);font-size:11px;color:var(--dim)}
+.acctrow .an{flex:1;min-width:0}
+.acctrow .an b{display:block;font-size:12.5px;color:var(--cream);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.acctrow .an small{font-size:10.5px;color:var(--dimmer)}
+.acctrow .tick{width:18px;height:18px;border-radius:50%;border:1.5px solid var(--edge2);flex:none;
+  display:grid;place-items:center;font-size:10px;color:transparent}
+.acctrow.on .tick{background:var(--brass);border-color:var(--brass);color:#fff}
+.privrow{display:flex;gap:6px}
+.privrow button{flex:1;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
+  color:var(--dim);cursor:pointer;font:inherit;font-size:12px;padding:8px 0;transition:.14s}
+.privrow button.on{border-color:var(--brass);color:var(--cream);background:rgba(124,108,255,.09)}
+.thumbside img{width:100%;border-radius:var(--r-md);display:block;border:1px solid var(--edge)}
+.thumbside .noimg2{width:100%;aspect-ratio:9/16;border-radius:var(--r-md);background:var(--ink2);
+  border:1px solid var(--edge);display:grid;place-items:center;color:var(--dimmer);font-size:11.5px}
+
 /* ---- drawer ---- */
 .scrim{position:fixed;inset:0;background:rgba(4,6,10,.58);backdrop-filter:blur(3px);
   opacity:0;pointer-events:none;transition:.22s;z-index:60}
@@ -1464,6 +1594,68 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   </div>
 </div>
 <div class="toasts" id="so-toasts"></div>
+
+<!-- clip player -->
+<div class="mwrap" id="cl-player">
+  <div class="mbox playerbox">
+    <div class="mhead"><div style="flex:1;min-width:0"><h3 id="cl-ptitle">Clip</h3>
+      <p id="cl-pmeta"></p></div><button class="xbtn" data-mclose="cl-player">&times;</button></div>
+    <div class="mbody" style="padding:14px"><div id="cl-pvideo"></div></div>
+    <div class="mfoot"><span id="cl-phook" style="font-size:11.5px;color:var(--dim);flex:1"></span>
+      <button class="tgl" id="cl-pdl">Download</button>
+      <button class="btn primary" id="cl-psched">Schedule</button></div>
+  </div>
+</div>
+
+<!-- schedule -->
+<div class="mwrap" id="cl-sched">
+  <div class="mbox">
+    <div class="mhead"><div style="flex:1"><h3>Schedule post</h3>
+      <p>Pick the accounts to post from. You can select one, several, or all of them.</p></div>
+      <button class="xbtn" data-mclose="cl-sched">&times;</button></div>
+    <div class="mbody"><div class="schedgrid">
+      <div>
+        <div class="fld"><label style="display:flex;align-items:center">Post to
+          <button class="tgl" id="cl-addacct" style="margin-left:auto;padding:4px 9px">+ Add account</button></label>
+          <div id="cl-accts" class="acctlist"></div>
+          <div style="display:flex;gap:6px;margin-top:8px">
+            <button class="tgl" id="cl-allacct" style="flex:1;justify-content:center">All platforms</button>
+            <button class="tgl" id="cl-noacct" style="flex:1;justify-content:center">Clear</button>
+          </div>
+        </div>
+        <div class="fld"><label>Title</label><input type="text" id="cl-title" maxlength="300"></div>
+        <div class="fld"><label>Post text</label><textarea id="cl-desc" style="min-height:118px"></textarea>
+          <div class="hint" id="cl-desch"></div></div>
+        <div class="fld"><label>Visibility</label><div class="privrow" id="cl-priv">
+          <button data-priv="public">Public</button>
+          <button data-priv="unlisted">Unlisted</button>
+          <button data-priv="private">Private</button>
+        </div><div class="hint">YouTube honours all three. Other platforms may ignore it.</div></div>
+        <div class="fld"><label>When</label>
+          <div class="two"><input type="date" id="cl-date"><input type="time" id="cl-time"></div>
+          <div class="hint">Leave both empty to publish immediately. A time in the past is refused.</div></div>
+      </div>
+      <div class="thumbside"><label style="display:block;font-size:11.5px;color:var(--dim);margin-bottom:6px">Thumbnail</label>
+        <div id="cl-sthumb"></div>
+        <div id="cl-scount" style="font-size:11.5px;color:var(--dimmer);margin-top:10px;line-height:1.5"></div></div>
+    </div></div>
+    <div class="mfoot"><span id="cl-serr" style="font-size:12px;color:var(--rust);flex:1"></span>
+      <button class="tgl" data-mclose="cl-sched">Cancel</button>
+      <button class="btn primary" id="cl-dosched">Schedule</button></div>
+  </div>
+</div>
+
+<!-- add social account -->
+<div class="mwrap" id="cl-addmodal">
+  <div class="mbox narrow">
+    <div class="mhead"><div style="flex:1"><h3>Add social accounts</h3>
+      <p>Accounts are connected inside OpusClip — its API has no endpoint to add one from here.</p></div>
+      <button class="xbtn" data-mclose="cl-addmodal">&times;</button></div>
+    <div class="mbody"><div class="autos" style="grid-template-columns:1fr 1fr;margin-bottom:0" id="cl-platforms"></div></div>
+    <div class="mfoot"><span style="flex:1;font-size:11.5px;color:var(--dimmer)">Connect there, then reopen this dialog and the account appears.</span>
+      <button class="btn primary" id="cl-openopus">Open OpusClip</button></div>
+  </div>
+</div>
 </div>
 
 <script>
@@ -5740,47 +5932,65 @@ document.addEventListener('keydown', e => {
 
 /* ================= SYSTEMS =================
 
-   Automations run by hand. Six are listed; Create a Clip is built and the other
-   five say so on their face rather than offering a button that does nothing.
+   Automations run by hand. Six listed; Create a Clip is built.
 
-   Create a Clip wraps OpusClip. The one structural fact that shapes this whole
-   screen: OpusClip fetches a URL, it does not accept an upload. A dropped file
-   is therefore streamed to this server, served back at an unguessable public
-   address, and that address is what the service is given. */
+   Every control on this screen maps to a documented OpusClip request field. The
+   ones the product has but the API does not publish — .SRT upload, the
+   auto-headline toggle, caption style presets — are absent rather than present
+   and inert. A toggle that silently does nothing is worse than no toggle.
+
+   Local files never touch this server's disk: the browser posts the raw bytes,
+   the server pipes them straight into OpusClip's upload session, and the
+   returned uploadId is what creates the project. */
 
 const SY = {
-  open: null,            // null = the grid, otherwise an automation id
-  step: 1,
-  cfg: null,             // { configured, durableStorage, setupHint }
-  automations: [],
-  projects: [],
+  open: null, cfg: null, automations: [], projects: [],
   project: null, clips: [], schedules: [],
-  templates: [], destinations: [], destError: null,
-  source: { kind:'url', url:'', token:null, bytes:0, name:'' },
-  uploading: 0,          // 0-100 while a file is going up
-  busy: false,
-  scheduling: null       // the clip being scheduled
+  templates: [], destinations: [], destError: null, usage: null,
+  source: { kind:null, name:'', bytes:0, uploadId:null, url:'' },
+  uploading: 0, busy: false, poll: null,
+  picked: new Set(),          // selected clip ids
+  playing: null, scheduling: null, schedTargets: new Set()
 };
 
-/* Preferences, defaulted to what OpusClip itself treats as sensible. Only
-   fields the documentation actually names are sent; nothing is invented to
-   fill a form. */
-const SY_PREFS = {
-  startSec: '', endSec: '',
-  durations: ['<30s', '30s-60s', '60s-90s'],
-  keywords: '',
+/* Only documented fields. `model` gates which of keywords/prompt is even sent,
+   because the service rejects the wrong one for the model. */
+const SYP_DEFAULTS = {
+  model: 'ClipBasic',
+  durations: [[0, 30], [30, 60], [60, 90]],
   genre: 'Auto',
-  skipCurate: false,
+  keywords: '',
+  prompt: '',
+  rangeStart: '', rangeEnd: '',
   sourceLang: 'auto',
-  brandTemplateId: '',
-  maxClips: ''
+  aspect: 'portrait',
+  removeFiller: false,
+  skipCurate: false,
+  templateId: ''
 };
-let SYP = { ...SY_PREFS };
+let SYP = { ...SYP_DEFAULTS, durations: [...SYP_DEFAULTS.durations] };
 
-const syFmtBytes = n => n >= 1e9 ? (n/1e9).toFixed(2) + ' GB'
-  : n >= 1e6 ? (n/1e6).toFixed(1) + ' MB' : Math.round(n/1e3) + ' KB';
-const syFmtSec = n => n == null ? '—'
+const DURATIONS = [
+  { label:'< 30s',    v:[0, 30] },
+  { label:'30–60s',   v:[30, 60] },
+  { label:'60–90s',   v:[60, 90] },
+  { label:'90s–3m',   v:[90, 180] }
+];
+const hasDur = v => SYP.durations.some(d => d[0] === v[0] && d[1] === v[1]);
+
+const syBytes = n => n >= 1e9 ? (n/1e9).toFixed(2) + ' GB'
+  : n >= 1e6 ? (n/1e6).toFixed(1) + ' MB' : Math.max(1, Math.round(n/1e3)) + ' KB';
+const syDur = n => n == null ? '—'
   : Math.floor(n/60) + ':' + String(Math.round(n%60)).padStart(2,'0');
+const scoreTone = v => v == null ? 'var(--dimmer)'
+  : v >= 85 ? 'var(--jade)' : v >= 70 ? 'var(--brass)' : v >= 50 ? 'var(--amber)' : 'var(--rust)';
+
+const SYICON = {
+  cal:  '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="16" rx="3"/><path d="M3 9.5h18M8 2.8v3.4M16 2.8v3.4"/></svg>',
+  dl:   '<svg viewBox="0 0 24 24"><path d="M12 3.5v11M8 11l4 4 4-4M4.5 19.5h15"/></svg>',
+  bin:  '<svg viewBox="0 0 24 24"><path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 13h10l1-13M10 11v6M14 11v6"/></svg>',
+  link: '<svg viewBox="0 0 24 24" style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7"><path d="M9.5 14.5l5-5M7 12l-2 2a3.5 3.5 0 005 5l2-2M17 12l2-2a3.5 3.5 0 00-5-5l-2 2"/></svg>'
+};
 
 async function loadSystems(){
   if (CAL.demo) return;
@@ -5790,8 +6000,7 @@ async function loadSystems(){
     SY.cfg = out.clip || null;
     SY.projects = out.clip?.recent || [];
   } catch (err) {
-    SY.automations = [];
-    SY.cfg = { configured:false, error: err.message };
+    SY.automations = []; SY.cfg = { configured:false, error: err.message };
   }
   drawSystems();
 }
@@ -5810,459 +6019,695 @@ function drawSystems(){
   back.hidden = !SY.open;
 
   if (SY.open === 'clip' && SY.cfg) {
+    const u = SY.usage;
     state.innerHTML = SY.cfg.configured
       ? '<span class="d" style="background:var(--jade)"></span>OpusClip connected'
+        + (u?.monthly ? ' · ' + u.monthly.remaining + ' of ' + u.monthly.limit + ' credits left' : '')
       : '<span class="d" style="background:var(--rust)"></span>OpusClip not configured';
   } else state.innerHTML = '';
 
   body.innerHTML = SY.open === 'clip' ? clipSystem() : automationGrid();
-
-  body.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => {
-    const a = SY.automations.find(x => x.id === b.dataset.auto);
-    if (!a?.built) return;
-    SY.open = a.id; SY.step = 1; SY.project = null; SY.clips = [];
-    drawSystems();
-    if (a.id === 'clip') loadClipExtras();
-  });
-  wireClip(body);
+  wireSystems(body);
 }
 
 function automationGrid(){
-  if (!SY.automations.length) {
-    return '<div class="vwrap viz"><div class="vempty"><b>Loading automations…</b></div></div>';
-  }
+  if (!SY.automations.length) return '<div class="vwrap viz"><div class="vempty"><b>Loading…</b></div></div>';
   return '<div class="autos">' + SY.automations.map(a =>
     '<button class="auto' + (a.built ? '' : ' soon') + '" data-auto="' + escS(a.id) + '"'
-    + (a.built ? '' : ' disabled') + '>'
-    + '<h4>' + escS(a.name) + '</h4>'
-    + '<p>' + escS(a.blurb) + '</p>'
-    + '<div class="foot">'
-    + (a.built
-        ? '<span class="chip2 up">Ready</span>'
-        : '<span class="chip2 flat">Not built yet</span>')
-    + (a.built && a.id === 'clip' && SY.projects.length
-        ? '<span class="kbench">' + SY.projects.length + ' recent project' + (SY.projects.length === 1 ? '' : 's') + '</span>' : '')
-    + '</div></button>').join('') + '</div>'
-    + '<div class="vwrap viz"><div class="vbody" style="font-size:12.5px;color:var(--dim);line-height:1.65">'
-    + 'Each automation is something you trigger, not a schedule. <b style="color:var(--cream)">Create a Clip</b> '
-    + 'is wired to OpusClip end to end — source, preferences, render, preview and scheduling. '
-    + 'The other five are listed so the shape of this screen is visible; none of them pretend to run.'
-    + '</div></div>';
+    + (a.built ? '' : ' disabled') + '><h4>' + escS(a.name) + '</h4><p>' + escS(a.blurb) + '</p>'
+    + '<div class="foot">' + (a.built ? '<span class="chip2 up">Ready</span>' : '<span class="chip2 flat">Not built yet</span>')
+    + (a.built && SY.projects.length ? '<span class="kbench">' + SY.projects.length + ' project' + (SY.projects.length === 1 ? '' : 's') + '</span>' : '')
+    + '</div></button>').join('') + '</div>';
 }
 
 /* ---------- Create a Clip ---------- */
 
 function clipSystem(){
   if (!SY.cfg) return '<div class="vwrap viz"><div class="vempty"><b>Loading…</b></div></div>';
-
-  const notConfigured = !SY.cfg.configured
-    ? '<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
-      + '<span class="tx"><b>OpusClip is not configured.</b> Set <span class="mono">OPUS_API_KEY</span> from '
-      + 'clip.opus.pro/dashboard on the server, then reload. Everything below is inert until then — '
-      + 'the API refuses every call with 401 without it.</span></div></div></div>'
-    : '';
-
-  const ephemeral = (SY.cfg.durableStorage === false && SY.source.kind === 'file')
-    ? '<div class="insrow"><span class="sev warn">i</span><span class="tx">No storage volume is mounted, so an '
-      + 'uploaded file sits on ephemeral disk and is lost on the next deploy. OpusClip fetches it within minutes '
-      + 'of submitting, so this is usually fine — submit now rather than later.</span></div>'
-    : '';
-
-  if (SY.project) return notConfigured + clipProjectView();
-
-  return notConfigured + clipSteps() + clipSourceStep() + ephemeral + clipPrefsStep() + clipSubmitBar() + clipRecent();
+  if (!SY.cfg.configured) {
+    return '<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
+      + '<span class="tx"><b>OpusClip is not configured.</b> Set <span class="mono">OPUS_API_KEY</span> on the '
+      + 'server, then reload.</span></div></div></div>';
+  }
+  if (SY.project) return projectView();
+  return composer() + projectsSection();
 }
 
-function clipSteps(){
-  const steps = [['Source', 1], ['Preferences', 2], ['Render', 3], ['Schedule', 4]];
-  const at = SY.project ? 3 : (SY.source.url || SY.source.token ? 2 : 1);
-  return '<div class="steps">' + steps.map(([label, n]) =>
-    '<div class="step' + (n === at ? ' on' : n < at ? ' done' : '') + '">'
-    + '<span class="n">' + (n < at ? '✓' : n) + '</span>' + escS(label) + '</div>').join('') + '</div>';
-}
-
-function clipSourceStep(){
+function composer(){
   const src = SY.source;
-  const chosen = src.kind === 'file' && src.token;
+  const uploading = SY.uploading > 0 && SY.uploading < 100;
+  const ready = Boolean(src.uploadId || (src.kind === 'url' && src.url.trim()));
 
-  const dropped = chosen
-    ? '<div class="insrow" style="border:0;padding:0"><span class="sev good">✓</span><span class="tx">'
-      + '<b>' + escS(src.name || 'Uploaded file') + '</b> — ' + escS(syFmtBytes(src.bytes))
-      + '<small style="display:block;color:var(--dimmer);margin-top:3px">Served to OpusClip from this server at a private address.</small>'
-      + '</span></div>'
-    : '';
+  const srcBlock = src.kind === 'file'
+    ? '<div class="srcrow"><span class="ic">' + SYICON.link + '</span>'
+      + '<span class="nm">' + escS(src.name) + '</span>'
+      + (src.uploadId ? '' : '<span class="mono" style="font-size:10.5px;color:var(--dimmer)">' + SY.uploading + '%</span>')
+      + '<button class="rm" data-syclear="1">Remove</button></div>'
+      + (uploading ? '<div class="prog"><i style="width:' + SY.uploading + '%"></i></div>' : '')
+    : src.kind === 'url'
+      ? '<div class="srcrow"><span class="ic">' + SYICON.link + '</span>'
+        + '<span class="nm">' + escS(src.url) + '</span>'
+        + '<button class="rm" data-syclear="1">Remove</button></div>'
+      : '<div class="drop" id="sy-drop"><b>Drop a video here, or click to choose</b>'
+        + '<small>Uploaded straight to OpusClip — nothing is stored on this server.</small></div>'
+        + '<input type="file" id="sy-file" accept="video/*" hidden>'
+        + '<div class="orbar">or paste a link</div>'
+        + '<div class="fld"><input type="url" id="sy-url" placeholder="YouTube, Vimeo, Drive, Zoom, Loom, Dropbox… or a direct .mp4">'
+        + '<div class="hint">OpusClip fetches only from its supported platforms, or a direct .mp4.</div></div>';
 
-  const bar = SY.uploading > 0 && SY.uploading < 100
-    ? '<div class="prog"><i style="width:' + SY.uploading + '%"></i></div>'
-      + '<div class="hint">Uploading — ' + SY.uploading + '%. Large files take a while; leaving this page cancels it.</div>'
-    : '';
+  const langs = [['auto','Auto'],['en','English'],['es','Spanish'],['fr','French'],['de','German'],
+    ['pt','Portuguese'],['it','Italian'],['nl','Dutch'],['ja','Japanese'],['ko','Korean'],
+    ['zh','Chinese'],['hi','Hindi'],['ar','Arabic']];
 
-  return '<div class="vwrap viz"><div class="vhead2"><h3>Source video</h3>'
-    + '<span class="sub">up to 10 hours · 30 GB</span></div><div class="vbody">'
-    + (chosen ? dropped : '<div class="drop" id="sy-drop"><b>Drop a video here, or click to choose</b>'
-        + '<small>MP4, MOV, WebM. It is uploaded to this server and OpusClip fetches it from there — '
-        + 'the service takes a URL, not a file.</small></div>'
-        + '<input type="file" id="sy-file" accept="video/*" hidden>')
-    + bar
-    + (chosen ? '<button class="tgl" data-syclear="1" style="margin-top:12px">Choose a different file</button>'
-              : '<div class="orbar">or</div>'
-                + '<div class="fld"><label>Paste a video URL</label>'
-                + '<input type="url" id="sy-url" placeholder="https://www.youtube.com/watch?v=… or a direct .mp4" value="' + escS(src.url) + '">'
-                + '<div class="hint">A YouTube link or any publicly reachable video file.</div></div>')
-    + '</div></div>';
-}
+  const u = SY.usage;
 
-function clipPrefsStep(){
-  const durs = ['<30s', '30s-60s', '60s-90s', '90s-3min'];
-  return '<div class="vwrap viz"><div class="vhead2"><h3>Curation</h3>'
-    + '<span class="sub">what to look for</span></div><div class="vbody">'
-    + '<div class="two">'
-    +   '<div class="fld"><label>Start at (seconds)</label><input type="number" min="0" id="syp-start" value="' + escS(SYP.startSec) + '" placeholder="0"></div>'
-    +   '<div class="fld"><label>End at (seconds)</label><input type="number" min="0" id="syp-end" value="' + escS(SYP.endSec) + '" placeholder="end of video"></div>'
-    + '</div>'
-    + '<div class="fld"><label>Clip lengths</label><div class="seg" style="flex-wrap:wrap">'
-    + durs.map(d => '<button class="' + (SYP.durations.includes(d) ? 'on' : '') + '" data-sydur="' + escS(d) + '">' + escS(d) + '</button>').join('')
-    + '</div><div class="hint">Which lengths OpusClip is allowed to cut to.</div></div>'
-    + '<div class="fld"><label>Topic keywords</label><input type="text" id="syp-kw" value="' + escS(SYP.keywords) + '" placeholder="pricing, objections, onboarding">'
-    + '<div class="hint">Comma separated. Left empty, OpusClip picks the moments itself.</div></div>'
-    + '<div class="two">'
-    +   '<div class="fld"><label>Genre</label><select id="syp-genre">'
-    +     ['Auto','Podcast','Interview','Talking Head','Vlog','Gaming','Sports','Webinar'].map(g =>
-            '<option' + (SYP.genre === g ? ' selected' : '') + '>' + escS(g) + '</option>').join('')
-    +   '</select></div>'
-    +   '<div class="fld"><label>Source language</label><select id="syp-lang">'
-    +     [['auto','Detect automatically'],['en','English'],['es','Spanish'],['fr','French'],['de','German'],['pt','Portuguese'],['it','Italian'],['nl','Dutch'],['ja','Japanese'],['ko','Korean'],['zh','Chinese'],['hi','Hindi'],['ar','Arabic']]
-            .map(([v,l]) => '<option value="' + v + '"' + (SYP.sourceLang === v ? ' selected' : '') + '>' + escS(l) + '</option>').join('')
-    +   '</select></div>'
-    + '</div>'
-    + '<label class="tgl" style="display:inline-flex"><input type="checkbox" id="syp-skip"' + (SYP.skipCurate ? ' checked' : '')
-    + ' style="accent-color:var(--brass)"> Skip curation and cut the whole range</label>'
-    + '<div class="hint" style="margin-top:8px">With this on, OpusClip stops choosing moments and simply cuts the range into clips.</div>'
-    + '</div></div>'
-    + '<div class="vwrap viz"><div class="vhead2"><h3>Render</h3><span class="sub">how the clips look</span></div><div class="vbody">'
+  return '<div class="vwrap viz"><div class="vbody">'
+    + srcBlock
+    + '<button class="bigbtn' + (ready ? ' accent' : '') + '" id="sy-submit"'
+    +   (ready && !SY.busy && !uploading ? '' : ' disabled') + '>'
+    +   (SY.busy ? 'Submitting…' : uploading ? 'Uploading…' : 'Get clips in 1 click') + '</button>'
+    + '<div class="metarow">'
+    +   '<span class="mi">Speech language: <select id="syp-lang">'
+    +     langs.map(([v,l]) => '<option value="' + v + '"' + (SYP.sourceLang === v ? ' selected' : '') + '>' + escS(l) + '</option>').join('')
+    +   '</select></span>'
+    +   (u?.monthly
+          ? '<span class="credits"><span class="bolt">⚡</span>' + u.monthly.remaining + ' credits left</span>'
+          : '')
+    + '</div></div></div>'
+
+    + '<div class="vwrap viz"><div class="ctabs" style="margin:0 18px">'
+    +   '<button class="ctab' + (SYP.skipCurate ? '' : ' on') + '" data-syclip="ai">AI clipping</button>'
+    +   '<button class="ctab' + (SYP.skipCurate ? ' on' : '') + '" data-syclip="raw">Don’t clip</button>'
+    + '</div><div class="vbody">'
+    + (SYP.skipCurate
+        ? '<div class="insrow" style="border:0;padding:0"><span class="sev info">i</span><span class="tx">'
+          + 'The whole video is imported and reframed without being cut into clips. Curation settings do not apply.'
+          + '</span></div>'
+        : '<div class="ctlrow">'
+          + '<span class="ctl2">Clip model <select id="syp-model">'
+          +   '<option value="ClipBasic"' + (SYP.model === 'ClipBasic' ? ' selected' : '') + '>ClipBasic — talking head</option>'
+          +   '<option value="ClipAnything"' + (SYP.model === 'ClipAnything' ? ' selected' : '') + '>ClipAnything — any footage</option>'
+          + '</select></span>'
+          + '<span class="ctl2">Genre <select id="syp-genre">'
+          +   ['Auto','Podcast','Interview','Talking Head','Vlog','Gaming','Sports','Webinar','Music','Education']
+                .map(g => '<option' + (SYP.genre === g ? ' selected' : '') + '>' + escS(g) + '</option>').join('')
+          + '</select></span>'
+          + '<span class="ctl2">Aspect <select id="syp-aspect">'
+          +   [['portrait','Portrait 9:16'],['square','Square 1:1'],['landscape','Landscape 16:9']]
+                .map(([v,l]) => '<option value="' + v + '"' + (SYP.aspect === v ? ' selected' : '') + '>' + escS(l) + '</option>').join('')
+          + '</select></span>'
+          + '<span class="ctl2">Remove filler words <span class="sw2' + (SYP.removeFiller ? ' on' : '') + '" data-sytoggle="removeFiller"></span></span>'
+          + '</div>'
+          + '<div class="fld"><label>Clip lengths</label><div class="seg" style="flex-wrap:wrap">'
+          + DURATIONS.map(d => '<button class="' + (hasDur(d.v) ? 'on' : '') + '" data-sydur="' + d.v.join('-') + '">' + escS(d.label) + '</button>').join('')
+          + '</div><div class="hint">Which lengths OpusClip may cut to. Clearing all lets it choose.</div></div>'
+          + (SYP.model === 'ClipAnything'
+              ? '<div class="fld"><label>Include specific moments</label>'
+                + '<input type="text" id="syp-prompt" value="' + escS(SYP.prompt) + '" placeholder="e.g. find the moments where pricing is discussed">'
+                + '<div class="hint">ClipAnything only — a prompt is not accepted by ClipBasic.</div></div>'
+              : '<div class="fld"><label>Topic keywords</label>'
+                + '<input type="text" id="syp-kw" value="' + escS(SYP.keywords) + '" placeholder="pricing, objections, onboarding">'
+                + '<div class="hint">Comma separated. ClipBasic only — switch to ClipAnything for a free-text prompt.</div></div>')
+          + '<div class="fld"><label>Processing timeframe</label><div class="two">'
+          +   '<input type="number" min="0" id="syp-start" value="' + escS(SYP.rangeStart) + '" placeholder="start (seconds)">'
+          +   '<input type="number" min="0" id="syp-end" value="' + escS(SYP.rangeEnd) + '" placeholder="end (seconds)">'
+          + '</div><div class="hint">Narrowing the range costs fewer credits. Empty means the whole video.</div></div>')
     + '<div class="fld"><label>Brand template</label><select id="syp-tpl">'
-    + '<option value="">OpusClip default</option>'
-    + SY.templates.map(t => '<option value="' + escS(t.id) + '"' + (SYP.brandTemplateId === t.id ? ' selected' : '') + '>' + escS(t.name) + '</option>').join('')
+    +   '<option value="">Account default</option>'
+    +   SY.templates.map(t => '<option value="' + escS(t.id) + '"' + (SYP.templateId === t.id ? ' selected' : '') + '>' + escS(t.name) + '</option>').join('')
     + '</select><div class="hint">'
-    + (SY.templates.length
-        ? 'Templates come from your OpusClip account — captions, layout and branding.'
-        : (SY.cfg?.configured ? 'No brand templates on the account yet, so the default is used.' : 'Connect OpusClip to load your templates.'))
+    + (SY.templates.length ? 'Captions, layout and branding, as configured in OpusClip.'
+                           : 'No brand templates on the account, so its default is used.')
     + '</div></div></div></div>';
 }
 
-function clipSubmitBar(){
-  const ready = Boolean(SY.source.token || /^https?:\/\//i.test(SY.source.url.trim()));
-  return '<div class="fbar" style="justify-content:flex-end">'
-    + '<span class="flabel" style="margin-right:auto">'
-    + (ready ? 'Ready to submit' : 'Add a source video to continue') + '</span>'
-    + '<button class="btn primary" id="sy-submit"' + (ready && !SY.busy && SY.cfg?.configured ? '' : ' disabled style="opacity:.5;cursor:not-allowed"') + '>'
-    + (SY.busy ? 'Submitting…' : 'Create clips') + '</button></div>';
-}
-
-function clipRecent(){
+function projectsSection(){
   if (!SY.projects.length) return '';
-  return '<div class="vwrap viz"><div class="vhead2"><h3>Recent projects</h3>'
-    + '<span class="sub">' + SY.projects.length + '</span></div>'
-    + '<div class="vscroll"><table class="vtable"><thead><tr><th>Project</th><th>Source</th><th>Status</th><th>Clips</th><th>Created</th></tr></thead><tbody>'
-    + SY.projects.map(pr => '<tr data-syopen="' + escS(pr.id) + '" style="cursor:pointer">'
-        + '<td>' + escS(pr.title || pr.id) + (pr.lastError ? '<span class="sm" style="display:block;color:var(--rust)">' + escS(pr.lastError) + '</span>' : '') + '</td>'
-        + '<td style="color:var(--dimmer)">' + escS(pr.sourceKind) + '</td>'
-        + '<td>' + statusChip(pr.status) + '</td>'
-        + '<td>' + (pr.clipCount ?? 0) + '</td>'
-        + '<td style="color:var(--dimmer)">' + escS(new Date(pr.createdAt).toLocaleString()) + '</td></tr>').join('')
-    + '</tbody></table></div></div>';
+  return '<div class="vwrap viz"><div class="vhead2"><h3>Projects</h3>'
+    + '<span class="sub">' + SY.projects.length + '</span></div><div class="vbody">'
+    + '<div class="projgrid">' + SY.projects.map(pr => {
+        const done = pr.status === 'ready';
+        const bad = pr.status === 'failed';
+        return '<button class="projcard" data-syopen="' + escS(pr.id) + '">'
+        + '<div class="ph">'
+        +   (pr.thumbUrl ? '<img src="' + escS(pr.thumbUrl) + '" alt="">'
+              : '<span style="color:var(--dimmer);font-size:11.5px">'
+                + (bad ? 'failed' : done ? 'no thumbnail' : 'processing…') + '</span>')
+        +   (pr.clipCount ? '<span class="badge2">' + pr.clipCount + ' clips</span>' : '')
+        + '</div><div class="pb"><div class="pt">' + escS(pr.title || pr.id) + '</div>'
+        + '<div class="pm">' + statusChip(pr.status)
+        + '<span>' + escS(new Date(pr.createdAt).toLocaleDateString()) + '</span></div>'
+        + (bad && pr.lastError ? '<div class="hint" style="color:var(--rust);margin-top:6px">' + escS(pr.lastError.slice(0, 120)) + '</div>' : '')
+        + '</div></button>';
+      }).join('') + '</div></div></div>';
 }
 
 const statusChip = st => {
   const cls = st === 'ready' ? 'up' : st === 'failed' ? 'down' : 'flat';
-  return '<span class="chip2 ' + cls + '">' + escS(st || 'draft') + '</span>';
+  const label = st === 'processing' ? 'processing' : st || 'draft';
+  return '<span class="chip2 ' + cls + '">' + escS(label) + '</span>';
 };
 
-function clipProjectView(){
+function projectView(){
   const pr = SY.project;
+  const processing = pr.status === 'processing' && !SY.clips.length;
+
   const head = '<div class="vwrap viz"><div class="vhead2"><h3>' + escS(pr.title || 'Project') + '</h3>'
     + '<span class="sub">' + escS(pr.sourceKind) + '</span><span class="grow" style="flex:1"></span>'
     + statusChip(pr.status)
     + '<button class="tgl" data-syrefresh="1"' + (SY.busy ? ' disabled' : '') + '>'
     + (SY.busy ? 'Checking…' : 'Check for clips') + '</button>'
+    + '<button class="tgl danger" data-sydelproj="1">Delete project</button>'
     + '<button class="tgl" data-syclose="1">Back</button></div>'
-    + '<div class="vbody" style="font-size:12px;color:var(--dim)">'
-    + (pr.opusProjectId ? 'OpusClip project <span class="mono">' + escS(pr.opusProjectId) + '</span>. ' : '')
-    + (pr.lastError ? '<span style="color:var(--rust)">' + escS(pr.lastError) + '</span>'
-        : (SY.clips.length ? SY.clips.length + ' clip' + (SY.clips.length === 1 ? '' : 's') + ' rendered.'
-           : 'No clips yet. Rendering usually takes a few minutes per hour of source — press Check for clips.'))
-    + '</div></div>';
+    + (pr.lastError ? '<div class="vbody" style="padding-top:0;color:var(--rust);font-size:12.5px">' + escS(pr.lastError) + '</div>' : '')
+    + '</div>';
 
-  if (!SY.clips.length) return head;
+  if (processing) {
+    return head + '<div class="vwrap viz"><div class="vempty" style="padding:52px 20px">'
+      + '<b style="font-size:15px">Your video is processing</b>'
+      + 'OpusClip is transcribing, curating and rendering. This usually takes a few minutes per hour of source. '
+      + 'This page checks on its own every 20 seconds — you can leave and come back.'
+      + '<div class="prog" style="max-width:260px;margin:16px auto 0"><i style="width:100%;opacity:.5"></i></div>'
+      + '</div></div>';
+  }
+
+  if (!SY.clips.length) {
+    return head + '<div class="vwrap viz"><div class="vempty"><b>No clips</b>'
+      + 'Nothing came back for this project. Press <b>Check for clips</b>, or the run may have produced none.'
+      + '</div></div>';
+  }
+
+  const picked = SY.picked.size;
+  const bulk = '<div class="bulkbar">'
+    + '<span class="cnt2">' + (picked ? picked + ' selected' : SY.clips.length + ' clips') + '</span>'
+    + '<button class="tgl" data-sypickall="1">' + (picked === SY.clips.length ? 'Clear all' : 'Select all') + '</button>'
+    + (picked ? '<span class="grow" style="flex:1"></span>'
+        + '<button class="tgl" data-sybulk="schedule">' + SYICON.cal + ' Bulk schedule</button>'
+        + '<button class="tgl" data-sybulk="download">' + SYICON.dl + ' Bulk download</button>'
+        + '<button class="tgl danger" data-sybulk="delete">' + SYICON.bin + ' Remove</button>'
+        : '<span class="grow" style="flex:1"></span><span class="kbench">click a clip to play it</span>')
+    + '</div>';
 
   const byClip = {};
   for (const sc of SY.schedules) (byClip[sc.clipId] ||= []).push(sc);
 
-  return head + '<div class="clipgrid">' + SY.clips.map(c => {
+  const cards = SY.clips.map(c => {
+    const on = SY.picked.has(c.id);
     const sched = byClip[c.id] || [];
-    return '<div class="clipcard">'
-      + (c.videoUrl
-          ? '<video src="' + escS(c.videoUrl) + '" controls preload="metadata"'
-            + (c.thumbUrl ? ' poster="' + escS(c.thumbUrl) + '"' : '') + '></video>'
-          : '<div class="noplay">No playable URL on this clip yet.<br>It may still be rendering.</div>')
-      + '<div class="cb">'
-      + '<div class="ct">' + escS(c.title || 'Untitled clip') + '</div>'
-      + '<div class="cm">'
-      +   (c.score != null ? '<span class="scorepill">' + c.score + '</span>' : '')
-      +   '<span>' + escS(syFmtSec(c.startSec)) + '–' + escS(syFmtSec(c.endSec)) + '</span>'
-      +   (c.durationSec != null ? '<span>· ' + Math.round(c.durationSec) + 's</span>' : '')
+    return '<div class="clipcard' + (on ? ' sel' : '') + '">'
+      + '<div class="pick' + (on ? ' on' : '') + '" data-sypick="' + escS(c.id) + '">' + (on ? '✓' : '') + '</div>'
+      + '<div class="thumbwrap" data-syplay="' + escS(c.id) + '">'
+      +   (c.thumbUrl ? '<img src="' + escS(c.thumbUrl) + '" alt="" loading="lazy">'
+            : '<div class="noimg">No thumbnail</div>')
+      +   (c.durationSec != null ? '<span class="dur">' + syDur(c.durationSec) + '</span>' : '')
+      +   '<div class="play"><span>▶</span></div>'
       + '</div>'
+      + '<div class="cb">'
+      + '<div class="scoreline"><span class="scorenum" style="color:' + scoreTone(c.score) + '">'
+      +   (c.score == null ? '—' : c.score) + '</span>'
+      +   '<span class="cm" style="margin:0">' + escS(syDur(c.startSec)) + '–' + escS(syDur(c.endSec)) + '</span></div>'
+      + '<div class="ct">' + escS(c.title || 'Untitled clip') + '</div>'
       + (sched.length
-          ? '<div class="cm" style="color:var(--jade)">' + sched.map(x =>
-              (x.status === 'failed' ? '✕ ' + escS(x.lastError || 'failed')
-               : (x.scheduledAt ? '⏱ ' + new Date(x.scheduledAt).toLocaleString() : '✓ published'))).join('<br>') + '</div>'
+          ? '<div class="cm" style="color:' + (sched.some(x => x.status === 'failed') ? 'var(--rust)' : 'var(--jade)') + '">'
+            + sched.map(x => x.status === 'failed' ? '✕ ' + escS((x.lastError || 'failed').slice(0, 40))
+                : (x.scheduledAt ? '⏱ ' + new Date(x.scheduledAt).toLocaleString() : '✓ published')).join('<br>')
+            + '</div>'
           : '')
-      + '<div class="cact">'
-      + '<button class="tgl" data-syschedule="' + escS(c.id) + '" style="flex:1;justify-content:center">Schedule</button>'
-      + (c.videoUrl ? '<a class="tgl" href="' + escS(c.videoUrl) + '" download target="_blank" rel="noopener" style="text-decoration:none">Save</a>' : '')
+      + '<div class="clipacts">'
+      +   '<button class="iconbtn" title="Schedule" data-syschedule="' + escS(c.id) + '">' + SYICON.cal + '</button>'
+      +   '<button class="iconbtn" title="Download" data-sydl="' + escS(c.id) + '">' + SYICON.dl + '</button>'
+      +   '<button class="iconbtn danger" title="Remove from this list" data-sydel="' + escS(c.id) + '">' + SYICON.bin + '</button>'
       + '</div></div></div>';
-  }).join('') + '</div>' + schedulePanel();
-}
+  }).join('');
 
-function schedulePanel(){
-  if (!SY.scheduling) return '';
-  const c = SY.clips.find(x => x.id === SY.scheduling);
-  if (!c) return '';
-  const dests = SY.destinations;
-  return '<div class="vwrap viz" style="margin-top:14px"><div class="vhead2"><h3>Schedule this clip</h3>'
-    + '<span class="sub">' + escS(c.title || 'Untitled') + '</span><span class="grow" style="flex:1"></span>'
-    + '<button class="tgl" data-sycancelsched="1">Cancel</button></div><div class="vbody">'
-    + (dests.length
-        ? '<div class="fld"><label>Post to</label><div class="seg" style="flex-wrap:wrap">'
-          + dests.map(d => '<button class="' + (SY.pickedDest === d.id ? 'on' : '') + '" data-sydest="' + escS(d.id) + '">'
-              + escS([d.platform, d.handle].filter(Boolean).join(' · ') || d.id) + '</button>').join('')
-          + '</div><div class="hint">Accounts connected inside OpusClip. Connect more there and they appear here.</div></div>'
-        : '<div class="insrow"><span class="sev warn">i</span><span class="tx">'
-          + (SY.destError
-              ? 'Could not load destinations: ' + escS(SY.destError)
-              : 'No social accounts are connected in OpusClip, so there is nowhere to post yet. Connect them at clip.opus.pro, then reopen this.')
-          + '</span></div>')
-    + '<div class="fld"><label>Caption</label><textarea id="sy-cap" placeholder="Optional. Left empty, the platform default is used."></textarea></div>'
-    + '<div class="fld"><label>When</label><input type="datetime-local" id="sy-when">'
-    + '<div class="hint">Leave empty to publish immediately. A time in the past is refused.</div></div>'
-    + '<button class="btn primary" id="sy-doschedule"' + (dests.length && SY.pickedDest ? '' : ' disabled style="opacity:.5;cursor:not-allowed"') + '>'
-    + 'Schedule clip</button></div></div>';
+  return head + bulk + '<div class="clipgrid">' + cards + '</div>';
 }
 
 /* ---------- wiring ---------- */
 
-async function loadClipExtras(){
-  try { const t = await api('/api/systems/clip/templates'); SY.templates = t.templates || []; } catch { SY.templates = []; }
-  try {
-    const d = await api('/api/systems/clip/destinations');
-    SY.destinations = d.accounts || []; SY.destError = d.error || null;
-  } catch (err) { SY.destinations = []; SY.destError = err.message; }
-  drawSystems();
-}
+function wireSystems(root){
+  root.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => {
+    const a = SY.automations.find(x => x.id === b.dataset.auto);
+    if (!a?.built) return;
+    SY.open = a.id; drawSystems();
+    if (a.id === 'clip') loadClipExtras();
+  });
 
-function wireClip(root){
   const drop = root.querySelector('#sy-drop');
   const file = root.querySelector('#sy-file');
   if (drop && file) {
     drop.onclick = () => file.click();
     drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
     drop.ondragleave = () => drop.classList.remove('over');
-    drop.ondrop = e => {
-      e.preventDefault(); drop.classList.remove('over');
-      if (e.dataTransfer.files?.[0]) uploadSource(e.dataTransfer.files[0]);
-    };
+    drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over');
+      if (e.dataTransfer.files?.[0]) uploadSource(e.dataTransfer.files[0]); };
     file.onchange = () => { if (file.files?.[0]) uploadSource(file.files[0]); };
   }
-
   const url = root.querySelector('#sy-url');
-  if (url) url.oninput = () => { SY.source.url = url.value; SY.source.kind = 'url';
-    const b = document.getElementById('sy-submit');
-    if (b) { const ok = /^https?:\/\//i.test(url.value.trim()) && SY.cfg?.configured;
-      b.disabled = !ok; b.style.opacity = ok ? '' : '.5'; b.style.cursor = ok ? '' : 'not-allowed'; } };
-
-  /* Bound on input, so state survives the next render. */
-  const bind = (id, key, kind) => {
-    const e = root.querySelector('#' + id);
-    if (!e) return;
-    const read = () => kind === 'check' ? e.checked : e.value;
-    e[kind === 'select' || kind === 'check' ? 'onchange' : 'oninput'] = () => { SYP[key] = read(); };
-    /* Selects and checkboxes also fire input in some browsers; harmless. */
-    if (kind !== 'check') e.onchange = () => { SYP[key] = read(); };
-  };
-  bind('syp-start', 'startSec');
-  bind('syp-end', 'endSec');
-  bind('syp-kw', 'keywords');
-  bind('syp-genre', 'genre', 'select');
-  bind('syp-lang', 'sourceLang', 'select');
-  bind('syp-tpl', 'brandTemplateId', 'select');
-  bind('syp-skip', 'skipCurate', 'check');
+  if (url) {
+    url.oninput = () => { SY.source = { kind:'url', url:url.value, name:'', bytes:0, uploadId:null }; };
+    url.onchange = () => drawSystems();
+    url.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); drawSystems(); } };
+  }
 
   root.querySelectorAll('[data-syclear]').forEach(b => b.onclick = () => {
-    SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' }; SY.uploading = 0; drawSystems();
+    SY.source = { kind:null, url:'', name:'', bytes:0, uploadId:null }; SY.uploading = 0; drawSystems();
+  });
+  root.querySelectorAll('[data-syclip]').forEach(b => b.onclick = () => {
+    SYP.skipCurate = b.dataset.syclip === 'raw'; drawSystems();
+  });
+  root.querySelectorAll('[data-sytoggle]').forEach(b => b.onclick = () => {
+    SYP[b.dataset.sytoggle] = !SYP[b.dataset.sytoggle]; drawSystems();
   });
   root.querySelectorAll('[data-sydur]').forEach(b => b.onclick = () => {
-    const d = b.dataset.sydur, i = SYP.durations.indexOf(d);
-    if (i >= 0) { if (SYP.durations.length > 1) SYP.durations.splice(i, 1); }
-    else SYP.durations.push(d);
+    const v = b.dataset.sydur.split('-').map(Number);
+    const i = SYP.durations.findIndex(d => d[0] === v[0] && d[1] === v[1]);
+    if (i >= 0) SYP.durations.splice(i, 1); else SYP.durations.push(v);
     drawSystems();
   });
-  root.querySelectorAll('[data-syopen]').forEach(b => b.onclick = () => openProject(b.dataset.syopen));
-  root.querySelectorAll('[data-syclose]').forEach(b => b.onclick = () => {
-    SY.project = null; SY.clips = []; SY.scheduling = null; drawSystems();
-  });
-  root.querySelectorAll('[data-syrefresh]').forEach(b => b.onclick = refreshProject);
-  root.querySelectorAll('[data-syschedule]').forEach(b => b.onclick = () => {
-    SY.scheduling = b.dataset.syschedule; SY.pickedDest = SY.destinations[0]?.id || null; drawSystems();
-  });
-  root.querySelectorAll('[data-sycancelsched]').forEach(b => b.onclick = () => { SY.scheduling = null; drawSystems(); });
-  root.querySelectorAll('[data-sydest]').forEach(b => b.onclick = () => { SY.pickedDest = b.dataset.sydest; drawSystems(); });
+
+  /* Bound on input so a redraw never discards what was typed. */
+  const bind = (id, key, ev) => {
+    const e = root.querySelector('#' + id);
+    if (!e) return;
+    e[ev || 'oninput'] = () => { SYP[key] = e.value; };
+    if (ev === 'onchange') e.onchange = () => { SYP[key] = e.value; drawSystems(); };
+  };
+  bind('syp-lang', 'sourceLang', 'onchange');
+  bind('syp-model', 'model', 'onchange');
+  bind('syp-genre', 'genre');
+  bind('syp-aspect', 'aspect');
+  bind('syp-tpl', 'templateId');
+  bind('syp-kw', 'keywords');
+  bind('syp-prompt', 'prompt');
+  bind('syp-start', 'rangeStart');
+  bind('syp-end', 'rangeEnd');
+  const g = root.querySelector('#syp-genre'); if (g) g.onchange = () => { SYP.genre = g.value; };
+  const asp = root.querySelector('#syp-aspect'); if (asp) asp.onchange = () => { SYP.aspect = asp.value; };
+  const tpl = root.querySelector('#syp-tpl'); if (tpl) tpl.onchange = () => { SYP.templateId = tpl.value; };
 
   const sub = root.querySelector('#sy-submit');
   if (sub) sub.onclick = submitProject;
-  const doSch = root.querySelector('#sy-doschedule');
-  if (doSch) doSch.onclick = doSchedule;
+
+  root.querySelectorAll('[data-syopen]').forEach(b => b.onclick = () => openProject(b.dataset.syopen));
+  root.querySelectorAll('[data-syclose]').forEach(b => b.onclick = closeProject);
+  root.querySelectorAll('[data-syrefresh]').forEach(b => b.onclick = () => refreshProject(true));
+  root.querySelectorAll('[data-sydelproj]').forEach(b => b.onclick = deleteProject);
+
+  root.querySelectorAll('[data-sypick]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const id = b.dataset.sypick;
+    if (SY.picked.has(id)) SY.picked.delete(id); else SY.picked.add(id);
+    drawSystems();
+  });
+  root.querySelectorAll('[data-sypickall]').forEach(b => b.onclick = () => {
+    if (SY.picked.size === SY.clips.length) SY.picked.clear();
+    else SY.clips.forEach(c => SY.picked.add(c.id));
+    drawSystems();
+  });
+  root.querySelectorAll('[data-syplay]').forEach(b => b.onclick = () => openPlayer(b.dataset.syplay));
+  root.querySelectorAll('[data-syschedule]').forEach(b => b.onclick = e => {
+    e.stopPropagation(); openSchedule([b.dataset.syschedule]);
+  });
+  root.querySelectorAll('[data-sydl]').forEach(b => b.onclick = e => {
+    e.stopPropagation(); downloadClips([b.dataset.sydl]);
+  });
+  root.querySelectorAll('[data-sydel]').forEach(b => b.onclick = e => {
+    e.stopPropagation(); removeClips([b.dataset.sydel]);
+  });
+  root.querySelectorAll('[data-sybulk]').forEach(b => b.onclick = () => {
+    const ids = [...SY.picked];
+    if (!ids.length) return;
+    if (b.dataset.sybulk === 'schedule') openSchedule(ids);
+    if (b.dataset.sybulk === 'download') downloadClips(ids);
+    if (b.dataset.sybulk === 'delete') removeClips(ids);
+  });
 }
 
-/* XHR rather than fetch: fetch reports no upload progress, and a multi-gigabyte
-   file with no progress bar looks like a hang. The body is the raw file — no
-   multipart, so there is no parser on the server either. */
+async function loadClipExtras(){
+  const grab = async (path, key, pick) => {
+    try { const out = await api(path); SY[key] = pick(out); }
+    catch { /* leave as-is */ }
+  };
+  await Promise.all([
+    grab('/api/systems/clip/templates', 'templates', o => o.templates || []),
+    (async () => {
+      try { const d = await api('/api/systems/clip/destinations');
+        SY.destinations = d.accounts || []; SY.destError = d.error || null;
+      } catch (err) { SY.destinations = []; SY.destError = err.message; }
+    })(),
+    grab('/api/systems/clip/usage', 'usage', o => o.error ? null : o)
+  ]);
+  drawSystems();
+}
+
+/* XHR, not fetch: fetch reports no upload progress, and a multi-gigabyte file
+   with no progress bar looks like a hang. */
 function uploadSource(f){
-  SY.source = { kind:'file', url:'', token:null, bytes:f.size, name:f.name };
+  SY.source = { kind:'file', name:f.name, bytes:f.size, uploadId:null, url:'' };
   SY.uploading = 1; drawSystems();
   const xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/systems/clip/upload');
   xhr.setRequestHeader('Content-Type', f.type || 'application/octet-stream');
   xhr.upload.onprogress = e => {
     if (!e.lengthComputable) return;
-    const pct = Math.round(e.loaded / e.total * 100);
+    const pct = Math.max(1, Math.round(e.loaded / e.total * 99));
     if (pct !== SY.uploading) { SY.uploading = pct; drawSystems(); }
   };
   xhr.onload = () => {
-    let j = {};
-    try { j = JSON.parse(xhr.responseText); } catch {}
-    if (xhr.status >= 200 && xhr.status < 300 && j.token) {
-      SY.source.token = j.token; SY.uploading = 100;
-      toast('Uploaded ' + syFmtBytes(j.bytes));
-      if (j.note) banner(j.note);
+    let j = {}; try { j = JSON.parse(xhr.responseText); } catch {}
+    if (xhr.status >= 200 && xhr.status < 300 && j.uploadId) {
+      SY.source.uploadId = j.uploadId; SY.uploading = 100;
+      toast('Uploaded ' + syBytes(f.size));
     } else {
-      SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' };
-      SY.uploading = 0;
+      SY.source = { kind:null, url:'', name:'', bytes:0, uploadId:null }; SY.uploading = 0;
       banner('Upload failed: ' + (j.error || xhr.status));
     }
     drawSystems();
   };
   xhr.onerror = () => {
-    SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' }; SY.uploading = 0;
+    SY.source = { kind:null, url:'', name:'', bytes:0, uploadId:null }; SY.uploading = 0;
     banner('Upload failed — the connection dropped.'); drawSystems();
   };
   xhr.send(f);
 }
 
-/* Reads SYP, never the DOM.
-
-   This used to scrape the inputs at submit time, which meant every re-render
-   in between silently discarded whatever had been typed: the panel is rebuilt
-   from SYP, so a value that only existed in an input was gone the moment a
-   duration chip was clicked. The inputs now write into SYP as they change and
-   this reads the state. */
+/* Only fields with a value, and only the ones this model accepts. */
 function collectPrefs(){
-  /* Only fields with a value are sent. An empty string is not "no preference"
-     to an API — it is a value, and often an invalid one. */
-  const curationPref = {};
-  const st = Number(SYP.startSec), en = Number(SYP.endSec);
-  if (SYP.startSec !== '' || SYP.endSec !== '') {
-    curationPref.range = {};
-    if (SYP.startSec !== '' && isFinite(st)) curationPref.range.startSec = st;
-    if (SYP.endSec !== '' && isFinite(en)) curationPref.range.endSec = en;
+  const p = { model: SYP.model, sourceLang: SYP.sourceLang, aspect: SYP.aspect };
+  if (SYP.skipCurate) {
+    p.skipCurate = true;
+  } else {
+    if (SYP.durations.length) p.clipDurations = SYP.durations.map(d => [d[0], d[1]]);
+    if (SYP.genre && SYP.genre !== 'Auto') p.genre = SYP.genre;
+    if (SYP.model === 'ClipAnything') {
+      if (SYP.prompt.trim()) p.customPrompt = SYP.prompt.trim();
+    } else {
+      const kw = SYP.keywords.split(',').map(x => x.trim()).filter(Boolean);
+      if (kw.length) p.topicKeywords = kw;
+    }
+    const st = Number(SYP.rangeStart), en = Number(SYP.rangeEnd);
+    if (SYP.rangeStart !== '' && isFinite(st)) p.rangeStart = st;
+    if (SYP.rangeEnd !== '' && isFinite(en)) p.rangeEnd = en;
   }
-  if (SYP.durations.length) curationPref.clipDurations = SYP.durations.slice();
-  const kw = SYP.keywords.split(',').map(x => x.trim()).filter(Boolean);
-  if (kw.length) curationPref.topicKeywords = kw;
-  if (SYP.genre && SYP.genre !== 'Auto') curationPref.genre = SYP.genre;
-  if (SYP.skipCurate) curationPref.skipCurate = true;
-
-  return {
-    curationPref: Object.keys(curationPref).length ? curationPref : undefined,
-    importPref: { sourceLang: SYP.sourceLang || 'auto' },
-    brandTemplateId: SYP.brandTemplateId || undefined
-  };
+  if (SYP.removeFiller) p.removeFillerWords = true;
+  if (SYP.templateId) p.brandTemplateId = SYP.templateId;
+  return p;
 }
 
 async function submitProject(){
   if (SY.busy) return;
+  const src = SY.source;
   SY.busy = true; drawSystems();
-  const prefs = collectPrefs();
-  const body = {
-    title: SY.source.name || SY.source.url.slice(0, 90) || 'Clip project',
-    ...prefs
-  };
-  if (SY.source.token) body.mediaToken = SY.source.token;
-  else body.videoUrl = SY.source.url.trim();
-
+  const body = { prefs: collectPrefs(), title: src.name || src.url.slice(0, 90) || 'Clip project' };
+  if (src.uploadId) body.uploadId = src.uploadId; else body.videoUrl = src.url.trim();
   try {
     const out = await api('/api/systems/clip/projects', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+      method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(body)
     });
-    toast('Submitted to OpusClip');
-    SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' };
+    toast('Submitted — OpusClip is processing');
+    SY.source = { kind:null, url:'', name:'', bytes:0, uploadId:null }; SY.uploading = 0;
     await openProject(out.project.id);
-    await loadSystems();
+    loadSystems();
   } catch (err) {
-    banner('Could not create the project: ' + err.message);
-  } finally {
-    SY.busy = false; drawSystems();
-  }
+    banner(err.message);
+  } finally { SY.busy = false; drawSystems(); }
 }
 
 async function openProject(id){
   try {
     const out = await api('/api/systems/clip/projects/' + encodeURIComponent(id));
     SY.project = out.project; SY.clips = out.clips || []; SY.schedules = out.schedules || [];
-    SY.open = 'clip'; SY.scheduling = null;
-  } catch (err) { banner('Could not open that project: ' + err.message); }
+    SY.picked.clear();
+  } catch (err) { banner(err.message); return; }
   drawSystems();
-}
-
-async function refreshProject(){
-  if (!SY.project || SY.busy) return;
-  SY.busy = true; drawSystems();
-  try {
-    const out = await api('/api/systems/clip/projects/' + encodeURIComponent(SY.project.id) + '/refresh', { method: 'POST' });
-    SY.project = out.project; SY.clips = out.clips || [];
-    toast(out.found ? out.found + ' clip' + (out.found === 1 ? '' : 's') + ' found' : (out.note || 'Nothing yet'));
-  } catch (err) {
-    banner('Check failed: ' + err.message);
-  } finally { SY.busy = false; drawSystems(); }
-}
-
-async function doSchedule(){
-  const clip = SY.clips.find(c => c.id === SY.scheduling);
-  if (!clip || !SY.pickedDest) return;
-  const when = document.getElementById('sy-when')?.value || '';
-  const caption = document.getElementById('sy-cap')?.value || '';
-  try {
-    await api('/api/systems/clip/clips/' + encodeURIComponent(clip.id) + '/schedule', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        socialAccountIds: [SY.pickedDest],
-        caption,
-        scheduledAt: when ? new Date(when).toISOString() : null
-      })
-    });
-    toast(when ? 'Scheduled' : 'Published');
-    SY.scheduling = null;
-    await openProject(SY.project.id);
-  } catch (err) {
-    banner('Could not schedule: ' + err.message);
+  /* Poll while it is still working. Cleared on leaving, so a forgotten timer
+     cannot keep hitting a rate-limited API from a screen nobody is on. */
+  clearInterval(SY.poll);
+  if (SY.project.status === 'processing') {
+    SY.poll = setInterval(() => refreshProject(false), 20_000);
   }
 }
 
+function closeProject(){
+  clearInterval(SY.poll); SY.poll = null;
+  SY.project = null; SY.clips = []; SY.picked.clear();
+  drawSystems(); loadSystems();
+}
+
+async function refreshProject(loud){
+  if (!SY.project) { clearInterval(SY.poll); return; }
+  if (loud) { SY.busy = true; drawSystems(); }
+  try {
+    const out = await api('/api/systems/clip/projects/' + encodeURIComponent(SY.project.id) + '/refresh', { method:'POST' });
+    SY.project = out.project; SY.clips = out.clips || [];
+    if (out.found) { clearInterval(SY.poll); SY.poll = null; }
+    if (loud) toast(out.found ? out.found + ' clip' + (out.found === 1 ? '' : 's') + ' found' : (out.note || 'Nothing yet'));
+  } catch (err) {
+    if (loud) banner(err.message);
+  } finally { SY.busy = false; drawSystems(); }
+}
+
+async function deleteProject(){
+  if (!SY.project) return;
+  try {
+    await api('/api/systems/clip/projects/' + encodeURIComponent(SY.project.id), { method:'DELETE' });
+    toast('Project removed');
+    closeProject();
+  } catch (err) { banner(err.message); }
+}
+
+/* ---------- clip actions ---------- */
+
+/* The signed CDN URL is what the browser downloads from — this server never
+   proxies the bytes. Staggered, because a browser cancels a burst of
+   simultaneous downloads. */
+function downloadClips(ids){
+  const clips = SY.clips.filter(c => ids.includes(c.id));
+  const usable = clips.filter(c => c.exportUrl || c.videoUrl);
+  if (!usable.length) { banner('No downloadable file on those clips yet.'); return; }
+  usable.forEach((c, i) => setTimeout(() => {
+    const a = document.createElement('a');
+    a.href = c.exportUrl || c.videoUrl;
+    a.download = (c.title || 'clip').replace(/[^\w\s-]/g, '').slice(0, 60) + '.mp4';
+    a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+  }, i * 700));
+  toast('Downloading ' + usable.length + (usable.length < clips.length ? ' of ' + clips.length : '') + '…');
+}
+
+async function removeClips(ids){
+  for (const id of ids) {
+    try { await api('/api/systems/clip/clips/' + encodeURIComponent(id), { method:'DELETE' }); }
+    catch (err) { banner(err.message); return; }
+  }
+  SY.clips = SY.clips.filter(c => !ids.includes(c.id));
+  ids.forEach(id => SY.picked.delete(id));
+  toast(ids.length + ' removed from this list');
+  drawSystems();
+}
+
+/* ---------- player ---------- */
+
+function openPlayer(id){
+  const c = SY.clips.find(x => x.id === id);
+  if (!c) return;
+  SY.playing = id;
+  document.getElementById('cl-ptitle').textContent = c.title || 'Clip';
+  document.getElementById('cl-pmeta').textContent =
+    [c.score != null ? 'score ' + c.score : null,
+     c.startSec != null ? syDur(c.startSec) + '–' + syDur(c.endSec) : null,
+     c.durationSec != null ? Math.round(c.durationSec) + 's' : null].filter(Boolean).join(' · ');
+  document.getElementById('cl-phook').textContent = c.hookNote || '';
+  const host = document.getElementById('cl-pvideo');
+  host.textContent = '';
+  if (c.videoUrl) {
+    const v = document.createElement('video');
+    v.src = c.videoUrl; v.controls = true; v.autoplay = true; v.playsInline = true;
+    if (c.thumbUrl) v.poster = c.thumbUrl;
+    host.appendChild(v);
+  } else {
+    const d = document.createElement('div');
+    d.className = 'vempty';
+    d.textContent = 'This clip has no preview file yet.';
+    host.appendChild(d);
+  }
+  document.getElementById('cl-player').classList.add('on');
+}
+
+function closePlayer(){
+  const host = document.getElementById('cl-pvideo');
+  /* Stop the audio, or a closed modal keeps playing. */
+  host?.querySelectorAll('video').forEach(v => { v.pause(); v.src = ''; });
+  if (host) host.textContent = '';
+  document.getElementById('cl-player')?.classList.remove('on');
+  SY.playing = null;
+}
+
+/* ---------- schedule ---------- */
+
+function openSchedule(ids){
+  SY.scheduling = ids;
+  SY.schedTargets = new Set(SY.destinations.length === 1 ? [SY.destinations[0].postAccountId] : []);
+  SY.privacy = 'public';
+  const first = SY.clips.find(c => c.id === ids[0]);
+  document.getElementById('cl-title').value = ids.length === 1 ? (first?.title || '') : '';
+  document.getElementById('cl-desc').value = ids.length === 1
+    ? [first?.description, first?.hashtags].filter(Boolean).join('\n\n') : '';
+  document.getElementById('cl-desch').textContent = ids.length === 1
+    ? 'Prefilled from OpusClip’s own description and hashtags for this clip.'
+    : 'Applied to all ' + ids.length + ' clips.';
+  document.getElementById('cl-date').value = '';
+  document.getElementById('cl-time').value = '';
+  document.getElementById('cl-serr').textContent = '';
+  document.getElementById('cl-scount').textContent = ids.length === 1
+    ? 'One clip.' : ids.length + ' clips will each be posted with this title and text.';
+  const th = document.getElementById('cl-sthumb');
+  th.innerHTML = first?.thumbUrl
+    ? '<img src="' + escS(first.thumbUrl) + '" alt="">'
+    : '<div class="noimg2">No thumbnail</div>';
+  drawSchedule();
+  document.getElementById('cl-sched').classList.add('on');
+}
+
+function drawSchedule(){
+  const host = document.getElementById('cl-accts');
+  if (!host) return;
+  if (!SY.destinations.length) {
+    host.innerHTML = '<div class="insrow" style="border:0"><span class="sev warn">i</span><span class="tx">'
+      + (SY.destError ? escS(SY.destError)
+         : 'No social accounts are connected in OpusClip yet. Use <b>+ Add account</b>.')
+      + '</span></div>';
+  } else {
+    host.innerHTML = SY.destinations.map(a => {
+      const on = SY.schedTargets.has(a.postAccountId);
+      return '<div class="acctrow' + (on ? ' on' : '') + '" data-clacct="' + escS(a.postAccountId) + '">'
+        + (a.avatar ? '<img src="' + escS(a.avatar) + '" alt="">' : '<span class="ai">' + escS((a.platformLabel || '?')[0]) + '</span>')
+        + '<span class="an"><b>' + escS(a.name) + '</b><small>' + escS(a.platformLabel) + '</small></span>'
+        + '<span class="tick">✓</span></div>';
+    }).join('');
+    host.querySelectorAll('[data-clacct]').forEach(el => el.onclick = () => {
+      const id = el.dataset.clacct;
+      if (SY.schedTargets.has(id)) SY.schedTargets.delete(id); else SY.schedTargets.add(id);
+      drawSchedule();
+    });
+  }
+  document.querySelectorAll('#cl-priv button').forEach(b => {
+    b.classList.toggle('on', b.dataset.priv === SY.privacy);
+    b.onclick = () => { SY.privacy = b.dataset.priv; drawSchedule(); };
+  });
+  const btn = document.getElementById('cl-dosched');
+  if (btn) btn.disabled = !SY.schedTargets.size;
+}
+
+function closeSchedule(){
+  document.getElementById('cl-sched')?.classList.remove('on');
+  SY.scheduling = null;
+}
+
+async function doSchedule(){
+  if (!SY.scheduling?.length || !SY.schedTargets.size) return;
+  const date = document.getElementById('cl-date').value;
+  const time = document.getElementById('cl-time').value;
+  const err = document.getElementById('cl-serr');
+  err.textContent = '';
+
+  let publishAt = null;
+  if (date || time) {
+    if (!date || !time) { err.textContent = 'Give both a date and a time, or leave both empty to post now.'; return; }
+    const d = new Date(date + 'T' + time);
+    if (isNaN(d.getTime())) { err.textContent = 'That is not a valid date and time.'; return; }
+    if (d.getTime() < Date.now()) { err.textContent = 'That time has already passed.'; return; }
+    publishAt = d.toISOString();
+  }
+
+  const targets = SY.destinations.filter(a => SY.schedTargets.has(a.postAccountId))
+    .map(a => ({ postAccountId:a.postAccountId, subAccountId:a.subAccountId,
+                 platformLabel:a.platformLabel, name:a.name }));
+  const title = document.getElementById('cl-title').value;
+  const description = document.getElementById('cl-desc').value;
+
+  const btn = document.getElementById('cl-dosched');
+  btn.disabled = true; btn.textContent = 'Working…';
+  const failures = [];
+  for (const id of SY.scheduling) {
+    const clip = SY.clips.find(c => c.id === id);
+    try {
+      const out = await api('/api/systems/clip/clips/' + encodeURIComponent(id) + '/schedule', {
+        method:'POST', headers:{ 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          targets, publishAt, privacy: SY.privacy,
+          title: title || clip?.title || '',
+          description: description || ''
+        })
+      });
+      for (const r of out.results || []) if (!r.ok) failures.push(r.target + ': ' + r.error);
+    } catch (e2) { failures.push((clip?.title || id) + ': ' + e2.message); }
+  }
+  btn.disabled = false; btn.textContent = 'Schedule';
+
+  if (failures.length) {
+    err.textContent = failures[0];
+    banner(failures.length + ' destination' + (failures.length === 1 ? '' : 's') + ' failed. ' + failures[0]);
+  } else {
+    toast(publishAt ? 'Scheduled' : 'Published');
+    closeSchedule();
+  }
+  if (SY.project) {
+    const out = await api('/api/systems/clip/projects/' + encodeURIComponent(SY.project.id));
+    SY.schedules = out.schedules || []; SY.picked.clear(); drawSystems();
+  }
+}
+
+/* ---------- add account ---------- */
+
+const OPUS_PLATFORMS = [
+  ['YouTube','Channel'], ['TikTok','Business account'], ['Instagram','Business or creator'],
+  ['LinkedIn','Page or profile'], ['X','Profile — 1 credit per post'], ['Facebook','Page']
+];
+
+function openAddAccount(){
+  const host = document.getElementById('cl-platforms');
+  host.innerHTML = OPUS_PLATFORMS.map(([n, d]) =>
+    '<div class="auto soon" style="min-height:0;cursor:default;opacity:1">'
+    + '<h4 style="font-size:13.5px">' + escS(n) + '</h4>'
+    + '<p style="font-size:11.5px">' + escS(d) + '</p></div>').join('');
+  document.getElementById('cl-addmodal').classList.add('on');
+}
+
+/* ---------- boot ---------- */
+
 document.getElementById('sy-back').onclick = () => {
-  SY.open = null; SY.project = null; SY.clips = []; SY.scheduling = null; drawSystems();
+  clearInterval(SY.poll); SY.poll = null;
+  SY.open = null; SY.project = null; SY.clips = []; SY.picked.clear(); drawSystems();
 };
 document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
-  if (b.dataset.target === 'systems' && !SY.automations.length) loadSystems();
+  if (b.dataset.target === 'systems') { if (!SY.automations.length) loadSystems(); }
+  else { clearInterval(SY.poll); SY.poll = null; }
 }));
+document.querySelectorAll('[data-mclose]').forEach(b => b.onclick = () => {
+  const id = b.dataset.mclose;
+  if (id === 'cl-player') closePlayer();
+  else document.getElementById(id)?.classList.remove('on');
+});
+document.querySelectorAll('.mwrap').forEach(w => w.addEventListener('click', e => {
+  if (e.target !== w) return;
+  if (w.id === 'cl-player') closePlayer(); else w.classList.remove('on');
+}));
+document.getElementById('cl-pdl').onclick = () => { if (SY.playing) downloadClips([SY.playing]); };
+document.getElementById('cl-psched').onclick = () => { const id = SY.playing; closePlayer(); if (id) openSchedule([id]); };
+document.getElementById('cl-addacct').onclick = openAddAccount;
+document.getElementById('cl-openopus').onclick = () => window.open('https://clip.opus.pro/dashboard', '_blank', 'noopener');
+document.getElementById('cl-allacct').onclick = () => {
+  SY.destinations.forEach(a => SY.schedTargets.add(a.postAccountId)); drawSchedule();
+};
+document.getElementById('cl-noacct').onclick = () => { SY.schedTargets.clear(); drawSchedule(); };
+document.getElementById('cl-dosched').onclick = doSchedule;
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (document.getElementById('cl-player')?.classList.contains('on')) return closePlayer();
+  document.querySelectorAll('.mwrap.on').forEach(w => w.classList.remove('on'));
+});
 
 
 /* ================= LOADERS =================
