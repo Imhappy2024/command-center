@@ -1485,7 +1485,31 @@ main{min-width:0;display:flex;flex-direction:column}
 .kv span{color:var(--dimmer);font-size:11.5px}
 .kv b{color:var(--cream);font-weight:500}
 
+/* Two independent columns. `siggrid` stretches its children to the tallest,
+   which left a screen-high void under the short column -- the roster of 13 people
+   is simply taller than a bar chart, and stretching the chart to match does not
+   fix that, it just moves the emptiness inside a card. */
+.tkgrid{display:grid;grid-template-columns:minmax(0,1.85fr) minmax(0,1fr);
+  gap:14px;align-items:start;margin-bottom:14px}
+@media (max-width:1100px){.tkgrid{grid-template-columns:1fr}}
+.tkgrid>.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+/* The roster scrolls rather than setting the page height. */
+.tkroster{max-height:330px;overflow-y:auto}
+
 .tktable{display:flex;flex-direction:column;min-width:0}
+.tkkpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}
+@media (max-width:1200px){.tkkpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:680px){.tkkpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tkkpi{text-align:left;background:var(--panel);border:1px solid var(--edge);
+  border-top:2px solid var(--c);border-radius:var(--r-md);padding:12px 13px;cursor:pointer;
+  display:flex;flex-direction:column;gap:2px;font:inherit}
+.tkkpi:hover{border-color:var(--edge2);background:var(--panel2)}
+.tkkpi.on{background:var(--panel3);box-shadow:inset 0 0 0 1px var(--c)}
+.tkkpi .v{font-size:27px;font-weight:300;letter-spacing:-1px;color:var(--c);line-height:1.1}
+.tkkpi .s{font-size:10.5px;color:var(--dimmer)}
+.tkfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.tkfilter .grow{flex:1}
+
 .tkhead,.tkrow{display:grid;
   grid-template-columns:minmax(0,2.6fr) minmax(0,1.1fr) minmax(0,1.2fr) 108px 74px 84px 66px;
   gap:12px;align-items:center;padding:8px 15px}
@@ -2084,6 +2108,12 @@ const MENU = [
   ['claude','Claude','SUBSCRIPTION',''],
   ['systems','Systems','n8n','']
 ];
+/* Declared here, not down in the TASKS block: the rail loop below assigns it
+   immediately, and a `let` further down the same script puts it in the temporal
+   dead zone -- which throws at load and silently kills every statement after
+   it, including half the rail and all the bottom-of-file wiring. */
+let tkSubEl = null;
+
 const nav = document.getElementById('nav');
 MENU.forEach(([id,label,src,badge],i)=>{
   const b=document.createElement('button');
@@ -6324,12 +6354,11 @@ const TK = {
   view: 'overview',           // overview | all
   q: '',                      // free-text search (the source dashboard had none)
   sort: 'due', dir: 'asc',    // nor sorting
-  space: '', assignee: '', status: '', priority: '',
+  space: '', list: '', assignee: '', status: '', priority: '',
+  quick: '',                  // the KPI card acting as a filter
   showDone: false,
   volDays: 30
 };
-
-let tkSubEl = null;
 
 async function tkLoad(force){
   if (TK.loading) return;
@@ -6417,6 +6446,7 @@ function tkFiltered(){
   const q = TK.q.trim().toLowerCase();
   return all.filter(t => {
     if (TK.space && t.space?.id !== TK.space) return false;
+    if (TK.list && t.list?.id !== TK.list) return false;
     if (TK.status && t.canonical !== TK.status) return false;
     if (TK.priority && t.priority !== TK.priority) return false;
     if (TK.assignee && !t.assignees.some(a => a.id === TK.assignee)) return false;
@@ -6527,13 +6557,9 @@ function tkOverview(){
     + '</div>';
 
   return kpis
-    + '<div class="siggrid" style="margin-bottom:14px">'
-    +   '<div class="col">' + tkVolumeCard(tasks) + tkBarsCard(tasks) + '</div>'
-    +   '<div class="col">' + tkSpaceCard(open) + tkTeamCard(open) + '</div>'
-    + '</div>'
-    + '<div class="siggrid">'
-    +   '<div class="col">' + tkRecentCard(tasks) + '</div>'
-    +   '<div class="col">' + tkStatusCard(tasks) + '</div>'
+    + '<div class="tkgrid">'
+    +   '<div class="col">' + tkVolumeCard(tasks) + tkBarsCard(tasks) + tkRecentCard(tasks) + '</div>'
+    +   '<div class="col">' + tkSpaceCard(open) + tkStatusCard(tasks) + tkTeamCard(open) + '</div>'
     + '</div>';
 }
 
@@ -6651,7 +6677,7 @@ function tkTeamCard(open){
       cur.n++; by.set(a.id, cur);
     }
   }
-  const rows = [...by.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 12);
+  const rows = [...by.entries()].sort((a, b) => b[1].n - a[1].n);
   const unassigned = open.filter(t => !t.assignees.length).length;
 
   return '<div class="sigcard viz">'
@@ -6662,7 +6688,7 @@ function tkTeamCard(open){
           + '<b>' + unassigned.toLocaleString() + '</b> open tasks have no assignee — '
           + Math.round(unassigned / Math.max(1, open.length) * 100) + '% of the queue.</span></div>'
         : '')
-    + '<div style="padding:2px 15px 14px">'
+    + '<div class="tkroster" style="padding:2px 15px 14px">'
     + (rows.length ? rows.map(([id, m]) => {
         const load = m.n >= 25 ? ['Heavy', 'var(--rust)'] : m.n >= 10 ? ['Moderate', 'var(--amber)'] : ['Light', 'var(--jade)'];
         return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
@@ -6740,8 +6766,45 @@ function tkDueCell(t){
 
 /* ---------- All tasks ---------- */
 
+/* The six counts, each a filter you can click. They are computed against the
+   filtered set but ignore the completed toggle, so "Total" means open work
+   whatever else is on. */
+function tkAllKpis(){
+  const base = tkFiltered();
+  const now = Date.now();
+  const defs = [
+    ['total', 'Total', 'all open', base.filter(tkOpen).length, 'var(--s1)'],
+    ['overdue', 'Overdue', 'past due, not done', base.filter(tkOverdue).length, 'var(--rust)'],
+    ['unassigned', 'Unassigned', 'no owner', base.filter(t => tkOpen(t) && !t.assignees.length).length, 'var(--s1)'],
+    ['week', 'Due this week', 'next 7 days',
+      base.filter(t => tkOpen(t) && t.due && t.due >= now && t.due <= now + 7 * TK_DAY).length, 'var(--amber)'],
+    ['review', 'In review', 'awaiting review', base.filter(t => t.canonical === 'In Review').length, 'var(--s4)'],
+    ['blocked', 'Blocked', 'stuck on a dependency', base.filter(t => t.canonical === 'Blocked').length, 'var(--rust)']
+  ];
+  return '<div class="tkkpis">' + defs.map(([k, label, sub, n, c]) =>
+    '<button class="tkkpi' + (TK.quick === k ? ' on' : '') + '" data-tkquick="' + k + '" style="--c:' + c + '">'
+    + '<span class="eyebrow">' + label + '</span>'
+    + '<span class="v num">' + n.toLocaleString() + '</span>'
+    + '<span class="s">' + sub + '</span></button>').join('') + '</div>';
+}
+
+/* The quick filters from the cards. Kept separate from the dropdowns so clicking
+   a card never silently rewrites what the selects say. */
+function tkQuickPass(t){
+  const now = Date.now();
+  switch (TK.quick) {
+    case 'total': return tkOpen(t);
+    case 'overdue': return tkOverdue(t);
+    case 'unassigned': return tkOpen(t) && !t.assignees.length;
+    case 'week': return tkOpen(t) && t.due && t.due >= now && t.due <= now + 7 * TK_DAY;
+    case 'review': return t.canonical === 'In Review';
+    case 'blocked': return t.canonical === 'Blocked';
+    default: return true;
+  }
+}
+
 function tkAllView(){
-  const all = tkFiltered();
+  const all = tkFiltered().filter(tkQuickPass);
   const rows = TK.showDone ? all : all.filter(tkOpen);
   const sorted = tkSort(rows);
 
@@ -6755,15 +6818,19 @@ function tkAllView(){
   const people = [...new Map((d.tasks || []).flatMap(t => t.assignees).map(a => [a.id, a.username])).entries()]
     .sort((a, b) => a[1].localeCompare(b[1]));
 
-  const bar = '<div class="filterbar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
-    + '<input id="tk-q" class="stagesel" style="flex:1 1 220px;min-width:160px" placeholder="Search tasks, lists, people" value="' + escS(TK.q) + '">'
+  const lists = [...new Map((d.tasks || []).map(t => [t.list?.id, t.list?.name]).filter(x => x[0]))
+    .entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])));
+
+  const bar = '<div class="tkfilter">'
+    + '<span class="eyebrow">Filter</span>'
+    + sel('tk-assignee', 'All assignees', people, TK.assignee)
+    + sel('tk-status', 'All statuses', (d.canonical || []).map(k => [k, k]), TK.status)
+    + sel('tk-priority', 'All priorities', [['urgent', 'Urgent'], ['high', 'High'], ['normal', 'Normal'], ['low', 'Low']], TK.priority)
     + sel('tk-space', 'All spaces', spaces, TK.space)
-    + sel('tk-assignee', 'Anyone', people, TK.assignee)
-    + sel('tk-status', 'Any status', (d.canonical || []).map(k => [k, k]), TK.status)
-    + sel('tk-priority', 'Any priority', [['urgent', 'Urgent'], ['high', 'High'], ['normal', 'Normal'], ['low', 'Low']], TK.priority)
-    + '<label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer">'
-    + '<input type="checkbox" id="tk-done"' + (TK.showDone ? ' checked' : '') + '> completed</label>'
+    + sel('tk-list', 'All lists', lists, TK.list)
     + (tkAnyFilter() ? '<button class="tgl" id="tk-clear">Clear</button>' : '')
+    + '<span class="grow"></span>'
+    + '<input id="tk-q" class="stagesel" style="flex:0 1 240px" placeholder="Search tasks, lists, people" value="' + escS(TK.q) + '">'
     + '</div>';
 
   const th = (key, label, align) =>
@@ -6778,9 +6845,12 @@ function tkAllView(){
   const shown = sorted.slice(0, CAP);
 
   return bar
+    + tkAllKpis()
     + '<div class="card flush">'
-    + '<div class="cardhead"><h3>All tasks</h3>'
-    + '<span class="eyebrow">' + sorted.length.toLocaleString() + ' of ' + all.length.toLocaleString() + '</span></div>'
+    + '<div class="cardhead"><h3>All tasks</h3><span class="grow" style="flex:1"></span>'
+    + '<label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer;margin-right:10px">'
+    + '<input type="checkbox" id="tk-done"' + (TK.showDone ? ' checked' : '') + '> Show completed</label>'
+    + '<span class="card-count eyebrow">' + sorted.length.toLocaleString() + '</span></div>'
     + '<div class="tktable">'
     +   '<div class="tkhead">' + th('name', 'Task') + th('space', 'Space') + th('assignee', 'Assignee')
     +     th('status', 'Status') + th('due', 'Due') + th('priority', 'Priority')
@@ -6797,7 +6867,8 @@ function tkAllView(){
 }
 
 function tkAnyFilter(){
-  return Boolean(TK.q || TK.space || TK.assignee || TK.status || TK.priority || TK.showDone);
+  return Boolean(TK.q || TK.space || TK.list || TK.assignee || TK.status || TK.priority
+    || TK.showDone || TK.quick);
 }
 
 function tkSort(rows){
@@ -6867,12 +6938,17 @@ function wireTasks(root){
     };
   }
   on('tk-space', 'onchange', e => { TK.space = e.target.value; drawTasks(); });
+  on('tk-list', 'onchange', e => { TK.list = e.target.value; drawTasks(); });
+  root.querySelectorAll('[data-tkquick]').forEach(b => b.onclick = () => {
+    TK.quick = TK.quick === b.dataset.tkquick ? '' : b.dataset.tkquick;
+    drawTasks();
+  });
   on('tk-assignee', 'onchange', e => { TK.assignee = e.target.value; drawTasks(); });
   on('tk-status', 'onchange', e => { TK.status = e.target.value; drawTasks(); });
   on('tk-priority', 'onchange', e => { TK.priority = e.target.value; drawTasks(); });
   on('tk-done', 'onchange', e => { TK.showDone = e.target.checked; drawTasks(); });
   on('tk-clear', 'onclick', () => {
-    Object.assign(TK, { q: '', space: '', assignee: '', status: '', priority: '', showDone: false });
+    Object.assign(TK, { q: '', space: '', list: '', assignee: '', status: '', priority: '', showDone: false, quick: '' });
     drawTasks();
   });
 

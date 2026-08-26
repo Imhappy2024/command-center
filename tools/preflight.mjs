@@ -148,6 +148,77 @@ await new Promise(resolve => {
   setTimeout(() => { child.kill(); done(); }, 20_000);
 });
 
+/* ---------------------------------------------------------------------------
+   Does the page actually RUN?
+
+   `node --check` parses; it does not execute. A `let` declared below its first
+   use is perfectly valid syntax and throws at load, and because function
+   declarations hoist, the page half-works: the views render but every statement
+   after the throw is silently skipped -- half the rail, all the bottom-of-file
+   wiring. That shipped once. It does not get to ship twice.
+
+   The DOM stub is deliberately thin. This is not testing behaviour, only that
+   the top level of every script block completes.
+   --------------------------------------------------------------------------- */
+{
+  const vm = await import('node:vm');
+  const html = readFileSync(path.join(ROOT, 'public', 'index.html'), 'utf8');
+  const blocks = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m => m[1]);
+  const src = blocks.join('\n;\n');
+
+  const el = () => ({
+    innerHTML: '', textContent: '', value: '', dataset: {}, hidden: false, disabled: false,
+    checked: false, scrollHeight: 0, scrollTop: 0, clientHeight: 0,
+    style: { setProperty(){}, removeProperty(){} },
+    classList: { add(){}, remove(){}, toggle(){}, contains: () => false },
+    querySelector: () => null, querySelectorAll: () => [],
+    appendChild(){}, addEventListener(){}, removeAttribute(){}, setAttribute(){},
+    focus(){}, blur(){}, click(){}, closest: () => null,
+    getBoundingClientRect: () => ({ top: 0, left: 0, width: 0, height: 0, bottom: 0, right: 0 })
+  });
+
+  const ctx = {
+    console: { log(){}, warn(){}, error(){}, info(){} },
+    setTimeout, setInterval: () => 0, clearInterval(){}, clearTimeout(){},
+    fetch: async () => ({ ok: false, status: 0, json: async () => ({}), text: async () => '' }),
+    location: { hash: '', pathname: '/', origin: 'http://localhost', search: '', href: '/' },
+    history: { replaceState(){}, pushState(){} },
+    navigator: { clipboard: { writeText(){} }, language: 'en-US', userAgent: 'preflight' },
+    localStorage: { getItem: () => null, setItem(){}, removeItem(){} },
+    sessionStorage: { getItem: () => null, setItem(){}, removeItem(){} },
+    indexedDB: { open: () => ({ addEventListener(){} }) },
+    EventSource: function(){ this.close = () => {}; this.addEventListener = () => {}; },
+    AbortController: function(){ this.abort = () => {}; this.signal = {}; },
+    AbortSignal: { timeout: () => ({}) },
+    TextDecoder, TextEncoder, URLSearchParams, URL, Date, Math, JSON, Intl,
+    Event: function(){}, CustomEvent: function(){},
+    requestAnimationFrame: cb => { cb(0); return 1; }, cancelAnimationFrame(){},
+    matchMedia: () => ({ matches: false, addEventListener(){}, addListener(){} }),
+    getComputedStyle: () => ({ getPropertyValue: () => '' }),
+    alert(){}, confirm: () => false, prompt: () => null, open(){}, scrollTo(){},
+    document: {
+      getElementById: () => el(), querySelector: () => null, querySelectorAll: () => [],
+      createElement: () => el(), createDocumentFragment: () => el(),
+      addEventListener(){}, removeEventListener(){},
+      body: el(), documentElement: el(), head: el(), title: ''
+    },
+    __AUTH_MODE: 'open', __BOOT: 1
+  };
+  ctx.window = ctx;
+  ctx.globalThis = ctx;
+  ctx.self = ctx;
+  vm.createContext(ctx);
+
+  try {
+    new vm.Script(src, { filename: 'index.html:<script>' }).runInContext(ctx, { timeout: 15_000 });
+    pass(`public/index.html top level runs clean (${blocks.length} blocks, ${Math.round(src.length / 1024)} KB)`);
+  } catch (err) {
+    fail('public/index.html throws at load', err.name + ': ' + err.message
+      + '\n        Function declarations hoist, so the page will half-work: views render,'
+      + '\n        everything after the throw is silently skipped.');
+  }
+}
+
 console.log('');
 if (failures) {
   console.error(`preflight FAILED — ${failures} problem${failures === 1 ? '' : 's'}\n`);
