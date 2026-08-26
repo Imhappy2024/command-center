@@ -21,6 +21,10 @@
 import express from 'express';
 import path from 'node:path';
 import { spawnClaude, claudeOnce, resolveClaude, strippedBilling } from '../lib/claude-cli.js';
+import { dirFor, safeName, resolveStored, describeStorage } from '../lib/appdirs.js';
+import fs from 'node:fs';
+import os from 'node:os';
+import { pipeline } from 'node:stream/promises';
 
 /* Hosted platforms all announce themselves. If any of these is set we are not
    on someone's laptop, and this router does not exist. */
@@ -193,9 +197,174 @@ export function claudeRoutes({ env, auth }){
     res.json({ ok: out.ok, text: out.stdout || out.stderr || '', error: out.error });
   });
 
+  /* ---- connectors (MCP) ---------------------------------------------------
+
+     `claude mcp list` prints one line per server:
+
+       claude.ai Front: https://mcp.frontapp.com/mcp - ✓ Connected
+
+     Parsed into rows so the UI can group and act on them rather than showing a
+     wall of terminal output. The name is everything before the last colon that
+     precedes a URL, because the names themselves contain colons and spaces. */
+  function parseMcpList(text){
+    const rows = [];
+    for (const raw of String(text || '').split('\n')) {
+      const line = raw.replace(/\x1B\[[0-?]*[ -\/]*[@-~]/g, '').trim();
+      if (!line || /^Checking MCP server health/i.test(line)) continue;
+      const m = /^(.*?):\s*(\S+)\s*-\s*(.*)$/.exec(line);
+      if (!m) continue;
+      const status = m[3].trim();
+      rows.push({
+        name: m[1].trim(),
+        url: m[2].trim(),
+        /* The glyph is the signal; keep the words for the tooltip. */
+        state: /connected/i.test(status) && !/not/i.test(status) ? 'connected'
+             : /auth/i.test(status) ? 'needs-auth'
+             : /fail/i.test(status) ? 'failed' : 'unknown',
+        status,
+        /* claude.ai-prefixed servers come from the account, not from a local
+           config, which is why they cannot be removed from here. */
+        source: /^claude\.ai\b/.test(m[1].trim()) ? 'account' : 'local'
+      });
+    }
+    return rows;
+  }
+
   r.get('/api/claude/mcp', auth.require, async (req, res) => {
-    const out = await claudeOnce(['mcp','list'], { cwd: CWD, timeoutMs: 30_000 });
-    res.json({ ok: out.ok, text: out.stdout || out.stderr || '', error: out.error });
+    const out = await claudeOnce(['mcp', 'list'], { cwd: CWD, timeoutMs: 60_000 });
+    const servers = parseMcpList(out.stdout || out.stderr || '');
+    res.json({
+      ok: out.ok || servers.length > 0,     // a failed health check still lists servers
+      servers,
+      counts: {
+        total: servers.length,
+        connected: servers.filter(s2 => s2.state === 'connected').length,
+        needsAuth: servers.filter(s2 => s2.state === 'needs-auth').length,
+        failed: servers.filter(s2 => s2.state === 'failed').length
+      },
+      text: out.stdout || out.stderr || '',
+      error: out.error
+    });
+  });
+
+  r.post('/api/claude/mcp', auth.require, express.json(), async (req, res) => {
+    const action = req.body?.action;
+    const name = String(req.body?.name || '').trim();
+    /* Server names go into argv, never a shell -- but keep them boring anyway. */
+    if (!/^[\w .@:-]{1,80}$/.test(name)) return res.status(400).json({ error: 'that is not a valid server name' });
+
+    if (action === 'remove') {
+      const out = await claudeOnce(['mcp', 'remove', name], { cwd: CWD, timeoutMs: 40_000 });
+      return res.json({ ok: out.ok, text: out.stdout || out.stderr || '', error: out.error });
+    }
+    if (action === 'add') {
+      const url = String(req.body?.url || '').trim();
+      /* http(s) only. A local stdio server would mean running an arbitrary
+         command on this machine from a web page, which is not a thing this
+         endpoint is going to offer. */
+      if (!/^https:\/\/[\w.-]+(:\d+)?(\/\S*)?$/.test(url)) {
+        return res.status(400).json({ error: 'need an https URL. Local command servers must be added with the CLI.' });
+      }
+      const transport = req.body?.transport === 'sse' ? 'sse' : 'http';
+      const out = await claudeOnce(['mcp', 'add', '--transport', transport, name, url], { cwd: CWD, timeoutMs: 60_000 });
+      return res.json({ ok: out.ok, text: out.stdout || out.stderr || '', error: out.error });
+    }
+    res.status(400).json({ error: 'need action add|remove' });
+  });
+
+  /* ---- skills -------------------------------------------------------------
+
+     Claude Code loads skills from disk, not from the account: the Skills list in
+     the Claude desktop app is a different set and does not appear here. Read the
+     directories it actually reads, so this reflects what a turn can invoke. */
+  function readSkills(){
+    const roots = [
+      { dir: path.join(os.homedir(), '.claude', 'skills'), scope: 'personal' },
+      { dir: path.join(CWD, '.claude', 'skills'), scope: 'project' }
+    ];
+    const out = [];
+    const seen = new Set();
+    for (const { dir, scope } of roots) {
+      let entries = [];
+      try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { continue; }
+      for (const e of entries) {
+        if (!e.isDirectory() || seen.has(e.name)) continue;
+        seen.add(e.name);
+        const skill = { name: e.name, scope, description: '', path: path.join(dir, e.name) };
+        try {
+          const md = fs.readFileSync(path.join(dir, e.name, 'SKILL.md'), 'utf8');
+          /* Frontmatter description, which may be a folded YAML block. */
+          const fm = /^---\r?\n([\s\S]*?)\r?\n---/.exec(md);
+          if (fm) {
+            const d = /description:\s*(?:>|\|)?\s*\r?\n?([\s\S]*?)(?:\r?\n[a-z_]+:|$)/i.exec(fm[1]);
+            if (d) skill.description = d[1].split('\n').map(l => l.trim()).join(' ').trim().slice(0, 400);
+          }
+        } catch { /* a skill without a readable SKILL.md still exists */ }
+        out.push(skill);
+      }
+    }
+    return out.sort((a2, b2) => a2.name.localeCompare(b2.name));
+  }
+
+  r.get('/api/claude/skills', auth.require, (req, res) => {
+    try {
+      const skills = readSkills();
+      res.json({
+        ok: true, skills,
+        roots: {
+          personal: path.join(os.homedir(), '.claude', 'skills'),
+          project: path.join(CWD, '.claude', 'skills')
+        },
+        /* Worth stating plainly in the UI: these are not the account's skills. */
+        note: 'Claude Code loads skills from disk. Skills configured in the Claude apps are a separate set.'
+      });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  /* ---- attachments --------------------------------------------------------
+
+     Raw body with the name in a header, rather than multipart: there is no
+     multipart parser in this project and adding one to accept a single file
+     would be the largest dependency in it. The browser sends the File as the
+     body, which fetch does natively. */
+  r.post('/api/claude/files', auth.require, async (req, res) => {
+    const kind = req.query.kind === 'uploads' ? 'uploads' : 'attachments';
+    const declared = Number(req.headers['content-length'] || 0);
+    const LIMIT = 64 * 1024 * 1024;
+    if (declared > LIMIT) return res.status(413).json({ error: 'that file is over 64 MB' });
+
+    let dir, dest;
+    try {
+      dir = dirFor(kind, env);
+      dest = path.join(dir, safeName(req.headers['x-filename'] || 'file'));
+    } catch (err) { return res.status(500).json({ error: 'cannot write to storage: ' + err.message }); }
+
+    try {
+      /* No byte counter on the request stream: attaching a data listener puts it
+         into flowing mode and the first chunks are discarded before pipeline()
+         attaches. Learned that the hard way on the OpusClip upload. */
+      await pipeline(req, fs.createWriteStream(dest));
+      const size = fs.statSync(dest).size;
+      if (size > LIMIT) { fs.unlinkSync(dest); return res.status(413).json({ error: 'that file is over 64 MB' }); }
+      res.json({ ok: true, name: path.basename(dest), path: dest, size, kind });
+    } catch (err) {
+      try { fs.unlinkSync(dest); } catch { /* nothing to clean */ }
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  r.get('/api/claude/files', auth.require, (req, res) => {
+    res.json({ ok: true, storage: describeStorage(env) });
+  });
+
+  /* Serving an attachment back is how the composer shows a thumbnail of what you
+     just pasted. Only files this app wrote, only by bare name. */
+  r.get('/api/claude/files/:kind/:name', auth.require, (req, res) => {
+    const kind = ['attachments', 'uploads', 'clips'].includes(req.params.kind) ? req.params.kind : null;
+    if (!kind) return res.status(404).json({ error: 'not found' });
+    const full = resolveStored(kind, req.params.name, env);
+    if (!full || !fs.existsSync(full)) return res.status(404).json({ error: 'not found' });
+    res.sendFile(full);
   });
 
   r.post('/api/claude/stop', auth.require, (req, res) => {
@@ -244,7 +413,14 @@ export function claudeRoutes({ env, auth }){
 
     /* The browser may narrow the tool set but never widen it past what this
        process was started with. */
-    const asked = Array.isArray(b.tools) ? b.tools.filter(t => typeof t === 'string' && /^[A-Za-z]+$/.test(t)) : null;
+    /* mcp__server and mcp__server__tool are legal tool names, and the old
+       /^[A-Za-z]+$/ silently dropped every one of them -- which is why the
+       account's connectors were attached to Claude Code and still unusable
+       here. Underscores and digits allowed; nothing else, so nothing can smuggle
+       a flag through. */
+    const asked = Array.isArray(b.tools)
+      ? b.tools.filter(t => typeof t === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,120}$/.test(t))
+      : null;
     if (PERMITTED) {
       const use = asked && asked.length ? asked.filter(t => PERMITTED.includes(t)) : PERMITTED;
       args.push('--allowed-tools', ...(use.length ? use : PERMITTED));
