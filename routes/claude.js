@@ -24,6 +24,8 @@ import { spawnClaude, claudeOnce, resolveClaude, strippedBilling } from '../lib/
 import { dirFor, safeName, resolveStored, describeStorage } from '../lib/appdirs.js';
 import fs from 'node:fs';
 import os from 'node:os';
+import crypto from 'node:crypto';
+import { fileURLToPath } from 'node:url';
 import { pipeline } from 'node:stream/promises';
 
 /* Hosted platforms all announce themselves. If any of these is set we are not
@@ -55,16 +57,28 @@ export function claudeIsLocal(env = process.env){
    question into plain text the chat can actually render. */
 const IMPOSSIBLE_HERE = ['AskUserQuestion'];
 
-/* The CLAUDE.md files on this machine tell Claude to ask with that widget, in
-   detail and by name. Removing the tool without saying why leaves it trying to
-   follow an instruction it has no way to carry out. */
+/* The widget itself is not gone, only the built-in one. tools/ask-mcp.mjs is
+   attached to every turn as an MCP server offering the same thing through a
+   channel this surface actually has, and this is where Claude is told to use it.
+
+   Saying so matters as much as providing it: the CLAUDE.md files on this machine
+   name AskUserQuestion directly, so without this Claude keeps reaching for a
+   tool that is no longer there and falls back to prose. */
+const ASK_SERVER = 'command_center';
+const ASK_TOOL = 'mcp__' + ASK_SERVER + '__ask_user';
+const ASK_SCRIPT = fileURLToPath(new URL('../tools/ask-mcp.mjs', import.meta.url));
+
 const SURFACE_NOTE = [
-  'You are running inside the Command Center dashboard, in a chat panel in a web page.',
-  'There is no terminal and no interactive question widget: the AskUserQuestion tool is',
-  'not available to you here. Any standing instruction to ask with tappable options or an',
-  'interactive widget cannot be followed on this surface. When you need the user to choose',
-  'between options, write the question and the numbered options as plain text and end your',
-  'turn there. The user replies in the same chat box.'
+  'You are running inside the Command Center dashboard, in a chat panel in a web page,',
+  'not a terminal. The built-in AskUserQuestion tool does not work here and has been',
+  'removed. The interactive question widget on this surface is the tool ' + ASK_TOOL + ':',
+  'it renders your options as buttons in this chat and returns what the user picked.',
+  'Call it exactly where you would have called AskUserQuestion, and read any standing',
+  'instruction about asking with tappable options or an interactive widget as meaning',
+  'that tool. Ask everything you need in one call rather than several. The user can',
+  'always type a free-text answer, so never add your own "Other" option. If the tool',
+  'is genuinely unavailable, write the question and numbered options as plain text and',
+  'end your turn.'
 ].join(' ');
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'TodoWrite'];
@@ -81,6 +95,109 @@ export function claudeRoutes({ env, auth }){
     : writable ? [...READ_TOOLS, ...WRITE_TOOLS] : READ_TOOLS;
 
   let running = null;
+
+  /* ---- the question channel ------------------------------------------------
+
+     One turn runs at a time, so one channel exists at a time: a token the ask
+     server proves itself with, the live SSE writer that puts the question on
+     screen, and the questions still waiting for an answer.
+
+     A question outlives the tool call that made it only in the sense that the
+     HTTP request answering it is a different request from the one asking. The
+     ask server long-polls instead of holding one open request for as long as a
+     person takes to decide, because undici times a fetch out after five minutes
+     and people take longer than that. */
+  let ask = null;
+
+  const askCancelAll = why => {
+    if (!ask) return;
+    for (const q of ask.pending.values()) {
+      if (q.state !== 'pending') continue;
+      q.state = 'cancelled';
+      q.why = why;
+      q.waiters.splice(0).forEach(fn => fn());
+    }
+  };
+
+  /* Loopback only, and only with this turn's token. The ask server is a child of
+     this process; nothing else has any business here. */
+  const askCaller = req => {
+    if (!ask) return false;
+    const ip = String(req.socket.remoteAddress || '');
+    if (!/^(::1|::ffff:127\.0\.0\.1|127\.0\.0\.1)$/.test(ip)) return false;
+    const given = String(req.get('x-ask-token') || '');
+    if (given.length !== ask.token.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ask.token));
+  };
+
+  /* Called by the ask server when Claude wants to ask something. Returns as soon
+     as the question is on screen; the answer is collected by polling. */
+  r.post('/api/claude/ask', express.json({ limit: '256kb' }), (req, res) => {
+    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    const questions = Array.isArray(req.body?.questions) ? req.body.questions.slice(0, 4) : [];
+    if (!questions.length) return res.status(400).json({ error: 'no questions' });
+
+    /* Shaped here rather than trusted: this text goes straight into the page. */
+    const clean = questions.map(q => ({
+      question: String(q?.question || '').slice(0, 400),
+      header: String(q?.header || '').slice(0, 24),
+      multiSelect: Boolean(q?.multiSelect),
+      options: (Array.isArray(q?.options) ? q.options : []).slice(0, 4).map(o => ({
+        label: String(o?.label || '').slice(0, 120),
+        description: String(o?.description || '').slice(0, 300)
+      })).filter(o => o.label)
+    })).filter(q => q.question && q.options.length >= 2);
+    if (!clean.length) return res.status(400).json({ error: 'no usable questions' });
+
+    const id = crypto.randomUUID();
+    ask.pending.set(id, { id, questions: clean, state: 'pending', answers: null, waiters: [] });
+    try { ask.send('ask', { id, questions: clean }); } catch { /* the page went away */ }
+    res.json({ id, state: 'pending' });
+  });
+
+  /* The ask server's long poll. Holds for waitMs and then says "still pending",
+     which keeps the request short enough never to hit a client timeout and makes
+     a dead parent obvious within one poll. */
+  r.post('/api/claude/ask/poll', express.json({ limit: '16kb' }), (req, res) => {
+    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    const q = ask.pending.get(String(req.body?.id || ''));
+    if (!q) return res.json({ state: 'cancelled' });
+
+    const reply = () => res.json(q.state === 'answered'
+      ? { state: 'answered', answers: q.answers, freeText: q.freeText || undefined }
+      : { state: q.state });
+    if (q.state !== 'pending') return reply();
+
+    const wait = Math.min(30_000, Math.max(1000, Number(req.body?.waitMs) || 20_000));
+    let done = false;
+    const finish = () => { if (done) return; done = true; clearTimeout(timer); reply(); };
+    const timer = setTimeout(() => { if (!done) { done = true; res.json({ state: 'pending' }); } }, wait);
+    q.waiters.push(finish);
+    res.on('close', () => { done = true; clearTimeout(timer); });
+  });
+
+  /* The browser, once the user has tapped. */
+  r.post('/api/claude/ask/answer', auth.require, express.json({ limit: '64kb' }), (req, res) => {
+    const q = ask && ask.pending.get(String(req.body?.id || ''));
+    if (!q) return res.status(404).json({ error: 'that question is no longer open' });
+    if (q.state !== 'pending') return res.json({ ok: true, state: q.state });
+
+    /* Keyed by question index, because two questions can share a header. */
+    const answers = {};
+    const given = req.body?.answers && typeof req.body.answers === 'object' ? req.body.answers : {};
+    q.questions.forEach((qq, i) => {
+      const v = given[String(i)];
+      if (Array.isArray(v)) answers[String(i)] = v.map(x => String(x).slice(0, 300)).slice(0, 8);
+      else if (typeof v === 'string' && v.trim()) answers[String(i)] = v.slice(0, 300);
+    });
+    if (!Object.keys(answers).length) return res.status(400).json({ error: 'nothing chosen' });
+
+    q.answers = answers;
+    q.freeText = typeof req.body?.freeText === 'string' ? req.body.freeText.slice(0, 2000) : '';
+    q.state = 'answered';
+    q.waiters.splice(0).forEach(fn => fn());
+    res.json({ ok: true, state: 'answered' });
+  });
 
   r.get('/api/claude/health', auth.require, (req, res) => {
     res.json({
@@ -659,6 +776,9 @@ export function claudeRoutes({ env, auth }){
   });
 
   r.post('/api/claude/stop', auth.require, (req, res) => {
+    /* Before the kill, not after: the ask server is polling, and a question left
+       pending would keep it polling against a turn that no longer exists. */
+    askCancelAll('stopped');
     if (running) { running.kill('SIGTERM'); running = null; }
     res.json({ ok: true });
   });
@@ -696,12 +816,40 @@ export function claudeRoutes({ env, auth }){
     });
     const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
 
+    /* The ask server rides along on every turn, whatever else is configured.
+
+       It is spawned with this process's own node binary rather than whatever
+       "node" resolves to on PATH inside the CLI's environment, and told where to
+       call back by the port this very request arrived on -- guessing 3000 is how
+       you get a widget that silently never appears on a machine running two
+       copies. */
+    const askToken = crypto.randomBytes(24).toString('hex');
+    let servers = {
+      [ASK_SERVER]: {
+        command: process.execPath,
+        args: [ASK_SCRIPT],
+        env: {
+          CC_ASK_URL: 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000),
+          CC_ASK_TOKEN: askToken
+        }
+      }
+    };
+    let strictMcp = false;
     if (b.mcp && String(b.mcp).trim()) {
       try {
         const parsed = JSON.parse(String(b.mcp));
-        args.push('--mcp-config', JSON.stringify(parsed.mcpServers ? parsed : { mcpServers: parsed }), '--strict-mcp-config');
+        /* The user's servers first, so a config of their own cannot quietly
+           replace the one that draws the questions. */
+        servers = { ...(parsed.mcpServers || parsed), ...servers };
+        strictMcp = true;
       } catch { return bad('MCP config is not valid JSON.'); }
     }
+    args.push('--mcp-config', JSON.stringify({ mcpServers: servers }));
+    /* --strict-mcp-config throws away the account's connectors, so it goes on
+       only when the user supplied a config that means to replace them. */
+    if (strictMcp) args.push('--strict-mcp-config');
+
+    ask = { token: askToken, send: (ev, d) => send(ev, d), pending: new Map() };
     for (const d of (b.pluginDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--plugin-dir', String(d).trim());
     for (const d of (b.addDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--add-dir', String(d).trim());
     if (b.agents && String(b.agents).trim()) {
@@ -745,11 +893,15 @@ export function claudeRoutes({ env, auth }){
           .filter(n => /^mcp__[A-Za-z0-9_]{1,120}$/.test(n))
           .slice(0, 40)
       : [];
+    /* Always allowed, and not part of mcpAllow: asking the user a question is
+       the one MCP call that cannot do any harm, and it must work on a turn where
+       connectors are switched off. */
+    const askAllow = 'mcp__' + ASK_SERVER;
     if (PERMITTED) {
       const use = asked && asked.length ? asked.filter(t => PERMITTED.includes(t)) : PERMITTED;
-      args.push('--allowed-tools', ...(use.length ? use : PERMITTED), ...mcpAllow);
+      args.push('--allowed-tools', ...(use.length ? use : PERMITTED), ...mcpAllow, askAllow);
     } else if (asked && asked.length) {
-      args.push('--allowed-tools', ...asked, ...mcpAllow);
+      args.push('--allowed-tools', ...asked, ...mcpAllow, askAllow);
     } else {
       args.push('--dangerously-skip-permissions');
     }
@@ -786,16 +938,17 @@ export function claudeRoutes({ env, auth }){
 
        Nothing waits when useMcp is false, which is the common case and must stay
        as fast as it was. */
-    if (mcpAllow.length) {
-      send('status', { phase: 'connectors', text: 'attaching connectors…' });
-      /* A ceiling, because one wedged server must not hold the turn forever. */
-      mcpTimer = setTimeout(() => {
-        send('status', { phase: 'connectors', text: 'proceeding without all connectors' });
-        writePrompt();
-      }, 45_000);
-    } else {
+    /* The ask server counts here too. A turn that starts before it attaches has
+       no way to ask a question, which is the whole bug this fixes -- and it is a
+       local stdio process, so waiting for it costs a fraction of a second. */
+    const waitFor = [...mcpAllow, 'mcp__' + ASK_SERVER];
+    const onlyAsk = !mcpAllow.length;
+    send('status', { phase: 'connectors', text: onlyAsk ? 'starting…' : 'attaching connectors…' });
+    /* A ceiling, because one wedged server must not hold the turn forever. */
+    mcpTimer = setTimeout(() => {
+      if (!onlyAsk) send('status', { phase: 'connectors', text: 'proceeding without all connectors' });
       writePrompt();
-    }
+    }, onlyAsk ? 8_000 : 45_000);
 
     let buf = '';
     let finished = false;
@@ -817,14 +970,14 @@ export function claudeRoutes({ env, auth }){
              including a dozen that need re-authenticating and will never settle --
              turned a nine-second turn into a fifty-nine-second one for no gain. */
           const wanted = frame.mcp_servers.filter(sv =>
-            mcpAllow.includes('mcp__' + String(sv.name).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')));
+            waitFor.includes('mcp__' + String(sv.name).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')));
           const watch = wanted.length ? wanted : frame.mcp_servers;
           const pending = watch.filter(sv => sv.status === 'pending');
           send('status', {
             phase: 'connectors',
             text: pending.length
-              ? 'attaching connectors… ' + (watch.length - pending.length) + '/' + watch.length
-              : 'connectors ready',
+              ? (onlyAsk ? 'starting…' : 'attaching connectors… ' + (watch.length - pending.length) + '/' + watch.length)
+              : (onlyAsk ? 'ready' : 'connectors ready'),
             servers: watch.map(sv => ({ name: sv.name, status: sv.status }))
           });
           if (!pending.length) {
@@ -849,13 +1002,19 @@ export function claudeRoutes({ env, auth }){
         : err.message });
       running = null; res.end();
     });
-    child.on('close', code => { send('done', { code }); running = null; res.end(); });
+    child.on('close', code => {
+      askCancelAll('turn ended');
+      send('done', { code });
+      running = null;
+      res.end();
+    });
     /* res, not req. `req` emits 'close' as soon as the request body has been
        read — which with a JSON body parser is immediately — and killing the
        child there ended every turn before it produced a token. The response
        closing is what actually means the client went away. */
     res.on('close', () => {
       if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
+      askCancelAll('page closed');
       if (running === child) { child.kill('SIGTERM'); running = null; }
     });
   });

@@ -1355,6 +1355,52 @@ main{min-width:0;display:flex;flex-direction:column}
   white-space:pre-wrap;overflow-x:auto;max-height:340px;overflow-y:auto;line-height:1.55}
 .ccstep.think>summary .tn{color:var(--dim);font-style:italic}
 
+/* The question widget.
+
+   Not a <details> like the other steps: those are things that already happened
+   and can be ignored, this is the turn waiting on you. It is the one thing in a
+   reply that must not be collapsed by default. */
+.ccask{border:1px solid var(--brass);border-radius:var(--r-md);background:var(--panel2);
+  margin:0 0 11px;overflow:hidden;box-shadow:0 0 0 3px rgba(124,108,255,.10)}
+.ccask.done{border-color:var(--edge2);box-shadow:none;opacity:.82}
+.ccaskh{display:flex;align-items:center;gap:8px;padding:8px 13px;background:rgba(124,108,255,.10);
+  border-bottom:1px solid var(--edge);font-family:var(--ff-mono);font-size:9.5px;
+  letter-spacing:.13em;text-transform:uppercase;color:var(--brass)}
+.ccask.done .ccaskh{background:none;color:var(--dimmer)}
+.ccaskh .dot{width:6px;height:6px;border-radius:50%;background:var(--brass);flex:none;
+  animation:ccbl 1.4s ease-in-out infinite}
+.ccask.done .ccaskh .dot{background:var(--dimmer);animation:none}
+.ccaskq{padding:12px 13px 4px;border-top:1px solid var(--edge)}
+.ccaskq:first-of-type{border-top:0}
+.ccaskq .hd{display:inline-block;font-family:var(--ff-mono);font-size:9px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dimmer);border:1px solid var(--edge2);border-radius:99px;
+  padding:1px 8px;margin-bottom:7px}
+.ccaskq p{font-size:13.5px;color:var(--cream);margin:0 0 9px;line-height:1.45}
+.ccopts{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:7px;
+  padding-bottom:9px}
+.ccopt{display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;
+  background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:9px 11px;
+  color:var(--text);font:inherit;cursor:pointer;transition:.14s var(--ease);min-width:0}
+.ccopt:hover:not(:disabled){border-color:var(--edge2);background:var(--panel);color:var(--cream)}
+.ccopt.on{border-color:var(--brass);background:rgba(124,108,255,.13);color:var(--cream)}
+.ccopt:disabled{cursor:default}
+.ccopt b{font-weight:600;font-size:12.5px;line-height:1.3;word-break:break-word}
+.ccopt small{color:var(--dimmer);font-size:11px;line-height:1.4;word-break:break-word}
+.ccopt.on small{color:var(--dim)}
+.ccaskf{display:flex;gap:7px;padding:10px 13px;border-top:1px solid var(--edge);
+  background:var(--ink2)}
+.ccaskf input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--edge);
+  border-radius:8px;color:var(--text);font:inherit;font-size:12.5px;padding:7px 10px}
+.ccaskf input:focus{outline:none;border-color:var(--brass)}
+.ccaskf input::placeholder{color:var(--dimmer)}
+.ccaskf button{background:var(--brass);border:0;border-radius:8px;color:#fff;font:inherit;
+  font-size:12px;font-weight:600;padding:7px 15px;cursor:pointer;flex:none}
+.ccaskf button:hover{filter:brightness(1.08)}
+.ccaskf button.ghost{background:none;border:1px solid var(--edge2);color:var(--dim)}
+.ccaskf button.ghost:hover{color:var(--cream);filter:none}
+.ccaskdone{padding:9px 13px;font-size:12px;color:var(--dim)}
+.ccaskdone b{color:var(--cream);font-weight:500}
+
 /* Streaming caret */
 .cccaret{display:inline-block;width:7px;height:15px;margin-left:2px;vertical-align:-2px;
   background:var(--brass);animation:ccbl 1s steps(2,start) infinite}
@@ -10331,6 +10377,10 @@ function ccBubble(m, idx){
 function ccMergeSteps(steps){
   const out = [];
   for (const t of steps) {
+    /* The widget carries live state (what is picked, what is typed), and the
+       merge shallow-copies every step it passes. A copy would be repainted from
+       stale values the moment the reader clicked anything. */
+    if (t.kind === 'ask') { out.push(t); continue; }
     const prev = out[out.length - 1];
     if (t.kind === 'thinking' && prev && prev.kind === 'thinking') {
       prev.body = (prev.body || '') + (prev.body && t.body ? '\n\n' : '') + (t.body || '');
@@ -10342,10 +10392,72 @@ function ccMergeSteps(steps){
   return out;
 }
 
+/* The question, as buttons.
+
+   Rendered from the step object rather than from the DOM, because the feed is
+   repainted on a timer while a turn streams -- anything held only in the markup
+   would be wiped between one frame and the next. */
+function ccAskWidget(t){
+  const done = t.state !== 'open';
+  const head = t.state === 'sent' ? 'Answered'
+    : t.state === 'sending' ? 'Sending…'
+    : t.state === 'closed' ? 'No longer waiting'
+    : 'Claude needs a decision';
+
+  const body = (t.questions || []).map((q, qi) => {
+    const picked = t.picked[qi];
+    const opts = (q.options || []).map((o, oi) => {
+      const on = q.multiSelect
+        ? Array.isArray(picked) && picked.includes(o.label)
+        : picked === o.label;
+      return '<button class="ccopt' + (on ? ' on' : '') + '"' + (done ? ' disabled' : '')
+        + ' data-askid="' + escS(t.id) + '" data-askq="' + qi + '" data-asko="' + oi + '">'
+        + '<b>' + escS(o.label) + '</b>'
+        + (o.description ? '<small>' + escS(o.description) + '</small>' : '')
+        + '</button>';
+    }).join('');
+    return '<div class="ccaskq">'
+      + (q.header ? '<span class="hd">' + escS(q.header) + '</span>' : '')
+      + '<p>' + escS(q.question) + '</p>'
+      + '<div class="ccopts">' + opts + '</div>'
+      + '</div>';
+  }).join('');
+
+  /* Free text is always available. Claude is told not to invent an "Other"
+     option precisely because this is here, and a forced choice between four
+     wrong answers is worse than no widget at all. */
+  const foot = done
+    ? '<div class="ccaskdone">' + (t.state === 'sent'
+        ? 'Sent: <b>' + escS(ccAskSummary(t)) + '</b>'
+        : t.state === 'sending' ? 'Sending…'
+        : 'The turn ended before this was answered.') + '</div>'
+    : '<div class="ccaskf">'
+      + '<input data-askfree="' + escS(t.id) + '" placeholder="…or type your own answer" '
+      +   'value="' + escS(t.free || '') + '">'
+      + '<button data-asksend="' + escS(t.id) + '">Send</button>'
+      + '</div>';
+
+  return '<div class="ccask' + (done ? ' done' : '') + '">'
+    + '<div class="ccaskh"><span class="dot"></span>' + head + '</div>'
+    + body + foot + '</div>';
+}
+
+function ccAskSummary(t){
+  const bits = [];
+  (t.questions || []).forEach((q, i) => {
+    const v = t.picked[i];
+    if (Array.isArray(v) && v.length) bits.push(v.join(', '));
+    else if (typeof v === 'string' && v) bits.push(v);
+  });
+  if (!bits.length && t.free) bits.push(t.free);
+  return bits.join(' · ') || '(nothing)';
+}
+
 function ccSteps(m){
   const steps = ccMergeSteps(m.steps || m.tools || []);
   if (!steps.length) return '';
   return steps.map(t => {
+    if (t.kind === 'ask') return ccAskWidget(t);
     const isThink = t.kind === 'thinking';
     const label = isThink ? 'Thinking' : (t.name || 'Tool');
     return '<details class="ccstep' + (isThink ? ' think' : '') + '">'
@@ -10392,7 +10504,118 @@ function wireClaudeSetup(root){
   wireClaudeAccount(root);
 }
 
+/* Find the widget by id across the whole conversation. The click may land many
+   repaints after the question arrived, and the step object is the only thing
+   that survives them. */
+function ccAskFind(id){
+  for (const m of CC.messages) {
+    for (const step of m.steps || []) {
+      if (step.kind === 'ask' && step.id === id) return { m, step };
+    }
+  }
+  return null;
+}
+
+async function ccAskSend(step){
+  const answers = {};
+  (step.questions || []).forEach((q, i) => {
+    const v = step.picked[i];
+    if (q.multiSelect) { if (Array.isArray(v) && v.length) answers[i] = v; }
+    else if (typeof v === 'string' && v) answers[i] = v;
+  });
+  const free = String(step.free || '').trim();
+  /* Typed text answers whatever was left unanswered, so a single question can be
+     replied to by typing and pressing Enter without touching a button. */
+  if (free) (step.questions || []).forEach((q, i) => { if (answers[i] == null) answers[i] = free; });
+  if (!Object.keys(answers).length) { toast('Pick an option or type an answer'); return; }
+
+  step.state = 'sending';
+  ccAskRepaint();
+  try {
+    const r = await fetch(CC.base + '/ask/answer', {
+      method: 'POST',
+      headers: ccHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id: step.id, answers, freeText: free || undefined })
+    });
+    if (!r.ok) {
+      const j = await r.json().catch(() => ({}));
+      step.state = 'open';
+      toast(j.error || 'Could not send that answer');
+    } else {
+      step.state = 'sent';
+    }
+  } catch (err) {
+    step.state = 'open';
+    toast('Could not send that answer: ' + err.message);
+  }
+  ccAskRepaint();
+}
+
+/* A turn is usually mid-stream when this happens, so patch the last bubble the
+   way the token loop does rather than rebuilding the feed under the reader. */
+function ccAskRepaint(){
+  const last = CC.messages[CC.messages.length - 1];
+  if (last && last.role === 'assistant') ccPatch(last);
+  else drawClaude();
+}
+
 function wireClaudeChat(root){
+  /* Delegated on the feed rather than bound per button: ccPatch replaces the
+     bubble's innerHTML every 90ms while a turn streams, and anything bound to
+     the old nodes goes with them. The feed element itself survives. */
+  const feed = root.querySelector('#cc-feed');
+  if (feed && !feed.dataset.askwired) {
+    feed.dataset.askwired = '1';
+    feed.addEventListener('click', ev => {
+      const opt = ev.target.closest('[data-asko]');
+      if (opt) {
+        const found = ccAskFind(opt.dataset.askid);
+        if (!found || found.step.state !== 'open') return;
+        const { step } = found;
+        const qi = Number(opt.dataset.askq);
+        const q = step.questions[qi];
+        const label = q.options[Number(opt.dataset.asko)].label;
+        if (q.multiSelect) {
+          const cur = Array.isArray(step.picked[qi]) ? step.picked[qi] : [];
+          step.picked[qi] = cur.includes(label) ? cur.filter(x => x !== label) : [...cur, label];
+        } else {
+          step.picked[qi] = step.picked[qi] === label ? undefined : label;
+        }
+        ccAskRepaint();
+        /* Every single-select question answered and nothing multi-select left to
+           add to: the reader has said everything the widget can ask for, and
+           making them press Send as well is a click that carries no information. */
+        const complete = step.questions.every((qq, i) =>
+          !qq.multiSelect && typeof step.picked[i] === 'string' && step.picked[i]);
+        if (complete) ccAskSend(step);
+        return;
+      }
+      const send = ev.target.closest('[data-asksend]');
+      if (send) {
+        const found = ccAskFind(send.dataset.asksend);
+        if (found && found.step.state === 'open') ccAskSend(found.step);
+      }
+    });
+    feed.addEventListener('input', ev => {
+      const box = ev.target.closest('[data-askfree]');
+      if (!box) return;
+      const found = ccAskFind(box.dataset.askfree);
+      /* Stored, not repainted: repainting on every keystroke would take the
+         caret out of the box the reader is typing in. */
+      if (found) found.step.free = box.value;
+    });
+    feed.addEventListener('keydown', ev => {
+      const box = ev.target.closest('[data-askfree]');
+      if (!box || ev.key !== 'Enter') return;
+      ev.preventDefault();
+      const found = ccAskFind(box.dataset.askfree);
+      if (found && found.step.state === 'open') {
+        found.step.free = box.value;
+        ccAskSend(found.step);
+      }
+    });
+  }
+
   const ta = root.querySelector('#cc-input');
   if (ta) {
     /* Grows with the text rather than scrolling a two-line box. */
@@ -10597,6 +10820,11 @@ async function ccSend(text){
   }
 
   CC.busy = false; CC.abort = null; CC.streaming = false;
+  /* The server cancels pending questions when the turn closes, so a widget still
+     showing buttons would be offering a choice nothing is listening for. */
+  for (const step of reply.steps || []) {
+    if (step.kind === 'ask' && step.state === 'open') step.state = 'closed';
+  }
   if (!reply.text && !(reply.steps || reply.tools || []).length) reply.text = '_(no output)_';
   drawClaude();
   /* The turn just wrote a transcript, so the sidebar is now out of date -- a
@@ -10608,6 +10836,16 @@ async function ccSend(text){
    when something changed. */
 function ccConsume(ev, d, reply){
   if (ev === 'fatal') { reply.text += (reply.text ? '\n\n' : '') + d.error; return true; }
+
+  /* Claude is asking something. This is not a tool step to be collapsed with the
+     rest; the turn is blocked on it until an answer goes back. */
+  if (ev === 'ask') {
+    (reply.steps ||= []).push({
+      kind: 'ask', id: d.id, questions: d.questions || [],
+      picked: {}, free: '', state: 'open'
+    });
+    return true;
+  }
   if (ev === 'done') return false;
   if (ev !== 'msg') return false;
 
