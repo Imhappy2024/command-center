@@ -1665,6 +1665,73 @@ main{min-width:0;display:flex;flex-direction:column}
 .tkroster{max-height:330px;overflow-y:auto}
 
 .tktable{display:flex;flex-direction:column;min-width:0}
+/* Popover, modal and bulk bar for editing a task in place. */
+.tkpop{position:fixed;z-index:70;min-width:220px;max-width:280px;background:var(--panel2);
+  border:1px solid var(--edge2);border-radius:var(--r-md);padding:5px;
+  box-shadow:0 24px 50px -22px rgba(0,0,0,.85);display:none}
+.tkpop.on{display:block}
+.tkpopitem{display:flex;align-items:center;gap:9px;width:100%;background:none;border:0;
+  border-radius:7px;padding:7px 9px;color:var(--text);font:inherit;font-size:12.5px;
+  cursor:pointer;text-align:left}
+.tkpopitem:hover{background:var(--panel3);color:var(--cream)}
+.tkpopitem i{width:8px;height:8px;border-radius:50%;flex:none}
+.tkpopitem span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkpopitem b{color:var(--brass);font-size:9px}
+.tkpopdiv{height:1px;background:var(--edge);margin:4px 2px}
+.tkpophead{font-family:var(--ff-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dimmer);padding:5px 9px 6px}
+.tkpopwait{padding:12px 10px;font-size:12px;color:var(--dimmer)}
+.tkpop input[type=date],.tkpop input[type=text],.tkpop #tk-assign-q{width:100%;
+  background:var(--ink2);border:1px solid var(--edge);border-radius:8px;color:var(--text);
+  font:inherit;font-size:12.5px;padding:7px 9px;margin-bottom:7px}
+.tkpoprow{display:flex;gap:6px;padding:2px}
+.tkpoprow .btn,.tkpoprow .tgl{flex:1;font-size:11.5px;padding:6px 8px}
+.tkpoplist{max-height:210px;overflow-y:auto;margin-bottom:7px}
+.tkpoplist label{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;
+  font-size:12.5px;color:var(--text);cursor:pointer}
+.tkpoplist label:hover{background:var(--panel3)}
+
+.tkmodal{position:fixed;inset:0;z-index:66;display:none;background:rgba(6,8,16,.66);
+  backdrop-filter:blur(3px);padding:5vh 20px;overflow-y:auto}
+.tkmodal.on{display:block}
+.tkmpanel{max-width:620px;margin:0 auto;background:var(--panel);border:1px solid var(--edge2);
+  border-radius:var(--r-lg);box-shadow:0 40px 80px -30px rgba(0,0,0,.9);overflow:hidden}
+.tkmhead{display:flex;gap:12px;align-items:flex-start;padding:17px 20px 14px;
+  border-bottom:1px solid var(--edge)}
+.tkmhead h3{font-family:var(--ff-display);font-size:17px;color:var(--cream);letter-spacing:-.02em;
+  line-height:1.3}
+.tkmhead p{font-size:11px;color:var(--dimmer);margin-top:5px}
+.tkmbody{padding:16px 20px 22px}
+.tkdrows{display:flex;flex-direction:column}
+.tkdrow{display:grid;grid-template-columns:minmax(96px,26%) 1fr;gap:12px;padding:7px 0;
+  border-bottom:1px solid var(--edge);font-size:12.5px;align-items:center}
+.tkdrow>span{color:var(--dimmer);font-size:11.5px}
+.tkdrow>div{color:var(--text);min-width:0}
+.tkpill{background:var(--panel2);border:1px solid var(--edge2);border-radius:99px;color:var(--cream);
+  font:inherit;font-size:11.5px;padding:3px 10px;cursor:pointer}
+.tkpill:hover{border-color:var(--brass)}
+.tklink{background:none;border:0;padding:0;color:var(--brass);font:inherit;font-size:12px;
+  cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.tklink:hover{color:var(--cream)}
+.tkcms{max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.tkcm{background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);padding:10px 12px}
+.tkcm .h{display:flex;gap:8px;align-items:baseline;margin-bottom:5px}
+.tkcm .h b{font-size:12px;color:var(--cream)}
+.tkcm .h span{margin-left:auto;font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer)}
+.tkcm .b{font-size:12.5px;color:var(--text);line-height:1.6;white-space:pre-wrap;
+  overflow-wrap:anywhere}
+.tkcform{display:flex;gap:8px;align-items:flex-end;margin-top:10px}
+.tkcform textarea{flex:1;background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);
+  color:var(--text);font:inherit;font-size:12.5px;padding:9px 11px;resize:vertical;min-height:42px}
+.tkcform textarea:focus{outline:none;border-color:var(--edge2)}
+
+.tkbulk{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:64;
+  display:flex;gap:8px;align-items:center;background:var(--panel2);
+  border:1px solid var(--edge2);border-radius:99px;padding:8px 10px 8px 16px;
+  box-shadow:0 24px 50px -20px rgba(0,0,0,.85)}
+.tkbulk span{font-size:12px;color:var(--cream)}
+.tkbulk .btn,.tkbulk .tgl{font-size:11.5px;padding:6px 12px}
+
 .tkkpis{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:12px}
 @media (max-width:1200px){.tkkpis{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media (max-width:680px){.tkkpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -1679,8 +1746,26 @@ main{min-width:0;display:flex;flex-direction:column}
 .tkfilter .grow{flex:1}
 
 .tkhead,.tkrow{display:grid;
-  grid-template-columns:minmax(0,2.6fr) minmax(0,1.1fr) minmax(0,1.2fr) 108px 74px 84px 66px;
-  gap:12px;align-items:center;padding:8px 15px}
+  grid-template-columns:26px minmax(0,2.5fr) minmax(0,1fr) minmax(0,1.15fr) 112px 92px 84px 34px;
+  gap:10px;align-items:center;padding:6px 15px}
+.tkrow.sel{background:var(--panel3)}
+/* A cell that edits something has to look like it does, without turning the row
+   into a wall of buttons: no border until you are on it. */
+.tkcell{display:flex;align-items:center;gap:6px;min-width:0;width:100%;background:none;
+  border:1px solid transparent;border-radius:7px;padding:2px 5px;color:var(--text);font:inherit;
+  font-size:12px;cursor:pointer;text-align:left}
+.tkcell:hover{border-color:var(--edge2);background:var(--panel2)}
+.tkcell span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkcell span.dim{color:var(--dimmer);font-size:11px}
+.tkcell em{font-style:normal;color:var(--dimmer);font-size:9px;flex:none}
+.tkcell i.none{width:18px;height:18px;border-radius:6px;flex:none;border:1px dashed var(--edge2)}
+.tkcell .setdate{color:var(--rust);font-size:11px}
+.tkrow .c.name a{color:var(--cream);text-decoration:none;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;display:block}
+.tkrow .c.name a:hover{text-decoration:underline;text-underline-offset:2px}
+.tkdots{background:none;border:0;color:var(--dimmer);cursor:pointer;font:inherit;font-size:13px;
+  line-height:1;padding:2px 4px;border-radius:6px}
+.tkdots:hover{background:var(--panel3);color:var(--cream)}
 .tkhead{position:sticky;top:0;z-index:2;background:var(--panel2);border-bottom:1px solid var(--edge)}
 .tkth{background:none;border:0;padding:0;text-align:left;cursor:pointer;
   font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
@@ -7020,9 +7105,9 @@ function tkAllView(){
     + '<input type="checkbox" id="tk-done"' + (TK.showDone ? ' checked' : '') + '> Show completed</label>'
     + '<span class="card-count eyebrow">' + sorted.length.toLocaleString() + '</span></div>'
     + '<div class="tktable">'
-    +   '<div class="tkhead">' + th('name', 'Task') + th('space', 'Space') + th('assignee', 'Assignee')
-    +     th('status', 'Status') + th('due', 'Due') + th('priority', 'Priority')
-    +     th('updated', 'Updated', 'right') + '</div>'
+    +   '<div class="tkhead"><span></span>' + th('name', 'Task') + th('space', 'Space')
+    +     th('assignee', 'Assignee') + th('status', 'Status') + th('due', 'Due')
+    +     th('priority', 'Priority') + '<span></span></div>'
     +   (shown.length ? shown.map(tkRow).join('')
         : '<div class="empty" style="padding:34px"><b>Nothing matches</b><small>Loosen a filter.</small></div>')
     + '</div>'
@@ -7031,7 +7116,8 @@ function tkAllView(){
           + CAP + ' of ' + sorted.length.toLocaleString() + '. Narrow the filters to see the rest — '
           + 'putting five thousand rows in the page makes it stop responding.</div>'
         : '')
-    + '</div>';
+    + '</div>'
+    + tkBulkBar();
 }
 
 function tkAnyFilter(){
@@ -7070,22 +7156,32 @@ function tkSort(rows){
 
 function tkRow(t){
   const who = t.assignees[0];
-  return '<div class="tkrow" data-tkopen="' + escS(t.id) + '">'
-    + '<span class="c name" title="' + escS(t.name) + '">' + escS(t.name) + '</span>'
+  /* Each cell is its own control. The row is not a link any more: the name opens
+     the task here, and only a modifier-click hands off to ClickUp. */
+  return '<div class="tkrow' + (TKE.sel.has(t.id) ? ' sel' : '') + '">'
+    + '<span class="c"><input type="checkbox" data-tkpick="' + escS(t.id) + '"'
+    +   (TKE.sel.has(t.id) ? ' checked' : '') + '></span>'
+    + '<span class="c name"><a href="' + escS(t.url || '#') + '" data-tkname="' + escS(t.id) + '" '
+    +   'title="' + escS(t.name) + ' — click for details, Ctrl/Cmd-click to open in ClickUp">'
+    +   escS(t.name) + '</a></span>'
     + '<span class="c dim">' + escS(t.space?.name || '—') + '</span>'
-    + '<span class="c">' + (who
-        ? '<span style="display:flex;align-items:center;gap:6px;min-width:0">'
-          + '<i style="width:18px;height:18px;border-radius:6px;flex:none;display:grid;place-items:center;'
+    + '<span class="c"><button class="tkcell" data-tkedit="assign" data-tkid="' + escS(t.id) + '">'
+    +   (who
+        ? '<i style="width:18px;height:18px;border-radius:6px;flex:none;display:grid;place-items:center;'
           + 'background:' + tkColour(who.id) + ';color:#fff;font-size:8px;font-weight:700;font-style:normal">'
           + escS(tkInitials(who.username)) + '</i>'
-          + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escS(who.username) + '</span>'
-          + (t.assignees.length > 1 ? '<span class="hint">+' + (t.assignees.length - 1) + '</span>' : '')
-          + '</span>'
-        : '<span style="color:var(--dimmer);font-size:11px">unassigned</span>') + '</span>'
-    + '<span class="c">' + tkStatusChip(t) + '</span>'
-    + '<span class="c">' + tkDueCell(t) + '</span>'
-    + '<span class="c">' + tkPriorityChip(t.priority) + '</span>'
-    + '<span class="c dim" style="text-align:right;font-family:var(--ff-mono);font-size:9.5px">' + tkRel(t.updated) + '</span>'
+          + '<span>' + escS(who.username) + '</span>'
+          + (t.assignees.length > 1 ? '<em>+' + (t.assignees.length - 1) + '</em>' : '')
+        : '<i class="none"></i><span class="dim">unassigned</span>')
+    +   '</button></span>'
+    + '<span class="c"><button class="tkcell" data-tkedit="status" data-tkid="' + escS(t.id) + '">'
+    +   tkStatusChip(t) + '<em>▾</em></button></span>'
+    + '<span class="c"><button class="tkcell" data-tkedit="due" data-tkid="' + escS(t.id) + '">'
+    +   (t.due ? tkDueCell(t) : '<span class="setdate">Set date</span>') + '</button></span>'
+    + '<span class="c"><button class="tkcell" data-tkedit="priority" data-tkid="' + escS(t.id) + '">'
+    +   tkPriorityChip(t.priority) + '</button></span>'
+    + '<span class="c" style="text-align:right"><button class="tkdots" data-tkedit="menu" '
+    +   'data-tkid="' + escS(t.id) + '" title="More">···</button></span>'
     + '</div>';
 }
 
@@ -7127,11 +7223,452 @@ function wireTasks(root){
     drawTasks();
   });
 
-  root.querySelectorAll('[data-tkopen]').forEach(row => row.onclick = () => {
-    const t = (TK.data?.tasks || []).find(x => x.id === row.dataset.tkopen);
-    if (t?.url) window.open(t.url, '_blank', 'noopener');
+  /* The name is a real link, so a modifier-click and a middle-click behave the
+     way they do everywhere else. A plain click opens the task here instead. */
+  root.querySelectorAll('[data-tkname]').forEach(a => a.onclick = ev => {
+    if (ev.ctrlKey || ev.metaKey || ev.shiftKey || ev.button === 1) return true;
+    ev.preventDefault();
+    tkOpenDetail(a.dataset.tkname);
+    return false;
+  });
+
+  root.querySelectorAll('[data-tkedit]').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    const id = b.dataset.tkid;
+    const kind = b.dataset.tkedit;
+    if (kind === 'status') tkEditStatus(id, b);
+    else if (kind === 'due') tkEditDue(id, b);
+    else if (kind === 'assign') tkEditAssign(id, b);
+    else if (kind === 'priority') tkOpenPop('priority', id, b);
+    else if (kind === 'menu') tkOpenPop('menu', id, b);
+  });
+
+  root.querySelectorAll('[data-tkpick]').forEach(cb => cb.onchange = () => {
+    if (cb.checked) TKE.sel.add(cb.dataset.tkpick); else TKE.sel.delete(cb.dataset.tkpick);
+    drawTasks();
+  });
+
+  root.querySelectorAll('[data-tkbulk]').forEach(b => b.onclick = () => {
+    if (b.dataset.tkbulk === 'clear') { TKE.sel.clear(); drawTasks(); }
+    else tkBulkComplete();
   });
 }
+
+/* ---------- editing a task ----------
+
+   The row used to be a link to ClickUp, which made the whole table a launcher
+   for a different app. Everything you can see here you can now change here:
+   status, due date, assignees, and a comment. The name opens the task; only
+   Ctrl/Cmd/middle-click hands off to ClickUp, the way a link should.
+
+   Every write is optimistic. The cached copy is patched, the table redraws, and
+   on failure the previous value is put back and the error is shown -- a table
+   that silently keeps a change the server refused is worse than one that is slow.
+
+   Statuses are per-list in ClickUp, so the editor has to ask the task's own list
+   what it offers. There is no workspace-wide set. */
+
+const TKE = {
+  detail: null,            // task id whose modal is open
+  comments: null,          // { id, list } for the open task
+  posting: false,
+  pop: null,               // { kind, taskId, x, y, data }
+  loading: false,
+  sel: new Set(),          // checked rows, for the bulk bar
+  busy: false
+};
+
+const tkById = id => (TK.data?.tasks || []).find(t => t.id === id);
+
+async function tkPut(taskId, body, revert){
+  try {
+    const r = await fetch('/api/tasks/' + encodeURIComponent(taskId), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('save failed (' + r.status + ')'));
+    return true;
+  } catch (err) {
+    if (revert) revert();
+    banner(err.message);
+    drawTasks();
+    if (TKE.detail) tkDrawDetail();
+    return false;
+  }
+}
+
+/* ---------- popovers ---------- */
+
+function tkClosePop(){ TKE.pop = null; tkPaintPop(); }
+
+function tkOpenPop(kind, taskId, anchor, data){
+  /* Measured before anything is removed: reading the rect after closing the
+     previous popover gives you the position of an element that has moved. */
+  const r = anchor.getBoundingClientRect();
+  TKE.pop = { kind, taskId, data: data || null,
+    x: Math.min(r.left, window.innerWidth - 260), y: r.bottom + 6 };
+  tkPaintPop();
+}
+
+function tkPaintPop(){
+  let host = document.getElementById('tk-pop');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'tk-pop';
+    document.body.appendChild(host);
+  }
+  const p = TKE.pop;
+  if (!p) { host.innerHTML = ''; host.className = ''; return; }
+  const t = tkById(p.taskId);
+  if (!t) { host.innerHTML = ''; return; }
+
+  let inner = '';
+  if (p.kind === 'status') {
+    inner = p.data
+      ? p.data.map(s => '<button class="tkpopitem" data-tkstatus="' + escS(s.status) + '">'
+          + '<i style="background:' + escS(s.color || 'var(--dimmer)') + '"></i>'
+          + '<span>' + escS(s.status) + '</span>'
+          + (s.status === t.status ? '<b>●</b>' : '') + '</button>').join('')
+      : '<div class="tkpopwait">Asking the list what it offers…</div>';
+  } else if (p.kind === 'due') {
+    const iso = t.due ? new Date(t.due).toISOString().slice(0, 10) : '';
+    inner = '<div class="tkpophead">Due date</div>'
+      + '<input type="date" id="tk-due-input" value="' + iso + '">'
+      + '<div class="tkpoprow"><button class="tgl" data-tkdue="clear">Clear</button>'
+      + '<button class="btn primary" data-tkdue="save">Save</button></div>';
+  } else if (p.kind === 'assign') {
+    inner = p.data
+      ? '<div class="tkpophead">Assign</div>'
+        + '<input id="tk-assign-q" placeholder="Search members" autocomplete="off">'
+        + '<div class="tkpoplist" id="tk-assign-list">'
+        + p.data.map(m => '<label><input type="checkbox" value="' + escS(m.id) + '"'
+            + (t.assignees.some(a => a.id === m.id) ? ' checked' : '') + '>'
+            + '<span>' + escS(m.username) + '</span></label>').join('')
+        + '</div>'
+        + '<div class="tkpoprow"><button class="tgl" data-tkassign="cancel">Cancel</button>'
+        + '<button class="btn primary" data-tkassign="save">Save</button></div>'
+      : '<div class="tkpopwait">Reading who can be assigned…</div>';
+  } else if (p.kind === 'priority') {
+    inner = [['urgent', 'Urgent'], ['high', 'High'], ['normal', 'Normal'], ['low', 'Low'], ['', 'None']]
+      .map(([v, l]) => '<button class="tkpopitem" data-tkprio="' + v + '">'
+        + '<i style="background:' + ({ urgent:'var(--rust)', high:'var(--amber)', normal:'var(--s1)', low:'var(--dimmer)' }[v] || 'transparent')
+        + '"></i><span>' + l + '</span>'
+        + ((t.priority || '') === v ? '<b>●</b>' : '') + '</button>').join('');
+  } else if (p.kind === 'menu') {
+    inner = '<button class="tkpopitem" data-tkmenu="detail"><span>Open details</span></button>'
+      + '<button class="tkpopitem" data-tkmenu="due"><span>Edit due date</span></button>'
+      + '<button class="tkpopitem" data-tkmenu="assign"><span>Assign</span></button>'
+      + '<button class="tkpopitem" data-tkmenu="priority"><span>Priority</span></button>'
+      + '<div class="tkpopdiv"></div>'
+      + '<button class="tkpopitem" data-tkmenu="clickup"><span>Open in ClickUp ↗</span></button>';
+  }
+
+  host.className = 'tkpop on';
+  host.style.left = p.x + 'px';
+  host.style.top = p.y + 'px';
+  host.innerHTML = inner;
+  wireTkPop(host);
+}
+
+function wireTkPop(host){
+  const p = TKE.pop;
+  if (!p) return;
+  const t = tkById(p.taskId);
+
+  host.querySelectorAll('[data-tkstatus]').forEach(b => b.onclick = async () => {
+    const next = b.dataset.tkstatus;
+    const prevStatus = t.status, prevCanon = t.canonical;
+    t.status = next;
+    /* The bucket is recomputed by the server too, but the row has to move now. */
+    t.canonical = tkBucket(next);
+    tkClosePop(); drawTasks(); if (TKE.detail) tkDrawDetail();
+    await tkPut(t.id, { status: next }, () => { t.status = prevStatus; t.canonical = prevCanon; });
+  });
+
+  host.querySelectorAll('[data-tkdue]').forEach(b => b.onclick = async () => {
+    const clear = b.dataset.tkdue === 'clear';
+    const input = host.querySelector('#tk-due-input');
+    const prev = t.due;
+    let next = null;
+    if (!clear) {
+      const v = input?.value;
+      if (!v) { banner('Pick a date, or clear it.'); return; }
+      /* Midday local, so a timezone shift cannot move it to the day before. */
+      next = new Date(v + 'T12:00:00').getTime();
+    }
+    t.due = next;
+    tkClosePop(); drawTasks(); if (TKE.detail) tkDrawDetail();
+    await tkPut(t.id, { due: next }, () => { t.due = prev; });
+  });
+
+  const q = host.querySelector('#tk-assign-q');
+  if (q) {
+    q.oninput = () => {
+      const needle = q.value.trim().toLowerCase();
+      host.querySelectorAll('#tk-assign-list label').forEach(l => {
+        l.style.display = !needle || l.textContent.toLowerCase().includes(needle) ? '' : 'none';
+      });
+    };
+    q.focus();
+  }
+
+  host.querySelectorAll('[data-tkassign]').forEach(b => b.onclick = async () => {
+    if (b.dataset.tkassign === 'cancel') { tkClosePop(); return; }
+    const checked = [...host.querySelectorAll('#tk-assign-list input:checked')].map(i => i.value);
+    const had = t.assignees.map(a => a.id);
+    const add = checked.filter(id => !had.includes(id));
+    const rem = had.filter(id => !checked.includes(id));
+    if (!add.length && !rem.length) { tkClosePop(); return; }
+
+    const prev = t.assignees;
+    const known = new Map((p.data || []).map(m => [m.id, m]));
+    t.assignees = checked.map(id => known.get(id) || { id, username: id });
+    tkClosePop(); drawTasks(); if (TKE.detail) tkDrawDetail();
+    await tkPut(t.id, { assignees: { add: add.map(Number), rem: rem.map(Number) } },
+      () => { t.assignees = prev; });
+  });
+
+  host.querySelectorAll('[data-tkprio]').forEach(b => b.onclick = async () => {
+    const v = b.dataset.tkprio || null;
+    const prev = t.priority;
+    t.priority = v;
+    tkClosePop(); drawTasks(); if (TKE.detail) tkDrawDetail();
+    await tkPut(t.id, { priority: v }, () => { t.priority = prev; });
+  });
+
+  host.querySelectorAll('[data-tkmenu]').forEach(b => b.onclick = () => {
+    const what = b.dataset.tkmenu;
+    const anchorRect = { left: p.x, bottom: p.y };
+    tkClosePop();
+    if (what === 'detail') tkOpenDetail(t.id);
+    else if (what === 'clickup') { if (t.url) window.open(t.url, '_blank', 'noopener'); }
+    else {
+      /* Re-anchor to where the menu was, since the button that opened it is gone. */
+      const fake = { getBoundingClientRect: () => ({ left: anchorRect.left, bottom: anchorRect.bottom }) };
+      if (what === 'due') tkEditDue(t.id, fake);
+      if (what === 'assign') tkEditAssign(t.id, fake);
+      if (what === 'priority') tkOpenPop('priority', t.id, fake);
+    }
+  });
+}
+
+/* The same six buckets the server uses. Duplicated deliberately: the row has to
+   move the instant you pick a status, and waiting for a round trip to find out
+   which group it belongs to would make the table feel broken. */
+function tkBucket(raw){
+  const n = String(raw || '').toLowerCase();
+  if (/^(complete|completed|done|closed|shipped|live|approved|paid|won)$/.test(n)) return 'Completed';
+  if (/(review|qa|approval|awaiting|sign.?off)/.test(n)) return 'In Review';
+  if (/(block|stuck|waiting on|on hold|hold|paused|impediment)/.test(n)) return 'Blocked';
+  if (/(long.?term|someday|backlog|icebox|parking|future|later)/.test(n)) return 'Long Term';
+  if (/(progress|doing|active|working|wip|started|building)/.test(n)) return 'In Progress';
+  return 'To Do';
+}
+
+async function tkEditStatus(taskId, anchor){
+  const t = tkById(taskId);
+  if (!t?.list?.id) { banner('That task has no list, so its statuses cannot be read.'); return; }
+  tkOpenPop('status', taskId, anchor, null);
+  try {
+    const r = await fetch('/api/tasks/list/' + encodeURIComponent(t.list.id) + '/statuses');
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not read statuses');
+    if (TKE.pop && TKE.pop.kind === 'status' && TKE.pop.taskId === taskId) {
+      TKE.pop.data = j.statuses || [];
+      tkPaintPop();
+    }
+  } catch (err) { tkClosePop(); banner(err.message); }
+}
+
+async function tkEditAssign(taskId, anchor){
+  const t = tkById(taskId);
+  if (!t?.list?.id) { banner('That task has no list, so its members cannot be read.'); return; }
+  tkOpenPop('assign', taskId, anchor, null);
+  try {
+    const r = await fetch('/api/tasks/list/' + encodeURIComponent(t.list.id) + '/members');
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not read members');
+    if (TKE.pop && TKE.pop.kind === 'assign' && TKE.pop.taskId === taskId) {
+      TKE.pop.data = j.members || [];
+      tkPaintPop();
+    }
+  } catch (err) { tkClosePop(); banner(err.message); }
+}
+
+function tkEditDue(taskId, anchor){ tkOpenPop('due', taskId, anchor); }
+
+/* ---------- the detail modal ---------- */
+
+async function tkOpenDetail(taskId){
+  TKE.detail = taskId;
+  TKE.comments = null;
+  tkDrawDetail();
+  try {
+    const r = await fetch('/api/tasks/' + encodeURIComponent(taskId) + '/comments');
+    const j = await r.json();
+    TKE.comments = { id: taskId, list: r.ok ? (j.comments || []) : [], error: r.ok ? null : j.error };
+  } catch (err) {
+    TKE.comments = { id: taskId, list: [], error: err.message };
+  }
+  if (TKE.detail === taskId) tkDrawDetail();
+}
+
+function tkCloseDetail(){
+  TKE.detail = null; TKE.comments = null;
+  tkDrawDetail();
+}
+
+function tkDrawDetail(){
+  let host = document.getElementById('tk-modal');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'tk-modal';
+    document.body.appendChild(host);
+    host.onclick = ev => { if (ev.target === host) tkCloseDetail(); };
+  }
+  if (!TKE.detail) { host.className = ''; host.innerHTML = ''; return; }
+  const t = tkById(TKE.detail);
+  if (!t) { host.className = ''; host.innerHTML = ''; return; }
+
+  const trail = [t.space?.name, t.folder?.name, t.list?.name].filter(Boolean).join(' / ');
+  const when = ms => ms ? new Date(ms).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }) : '—';
+
+  const row = (k, v) => '<div class="tkdrow"><span>' + k + '</span><div>' + v + '</div></div>';
+
+  const c = TKE.comments && TKE.comments.id === t.id ? TKE.comments : null;
+  const comments = !c ? '<div class="hint">Reading comments…</div>'
+    : c.error ? '<div class="hint">Could not read comments: ' + escS(c.error) + '</div>'
+    : !c.list.length ? '<div class="hint">No comments yet.</div>'
+    : c.list.slice(-30).map(x =>
+        '<div class="tkcm"><div class="h"><b>' + escS(x.user || 'someone') + '</b>'
+        + '<span>' + escS(x.at ? new Date(x.at).toLocaleString([], { dateStyle:'medium', timeStyle:'short' }) : '') + '</span></div>'
+        + '<div class="b">' + escS(x.text || '') + '</div></div>').join('');
+
+  host.className = 'tkmodal on';
+  host.innerHTML = '<div class="tkmpanel" role="dialog" aria-modal="true">'
+    + '<div class="tkmhead"><div style="flex:1;min-width:0">'
+    +   '<h3>' + escS(t.name) + '</h3>'
+    +   '<p class="mono">' + escS(trail || '—') + '</p></div>'
+    +   '<button class="tgl" id="tk-mclose">Close</button></div>'
+    + '<div class="tkmbody">'
+    +   '<div class="eyebrow">Details</div>'
+    +   '<div class="tkdrows">'
+    +     row('Status', '<button class="tkpill" id="tk-d-status">' + escS(t.status || t.canonical) + ' ▾</button>')
+    +     row('Due', '<button class="tklink" id="tk-d-due">' + (t.due ? escS(new Date(t.due).toLocaleDateString([], { dateStyle: 'medium' })) : 'Set a date') + '</button>')
+    +     row('Assignees', (t.assignees.length ? t.assignees.map(a => '<span class="chip2">' + escS(a.username) + '</span>').join(' ') : '<span class="hint">Nobody</span>') + ' <button class="tklink" id="tk-d-assign">edit</button>')
+    +     row('Priority', '<button class="tklink" id="tk-d-prio">' + (t.priority ? escS(t.priority) : 'none') + '</button>')
+    +     (t.tags.length ? row('Tags', t.tags.map(x => '<span class="chip2">' + escS(x) + '</span>').join(' ')) : '')
+    +     row('Bucket', tkStatusChip(t))
+    +     row('Created', escS(when(t.created)))
+    +     row('Updated', escS(when(t.updated)))
+    +     (t.closed ? row('Closed', escS(when(t.closed))) : '')
+    +     row('Open', t.url ? '<a class="tklink" href="' + escS(t.url) + '" target="_blank" rel="noopener noreferrer">View in ClickUp ↗</a>' : '<span class="hint">no link</span>')
+    +   '</div>'
+    +   '<div class="eyebrow" style="margin:18px 0 8px">Comments</div>'
+    +   '<div class="tkcms">' + comments + '</div>'
+    +   '<div class="tkcform"><textarea id="tk-cm" rows="2" placeholder="Add a comment…"'
+    +   (TKE.posting ? ' disabled' : '') + '></textarea>'
+    +   '<button class="btn primary" id="tk-cpost"' + (TKE.posting ? ' disabled' : '') + '>'
+    +   (TKE.posting ? 'Posting…' : 'Post') + '</button></div>'
+    + '</div></div>';
+
+  const on = (id, fn) => { const el = host.querySelector('#' + id); if (el) el.onclick = fn; };
+  on('tk-mclose', tkCloseDetail);
+  on('tk-d-status', ev => tkEditStatus(t.id, ev.currentTarget));
+  on('tk-d-due', ev => tkEditDue(t.id, ev.currentTarget));
+  on('tk-d-assign', ev => tkEditAssign(t.id, ev.currentTarget));
+  on('tk-d-prio', ev => tkOpenPop('priority', t.id, ev.currentTarget));
+  on('tk-cpost', async () => {
+    const box = host.querySelector('#tk-cm');
+    const text = (box?.value || '').trim();
+    if (!text) return;
+    TKE.posting = true; tkDrawDetail();
+    try {
+      const r = await fetch('/api/tasks/' + encodeURIComponent(t.id) + '/comment', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text })
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'could not post');
+      TKE.posting = false;
+      toast('Comment posted');
+      /* Re-read rather than appending a guess: ClickUp decides the author and
+         the timestamp, and inventing them here would make the list a fiction. */
+      await tkOpenDetail(t.id);
+    } catch (err) {
+      TKE.posting = false;
+      banner(err.message);
+      tkDrawDetail();
+    }
+  });
+}
+
+/* ---------- bulk actions ---------- */
+
+function tkBulkBar(){
+  if (!TKE.sel.size) return '';
+  return '<div class="tkbulk"><span>' + TKE.sel.size + ' selected</span>'
+    + '<button class="btn primary" data-tkbulk="done"' + (TKE.busy ? ' disabled' : '') + '>'
+    + (TKE.busy ? 'Working…' : 'Mark completed') + '</button>'
+    + '<button class="tgl" data-tkbulk="clear">Clear</button></div>';
+}
+
+async function tkBulkComplete(){
+  if (TKE.busy) return;
+  const ids = [...TKE.sel];
+  if (!confirm('Mark ' + ids.length + ' task' + (ids.length > 1 ? 's' : '') + ' completed in ClickUp?')) return;
+  TKE.busy = true; drawTasks();
+
+  /* One list at a time: the closed status is per-list, and asking once per task
+     would be hundreds of requests against a rate limit. */
+  const byList = new Map();
+  for (const id of ids) {
+    const t = tkById(id);
+    if (!t?.list?.id) continue;
+    (byList.get(t.list.id) || byList.set(t.list.id, []).get(t.list.id)).push(t);
+  }
+
+  let done = 0, skipped = 0, failed = 0;
+  for (const [listId, tasks] of byList) {
+    let closed = null;
+    try {
+      const r = await fetch('/api/tasks/list/' + encodeURIComponent(listId) + '/statuses');
+      const j = await r.json();
+      const list = j.statuses || [];
+      closed = list.find(s => s.type === 'closed') || list.find(s => s.canonical === 'Completed');
+    } catch { /* fall through to skipped */ }
+    if (!closed) { skipped += tasks.length; continue; }
+    for (const t of tasks) {
+      const ok = await tkPut(t.id, { status: closed.status });
+      if (ok) { t.status = closed.status; t.canonical = 'Completed'; done++; } else failed++;
+    }
+  }
+
+  TKE.busy = false;
+  TKE.sel.clear();
+  drawTasks();
+  toast(done + ' completed'
+    + (skipped ? ' · ' + skipped + ' skipped (no closed status in their list)' : '')
+    + (failed ? ' · ' + failed + ' failed' : ''));
+}
+
+/* One listener for the whole document: popovers close on any outside click, and
+   Escape backs out one layer at a time. */
+document.addEventListener('click', ev => {
+  if (!TKE.pop) return;
+  const host = document.getElementById('tk-pop');
+  if (host && host.contains(ev.target)) return;
+  /* The control that opened it must not immediately close it again. */
+  if (ev.target.closest?.('[data-tkedit]')) return;
+  tkClosePop();
+}, true);
+
+document.addEventListener('keydown', ev => {
+  if (ev.key !== 'Escape') return;
+  if (TKE.pop) { tkClosePop(); return; }
+  if (TKE.detail) tkCloseDetail();
+});
+
+
 
 document.getElementById('tk-refresh')?.addEventListener('click', () => tkLoad(true));
 
