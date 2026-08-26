@@ -642,7 +642,20 @@ export function claudeRoutes({ env, auth }){
     const prompt = String(b.prompt || '').trim();
     if (!prompt) return res.status(400).json({ error: 'empty prompt' });
 
-    const args = ['-p', '--output-format', 'stream-json', '--include-partial-messages', '--verbose'];
+    /* Streaming input, not one-shot -p.
+
+       This is what makes MCP work. A `-p` run registers its MCP servers and then
+       exits before any of them finish connecting: measured on the session's own
+       init frame they sit at status "pending", and the turn ends with zero mcp__
+       tools whether the servers come from the account, a local config, or an
+       explicit --mcp-config. A streaming session stays alive long enough for them
+       to attach, and then a turn really can call
+       mcp__claude_ai_Front__get_my_identity and get an answer back.
+
+       The cost is that stdin becomes a protocol rather than a pipe: the prompt
+       goes as one JSON line, and the turn is over when a `result` frame lands. */
+    const args = ['--input-format', 'stream-json', '--output-format', 'stream-json',
+                  '--include-partial-messages', '--verbose'];
     if (b.sessionId) args.push('--resume', String(b.sessionId));
     if (b.model) args.push('--model', String(b.model));
     if (b.effort) args.push('--effort', String(b.effort));
@@ -685,11 +698,25 @@ export function claudeRoutes({ env, auth }){
     const asked = Array.isArray(b.tools)
       ? b.tools.filter(t => typeof t === 'string' && /^[A-Za-z][A-Za-z0-9_]{0,120}$/.test(t))
       : null;
+
+    /* Connectors are opt-in per turn. They are not read-only -- the list includes
+       Gmail, GHL and Supabase, so an unlucky prompt could send mail or run SQL.
+       One deliberate switch is worth more than having it on by default.
+
+       `claude.ai Front` is exposed as mcp__claude_ai_Front__<tool>, and naming a
+       server allows every tool it offers. */
+    const mcpAllow = b.useMcp && Array.isArray(b.mcpServers)
+      ? b.mcpServers
+          .filter(n => typeof n === 'string')
+          .map(n => 'mcp__' + n.replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, ''))
+          .filter(n => /^mcp__[A-Za-z0-9_]{1,120}$/.test(n))
+          .slice(0, 40)
+      : [];
     if (PERMITTED) {
       const use = asked && asked.length ? asked.filter(t => PERMITTED.includes(t)) : PERMITTED;
-      args.push('--allowed-tools', ...(use.length ? use : PERMITTED));
+      args.push('--allowed-tools', ...(use.length ? use : PERMITTED), ...mcpAllow);
     } else if (asked && asked.length) {
-      args.push('--allowed-tools', ...asked);
+      args.push('--allowed-tools', ...asked, ...mcpAllow);
     } else {
       args.push('--dangerously-skip-permissions');
     }
@@ -697,10 +724,18 @@ export function claudeRoutes({ env, auth }){
     if (b.permissionMode && MODES.includes(b.permissionMode)) args.push('--permission-mode', b.permissionMode);
 
     /* The prompt goes to stdin, not argv — see lib/claude-cli.js. */
-    const child = spawnClaude(args, { cwd: CWD, prompt });
+    /* stdin stays open: in streaming mode closing it ends the session, and the
+       process has to outlive the write for the MCP servers to attach. */
+    const child = spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
     running = child;
 
+    child.stdin.write(JSON.stringify({
+      type: 'user',
+      message: { role: 'user', content: [{ type: 'text', text: prompt }] }
+    }) + '\n');
+
     let buf = '';
+    let finished = false;
     child.stdout.on('data', chunk => {
       buf += chunk.toString();
       let nl;
@@ -708,7 +743,16 @@ export function claudeRoutes({ env, auth }){
         const line = buf.slice(0, nl).trim();
         buf = buf.slice(nl + 1);
         if (!line) continue;
-        try { send('msg', JSON.parse(line)); } catch { send('raw', { text: line }); }
+        let frame = null;
+        try { frame = JSON.parse(line); } catch { send('raw', { text: line }); continue; }
+        send('msg', frame);
+        /* A `result` frame ends the turn. Nothing more is coming, and the session
+           would otherwise wait for another message forever. */
+        if (frame.type === 'result' && !finished) {
+          finished = true;
+          try { child.stdin.end(); } catch { /* already gone */ }
+          setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* exited */ } }, 1500);
+        }
       }
     });
     child.stderr.on('data', c => send('stderr', { text: c.toString() }));
