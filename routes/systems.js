@@ -97,14 +97,36 @@ export function systemRoutes({ env, auth }){
     if (declared > MAX_UPLOAD) {
       return res.status(413).json({ error: 'That file is over OpusClip\'s 30 GB ceiling.' });
     }
-    const token = store.newToken();
-    const dest = store.mediaPath(token, env);
+    /* Long uploads must not be cut off by a socket timeout mid-transfer. */
+    req.setTimeout?.(0);
+    res.setTimeout?.(0);
+    let token, dest;
+    try {
+      token = store.newToken();
+      dest = store.mediaPath(token, env);
+      if (!dest) throw new Error('could not resolve a storage path');
+    } catch (err) {
+      /* A volume that is mounted but not writable fails here rather than
+         halfway through a multi-gigabyte transfer. */
+      return res.status(500).json({ error: 'Storage is not writable: ' + err.message });
+    }
+
+    /* NO 'data' listener on req.
+
+       Attaching one switches the stream to flowing mode immediately, so chunks
+       are emitted — and dropped — before pipeline() attaches its own consumer.
+       The pipeline then waits for data that has already gone past, the request
+       never completes, and the platform returns 502 with the app never having
+       answered. That is exactly what the first version did. The byte count
+       comes from the file afterwards, which is the only number that was
+       actually written anyway. */
     let written = 0;
-    req.on('data', c => { written += c.length; });
     try {
       await pipeline(req, fs.createWriteStream(dest));
+      written = fs.statSync(dest).size;
     } catch (err) {
       fs.promises.unlink(dest).catch(() => {});
+      console.error('[clip:upload]', err.message);
       return res.status(500).json({ error: 'Upload failed: ' + err.message });
     }
     if (!written) {
