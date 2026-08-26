@@ -20,7 +20,11 @@ import {
 
 const configured = env => Boolean(env.META_APP_ID && env.META_APP_SECRET);
 
-const RANGES = [7, 28, 90];
+/* 180 exists so the browser can fetch once and slice locally: 90 days on screen
+   plus the 90 before it for the period comparison. Switching 7/28/90 or toggling
+   compare then costs nothing, which is what makes those controls feel instant
+   instead of round-tripping. */
+const RANGES = [7, 28, 90, 180];
 const rangeOf = q => {
   const n = Number(q);
   return RANGES.includes(n) ? n : 28;

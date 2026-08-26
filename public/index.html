@@ -841,6 +841,104 @@ main{min-width:0;display:flex;flex-direction:column}
 .subnav .subsec.on::before{content:'';position:absolute;left:22px;top:50%;transform:translateY(-50%);
   width:3px;height:3px;border-radius:50%;background:var(--brass)}
 
+/* ---- platform strip ---- */
+.pstrip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.ptab{display:inline-flex;align-items:center;gap:9px;padding:7px 13px 7px 10px;border-radius:999px;
+  border:1px solid var(--edge);background:var(--panel);font-size:12.5px;color:var(--dim);
+  cursor:pointer;transition:.16s}
+.ptab:hover{border-color:var(--edge2);color:var(--text)}
+.ptab .sw{width:9px;height:9px;border-radius:3px;background:var(--c);flex:none}
+.ptab .cnt{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer)}
+.ptab.on{color:var(--cream);background:var(--panel2);border-color:var(--c)}
+
+/* ---- signal ---- */
+.sigcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);
+  margin-bottom:14px;overflow:hidden}
+.sigtop{display:flex;align-items:flex-start;gap:12px;padding:14px 16px 0;flex-wrap:wrap}
+.sigtop h3{font-size:13.5px;color:var(--cream);font-variation-settings:'wght' 600}
+.sigtop p{font-size:11.5px;color:var(--dimmer);margin-top:3px;max-width:56ch}
+.chiprow{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px 0}
+.mchip{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:8px;
+  border:1px solid var(--edge);background:var(--ink2);color:var(--dimmer);cursor:pointer;
+  font:inherit;font-size:11.5px;transition:.14s}
+.mchip:hover{color:var(--text)}
+.mchip .sw{width:15px;height:2.5px;border-radius:2px;background:currentColor;opacity:.4}
+.mchip.on{color:var(--cream);border-color:var(--edge2)}
+.mchip.on .sw{opacity:1;background:var(--c)}
+.readout{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;padding:12px 16px 8px}
+.ro .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dimmer)}
+.ro .v{font-size:19px;color:var(--cream);font-variation-settings:'wdth' 112,'wght' 600;
+  letter-spacing:-.025em;display:flex;align-items:center;gap:8px}
+.rospan{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer);
+  border:1px solid var(--edge);border-radius:6px;padding:3px 8px;background:var(--ink2)}
+.brush{display:block;width:100%;height:46px;cursor:crosshair;touch-action:none}
+.brushnote{display:flex;justify-content:space-between;padding:0 16px 13px;
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--dimmer)}
+
+/* ---- mix ---- */
+.mixrow{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--edge);font-size:12.5px}
+.mixrow:last-child{border-bottom:0}
+.mixrow .sw{width:8px;height:8px;border-radius:2px;flex:none}
+.mixrow .l{color:var(--dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mixrow .v{font-family:'IBM Plex Mono',monospace;font-feature-settings:'tnum';color:var(--text)}
+.mixrow .p{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer);width:34px;text-align:right}
+
+/* ---- insights ---- */
+.insrow{display:flex;gap:10px;padding:11px 0;border-bottom:1px dashed var(--edge);align-items:flex-start}
+.insrow:last-child{border-bottom:0}
+.insrow .sev{width:16px;height:16px;border-radius:4px;flex:none;margin-top:2px;display:grid;
+  place-items:center;font-size:9px;font-weight:700}
+.insrow .tx{font-size:12.5px;line-height:1.5;color:var(--dim)}
+.insrow .tx b{color:var(--cream);font-variation-settings:'wght' 600}
+.sev.good{background:rgba(12,163,12,.15);color:#0ca30c}
+.sev.warn{background:rgba(250,178,25,.15);color:#fab219}
+.sev.bad{background:rgba(208,59,59,.15);color:#e06b6b}
+.sev.info{background:rgba(57,135,229,.15);color:#3987e5}
+
+/* ---- drawer ---- */
+.scrim{position:fixed;inset:0;background:rgba(4,6,10,.58);backdrop-filter:blur(3px);
+  opacity:0;pointer-events:none;transition:.22s;z-index:60}
+.scrim.on{opacity:1;pointer-events:auto}
+.drawer{position:fixed;top:0;right:0;height:100vh;width:min(480px,100vw);z-index:61;
+  background:var(--panel);border-left:1px solid var(--edge);transform:translateX(102%);
+  transition:transform .3s cubic-bezier(.22,.68,.36,1);display:flex;flex-direction:column;
+  box-shadow:-30px 0 70px -40px rgba(0,0,0,.85)}
+.drawer.on{transform:none}
+.drawerh{padding:17px 19px 14px;border-bottom:1px solid var(--edge);display:flex;gap:12px;align-items:flex-start}
+.drawerh h4{font-size:14.5px;color:var(--cream);font-variation-settings:'wght' 600;line-height:1.3}
+.drawerb{overflow-y:auto;padding:17px 19px 40px;flex:1}
+.dstat{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;margin-bottom:18px}
+.dstat .b{background:var(--ink2);border:1px solid var(--edge);border-radius:8px;padding:10px 12px}
+.dstat .b .k{font-size:10.5px;color:var(--dimmer)}
+.dstat .b .v{font-size:18px;color:var(--cream);font-variation-settings:'wdth' 112,'wght' 600;margin-top:2px}
+.dsub{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dimmer);margin:20px 0 9px}
+
+/* ---- command palette ---- */
+.palw{position:fixed;inset:0;z-index:70;display:none;padding-top:12vh;justify-content:center;
+  background:rgba(4,6,10,.55);backdrop-filter:blur(4px)}
+.palw.on{display:flex}
+.pal{width:min(560px,92vw);max-height:62vh;background:var(--panel);border:1px solid var(--edge2);
+  border-radius:14px;box-shadow:0 40px 90px -40px rgba(0,0,0,.9);overflow:hidden;display:flex;flex-direction:column}
+.palin{display:flex;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--edge)}
+.palin input{flex:1;border:0;background:none;outline:none;font:inherit;font-size:15px;color:var(--text)}
+.pallist{overflow-y:auto;padding:6px}
+.palitem{display:flex;align-items:center;gap:11px;padding:9px 11px;border-radius:9px;font-size:13.5px;
+  width:100%;text-align:left;background:none;border:0;color:var(--text);cursor:pointer}
+.palitem .h{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer)}
+.palitem.hi{background:var(--panel2)}
+.palgrp{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dimmer);padding:10px 11px 5px}
+
+/* ---- toasts ---- */
+.toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:80;
+  display:flex;flex-direction:column;gap:8px;align-items:center}
+.toast{background:var(--panel2);border:1px solid var(--edge2);border-radius:10px;padding:9px 14px;
+  font-size:12.5px;color:var(--text);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);animation:rise .28s}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+@media (prefers-reduced-motion:reduce){.toast{animation:none}.drawer{transition:none}}
+
 /* ---------- ads dashboard ---------- */
 .adsflags{display:flex;flex-direction:column;gap:1px;margin-bottom:14px}
 .adsflag{display:flex;align-items:flex-start;gap:10px;padding:11px 15px;background:var(--panel);
@@ -1180,6 +1278,22 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div class="card flush"><div class="empty"><b>No workflows</b><small>Each automation renders as a row with its run history and health.</small></div></div>
   </section>
 </main>
+<div class="scrim" id="so-scrim"></div>
+<aside class="drawer" id="so-drawer" aria-hidden="true">
+  <div class="drawerh" id="so-drawerh"></div>
+  <div class="drawerb" id="so-drawerb"></div>
+</aside>
+<div class="palw" id="so-palw">
+  <div class="pal">
+    <div class="palin">
+      <span class="eyebrow">Go to</span>
+      <input id="so-palin" placeholder="Search platforms, sections, metrics…" autocomplete="off">
+      <span class="kbd" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--dimmer)">esc</span>
+    </div>
+    <div class="pallist" id="so-pallist"></div>
+  </div>
+</div>
+<div class="toasts" id="so-toasts"></div>
 </div>
 
 <script>
@@ -3442,6 +3556,13 @@ const SO = { view:'overview', metaTab:'facebook', range:'28', metric:{}, fetchin
      split:   plot one series PER ACCOUNT instead of one summed series
      table:   the table twin, so no value is reachable only by hovering */
   section:'performance', acct:'all', split:false, table:false, q:'', chartKind:'bar',
+  /* compare: draw the preceding window as a ghost and put a delta on every tile
+     zoom:    [startIndex, endIndex] from the brush strip, or null
+     metrics: charted metrics; more than one becomes small multiples, because
+              views and follows on one shared axis flattens the smaller to zero
+     page/fmt/sort/drawer: the content table and its detail panel */
+  compare:true, zoom:null, metrics:['views'], page:0, fmt:'all',
+  sort:{ key:'views', dir:-1 }, drawer:null, theme:'dark',
   /* Ads view: which ad account is in focus, how the campaign table is sorted,
      and which efficiency metric the line on the combo chart draws. */
   adsAcct:'all', adsSort:{ col:'spend', dir:-1 }, adsLine:'cpa' };
@@ -3586,7 +3707,9 @@ async function loadSocialView(){
   const keys = SO_VIEW_KEYS[SO.view];
   if (!keys) return;
   await Promise.all(keys.map(async k => {
-    try { PLAT[k] = await api('/api/social/platform/' + k + '?range=' + encodeURIComponent(SO.range)); }
+    /* Always 180. Every range on screen, and the window before it that the
+       comparison needs, is a slice of this one response. */
+    try { PLAT[k] = await api('/api/social/platform/' + k + '?range=180'); }
     catch (err) { PLAT[k] = { provider: k, error: err.message }; }
   }));
   drawSocial();
@@ -3685,13 +3808,15 @@ function drawSocial(){
   });
   /* The range is a server-side window, so it refetches; everything else above
      re-slices what is already loaded. */
+  /* No refetch: 180 days are already loaded and every range is a slice of
+     them, so this is instant. */
   body.querySelectorAll('[data-sorange]').forEach(b => b.onclick = () => {
     if (SO.range === b.dataset.sorange) return;
     SO.range = b.dataset.sorange;
+    SO.zoom = null;
     const sel = document.getElementById('so-range');
     if (sel) sel.value = SO.range;
-    PLAT = {};
-    drawSocial(); load(); loadSocialView();
+    drawSocial();
   });
   /* Legend keys toggle a series. Identity is the mark's colour AND its name, so
      hiding one never leaves the reader matching hues from memory. */
@@ -3715,6 +3840,46 @@ function drawSocial(){
         if (at) { const n2 = document.getElementById('so-q'); if (n2) { n2.focus(); n2.setSelectionRange(n2.value.length, n2.value.length); } } }, 160);
     };
   }
+  body.querySelectorAll('[data-socompare]').forEach(b => b.onclick = () => {
+    SO.compare = !SO.compare; drawSocial();
+  });
+  body.querySelectorAll('[data-soexport]').forEach(b => b.onclick = exportCsv);
+  body.querySelectorAll('[data-postsort]').forEach(b => b.onclick = () => {
+    const col = b.dataset.postsort;
+    if (SO.sort.key === col) SO.sort.dir *= -1;
+    else SO.sort = { key: col, dir: col === 'title' ? 1 : -1 };
+    SO.page = 0; drawSocial();
+  });
+  body.querySelectorAll('[data-postpage]').forEach(b => b.onclick = () => {
+    SO.page += Number(b.dataset.postpage); drawSocial();
+  });
+  body.querySelectorAll('[data-postopen]').forEach(b => b.onclick = () => {
+    openPost(SO.view === 'meta' ? SO.metaTab : SO.view, b.dataset.postopen);
+  });
+  body.querySelectorAll('[data-pstrip]').forEach(b => b.onclick = () => {
+    SO.view = b.dataset.pstrip;
+    SO.section = 'performance';
+    if (SO.view === 'meta') SO.metaTab = 'facebook';
+    SO.acct = 'all'; SO.split = false; SO.zoom = null; SO.q = '';
+    drawSocial(); loadSocialView();
+  });
+  /* A tile is the fastest way to change what the chart shows, so it charts it.
+     A ratio has no daily series of its own and says so rather than doing
+     nothing. */
+  body.querySelectorAll('[data-kpimetric]').forEach(b => b.onclick = () => {
+    const m = b.dataset.kpimetric;
+    if (m === 'engagement') { toast('Engagement is a ratio. Charted as interactions instead.'); SO.metrics = ['interactions']; }
+    else SO.metrics = [m];
+    drawSocial();
+  });
+  body.querySelectorAll('[data-mchip]').forEach(b => b.onclick = () => {
+    const m = b.dataset.mchip, i = SO.metrics.indexOf(m);
+    if (i >= 0) { if (SO.metrics.length > 1) SO.metrics.splice(i, 1); }
+    else { if (SO.metrics.length >= 3) SO.metrics.shift(); SO.metrics.push(m); }
+    if (SO.metrics.length > 1) SO.split = false;
+    drawSocial();
+  });
+  wireBrush(body);
   wireViz(body);
   body.querySelectorAll('[data-adsline]').forEach(b => b.onclick = () => {
     SO.adsLine = b.dataset.adsline; drawSocial();
@@ -3794,6 +3959,194 @@ function connectCard(key, d){
     + '</div></div>';
 }
 
+/* Drag across the strip to zoom; double-click clears. Indices are read from the
+   pointer's position along the strip, so it works at any width. */
+function wireBrush(root){
+  root.querySelectorAll('[data-brush] .brush').forEach(svg => {
+    let meta;
+    try { meta = JSON.parse(svg.closest('[data-brush]').dataset.brush); } catch { return; }
+    const n = meta.n;
+    if (!n) return;
+    const idxAt = clientX => {
+      const r = svg.getBoundingClientRect();
+      if (!r.width) return 0;
+      return Math.max(0, Math.min(n - 1, Math.round(((clientX - r.left) / r.width) * (n - 1))));
+    };
+    let anchor = null;
+    svg.addEventListener('pointerdown', e => {
+      anchor = idxAt(e.clientX);
+      svg.setPointerCapture?.(e.pointerId);
+    });
+    svg.addEventListener('pointermove', e => {
+      if (anchor == null) return;
+      const b = idxAt(e.clientX);
+      if (Math.abs(b - anchor) > 1) { SO.zoom = [Math.min(anchor, b), Math.max(anchor, b)]; drawSocial(); }
+    });
+    const stop = () => { anchor = null; };
+    svg.addEventListener('pointerup', stop);
+    svg.addEventListener('pointercancel', stop);
+    svg.addEventListener('dblclick', () => { SO.zoom = null; drawSocial(); });
+  });
+}
+
+function toast(msg){
+  const host = document.getElementById('so-toasts');
+  if (!host) return;
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => { el.style.transition = 'opacity .3s, transform .3s'; el.style.opacity = '0';
+    el.style.transform = 'translateY(8px)'; setTimeout(() => el.remove(), 320); }, 2600);
+}
+
+/* Everything on screen, as CSV. The table twin already makes each value
+   readable; this makes the whole slice portable. */
+function exportCsv(){
+  const keys = SO_VIEW_KEYS[SO.view] || [];
+  const rows = [['platform','account','day','followers','reach','views','interactions']];
+  for (const k of keys) {
+    const d = PLAT[k];
+    if (!d?.series) continue;
+    const name = id => (d.accounts || []).find(a => a.id === id)?.label || id;
+    for (const r of rowsFor(d, k, 0)) {
+      rows.push([k, name(r.account), String(r.day).slice(0,10),
+        r.followers ?? '', r.reach ?? '', r.views ?? '', r.interactions ?? '']);
+    }
+  }
+  if (rows.length === 1) { toast('Nothing to export in this window.'); return; }
+  const csv = rows.map(r => r.map(c => {
+    const v = String(c);
+    return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
+  }).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'social-' + SO.view + '-' + RANGE_N() + 'd.csv';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast('Exported ' + (rows.length - 1) + ' rows.');
+}
+
+/* ---------- content drawer ---------- */
+function openPost(key, id){
+  const d = PLAT[key];
+  const pp = (d?.posts || []).find(x => (x.permalink || x.title) === id);
+  if (!pp) return;
+  const acct = (d.accounts || []).find(a => a.id === pp.account);
+  const words = SO_WORDS[key] || SO_WORDS.facebook;
+
+  const h = document.getElementById('so-drawerh');
+  h.textContent = '';
+  const box = document.createElement('div');
+  box.style.flex = '1';
+  const t = document.createElement('h4');
+  t.textContent = pp.title;               // untrusted: platform-supplied
+  const meta = document.createElement('div');
+  meta.className = 'sm';
+  meta.style.color = 'var(--dimmer)';
+  meta.style.marginTop = '5px';
+  meta.textContent = (acct?.label || '') + ' · ' + pp.when;
+  box.append(t, meta);
+  const close = document.createElement('button');
+  close.className = 'tgl';
+  close.textContent = 'Close';
+  close.onclick = closePost;
+  h.append(box, close);
+
+  const stats = [
+    ['Views', compact(pp.views)],
+    [key === 'youtube' || key === 'x' ? 'Interactions' : 'Reach', key === 'youtube' || key === 'x' ? compact(pp.interactions) : compact(pp.reach)],
+    ['Shares', compact(pp.shares)],
+    ['Interactions', compact(pp.interactions)]
+  ];
+  const all = (d.posts || []).filter(x => SO.acct === 'all' || x.account === SO.acct);
+  const avg = all.length ? all.reduce((n, x) => n + (x.views || 0), 0) / all.length : 0;
+  const idx = avg ? pp.views / avg : null;
+
+  const b = document.getElementById('so-drawerb');
+  b.innerHTML = '<div class="dstat">'
+    + stats.map(x => '<div class="b"><div class="k">' + escS(x[0]) + '</div><div class="v">' + escS(x[1]) + '</div></div>').join('')
+    + '</div>'
+    + '<div class="dsub">Against your own average</div>'
+    + '<div style="font-size:12.5px;color:var(--dim);line-height:1.6">'
+    + (idx == null ? 'No baseline yet.'
+        : 'This ' + escS(words.posts.replace(/s$/, '').toLowerCase()) + ' did <b style="color:var(--cream)">'
+          + idx.toFixed(2) + '×</b> the views of a typical one in this window ('
+          + escS(compact(Math.round(avg))) + ').')
+    + '</div>'
+    + (pp.permalink ? '<div class="dsub">Link</div><a href="' + escS(pp.permalink)
+        + '" target="_blank" rel="noopener" style="color:var(--s1);font-size:12.5px;word-break:break-all">'
+        + escS(pp.permalink) + '</a>' : '');
+
+  document.getElementById('so-drawer').classList.add('on');
+  document.getElementById('so-drawer').setAttribute('aria-hidden', 'false');
+  document.getElementById('so-scrim').classList.add('on');
+}
+function closePost(){
+  document.getElementById('so-drawer')?.classList.remove('on');
+  document.getElementById('so-drawer')?.setAttribute('aria-hidden', 'true');
+  document.getElementById('so-scrim')?.classList.remove('on');
+}
+
+/* ---------- command palette ---------- */
+const SO_CMDS = () => {
+  const c = [];
+  for (const [id, label] of [['overview','Overview'],['youtube','YouTube'],['meta','Meta'],['x','X']]) {
+    c.push({ g:'Go to', n:label, run:() => { SO.view = id; SO.section = 'performance'; SO.zoom = null; drawSocial(); loadSocialView(); } });
+  }
+  for (const [id, label] of [['performance','Performance'],['content','Content'],['audience','Audience']]) {
+    c.push({ g:'Section', n:label, run:() => { SO.section = id; drawSocial(); } });
+  }
+  for (const r of ['7','28','90']) {
+    c.push({ g:'Range', n:'Last ' + r + ' days', run:() => { SO.range = r; SO.zoom = null; drawSocial(); } });
+  }
+  c.push({ g:'View', n:(SO.compare ? 'Turn off' : 'Turn on') + ' period comparison', run:() => { SO.compare = !SO.compare; drawSocial(); } });
+  c.push({ g:'View', n:(SO.table ? 'Hide' : 'Show') + ' table view', run:() => { SO.table = !SO.table; drawSocial(); } });
+  c.push({ g:'View', n:'Reset zoom', run:() => { SO.zoom = null; drawSocial(); } });
+  c.push({ g:'Data', n:'Export this window as CSV', run:exportCsv });
+  c.push({ g:'Data', n:'Fetch now', run:() => document.getElementById('so-fetch')?.click() });
+  return c;
+};
+let PAL = { items: [], i: 0 };
+function openPal(){
+  const w = document.getElementById('so-palw');
+  if (!w) return;
+  w.classList.add('on');
+  const inp = document.getElementById('so-palin');
+  inp.value = ''; palFilter(''); inp.focus();
+}
+function closePal(){ document.getElementById('so-palw')?.classList.remove('on'); }
+function palFilter(q){
+  q = q.trim().toLowerCase();
+  PAL.items = SO_CMDS().filter(c => !q || c.n.toLowerCase().includes(q)).slice(0, 14);
+  PAL.i = 0; palPaint();
+}
+function palPaint(){
+  const list = document.getElementById('so-pallist');
+  if (!list) return;
+  list.textContent = '';
+  let last = '';
+  PAL.items.forEach((it, i) => {
+    if (it.g !== last) {
+      const g = document.createElement('div');
+      g.className = 'palgrp'; g.textContent = it.g;
+      list.appendChild(g); last = it.g;
+    }
+    const b = document.createElement('button');
+    b.className = 'palitem' + (i === PAL.i ? ' hi' : '');
+    b.textContent = it.n;
+    b.onclick = () => { it.run(); closePal(); };
+    list.appendChild(b);
+  });
+  if (!PAL.items.length) {
+    const e = document.createElement('div');
+    e.style.cssText = 'padding:26px;text-align:center;color:var(--dimmer);font-size:13px';
+    e.textContent = 'No match.';
+    list.appendChild(e);
+  }
+}
+
 /* The hover layer, wired after every render because the body is rebuilt as a
    string. The crosshair finds the X — the reader aims at a day, never at a 2px
    line — and one tooltip lists every series at that day, so the pointer never
@@ -3828,7 +4181,7 @@ function wireViz(root){
       head.textContent = dayLabel(data.axis[i]);
       tip.appendChild(head);
 
-      for (const sr of data.series) {
+      for (const sr of data.series.concat(data.ghosts || [])) {
         const v = sr.values[i];
         const row = document.createElement('div');
         row.className = 'trow';
@@ -3912,7 +4265,7 @@ const dayLabel = d => {
 };
 
 /* series: [{ id, label, values:[n|null], kind:'bar'|'line'|'area', color }] */
-function vizChart({ axis, series, fmt = compact, height = 190, title = '', sub = '', note = '' }){
+function vizChart({ axis, series, ghosts = [], fmt = compact, height = 190, title = '', sub = '', note = '', extra = '' }){
   const live = series.filter(s2 => !VIZ_OFF.has(s2.id));
   const n = axis.length;
   if (!n || !live.length) {
@@ -3921,7 +4274,8 @@ function vizChart({ axis, series, fmt = compact, height = 190, title = '', sub =
   }
 
   const W = 1000, H = height;
-  const allVals = live.flatMap(s2 => s2.values).filter(v => v != null && isFinite(v));
+  const allVals = live.flatMap(s2 => s2.values).concat(ghosts.flatMap(s2 => s2.values))
+    .filter(v => v != null && isFinite(v));
   const max = Math.max(0, ...allVals);
   const ticks = niceTicks(max, 4);
   const top = ticks[ticks.length - 1] || 1;
@@ -3935,6 +4289,22 @@ function vizChart({ axis, series, fmt = compact, height = 190, title = '', sub =
   const barW = Math.min(24, Math.max(1, (band - 2) / Math.max(1, bars.length)));
 
   let marks = '';
+
+  /* The preceding window, drawn behind everything as a dashed hairline. Dashing
+     is legitimate here: it marks "this is the other period", which is exactly
+     the projection-like meaning dashes are for — unlike a dashed gridline, which
+     is only noise. */
+  for (const s2 of ghosts) {
+    let d = '', open = false;
+    s2.values.forEach((v, i) => {
+      const x = i * (W / n) + (W / n) / 2;
+      if (v == null || !isFinite(v)) { open = false; return; }
+      d += (open ? 'L' : 'M') + x.toFixed(2) + ' ' + y(v).toFixed(2) + ' ';
+      open = true;
+    });
+    if (d) marks += '<path d="' + d.trim() + '" fill="none" stroke="' + s2.color
+      + '" stroke-width="1.4" stroke-dasharray="3 4" opacity=".42" vector-effect="non-scaling-stroke"/>';
+  }
 
   for (const [gi, s2] of bars.entries()) {
     marks += s2.values.map((v, i) => {
@@ -3977,7 +4347,9 @@ function vizChart({ axis, series, fmt = compact, height = 190, title = '', sub =
 
   /* The payload the hover layer reads. Values live here as well as in the table
      twin, so the tooltip only ever enhances. */
-  const payload = { axis, fmt: null, series: live.map(s2 => ({ id: s2.id, label: s2.label, color: s2.color, values: s2.values })) };
+  const payload = { axis, fmt: null,
+    series: live.map(s2 => ({ id: s2.id, label: s2.label, color: s2.color, values: s2.values })),
+    ghosts: ghosts.map(s2 => ({ id: s2.id, label: s2.label + ' (prior)', color: s2.color, values: s2.values })) };
 
   const plot = '<div class="vplot" style="--vh:' + H + 'px" data-viz="' + escS(JSON.stringify(payload)) + '">'
     + '<div class="vyaxis" style="--vh:' + H + 'px">' + yaxis + '</div>'
@@ -3991,7 +4363,7 @@ function vizChart({ axis, series, fmt = compact, height = 190, title = '', sub =
     + '<span>' + escS(dayLabel(axis[n - 1])) + '</span></div>'
     + (note ? '<div class="vlegend" style="padding-left:0;color:var(--dimmer);font-size:11px">' + note + '</div>' : '');
 
-  return frame(title, sub, plot, series, '');
+  return frame(title, sub, plot, series, extra);
 }
 
 /* Hidden series, by id. Clicking a legend key toggles membership. */
@@ -4106,12 +4478,28 @@ const SO_WORDS = {
 };
 
 /* ---------- a platform's dashboard ---------- */
+/* ---------- windowing ----------
+
+   One 180-day payload, sliced here. offset 0 is the window on screen, offset 1
+   is the one immediately before it — the comparison. Slicing locally is why
+   changing the range or toggling compare does not refetch. */
+function windowOf(rows, days, offset){
+  const all = [...new Set(rows.map(r => String(r.day).slice(0, 10)))].sort();
+  const end = all.length - (offset || 0) * days;
+  const start = Math.max(0, end - days);
+  const keep = new Set(all.slice(start, Math.max(start, end)));
+  return rows.filter(r => keep.has(String(r.day).slice(0, 10)));
+}
+
+const RANGE_N = () => Number(SO.range) || 28;
+
 /* Accounts for a platform payload, in a stable order so hues stay put. */
 const acctsOf = d => (d.accounts || []).slice().sort((a, b) => a.id < b.id ? -1 : 1);
 
-/* Rows for the current account filter. */
-const rowsFor = (d, key) => (d.series || []).filter(r =>
-  SO.acct === 'all' || r.account === SO.acct);
+/* Rows for the current account filter, inside the selected window. */
+const rowsFor = (d, key, offset) => windowOf(
+  (d.series || []).filter(r => SO.acct === 'all' || r.account === SO.acct),
+  RANGE_N(), offset || 0);
 
 /* The day axis, ascending and de-duplicated — several accounts contribute rows
    for the same day. */
@@ -4177,9 +4565,131 @@ function filterBar(d, key, { metrics = [], showSplit = true, showSearch = false 
     + '<span class="grow"></span>'
     + (showSearch ? '<input class="fsearch" id="so-q" placeholder="Search…" value="' + escS(SO.q) + '">' : '')
     + splitBtn
+    + '<button class="tgl' + (SO.compare ? ' on' : '') + '" data-socompare="1">'
+    + '<span class="box">' + (SO.compare ? '✓' : '') + '</span>Compare</button>'
     + '<button class="tgl' + (SO.table ? ' on' : '') + '" data-sotable="1">'
     + '<span class="box">' + (SO.table ? '✓' : '') + '</span>Table</button>'
+    + '<button class="tgl" data-soexport="1">Export CSV</button>'
     + '</div>';
+}
+
+/* ---------- platform strip ----------
+   Real view counts per platform, from what is already loaded — no extra fetch
+   just to label a tab. */
+function platformStrip(){
+  const tabs = [
+    { id:'youtube',   label:'YouTube',   c:'var(--s2)', keys:['youtube'] },
+    { id:'meta',      label:'Meta',      c:'var(--s1)', keys:['facebook','instagram','meta_ads'] },
+    { id:'x',         label:'X',         c:'var(--s7)', keys:['x'] }
+  ];
+  return '<div class="pstrip">' + tabs.map(t => {
+    const loaded = t.keys.map(k => PLAT[k]).filter(Boolean);
+    const views = loaded.reduce((n, d) =>
+      n + windowOf(d.series || [], RANGE_N(), 0).reduce((m, r) => m + (r.views || 0), 0), 0);
+    const connected = loaded.some(d => d.connected);
+    return '<button class="ptab' + (SO.view === t.id ? ' on' : '') + '" style="--c:' + t.c + '" data-pstrip="' + t.id + '">'
+      + '<i class="sw"></i>' + escS(t.label)
+      + '<span class="cnt">' + (connected ? (views ? compact(views) + ' views' : 'no data') : 'not connected') + '</span></button>';
+  }).join('') + '</div>';
+}
+
+/* ---------- what changed ----------
+   Anomalies against the account's OWN baseline, never against an industry
+   number: a spike is a spike relative to what this channel normally does. Every
+   line names the figure that triggered it, and carries a letter as well as a
+   colour. */
+function insights(d, key, rows, prevRows){
+  const out = [];
+  const label = SO_VIEW_LABEL[SO.view] || key;
+  const days = [...new Set(rows.map(r => String(r.day).slice(0, 10)))].sort();
+  const byDay = m => days.map(dd => rows.filter(r => String(r.day).slice(0,10) === dd)
+    .reduce((n, r) => n + (r[m] || 0), 0));
+
+  const v = byDay('views');
+  const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
+  const mv = mean(v);
+
+  if (mv > 0) {
+    let bi = -1, bx = 0;
+    v.forEach((x, i) => { if (x / mv > bx) { bx = x / mv; bi = i; } });
+    if (bx > 1.8 && bi >= 0) {
+      out.push({ sev:'good', mark:'▲',
+        t:'<b>' + escS(dayLabel(days[bi])) + '</b> ran ' + bx.toFixed(1) + '× your daily average on ' + escS(label)
+          + ' — ' + compact(v[bi]) + ' views against a ' + compact(mv) + ' norm.' });
+    }
+  }
+
+  const half = Math.floor(v.length / 2);
+  if (v.length >= 6) {
+    const recent = mean(v.slice(half)), earlier = mean(v.slice(0, half));
+    if (earlier > 0) {
+      const ch = (recent - earlier) / earlier * 100;
+      if (Math.abs(ch) >= 12) {
+        out.push({ sev: ch > 0 ? 'good' : 'warn', mark: ch > 0 ? '▲' : '▼',
+          t:'Views are <b>' + (ch > 0 ? 'up ' : 'down ') + Math.abs(Math.round(ch)) + '%</b> across the second half of this window against the first.' });
+      }
+    }
+  }
+
+  const totV = rows.reduce((n, r) => n + (r.views || 0), 0);
+  const prevV = prevRows.reduce((n, r) => n + (r.views || 0), 0);
+  if (prevV > 0) {
+    const ch = (totV - prevV) / prevV * 100;
+    out.push({ sev: Math.abs(ch) < 5 ? 'info' : ch > 0 ? 'good' : 'warn', mark: ch > 0 ? '▲' : ch < 0 ? '▼' : '=',
+      t:'Against the previous ' + RANGE_N() + ' days: <b>' + compact(totV) + '</b> views versus ' + compact(prevV)
+        + ', ' + (ch >= 0 ? '+' : '') + ch.toFixed(1) + '%.' });
+  }
+
+  const quiet = days.filter((dd, i) => v[i] === 0).length;
+  if (quiet) {
+    out.push({ sev:'info', mark:'i',
+      t:'<b>' + quiet + '</b> day' + (quiet === 1 ? '' : 's') + ' in this window recorded nothing at all. Those are gaps in the chart, not zeroes.' });
+  }
+
+  if (!rows.some(r => r.reach != null)) {
+    out.push({ sev:'info', mark:'i',
+      t:escS(label) + ' publishes no unique-reach figure, so engagement rate cannot be derived here. Interactions are shown instead.' });
+  }
+
+  if (!out.length) out.push({ sev:'info', mark:'i', t:'Nothing stands out against this account’s own baseline in this window.' });
+
+  return '<div class="vwrap viz"><div class="vhead2"><h3>What changed</h3>'
+    + '<span class="sub">against your own baseline</span></div><div class="vbody" style="padding-top:6px">'
+    + out.slice(0, 5).map(o => '<div class="insrow"><span class="sev ' + o.sev + '">' + o.mark + '</span>'
+        + '<span class="tx">' + o.t + '</span></div>').join('')
+    + '</div></div>';
+}
+
+/* ---------- account mix ----------
+   Part-to-whole across accounts, at a glance, and only when there is more than
+   one — a single-slice donut is a stat tile with extra steps. */
+function mixPanel(d, rows, accounts){
+  if (accounts.length < 2) return '';
+  const vals = accounts.map(a => ({ a, v: rows.filter(r => r.account === a.id).reduce((n, r) => n + (r.views || 0), 0) }))
+    .filter(x => x.v > 0).sort((x, y) => y.v - x.v);
+  const tot = vals.reduce((n, x) => n + x.v, 0);
+  if (!tot) return '';
+
+  const R = 52, r0 = 33, cx = 59, cy = 59;
+  let a0 = -Math.PI / 2, g = '';
+  for (const x of vals) {
+    const a1 = a0 + (x.v / tot) * Math.PI * 2;
+    const gap = 0.02, sA = a0 + gap, eA = Math.max(a0 + gap, a1 - gap);
+    const big = (eA - sA) > Math.PI ? 1 : 0;
+    const P = (rad, ang) => (cx + rad * Math.cos(ang)).toFixed(2) + ' ' + (cy + rad * Math.sin(ang)).toFixed(2);
+    g += '<path d="M' + P(R, sA) + ' A' + R + ' ' + R + ' 0 ' + big + ' 1 ' + P(R, eA)
+      + ' L' + P(r0, eA) + ' A' + r0 + ' ' + r0 + ' 0 ' + big + ' 0 ' + P(r0, sA) + ' Z" fill="' + hueFor(x.a.id) + '"/>';
+    a0 = a1;
+  }
+
+  return '<div class="vwrap viz"><div class="vhead2"><h3>Share of views</h3>'
+    + '<span class="sub">' + RANGE_N() + ' days</span></div><div class="vbody">'
+    + '<div style="display:flex;gap:16px;align-items:center">'
+    + '<svg width="104" height="104" viewBox="0 0 118 118" style="flex:none" role="img" aria-label="Share of views by account">' + g + '</svg>'
+    + '<div style="flex:1">' + vals.map(x => '<div class="mixrow"><i class="sw" style="background:' + hueFor(x.a.id) + '"></i>'
+        + '<span class="l">' + escS(x.a.label) + '</span><span class="v">' + escS(compact(x.v)) + '</span>'
+        + '<span class="p">' + Math.round((x.v / tot) * 100) + '%</span></div>').join('') + '</div>'
+    + '</div></div></div>';
 }
 
 /* The section rail lives in the left menu; this is the content router. */
@@ -4204,66 +4714,178 @@ const SO_METRICS = {
 function performanceSection(d, key){
   const words = SO_WORDS[key] || SO_WORDS.facebook;
   const accounts = acctsOf(d);
-  const rows = rowsFor(d, key);
-  const axis = axisOf(rows);
+  const rows = rowsFor(d, key, 0);
+  const prevRows = SO.compare ? rowsFor(d, key, 1) : [];
+  let axis = axisOf(rows);
   const has = m => rows.some(r => r[m] != null);
 
-  const sum = m => { const v = rows.reduce((n2, r) => n2 + (r[m] || 0), 0); return has(m) ? v : null; };
-  const reach = sum('reach'), views = sum('views'), inter = sum('interactions');
+  /* The brush selection, applied to everything below it. */
+  if (SO.zoom && axis.length) {
+    const [a, b] = SO.zoom;
+    axis = axis.slice(Math.max(0, a), Math.min(axis.length, b + 1));
+  }
+  const inAxis = new Set(axis);
+  const zRows = rows.filter(r => inAxis.has(String(r.day).slice(0, 10)));
+
+  const sum = (rs, m) => rs.reduce((n, r) => n + (r[m] || 0), 0);
+  const val = m => has(m) ? sum(zRows, m) : null;
+  const prevVal = m => prevRows.some(r => r[m] != null) ? sum(prevRows, m) : null;
+  const pctMove = (a, b) => (a == null || b == null || !b) ? null : ((a - b) / b) * 100;
+
+  /* Followers is a level, not a flow — newest reading, and the change across
+     the window rather than a sum of daily values. */
+  const levels = zRows.filter(r => r.followers != null).sort((a, b) => a.day < b.day ? -1 : 1);
+  const fNow = levels.length ? levels[levels.length - 1].followers : null;
+  const fThen = levels.length ? levels[0].followers : null;
+
+  const reach = val('reach'), views = val('views'), inter = val('interactions');
   const eng = (reach && inter != null) ? (inter / reach) * 100 : null;
 
-  /* Followers is a level, not a flow: the newest reading, and the change across
-     the window rather than a sum. */
-  const fRows = rows.filter(r => r.followers != null).sort((a, b) => a.day < b.day ? -1 : 1);
-  const fNow = fRows.length ? fRows[fRows.length - 1].followers : null;
-  const fThen = fRows.length ? fRows[0].followers : null;
-  const fDelta = (fNow != null && fThen != null && fRows.length > 1 && fThen) ? ((fNow - fThen) / fThen) * 100 : null;
+  /* ---- KPI band. Clicking one charts it. ---- */
+  const tile = (mk, label, value, opts) =>
+    '<div data-kpimetric="' + mk + '" style="cursor:pointer">' + kpi(label, value, opts) + '</div>';
 
-  const metrics = (SO_METRICS[key] || SO_METRICS.facebook).filter(m => has(m.k));
-  const metric = metrics.some(m => m.k === (SO.metric[key])) ? SO.metric[key] : (metrics[0]?.k || 'views');
+  const sparkOf = m => {
+    const by = new Map();
+    for (const r of zRows) if (r[m] != null) by.set(String(r.day).slice(0,10), (by.get(String(r.day).slice(0,10)) || 0) + r[m]);
+    return axis.map(dd => by.get(dd)).filter(v => v != null).slice(-14);
+  };
 
-  const kind = SO.chartKind === 'line' ? 'line' : 'bar';
-  const series = SO.split && accounts.length > 1
-    ? seriesByAccount(rows, axis, metric, accounts, accounts.length > 3 ? 'line' : kind)
-    : [{ id: key, label: (metrics.find(m => m.k === metric)?.label || metric), color: hueFor(key), kind,
-         values: seriesTotal(rows, axis, metric) }];
-
-  const spark = seriesTotal(rows, axis, metric).filter(v => v != null).slice(-12);
-
-  const tiles = '<div class="kpis grid g4">'
-    + kpi(words.followers, fNow == null ? '—' : compact(fNow), {
-        delta: fDelta, deltaLabel: fRows.length > 1 ? 'vs ' + SO.range + 'd ago' : 'no earlier reading',
-        spark: fRows.map(r => r.followers).slice(-12), color: 'var(--s3)', na: fNow == null })
-    + kpi('Reach', reach == null ? '—' : compact(reach), {
-        deltaLabel: reach == null ? 'not published by ' + (SO_VIEW_LABEL[SO.view] || key) : 'unique accounts, ' + SO.range + 'd',
-        color: 'var(--s1)', na: reach == null })
-    + kpi('Views', views == null ? '—' : compact(views), {
-        deltaLabel: views == null ? 'not published' : 'every appearance, ' + SO.range + 'd',
-        spark, color: 'var(--s1)', na: views == null })
-    + kpi(eng == null ? 'Interactions' : 'Engagement',
+  const band = '<div class="kpis grid g4">'
+    + tile('followers', words.followers, fNow == null ? '—' : compact(fNow), {
+        delta: (fNow != null && fThen) ? ((fNow - fThen) / fThen) * 100 : null,
+        deltaLabel: levels.length > 1 ? 'across ' + RANGE_N() + 'd' : 'single reading',
+        spark: levels.map(r => r.followers).slice(-14), color:'var(--s3)', na: fNow == null })
+    + tile('reach', 'Reach', reach == null ? '—' : compact(reach), {
+        delta: SO.compare ? pctMove(reach, prevVal('reach')) : null,
+        deltaLabel: reach == null ? 'not published by ' + (SO_VIEW_LABEL[SO.view] || key) : (SO.compare ? 'vs prior ' + RANGE_N() + 'd' : 'unique accounts'),
+        spark: sparkOf('reach'), color:'var(--s1)', na: reach == null })
+    + tile('views', 'Views', views == null ? '—' : compact(views), {
+        delta: SO.compare ? pctMove(views, prevVal('views')) : null,
+        deltaLabel: views == null ? 'not published' : (SO.compare ? 'vs prior ' + RANGE_N() + 'd' : 'every appearance'),
+        spark: sparkOf('views'), color:'var(--s1)', na: views == null })
+    + tile('interactions', eng == null ? 'Interactions' : 'Engagement',
         eng == null ? (inter == null ? '—' : compact(inter)) : eng.toFixed(2) + '%', {
+        delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
         deltaLabel: eng == null ? 'reach not published, so no rate' : 'interactions ÷ reach',
-        color: 'var(--s4)', na: eng == null && inter == null })
+        spark: sparkOf('interactions'), color:'var(--s4)', na: eng == null && inter == null })
     + '</div>';
 
-  const chartTitle = (metrics.find(m => m.k === metric)?.label || metric)
-    + (SO.split && accounts.length > 1 ? ' by account' : ' per day');
+  /* ---- metric chips. More than one becomes small multiples: views and
+     follows share no scale, and forcing them onto one axis flattens the
+     smaller series into the floor. ---- */
+  const available = (SO_METRICS[key] || SO_METRICS.facebook).filter(m => has(m.k));
+  let picked = SO.metrics.filter(m => available.some(a => a.k === m));
+  if (!picked.length) picked = available.length ? [available[0].k] : [];
+
+  const chips = available.map((m, i) => {
+    const on = picked.includes(m.k);
+    const c = on ? VIZ_SLOTS[picked.indexOf(m.k) % VIZ_SLOTS.length] : 'transparent';
+    return '<button class="mchip' + (on ? ' on' : '') + '" style="--c:' + c + '" data-mchip="' + m.k + '">'
+      + '<i class="sw"></i>' + escS(m.label) + '</button>';
+  }).join('')
+  + (accounts.length > 1
+      ? '<button class="mchip' + (SO.split ? ' on' : '') + '" style="--c:var(--s3)" data-sosplit="1"><i class="sw"></i>Split by account</button>'
+      : '');
+
+  const mkSeries = (metric, offset) => {
+    const src = offset ? prevRows : zRows;
+    const ax = offset ? axisOf(prevRows) : axis;
+    if (SO.split && accounts.length > 1 && !offset) {
+      return seriesByAccount(src, ax, metric, accounts, accounts.length > 3 ? 'line' : SO.chartKind);
+    }
+    const idx = picked.indexOf(metric);
+    return [{ id: 'm-' + metric + (offset ? '-p' : ''), label: (available.find(a => a.k === metric) || {}).label || metric,
+      color: VIZ_SLOTS[(idx < 0 ? 0 : idx) % VIZ_SLOTS.length],
+      kind: offset ? 'line' : SO.chartKind, values: seriesTotal(src, ax, metric) }];
+  };
 
   const kindSeg = '<div class="seg"><button class="' + (SO.chartKind === 'bar' ? 'on' : '') + '" data-sokind="bar">Bars</button>'
-    + '<button class="' + (SO.chartKind === 'line' ? 'on' : '') + '" data-sokind="line">Line</button></div>';
+    + '<button class="' + (SO.chartKind === 'line' ? 'on' : '') + '" data-sokind="line">Line</button>'
+    + '<button class="' + (SO.chartKind === 'area' ? 'on' : '') + '" data-sokind="area">Area</button></div>';
 
-  const body = !axis.length
-    ? '<div class="vwrap viz"><div class="vempty"><b>No data pulled yet</b>'
-      + 'Connected, but nothing has been fetched for this account. Use <b>Fetch now</b>, or wait for the next scheduled pull.</div></div>'
-    : SO.table
-      ? frame(chartTitle, SO.range + ' days', vizTable(axis, series), series, '')
-      : vizChart({ axis, series, title: chartTitle, sub: SO.range + ' days',
-          note: SO.split ? 'One line per account. A gap is a day that account published nothing — not a zero.' : '' });
+  /* Readout: the total for each charted metric with its own movement. */
+  const readout = '<div class="readout">' + picked.map((m, i) => {
+    const t = sum(zRows, m), pv = prevVal(m), mv = SO.compare ? pctMove(t, pv) : null;
+    const chipCls = mv == null ? 'flat' : mv > 0.4 ? 'up' : mv < -0.4 ? 'down' : 'flat';
+    return '<div class="ro"><div class="k" style="color:' + VIZ_SLOTS[i % VIZ_SLOTS.length] + '">'
+      + escS((available.find(a => a.k === m) || {}).label || m) + '</div>'
+      + '<div class="v">' + escS(compact(t))
+      + (mv == null ? '' : '<span class="chip2 ' + chipCls + '">' + (mv > 0 ? '▲' : mv < 0 ? '▼' : '=') + ' ' + Math.abs(mv).toFixed(1) + '%</span>')
+      + '</div></div>';
+  }).join('')
+  + '<span class="rospan">' + axis.length + ' days · ' + escS(dayLabel(axis[0] || '')) + ' → ' + escS(dayLabel(axis[axis.length-1] || '')) + '</span>'
+  + '</div>';
 
-  return filterBar(d, key, { metrics }) + tiles
-    + (axis.length && !SO.table ? '<div class="vwrap viz" style="margin-bottom:14px;padding:0 15px 12px"><div class="vhead2" style="padding-left:0"><span class="sub">Chart</span><span class="grow"></span>' + kindSeg + '</div></div>' : '')
-    + body
+  let charts;
+  if (!axis.length) {
+    charts = '<div class="vwrap viz"><div class="vempty"><b>No data pulled yet</b>'
+      + 'Connected, but nothing has been fetched for this account. Use <b>Fetch now</b>, or wait for the next scheduled pull.</div></div>';
+  } else if (SO.table) {
+    const all = picked.flatMap(m => mkSeries(m, 0));
+    charts = frame('Daily figures', RANGE_N() + ' days', vizTable(axis, all), all, '');
+  } else if (picked.length > 1) {
+    /* Small multiples — one plot per metric, each on its own scale. */
+    charts = picked.map(m => vizChart({
+      axis, series: mkSeries(m, 0), ghosts: SO.compare ? mkSeries(m, 1) : [],
+      title: (available.find(a => a.k === m) || {}).label || m,
+      sub: 'own scale', height: 130 })).join('');
+  } else {
+    charts = vizChart({
+      axis, series: mkSeries(picked[0], 0), ghosts: SO.compare ? mkSeries(picked[0], 1) : [],
+      title: (available.find(a => a.k === picked[0]) || {}).label || picked[0],
+      sub: RANGE_N() + ' days' + (SO.compare ? ' · dashed is the prior period' : ''),
+      height: 230, extra: kindSeg,
+      note: SO.split ? 'One line per account. A gap is a day that account published nothing — not a zero.' : '' });
+  }
+
+  /* ---- brush strip ---- */
+  const full = axisOf(rows);
+  const brush = full.length > 6 ? brushStrip(rows, full) : '';
+
+  const signal = '<div class="sigcard viz">'
+    + '<div class="sigtop"><div><h3>Signal</h3><p>Pick metrics to chart. Drag the strip below to zoom into a stretch of days.</p></div></div>'
+    + '<div class="chiprow">' + chips + '</div>'
+    + readout + '</div>';
+
+  return platformStrip()
+    + filterBar(d, key, { metrics: [] })
+    + band
+    + signal
+    + charts
+    + brush
+    + (accounts.length > 1 ? '<div class="grid g2">' + mixPanel(d, zRows, accounts) + insights(d, key, zRows, prevRows) + '</div>'
+                           : insights(d, key, zRows, prevRows))
     + accountsFooter(d);
+}
+
+/* A 46px overview of the whole window with the current selection lit. Drag to
+   zoom, double-click to clear. */
+function brushStrip(rows, full){
+  const by = new Map();
+  for (const r of rows) {
+    const dd = String(r.day).slice(0, 10);
+    by.set(dd, (by.get(dd) || 0) + (r.views || 0));
+  }
+  const vals = full.map(dd => by.get(dd) || 0);
+  const W = 1000, H = 46, max = Math.max(1, ...vals);
+  const step = W / Math.max(1, vals.length - 1);
+  const d = vals.map((v, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (H - 4 - (v / max) * (H - 12)).toFixed(1)).join(' ');
+  const z = SO.zoom || [0, vals.length - 1];
+  const x1 = (z[0] / Math.max(1, vals.length - 1)) * W;
+  const x2 = (z[1] / Math.max(1, vals.length - 1)) * W;
+
+  return '<div class="vwrap viz" data-brush="' + escS(JSON.stringify({ n: vals.length })) + '">'
+    + '<svg class="brush" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none">'
+    + '<path d="' + d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z" fill="var(--s1)" opacity=".13"/>'
+    + '<path d="' + d + '" fill="none" stroke="var(--s1)" stroke-width="1.4" opacity=".6" vector-effect="non-scaling-stroke"/>'
+    + (SO.zoom ? '<rect x="0" y="0" width="' + W + '" height="' + H + '" fill="var(--ink)" opacity=".45"/>' : '')
+    + '<rect x="' + x1.toFixed(1) + '" y="0" width="' + Math.max(3, x2 - x1).toFixed(1) + '" height="' + H
+    + '" fill="var(--brass)" opacity=".13" stroke="var(--brass)" stroke-opacity=".5" vector-effect="non-scaling-stroke"/>'
+    + '</svg>'
+    + '<div class="brushnote"><span>' + escS(dayLabel(full[0])) + '</span>'
+    + '<span>' + (SO.zoom ? 'zoomed to ' + (z[1] - z[0] + 1) + ' days · double-click to reset' : 'drag to zoom') + '</span>'
+    + '<span>' + escS(dayLabel(full[full.length - 1])) + '</span></div></div>';
 }
 
 function contentSection(d, key){
@@ -4272,7 +4894,29 @@ function contentSection(d, key){
   let posts = (d.posts || []).filter(pp => SO.acct === 'all' || pp.account === SO.acct);
   if (q) posts = posts.filter(pp => String(pp.title).toLowerCase().includes(q));
   const rank = key === 'youtube' || key === 'x' ? 'views' : 'interactions';
-  posts = posts.slice().sort((a, b) => (b[rank] || 0) - (a[rank] || 0));
+
+  const SORTS2 = {
+    views: pp => pp.views || 0,
+    interactions: pp => pp.interactions || 0,
+    shares: pp => pp.shares || 0,
+    reach: pp => pp.reach || 0,
+    published: pp => new Date(pp.publishedAt || 0).getTime(),
+    title: pp => String(pp.title).toLowerCase()
+  };
+  const sk = SORTS2[SO.sort.key] ? SO.sort.key : rank;
+  posts = posts.slice().sort((a, b) => {
+    const x = SORTS2[sk](a), y = SORTS2[sk](b);
+    return (x < y ? -1 : x > y ? 1 : 0) * SO.sort.dir;
+  });
+
+  /* Index against this window's own average, which is the only baseline that
+     means anything without an industry feed. */
+  const avgViews = posts.length ? posts.reduce((n2, pp) => n2 + (pp.views || 0), 0) / posts.length : 0;
+
+  const per = 8;
+  const pages = Math.max(1, Math.ceil(posts.length / per));
+  SO.page = Math.max(0, Math.min(SO.page, pages - 1));
+  const page = posts.slice(SO.page * per, SO.page * per + per);
 
   const totalViews = posts.reduce((n2, pp) => n2 + (pp.views || 0), 0);
   const totalInter = posts.reduce((n2, pp) => n2 + (pp.interactions || 0), 0);
@@ -4286,34 +4930,50 @@ function contentSection(d, key){
 
   const acctName = id => (d.accounts || []).find(a => a.id === id)?.label || '';
 
+  const th2 = (col, label) => '<th class="sortable' + (sk === col ? ' on' : '') + '" data-postsort="' + col + '">'
+    + escS(label) + '<span class="caret">' + (sk === col ? (SO.sort.dir < 0 ? '▼' : '▲') : '◆') + '</span></th>';
+
   const table = posts.length
     ? '<div class="vwrap viz"><div class="vhead2"><h3>' + escS(words.postTitle) + '</h3>'
-      + '<span class="sub">ranked by ' + rank + '</span><span class="grow"></span></div>'
-      + '<div class="vscroll"><table class="vtable"><thead><tr><th>' + escS(words.posts.replace(/s$/, '')) + '</th>'
-      + '<th>When</th>' + (key !== 'youtube' && key !== 'x' ? '<th>Reach</th>' : '')
-      + '<th>Views</th><th>Interactions</th><th>Shares</th></tr></thead><tbody>'
-      + posts.map(pp => '<tr><td style="max-width:380px;white-space:normal">'
-          + (pp.permalink
-              ? '<a href="' + escS(pp.permalink) + '" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none">' + escS(pp.title) + '</a>'
-              : escS(pp.title))
+      + '<span class="sub">' + posts.length + ' · click a row for detail</span><span class="grow"></span></div>'
+      + '<div class="vscroll"><table class="vtable"><thead><tr>'
+      + th2('title', words.posts.replace(/s$/, '')) + th2('published', 'When')
+      + (key !== 'youtube' && key !== 'x' ? th2('reach', 'Reach') : '')
+      + th2('views', 'Views') + th2('interactions', 'Interactions') + th2('shares', 'Shares')
+      + '<th>vs avg</th></tr></thead><tbody>'
+      + page.map(pp => {
+          const idx = avgViews ? (pp.views || 0) / avgViews : null;
+          const tone = idx == null ? 'var(--dimmer)' : idx >= 1.15 ? '#0ca30c' : idx <= 0.8 ? '#e06b6b' : 'var(--dim)';
+          return '<tr data-postopen="' + escS(pp.permalink || pp.title) + '" style="cursor:pointer">'
+          + '<td style="max-width:360px;white-space:normal">' + escS(pp.title)
           + (SO.acct === 'all' && acctName(pp.account) ? '<span class="sm" style="display:block;color:var(--dimmer)">' + escS(acctName(pp.account)) + '</span>' : '')
           + '</td><td>' + escS(pp.when) + '</td>'
           + (key !== 'youtube' && key !== 'x' ? '<td>' + escS(compact(pp.reach)) + '</td>' : '')
           + '<td>' + escS(compact(pp.views)) + '</td><td>' + escS(compact(pp.interactions)) + '</td>'
-          + '<td>' + escS(compact(pp.shares)) + '</td></tr>').join('')
-      + '</tbody></table></div></div>'
+          + '<td>' + escS(compact(pp.shares)) + '</td>'
+          + '<td style="color:' + tone + '">' + (idx == null ? '—' : idx.toFixed(2) + '×') + '</td></tr>';
+        }).join('')
+      + '</tbody></table></div>'
+      + (pages > 1 ? '<div class="brushnote" style="padding:11px 16px 13px">'
+          + '<span>Page ' + (SO.page + 1) + ' of ' + pages + '</span>'
+          + '<span style="display:flex;gap:6px">'
+          + '<button class="tgl" data-postpage="-1"' + (SO.page === 0 ? ' disabled style="opacity:.4"' : '') + '>Previous</button>'
+          + '<button class="tgl" data-postpage="1"' + (SO.page >= pages - 1 ? ' disabled style="opacity:.4"' : '') + '>Next</button>'
+          + '</span></div>' : '')
+      + '</div>'
     : '<div class="vwrap viz"><div class="vempty"><b>Nothing here</b>'
       + (q ? 'No ' + escS(words.posts.toLowerCase()) + ' match “' + escS(SO.q) + '”.' : 'No ' + escS(words.posts.toLowerCase()) + ' in this window.') + '</div></div>';
 
-  const topChart = posts.length > 1 && !SO.table
+  const topTen = posts.slice().sort((a, b) => (b[rank] || 0) - (a[rank] || 0)).slice(0, 10);
+  const topChart = topTen.length > 1 && !SO.table
     ? vizChart({
-        axis: posts.slice(0, 10).map(pp => pp.title),
+        axis: topTen.map(pp => pp.title),
         series: [{ id: 'post', label: rank === 'views' ? 'Views' : 'Interactions', color: hueFor(key), kind: 'bar',
-          values: posts.slice(0, 10).map(pp => pp[rank] || 0) }],
+          values: topTen.map(pp => pp[rank] || 0) }],
         title: 'Top ' + words.posts.toLowerCase() + ' by ' + rank, sub: 'best 10', height: 170 })
     : '';
 
-  return filterBar(d, key, { showSplit: false, showSearch: true })
+  return platformStrip() + filterBar(d, key, { showSplit: false, showSearch: true })
     + tiles + topChart + table + accountsFooter(d);
 }
 
@@ -4345,7 +5005,7 @@ function audienceSection(d, key){
       spark: mine.map(r => r.followers).slice(-12), color: hueFor(a.id), na: now == null });
   }).join('');
 
-  return filterBar(d, key, { showSplit: false })
+  return platformStrip() + filterBar(d, key, { showSplit: false })
     + '<div class="kpis grid ' + (accounts.length > 2 ? 'g3' : 'g2') + '">' + perAcct + '</div>'
     + (SO.table
         ? frame(words.followers + ' by account', SO.range + ' days', vizTable(axis, series), series, '')
@@ -4764,6 +5424,34 @@ document.getElementById('so-fetch').onclick = async () => {
 };
 
 mountSocialSubnav();
+
+document.getElementById('so-scrim')?.addEventListener('click', closePost);
+document.getElementById('so-palw')?.addEventListener('click', e => {
+  if (e.target.id === 'so-palw') closePal();
+});
+document.getElementById('so-palin')?.addEventListener('input', e => palFilter(e.target.value));
+
+document.addEventListener('keydown', e => {
+  const typing = /input|textarea/i.test(document.activeElement?.tagName || '');
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+    e.preventDefault();
+    /* Only where it has something to act on. */
+    if (document.getElementById('v-social')?.classList.contains('on')) openPal();
+    return;
+  }
+  const palOpen = document.getElementById('so-palw')?.classList.contains('on');
+  if (e.key === 'Escape') { closePal(); closePost(); return; }
+  if (palOpen) {
+    if (e.key === 'ArrowDown') { e.preventDefault(); PAL.i = Math.min(PAL.i + 1, PAL.items.length - 1); palPaint(); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); PAL.i = Math.max(PAL.i - 1, 0); palPaint(); }
+    if (e.key === 'Enter' && PAL.items[PAL.i]) { PAL.items[PAL.i].run(); closePal(); }
+    return;
+  }
+  if (typing) return;
+  if (!document.getElementById('v-social')?.classList.contains('on')) return;
+  const jump = { '1':'overview', '2':'youtube', '3':'meta', '4':'x' }[e.key];
+  if (jump) { SO.view = jump; SO.section = 'performance'; SO.zoom = null; drawSocial(); loadSocialView(); }
+});
 
 
 /* ================= LOADERS =================
