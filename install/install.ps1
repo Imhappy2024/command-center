@@ -1,4 +1,4 @@
-# Install Command Center on a Windows machine.
+﻿# Install Command Center on a Windows machine.
 #
 #   irm https://raw.githubusercontent.com/Imhappy2024/command-center/main/install/install.ps1 | iex
 #
@@ -14,7 +14,10 @@
 param(
   [string]$Repo   = 'https://github.com/Imhappy2024/command-center.git',
   [string]$Branch = 'main',
-  [string]$Dir    = (Join-Path $env:LOCALAPPDATA 'CommandCenter')
+  [string]$Dir    = (Join-Path $env:LOCALAPPDATA 'CommandCenter'),
+  # For testing the install into a throwaway directory without putting a
+  # shortcut to it on the real Desktop.
+  [switch]$NoShortcuts
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,6 +66,12 @@ if (-not (Test-Path '.env')) {
   Warn 'Fill in .env before first use — at minimum DATABASE_URL and ENCRYPTION_KEY.'
 }
 Pop-Location
+
+if ($NoShortcuts) {
+  Write-Host ''
+  Write-Host "Installed to $Dir (no shortcuts)." -ForegroundColor Green
+  exit 0
+}
 
 Step 'Creating shortcuts'
 $launcher = Join-Path $Dir 'install\Command Center.cmd'

@@ -389,8 +389,19 @@ npm run dev
 You need a Postgres to point `DATABASE_URL` at. The schema is applied on every boot and
 every statement is idempotent, so there is nothing to migrate by hand.
 
+`.env` is read by `lib/dotenv.js` at startup — no dependency, no `--env-file` flag, and a
+missing file is the normal hosted case. **Real environment variables win**, so Railway's
+injected values are never overridden by a stale committed file, and a blank placeholder
+left over from `.env.example` does not count as set.
+
+> Until recently nothing loaded `.env` at all: the app read `process.env` and the startup
+> error advised setting variables "in .env for a local run" — advice the code did not
+> implement. Local runs only worked if you exported everything by hand.
+
 The server refuses to start if `APP_PASSWORD`, `SESSION_SECRET`, `ENCRYPTION_KEY` or
-`DATABASE_URL` is missing, and names the one that is.
+`DATABASE_URL` is missing, names the one that is, and says whether a `.env` was found —
+"set it in .env" is unhelpful when the file does not exist and misleading when it exists
+with the value blank.
 
 ## Claude
 

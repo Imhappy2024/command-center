@@ -1,4 +1,4 @@
-# Command Center launcher and supervisor (Windows).
+﻿# Command Center launcher and supervisor (Windows).
 #
 # Two jobs:
 #   1. Start the server with CC_SUPERVISED=1, so the in-app "Update now" button
@@ -36,8 +36,17 @@ if (-not (Test-Path (Join-Path $root '.env'))) {
 
 $env:CC_SUPERVISED = '1'
 # Local run: the Claude section mounts, and so do the update endpoints.
-if (-not $env:PORT) { $env:PORT = '3000' }
-$url = "http://localhost:$($env:PORT)"
+
+# Read PORT out of .env rather than assuming 3000. server.js loads .env itself,
+# so guessing here only means opening the browser on the wrong port.
+$port = $env:PORT
+if (-not $port) {
+  $m = Select-String -Path (Join-Path $root '.env') -Pattern '^\s*(?:export\s+)?PORT\s*[=:]\s*(\d+)' |
+       Select-Object -First 1
+  if ($m) { $port = $m.Matches[0].Groups[1].Value }
+}
+if (-not $port) { $port = '3000' }
+$url = "http://localhost:$port"
 
 # Open the browser once, after the port actually answers. A restart should not
 # pile up another tab.

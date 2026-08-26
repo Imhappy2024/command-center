@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
@@ -8,9 +9,16 @@ import { AUTH_MODES, normaliseMode } from './lib/session.js';
 import { PROVIDERS, missingVars } from './lib/oauth.js';
 import { seedFromEnv } from './lib/ghl-seed.js';
 import { claudeIsLocal } from './routes/claude.js';
+import { loadEnvFile } from './lib/dotenv.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(ROOT, 'public');
+
+/* Before anything reads process.env. Resolved against the app directory rather
+   than the cwd, so a shortcut that launches from somewhere else still finds it.
+   Injected variables win; a missing file is the normal hosted case. */
+const fromFile = loadEnvFile(path.join(ROOT, '.env'));
+
 const env = process.env;
 const PORT = Number(env.PORT) || 3000;
 
@@ -55,7 +63,14 @@ if (missing.length) {
             ? ' APP_PASSWORD is not required in this mode.'
             : ' Set AUTH_MODE=open to drop the login and stop needing APP_PASSWORD.'),
       '',
-      'Set them in Railway under Variables, or in .env for a local run.',
+      /* Say whether a .env was even found. "Set them in .env" is unhelpful
+         advice when the file is missing, and misleading when it exists but the
+         variable is blank. */
+      fromFile.length
+        ? `Loaded ${fromFile.length} variable(s) from .env, but not this one — check for a typo or a blank value.`
+        : fs.existsSync(path.join(ROOT, '.env'))
+          ? 'A .env exists but set nothing; every variable in it was already present or blank.'
+          : `No .env found at ${path.join(ROOT, '.env')}. Copy .env.example to .env, or set the variables in Railway under Variables.`,
       'See .env.example for what each one is for.');
 }
 
