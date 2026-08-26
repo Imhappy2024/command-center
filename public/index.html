@@ -1441,6 +1441,66 @@ main{min-width:0;display:flex;flex-direction:column}
   overflow-x:auto;margin:7px 0 0}
 .ccsetup code{font-family:var(--ff-mono);font-size:12px;color:var(--cream)}
 
+/* Tasks table. A grid rather than a <table> so the header and every row share
+   one column definition -- with a table they drift the moment a cell wraps. */
+/* Properties tree. The header and the entity rows share one grid so the figures
+   line up down the page. */
+.prhead,.prrow{display:grid;grid-template-columns:18px minmax(0,1fr) 74px 118px 132px;
+  gap:10px;align-items:center;padding:8px 15px;text-align:left}
+.prhead{font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dimmer);background:var(--panel2);border-bottom:1px solid var(--edge)}
+.prhead span:nth-child(4),.prhead span:nth-child(5){text-align:right}
+.prent{border-bottom:1px solid var(--edge)}
+.prrow{width:100%;background:none;border:0;cursor:pointer;font:inherit}
+.prrow:hover{background:var(--panel2)}
+.prent.open>.prrow{background:var(--panel2);box-shadow:inset 2px 0 0 var(--brass)}
+.prrow .cv{color:var(--dimmer);font-size:10px}
+.prrow .nm{font-size:13px;font-weight:600;color:var(--cream);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.prrow .ct{font-family:var(--ff-mono);font-size:10px;color:var(--brass);
+  background:rgba(124,108,255,.14);border-radius:999px;padding:2px 7px;text-align:center}
+.prrow .fig{text-align:right;display:block}
+.prrow .fig em{display:block;font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--dimmer);font-style:normal}
+.prrow .fig b{font-size:12.5px;color:var(--text);font-variant-numeric:tabular-nums}
+.prkids{border-left:2px solid var(--brass);margin:0 12px 8px 24px;
+  background:rgba(124,108,255,.05);border-radius:0 8px 8px 0}
+.prprop{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;
+  border-bottom:1px solid var(--edge)}
+.prprop:last-child{border-bottom:0}
+.prprop:hover{background:var(--panel2)}
+.prprop .nm{flex:1 1 34%;min-width:0;font-size:12.5px;color:var(--cream);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.prprop .lo{flex:0 1 16%;min-width:0;font-size:11.5px;color:var(--dimmer);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.prprop .bl{flex:0 1 15%;font-family:var(--ff-mono);font-size:10.5px;color:var(--dim)}
+.prprop .fg{flex:0 1 13%;text-align:right;font-size:11.5px;color:var(--text);
+  font-variant-numeric:tabular-nums}
+.kvs{display:flex;flex-direction:column;gap:1px}
+.kv{display:grid;grid-template-columns:minmax(120px,34%) 1fr;gap:10px;padding:7px 0;
+  border-bottom:1px solid var(--edge);font-size:12.5px}
+.kv span{color:var(--dimmer);font-size:11.5px}
+.kv b{color:var(--cream);font-weight:500}
+
+.tktable{display:flex;flex-direction:column;min-width:0}
+.tkhead,.tkrow{display:grid;
+  grid-template-columns:minmax(0,2.6fr) minmax(0,1.1fr) minmax(0,1.2fr) 108px 74px 84px 66px;
+  gap:12px;align-items:center;padding:8px 15px}
+.tkhead{position:sticky;top:0;z-index:2;background:var(--panel2);border-bottom:1px solid var(--edge)}
+.tkth{background:none;border:0;padding:0;text-align:left;cursor:pointer;
+  font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dimmer)}
+.tkth:hover{color:var(--cream)}
+.tkrow{border-bottom:1px solid var(--edge);cursor:pointer;
+  /* 300 rows of seven cells is still two thousand nodes; let the browser skip
+     the ones nobody is looking at. */
+  content-visibility:auto;contain-intrinsic-size:auto 37px}
+.tkrow:hover{background:var(--panel2)}
+.tkrow .c{min-width:0;font-size:12.5px;color:var(--text);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.tkrow .c.name{color:var(--cream)}
+.tkrow .c.dim{color:var(--dimmer);font-size:11.5px}
+
 .verline{display:flex;align-items:center;gap:7px;font-family:var(--ff-mono);font-size:9.5px;
   color:var(--dimmer);padding-top:2px}
 .verline .up{color:var(--brass);cursor:pointer;text-decoration:underline;background:none;border:0;
@@ -1778,13 +1838,13 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   <!-- TASKS -->
   <section class="view" id="v-tasks">
     <div class="vhead">
-      <div><h1>Tasks</h1><p>No task source connected.</p></div>
-      <span class="chip rust">Not connected</span>
+      <div><h1 id="tk-title">Tasks</h1><p id="tk-sub">Reading your ClickUp workspace…</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="synced" id="tk-state"></span>
+        <button class="tgl" id="tk-refresh">Refresh</button>
+      </div>
     </div>
-    <div class="grid g4" style="margin-bottom:14px">
-      <div class="stat"><div class="eyebrow">Due today</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">This week</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Closed</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Unassigned</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div>
-    </div>
-    <div class="card flush"><div class="cardhead"><h3>Tasks</h3><span class="eyebrow">All lists</span></div><div class="empty"><b>No tasks</b><small>Connect a task source and your lists appear here as columns.</small></div></div>
+    <div id="tk-body"></div>
   </section>
 
   <!-- NOTES -->
@@ -1829,13 +1889,13 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   <!-- PROPERTIES -->
   <section class="view" id="v-properties">
     <div class="vhead">
-      <div><h1>Properties</h1><p>No database connected.</p></div>
-      <span class="chip rust">Not connected</span>
+      <div><h1>Properties</h1><p id="pr-sub">Reading the portfolio…</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="synced" id="pr-state"></span>
+        <button class="tgl" id="pr-refresh">Refresh</button>
+      </div>
     </div>
-    <div class="grid g4" style="margin-bottom:14px">
-      <div class="stat"><div class="eyebrow">Active</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Reserved</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Closed</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Days on market</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div>
-    </div>
-    <div class="card flush"><div class="empty"><b>No listings</b><small>Connect your database and each record renders as a property card here.</small></div></div>
+    <div id="pr-body"></div>
   </section>
 
   <!-- FINANCIAL -->
@@ -2034,9 +2094,19 @@ MENU.forEach(([id,label,src,badge],i)=>{
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
     b.classList.add('on');
     document.getElementById('v-'+id).classList.add('on');
+    /* Sub-navs belong to their section, so only the open one is shown. */
+    document.querySelectorAll('.subnav').forEach(n => { n.hidden = n.dataset.owner !== id; });
     window.scrollTo({top:0,behavior:'smooth'});
   };
   nav.appendChild(b);
+  /* Tasks and Properties get their own sub-nav under the rail item, the way
+     Social does -- the section switch belongs in the rail, not in the page. */
+  if (id === 'tasks') {
+    const sub = document.createElement('div');
+    sub.className = 'subnav'; sub.dataset.owner = 'tasks'; sub.hidden = true;
+    nav.appendChild(sub);
+    tkSubEl = sub;
+  }
 });
 
 function tick(){
@@ -6235,6 +6305,890 @@ document.addEventListener('keydown', e => {
 });
 
 
+/* ================= TASKS =================
+
+   ClickUp, through /api/tasks. The payload is the whole workspace -- 4,842 tasks
+   across 212 lists -- because ClickUp has no endpoint that answers "what is in
+   this workspace", so the server walks it and caches. Everything below computes
+   from that one array; there is no per-widget request.
+
+   Two views: Overview, which is the shape of the work, and All tasks, which is
+   the work itself. The rail carries the switch. */
+
+const TK = {
+  loaded: false, loading: false, error: null,
+  data: null,                 // the payload
+  view: 'overview',           // overview | all
+  q: '',                      // free-text search (the source dashboard had none)
+  sort: 'due', dir: 'asc',    // nor sorting
+  space: '', assignee: '', status: '', priority: '',
+  showDone: false,
+  volDays: 30
+};
+
+let tkSubEl = null;
+
+async function tkLoad(force){
+  if (TK.loading) return;
+  TK.loading = true; TK.error = null;
+  drawTasks();
+  try {
+    const r = await fetch('/api/tasks' + (force ? '?force=1' : ''));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('tasks ' + r.status));
+    TK.data = j;
+    TK.loaded = true;
+  } catch (err) {
+    TK.error = err.message;
+  }
+  TK.loading = false;
+  drawTasks();
+}
+
+/* ---------- helpers ---------- */
+
+const tkOpen = t => t.canonical !== 'Completed';
+const tkOverdue = t => Boolean(t.due) && t.due < Date.now() && tkOpen(t);
+const TK_DAY = 86400000;
+
+function tkStartOfDay(ms){ const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime(); }
+function tkLastDays(n){
+  const out = []; const today = tkStartOfDay(Date.now());
+  for (let i = n - 1; i >= 0; i--) out.push(today - i * TK_DAY);
+  return out;
+}
+/* When a task was finished. `closed` is authoritative; a completed task with no
+   close date fell through an import, and its last update is the best guess. */
+function tkDoneAt(t){
+  if (t.closed) return t.closed;
+  return t.canonical === 'Completed' ? t.updated : 0;
+}
+function tkCountByDay(tasks, pick, days){
+  const idx = new Map(days.map((d, i) => [d, i]));
+  const out = new Array(days.length).fill(0);
+  for (const t of tasks) {
+    const ts = pick(t);
+    if (!ts) continue;
+    const k = idx.get(tkStartOfDay(ts));
+    if (k !== undefined) out[k]++;
+  }
+  return out;
+}
+function tkInWindow(tasks, pick, fromDaysAgo, toDaysAgo){
+  const now = Date.now();
+  const start = now - toDaysAgo * TK_DAY, end = now - fromDaysAgo * TK_DAY;
+  return tasks.filter(t => { const ts = pick(t); return ts && ts >= start && ts < end; }).length;
+}
+const tkNiceMax = n => {
+  if (n <= 1) return 1;
+  const mag = Math.pow(10, Math.floor(Math.log10(n)));
+  for (const step of [1, 2, 2.5, 5, 10]) if (n <= step * mag) return step * mag;
+  return 10 * mag;
+};
+const tkShortDate = ms => new Date(ms).toLocaleDateString([], { month: 'short', day: 'numeric' });
+function tkRel(ms){
+  if (!ms) return '—';
+  const mins = Math.round((Date.now() - ms) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const h = Math.round(mins / 60);
+  if (h < 24) return h + 'h ago';
+  return Math.round(h / 24) + 'd ago';
+}
+/* Deterministic per-person colour, from the validated series palette rather than
+   a hardcoded rainbow. */
+const TK_AV = ['--s1', '--s2', '--s3', '--s4', '--s5', '--s6', '--s7', '--s8'];
+function tkColour(key){
+  let h = 0;
+  const str = String(key || '');
+  for (let i = 0; i < str.length; i++) h = str.charCodeAt(i) + ((h << 5) - h);
+  return 'var(' + TK_AV[Math.abs(h) % TK_AV.length] + ')';
+}
+const tkInitials = name => String(name || '?').trim().split(/\s+/).slice(0, 2)
+  .map(w => w[0]).join('').toUpperCase() || '?';
+
+/* ---------- filtering ---------- */
+
+function tkFiltered(){
+  const all = TK.data?.tasks || [];
+  const q = TK.q.trim().toLowerCase();
+  return all.filter(t => {
+    if (TK.space && t.space?.id !== TK.space) return false;
+    if (TK.status && t.canonical !== TK.status) return false;
+    if (TK.priority && t.priority !== TK.priority) return false;
+    if (TK.assignee && !t.assignees.some(a => a.id === TK.assignee)) return false;
+    if (q) {
+      const hay = (t.name + ' ' + (t.list?.name || '') + ' ' + (t.space?.name || '')
+        + ' ' + t.assignees.map(a => a.username).join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
+/* ---------- the view ---------- */
+
+function drawTasks(){
+  const body = document.getElementById('tk-body');
+  const state = document.getElementById('tk-state');
+  const sub = document.getElementById('tk-sub');
+  if (!body) return;
+
+  if (state) {
+    const d = TK.data;
+    state.innerHTML = TK.loading
+      ? '<span class="d" style="background:var(--brass)"></span>' + (TK.loaded ? 'Refreshing…' : 'Walking the workspace…')
+      : TK.error ? '<span class="d" style="background:var(--rust)"></span>' + escS(TK.error.slice(0, 60))
+      : d?.configured === false ? '<span class="d" style="background:var(--rust)"></span>Not connected'
+      : d ? '<span class="d" style="background:' + (d.stale ? 'var(--amber)' : 'var(--jade)') + '"></span>'
+            + 'as of ' + tkRel(Date.parse(d.cachedAt))
+        : '';
+  }
+  if (sub) {
+    const d = TK.data;
+    sub.textContent = d?.configured === false
+      ? 'ClickUp is not configured.'
+      : d ? d.tasks.length.toLocaleString() + ' tasks · ' + d.lists.length + ' lists · ' + d.spaces.length + ' spaces'
+      : 'Reading your ClickUp workspace…';
+  }
+
+  drawTaskSubnav();
+
+  if (TK.data?.configured === false) {
+    body.innerHTML = '<div class="card flush"><div class="empty"><b>ClickUp is not connected</b>'
+      + '<small>' + escS(TK.data.reason || '') + '</small></div></div>';
+    return;
+  }
+  if (TK.error && !TK.loaded) {
+    body.innerHTML = '<div class="card flush"><div class="empty"><b>Could not reach ClickUp</b>'
+      + '<small>' + escS(TK.error) + '</small></div></div>';
+    return;
+  }
+  if (!TK.loaded) {
+    body.innerHTML = '<div class="card flush"><div class="empty"><b>Walking the workspace</b>'
+      + '<small>ClickUp has no endpoint that returns a whole workspace, so the first load reads '
+      + 'every list one at a time. About three minutes. It is cached after that.</small></div></div>';
+    return;
+  }
+
+  body.innerHTML = TK.view === 'all' ? tkAllView() : tkOverview();
+  wireTasks(body);
+}
+
+function drawTaskSubnav(){
+  if (!tkSubEl) return;
+  const items = [['overview', 'Overview'], ['all', 'All tasks']];
+  tkSubEl.innerHTML = items.map(([k, label]) =>
+    '<button class="subitem' + (TK.view === k ? ' on' : '') + '" data-tkview="' + k + '">'
+    + '<span class="sdot" style="--c:var(--brass)"></span>'
+    + '<span class="slabel">' + label + '</span>'
+    + '<span class="scount">' + (k === 'all' && TK.loaded ? tkFiltered().length : '') + '</span></button>').join('');
+  tkSubEl.querySelectorAll('[data-tkview]').forEach(b => b.onclick = () => {
+    TK.view = b.dataset.tkview; drawTasks();
+  });
+}
+
+/* ---------- Overview ---------- */
+
+function tkOverview(){
+  const tasks = tkFiltered();
+  const open = tasks.filter(tkOpen);
+  const now = Date.now();
+
+  const created7 = tkInWindow(tasks, t => t.created, 0, 7);
+  const done7 = tkInWindow(tasks, tkDoneAt, 0, 7);
+  const net = created7 - done7;
+
+  const overdue = tasks.filter(tkOverdue).length;
+  const dueWeek = tasks.filter(t => tkOpen(t) && t.due && t.due >= now && t.due <= now + 7 * TK_DAY).length;
+  const done30 = tkInWindow(tasks, tkDoneAt, 0, 30);
+  const donePrev = tkInWindow(tasks, tkDoneAt, 30, 60);
+  const donePct = donePrev ? Math.round((done30 - donePrev) / donePrev * 100) : (done30 ? 100 : 0);
+
+  const stat = (label, value, foot, cls) =>
+    '<div class="stat"><div class="eyebrow">' + label + '</div>'
+    + '<div class="v num">' + value + '</div>'
+    + '<div class="m ' + (cls || 'flat') + '">' + foot + '</div></div>';
+
+  const kpis = '<div class="grid g4" style="margin-bottom:14px">'
+    + stat('Open tasks', open.length.toLocaleString(),
+        net > 0 ? '▲ ' + net + ' net added this week' : net < 0 ? '▼ ' + (-net) + ' net cleared this week' : '■ flat this week',
+        net > 0 ? 'down' : net < 0 ? 'up' : 'flat')
+    + stat('Overdue', overdue.toLocaleString(),
+        overdue ? '▲ ' + Math.round(overdue / Math.max(1, open.length) * 100) + '% of the open queue' : '■ none overdue',
+        overdue ? 'down' : 'up')
+    + stat('Due this week', dueWeek.toLocaleString(), '● next 7 days', 'flat')
+    + stat('Completed (30d)', done30.toLocaleString(),
+        (donePct >= 0 ? '▲ ' : '▼ ') + Math.abs(donePct) + '% vs prior 30d',
+        donePct >= 0 ? 'up' : 'down')
+    + '</div>';
+
+  return kpis
+    + '<div class="siggrid" style="margin-bottom:14px">'
+    +   '<div class="col">' + tkVolumeCard(tasks) + tkBarsCard(tasks) + '</div>'
+    +   '<div class="col">' + tkSpaceCard(open) + tkTeamCard(open) + '</div>'
+    + '</div>'
+    + '<div class="siggrid">'
+    +   '<div class="col">' + tkRecentCard(tasks) + '</div>'
+    +   '<div class="col">' + tkStatusCard(tasks) + '</div>'
+    + '</div>';
+}
+
+/* An area chart of tasks created per day. One axis, one series -- the volume of
+   new work is a single question and does not need a second scale. */
+function tkVolumeCard(tasks){
+  const days = tkLastDays(TK.volDays);
+  const counts = tkCountByDay(tasks, t => t.created, days);
+  const max = tkNiceMax(Math.max(...counts, 1));
+  const W = 100, H = 100, padTop = 8, padBot = 6;
+  const pts = counts.map((v, i) => {
+    const x = counts.length === 1 ? 0 : (i / (counts.length - 1)) * W;
+    const y = H - padBot - (v / max) * (H - padTop - padBot);
+    return [x, y];
+  });
+  const line = pts.map(([x, y], i) => (i ? 'L' : 'M') + x.toFixed(2) + ',' + y.toFixed(2)).join(' ');
+  const area = line + ' L' + W + ',' + H + ' L0,' + H + ' Z';
+  const total = counts.reduce((a, b) => a + b, 0);
+  const prev = tkInWindow(tasks, t => t.created, TK.volDays, TK.volDays * 2);
+  const pct = prev ? Math.round((total - prev) / prev * 100) : (total ? 100 : 0);
+
+  const gridlines = [0, 0.25, 0.5, 0.75, 1].map(f => {
+    const y = H - padBot - f * (H - padTop - padBot);
+    return '<line x1="0" y1="' + y.toFixed(2) + '" x2="100" y2="' + y.toFixed(2) + '" stroke="var(--edge)" stroke-width="0.4"/>';
+  }).join('');
+
+  return '<div class="sigcard viz" style="margin-bottom:14px">'
+    + '<div class="sigtop"><div><h3>Task volume</h3>'
+    + '<p>New tasks created per day.</p></div><span class="grow" style="flex:1"></span>'
+    + '<select class="stagesel" id="tk-vol">'
+    + [14, 30, 60].map(n => '<option value="' + n + '"' + (TK.volDays === n ? ' selected' : '') + '>Last ' + n + ' days</option>').join('')
+    + '</select></div>'
+    + '<div style="display:flex;align-items:baseline;gap:10px;padding:0 15px 6px">'
+    + '<span class="num" style="font-size:26px;color:var(--cream)">' + total.toLocaleString() + '</span>'
+    + '<span class="chip2 ' + (pct >= 0 ? 'up' : 'down') + '">' + (pct >= 0 ? '▲ ' : '▼ ') + Math.abs(pct) + '%</span>'
+    + '<span class="hint">vs the ' + TK.volDays + ' days before</span></div>'
+    + '<div style="padding:0 15px 12px">'
+    + '<svg viewBox="0 0 100 100" preserveAspectRatio="none" style="width:100%;height:150px;color:var(--brass)">'
+    + '<defs><linearGradient id="tkGrad" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0%" stop-color="currentColor" stop-opacity="0.28"/>'
+    + '<stop offset="100%" stop-color="currentColor" stop-opacity="0"/></linearGradient></defs>'
+    + gridlines
+    + '<path d="' + area + '" fill="url(#tkGrad)"/>'
+    + '<path d="' + line + '" fill="none" stroke="currentColor" stroke-width="1.1" vector-effect="non-scaling-stroke"/>'
+    + '</svg>'
+    + '<div style="display:flex;justify-content:space-between;font-family:var(--ff-mono);font-size:9px;color:var(--dimmer);margin-top:4px">'
+    + '<span>' + tkShortDate(days[0]) + '</span><span>' + tkShortDate(days[days.length - 1]) + '</span></div>'
+    + '</div></div>';
+}
+
+/* Created against completed, ten days. Two counts of the same unit on one axis,
+   so a shared scale is honest. */
+function tkBarsCard(tasks){
+  const days = tkLastDays(10);
+  const created = tkCountByDay(tasks, t => t.created, days);
+  const done = tkCountByDay(tasks, tkDoneAt, days);
+  const max = tkNiceMax(Math.max(...created, ...done, 1));
+
+  const cols = days.map((d, i) => {
+    const hc = (created[i] / max) * 100, hd = (done[i] / max) * 100;
+    return '<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px" '
+      + 'title="' + tkShortDate(d) + ' — ' + created[i] + ' created, ' + done[i] + ' completed">'
+      + '<div style="width:100%;height:92px;display:flex;align-items:flex-end;gap:2px">'
+      +   '<div style="flex:1;background:var(--s1);border-radius:2px 2px 0 0;height:' + Math.max(hc, created[i] ? 2 : 0) + '%"></div>'
+      +   '<div style="flex:1;background:var(--s3);border-radius:2px 2px 0 0;height:' + Math.max(hd, done[i] ? 2 : 0) + '%"></div>'
+      + '</div>'
+      + '<span style="font-family:var(--ff-mono);font-size:8.5px;color:var(--dimmer)">' + new Date(d).getDate() + '</span>'
+      + '</div>';
+  }).join('');
+
+  return '<div class="sigcard viz">'
+    + '<div class="sigtop"><div><h3>Created against completed</h3>'
+    + '<p>Opened and closed per day, last 10 days.</p></div></div>'
+    + '<div style="display:flex;gap:6px;padding:0 15px 6px;font-size:10.5px;color:var(--dim)">'
+    + '<span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--s1)"></i> created</span>'
+    + '<span><i style="display:inline-block;width:8px;height:8px;border-radius:2px;background:var(--s3)"></i> completed</span>'
+    + '</div>'
+    + '<div style="display:flex;gap:5px;padding:0 15px 14px;align-items:flex-end">' + cols + '</div>'
+    + '</div>';
+}
+
+/* Open work by space, as a ranked bar list rather than a donut: eleven spaces in
+   a pie is unreadable, and length compares better than angle anyway. */
+function tkSpaceCard(open){
+  const by = new Map();
+  for (const t of open) {
+    const k = t.space?.name || 'No space';
+    by.set(k, (by.get(k) || 0) + 1);
+  }
+  const rows = [...by.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  const max = Math.max(1, ...rows.map(r => r[1]));
+
+  return '<div class="sigcard viz" style="margin-bottom:14px">'
+    + '<div class="sigtop"><div><h3>Open work by space</h3>'
+    + '<p>Where the open queue actually sits.</p></div></div>'
+    + '<div style="padding:2px 15px 14px">'
+    + (rows.length ? rows.map(([name, n]) =>
+        '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">'
+        + '<span style="flex:0 0 34%;font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'
+        + escS(name) + '</span>'
+        + '<span style="flex:1;height:9px;background:var(--ink2);border-radius:5px;overflow:hidden">'
+        +   '<span style="display:block;height:100%;width:' + (n / max * 100).toFixed(1) + '%;background:var(--brass)"></span>'
+        + '</span>'
+        + '<span class="num" style="flex:0 0 44px;text-align:right;font-size:12px;color:var(--cream)">' + n.toLocaleString() + '</span>'
+        + '</div>').join('')
+      : '<div class="hint">No open tasks.</div>')
+    + '</div></div>';
+}
+
+function tkTeamCard(open){
+  const by = new Map();
+  for (const t of open) {
+    for (const a of t.assignees) {
+      const cur = by.get(a.id) || { name: a.username, n: 0 };
+      cur.n++; by.set(a.id, cur);
+    }
+  }
+  const rows = [...by.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 12);
+  const unassigned = open.filter(t => !t.assignees.length).length;
+
+  return '<div class="sigcard viz">'
+    + '<div class="sigtop"><div><h3>Who is carrying it</h3>'
+    + '<p>Open tasks per assignee.</p></div></div>'
+    + (unassigned
+        ? '<div class="insrow" style="margin:0 15px 8px"><span class="sev warn">i</span><span class="tx">'
+          + '<b>' + unassigned.toLocaleString() + '</b> open tasks have no assignee — '
+          + Math.round(unassigned / Math.max(1, open.length) * 100) + '% of the queue.</span></div>'
+        : '')
+    + '<div style="padding:2px 15px 14px">'
+    + (rows.length ? rows.map(([id, m]) => {
+        const load = m.n >= 25 ? ['Heavy', 'var(--rust)'] : m.n >= 10 ? ['Moderate', 'var(--amber)'] : ['Light', 'var(--jade)'];
+        return '<div style="display:flex;align-items:center;gap:10px;margin-bottom:8px">'
+          + '<span style="width:26px;height:26px;border-radius:8px;flex:none;display:grid;place-items:center;'
+          + 'background:' + tkColour(id) + ';color:#fff;font-size:10px;font-weight:700">' + escS(tkInitials(m.name)) + '</span>'
+          + '<span style="flex:1;min-width:0"><b style="display:block;font-size:12.5px;color:var(--cream);'
+          + 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escS(m.name) + '</b>'
+          + '<small style="font-size:10.5px;color:' + load[1] + '">' + load[0] + ' · ' + m.n + ' open</small></span>'
+          + '</div>';
+      }).join('') : '<div class="hint">Nothing assigned.</div>')
+    + '</div></div>';
+}
+
+function tkRecentCard(tasks){
+  const rows = [...tasks].sort((a, b) => (b.updated || 0) - (a.updated || 0)).slice(0, 10);
+  return '<div class="sigcard viz">'
+    + '<div class="sigtop"><div><h3>Recently touched</h3><p>Latest updates across the workspace.</p></div></div>'
+    + '<div style="padding:2px 15px 14px">'
+    + (rows.length ? rows.map(t =>
+        '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--edge)">'
+        + '<span style="flex:1;min-width:0;font-size:12.5px;color:var(--text);overflow:hidden;'
+        + 'text-overflow:ellipsis;white-space:nowrap">' + escS(t.name) + '</span>'
+        + tkStatusChip(t)
+        + '<span style="flex:0 0 62px;text-align:right;font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer)">'
+        + tkRel(t.updated) + '</span></div>').join('')
+      : '<div class="hint">Nothing to show.</div>')
+    + '</div></div>';
+}
+
+function tkStatusCard(tasks){
+  const order = TK.data?.canonical || ['To Do', 'In Progress', 'In Review', 'Blocked', 'Long Term', 'Completed'];
+  const by = new Map(order.map(k => [k, 0]));
+  for (const t of tasks) by.set(t.canonical, (by.get(t.canonical) || 0) + 1);
+  const total = tasks.length || 1;
+
+  return '<div class="sigcard viz">'
+    + '<div class="sigtop"><div><h3>Status mix</h3>'
+    + '<p>Every list names its statuses differently, so they are grouped into six.</p></div></div>'
+    + '<div style="padding:2px 15px 14px">'
+    + order.map(k => {
+        const n = by.get(k) || 0;
+        return '<div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">'
+          + '<span style="flex:0 0 34%">' + tkStatusChip({ canonical: k }) + '</span>'
+          + '<span style="flex:1;height:9px;background:var(--ink2);border-radius:5px;overflow:hidden">'
+          +   '<span style="display:block;height:100%;width:' + (n / total * 100).toFixed(1)
+          +   '%;background:' + tkStatusColour(k) + '"></span></span>'
+          + '<span class="num" style="flex:0 0 46px;text-align:right;font-size:12px;color:var(--cream)">'
+          + n.toLocaleString() + '</span></div>';
+      }).join('')
+    + '</div></div>';
+}
+
+function tkStatusColour(k){
+  return ({
+    'To Do': 'var(--dimmer)', 'In Progress': 'var(--s1)', 'In Review': 'var(--s4)',
+    Blocked: 'var(--rust)', 'Long Term': 'var(--s7)', Completed: 'var(--jade)'
+  })[k] || 'var(--dimmer)';
+}
+function tkStatusChip(t){
+  const k = t.canonical || 'To Do';
+  return '<span class="chip2" style="border-color:' + tkStatusColour(k) + ';color:' + tkStatusColour(k) + '">'
+    + escS(k) + '</span>';
+}
+function tkPriorityChip(p){
+  if (!p) return '<span style="color:var(--dimmer);font-size:11px">—</span>';
+  const c = { urgent: 'var(--rust)', high: 'var(--amber)', normal: 'var(--s1)', low: 'var(--dimmer)' }[p] || 'var(--dimmer)';
+  return '<span class="chip2" style="border-color:' + c + ';color:' + c + '">' + escS(p) + '</span>';
+}
+function tkDueCell(t){
+  if (!t.due) return '<span style="color:var(--dimmer);font-size:11px">—</span>';
+  const days = Math.round((t.due - Date.now()) / TK_DAY);
+  const col = days < 0 && tkOpen(t) ? 'var(--rust)' : days <= 7 ? 'var(--amber)' : 'var(--dim)';
+  return '<span style="font-family:var(--ff-mono);font-size:11px;color:' + col + '">' + tkShortDate(t.due) + '</span>';
+}
+
+/* ---------- All tasks ---------- */
+
+function tkAllView(){
+  const all = tkFiltered();
+  const rows = TK.showDone ? all : all.filter(tkOpen);
+  const sorted = tkSort(rows);
+
+  const d = TK.data;
+  const sel = (id, label, opts, val) =>
+    '<select class="stagesel" id="' + id + '"><option value="">' + label + '</option>'
+    + opts.map(([v, l]) => '<option value="' + escS(v) + '"' + (v === val ? ' selected' : '') + '>' + escS(l) + '</option>').join('')
+    + '</select>';
+
+  const spaces = (d.spaces || []).map(s => [s.id, s.name]).sort((a, b) => a[1].localeCompare(b[1]));
+  const people = [...new Map((d.tasks || []).flatMap(t => t.assignees).map(a => [a.id, a.username])).entries()]
+    .sort((a, b) => a[1].localeCompare(b[1]));
+
+  const bar = '<div class="filterbar" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">'
+    + '<input id="tk-q" class="stagesel" style="flex:1 1 220px;min-width:160px" placeholder="Search tasks, lists, people" value="' + escS(TK.q) + '">'
+    + sel('tk-space', 'All spaces', spaces, TK.space)
+    + sel('tk-assignee', 'Anyone', people, TK.assignee)
+    + sel('tk-status', 'Any status', (d.canonical || []).map(k => [k, k]), TK.status)
+    + sel('tk-priority', 'Any priority', [['urgent', 'Urgent'], ['high', 'High'], ['normal', 'Normal'], ['low', 'Low']], TK.priority)
+    + '<label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer">'
+    + '<input type="checkbox" id="tk-done"' + (TK.showDone ? ' checked' : '') + '> completed</label>'
+    + (tkAnyFilter() ? '<button class="tgl" id="tk-clear">Clear</button>' : '')
+    + '</div>';
+
+  const th = (key, label, align) =>
+    '<button class="tkth" data-tksort="' + key + '" style="text-align:' + (align || 'left') + '">'
+    + label + (TK.sort === key ? '<span style="color:var(--brass)">' + (TK.dir === 'asc' ? ' ↑' : ' ↓') + '</span>' : '')
+    + '</button>';
+
+  /* Only the first 300 rows are in the DOM. 4,842 rows of eight cells is 39,000
+     nodes and the page stops being interactive; the count says what is hidden
+     rather than pretending the list is complete. */
+  const CAP = 300;
+  const shown = sorted.slice(0, CAP);
+
+  return bar
+    + '<div class="card flush">'
+    + '<div class="cardhead"><h3>All tasks</h3>'
+    + '<span class="eyebrow">' + sorted.length.toLocaleString() + ' of ' + all.length.toLocaleString() + '</span></div>'
+    + '<div class="tktable">'
+    +   '<div class="tkhead">' + th('name', 'Task') + th('space', 'Space') + th('assignee', 'Assignee')
+    +     th('status', 'Status') + th('due', 'Due') + th('priority', 'Priority')
+    +     th('updated', 'Updated', 'right') + '</div>'
+    +   (shown.length ? shown.map(tkRow).join('')
+        : '<div class="empty" style="padding:34px"><b>Nothing matches</b><small>Loosen a filter.</small></div>')
+    + '</div>'
+    + (sorted.length > CAP
+        ? '<div class="hint" style="padding:10px 15px;border-top:1px solid var(--edge)">Showing the first '
+          + CAP + ' of ' + sorted.length.toLocaleString() + '. Narrow the filters to see the rest — '
+          + 'putting five thousand rows in the page makes it stop responding.</div>'
+        : '')
+    + '</div>';
+}
+
+function tkAnyFilter(){
+  return Boolean(TK.q || TK.space || TK.assignee || TK.status || TK.priority || TK.showDone);
+}
+
+function tkSort(rows){
+  const dir = TK.dir === 'asc' ? 1 : -1;
+  const key = TK.sort;
+  const val = t => {
+    switch (key) {
+      case 'name': return t.name.toLowerCase();
+      case 'space': return (t.space?.name || '').toLowerCase();
+      case 'assignee': return (t.assignees[0]?.username || '').toLowerCase();
+      case 'status': return (TK.data?.canonical || []).indexOf(t.canonical);
+      case 'priority': return ['urgent', 'high', 'normal', 'low'].indexOf(t.priority);
+      case 'updated': return t.updated || 0;
+      default: return t.due;
+    }
+  };
+  return [...rows].sort((a, b) => {
+    const x = val(a), y = val(b);
+    /* Missing values sort last in both directions: a task with no due date is
+       not "the most urgent thing" just because you clicked ascending. */
+    const xm = x === null || x === undefined || x === '' || x === -1;
+    const ym = y === null || y === undefined || y === '' || y === -1;
+    if (xm && ym) return 0;
+    if (xm) return 1;
+    if (ym) return -1;
+    if (x < y) return -dir;
+    if (x > y) return dir;
+    return 0;
+  });
+}
+
+function tkRow(t){
+  const who = t.assignees[0];
+  return '<div class="tkrow" data-tkopen="' + escS(t.id) + '">'
+    + '<span class="c name" title="' + escS(t.name) + '">' + escS(t.name) + '</span>'
+    + '<span class="c dim">' + escS(t.space?.name || '—') + '</span>'
+    + '<span class="c">' + (who
+        ? '<span style="display:flex;align-items:center;gap:6px;min-width:0">'
+          + '<i style="width:18px;height:18px;border-radius:6px;flex:none;display:grid;place-items:center;'
+          + 'background:' + tkColour(who.id) + ';color:#fff;font-size:8px;font-weight:700;font-style:normal">'
+          + escS(tkInitials(who.username)) + '</i>'
+          + '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escS(who.username) + '</span>'
+          + (t.assignees.length > 1 ? '<span class="hint">+' + (t.assignees.length - 1) + '</span>' : '')
+          + '</span>'
+        : '<span style="color:var(--dimmer);font-size:11px">unassigned</span>') + '</span>'
+    + '<span class="c">' + tkStatusChip(t) + '</span>'
+    + '<span class="c">' + tkDueCell(t) + '</span>'
+    + '<span class="c">' + tkPriorityChip(t.priority) + '</span>'
+    + '<span class="c dim" style="text-align:right;font-family:var(--ff-mono);font-size:9.5px">' + tkRel(t.updated) + '</span>'
+    + '</div>';
+}
+
+function wireTasks(root){
+  const on = (id, ev, fn) => { const el = root.querySelector('#' + id); if (el) el[ev] = fn; };
+
+  on('tk-vol', 'onchange', e => { TK.volDays = Number(e.target.value); drawTasks(); });
+
+  /* The search box redraws on every keystroke, so it has to be restored and
+     re-focused rather than losing the caret mid-word. */
+  const q = root.querySelector('#tk-q');
+  if (q) {
+    q.oninput = () => {
+      TK.q = q.value;
+      drawTasks();
+      const again = document.getElementById('tk-q');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
+  on('tk-space', 'onchange', e => { TK.space = e.target.value; drawTasks(); });
+  on('tk-assignee', 'onchange', e => { TK.assignee = e.target.value; drawTasks(); });
+  on('tk-status', 'onchange', e => { TK.status = e.target.value; drawTasks(); });
+  on('tk-priority', 'onchange', e => { TK.priority = e.target.value; drawTasks(); });
+  on('tk-done', 'onchange', e => { TK.showDone = e.target.checked; drawTasks(); });
+  on('tk-clear', 'onclick', () => {
+    Object.assign(TK, { q: '', space: '', assignee: '', status: '', priority: '', showDone: false });
+    drawTasks();
+  });
+
+  root.querySelectorAll('[data-tksort]').forEach(b => b.onclick = () => {
+    const k = b.dataset.tksort;
+    if (TK.sort === k) TK.dir = TK.dir === 'asc' ? 'desc' : 'asc';
+    else { TK.sort = k; TK.dir = k === 'updated' ? 'desc' : 'asc'; }
+    drawTasks();
+  });
+
+  root.querySelectorAll('[data-tkopen]').forEach(row => row.onclick = () => {
+    const t = (TK.data?.tasks || []).find(x => x.id === row.dataset.tkopen);
+    if (t?.url) window.open(t.url, '_blank', 'noopener');
+  });
+}
+
+document.getElementById('tk-refresh')?.addEventListener('click', () => tkLoad(true));
+
+/* ================= PROPERTIES =================
+
+   The portfolio as an entity tree, because that is how it is actually held: a
+   property sits under the deepest entity that owns it, and debt and market value
+   roll up through sub-entities. The server does the placement -- getting it wrong
+   makes every figure on screen wrong.
+
+   No summary cards. Summing `unit_count_reported` across a property gives a
+   number that looks authoritative and is not: the column holds only the first
+   building's count. Apartments come from the buildings themselves, and the count
+   line says what is in view rather than implying a portfolio total. */
+
+const PR = {
+  loaded: false, loading: false, error: null,
+  data: null,
+  q: '',
+  own: 'held',            // default to what is still owned; sold rows are noise
+  entity: '', state: '', manager: '', loans: '',
+  open: new Set()         // expanded entities
+};
+
+async function prLoad(force){
+  if (PR.loading) return;
+  PR.loading = true; PR.error = null;
+  drawProperties();
+  try {
+    const r = await fetch('/api/properties' + (force ? '?force=1' : ''));
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('properties ' + r.status));
+    PR.data = j;
+    PR.loaded = true;
+  } catch (err) { PR.error = err.message; }
+  PR.loading = false;
+  drawProperties();
+}
+
+const prMoney = n => {
+  const v = Math.round(Number(n) || 0);
+  if (!v) return '—';
+  if (Math.abs(v) >= 1e6) return '$' + (v / 1e6).toFixed(v >= 1e7 ? 0 : 1) + 'M';
+  if (Math.abs(v) >= 1e3) return '$' + Math.round(v / 1e3) + 'k';
+  return '$' + v.toLocaleString();
+};
+const prFull = n => '$' + Math.round(Number(n) || 0).toLocaleString();
+
+const PR_OWN_LABEL = {
+  held: 'Held', sold: 'Sold', demolished: 'Demolished', not_owned: 'Not owned',
+  under_contract: 'Under contract', transferred: 'Transferred', unknown: 'Unknown'
+};
+
+function prPass(p){
+  if (PR.own && p.ownershipStatus !== PR.own) return false;
+  if (PR.entity && !p.owners.includes(PR.entity)) return false;
+  if (PR.state && p.state !== PR.state) return false;
+  if (PR.manager && p.manager !== PR.manager) return false;
+  if (PR.loans === 'has' && !p.loans.length) return false;
+  if (PR.loans === 'none' && p.loans.length) return false;
+  const q = PR.q.trim().toLowerCase();
+  if (q) {
+    const hay = [p.name, p.street, p.city, p.state, p.manager, p.assetType,
+      ...p.loans.map(l => l.lender || '')].join(' ').toLowerCase();
+    if (!hay.includes(q)) return false;
+  }
+  return true;
+}
+
+function drawProperties(){
+  const body = document.getElementById('pr-body');
+  const state = document.getElementById('pr-state');
+  const sub = document.getElementById('pr-sub');
+  if (!body) return;
+
+  if (state) {
+    state.innerHTML = PR.loading
+      ? '<span class="d" style="background:var(--brass)"></span>Reading…'
+      : PR.error ? '<span class="d" style="background:var(--rust)"></span>' + escS(PR.error.slice(0, 60))
+      : PR.data?.configured === false ? '<span class="d" style="background:var(--rust)"></span>No database'
+      : PR.data ? '<span class="d" style="background:var(--jade)"></span>as of ' + tkRel(Date.parse(PR.data.cachedAt))
+      : '';
+  }
+  if (sub) {
+    const t = PR.data?.totals;
+    sub.textContent = PR.data?.configured === false ? 'No database connected.'
+      : t ? t.properties + ' properties · ' + t.entities + ' entities · ' + t.buildings
+            + ' buildings · ' + t.apartments.toLocaleString() + ' apartments'
+      : 'Reading the portfolio…';
+  }
+
+  if (PR.data?.configured === false) {
+    body.innerHTML = '<div class="card flush"><div class="empty"><b>No database connected</b>'
+      + '<small>' + escS(PR.data.reason || '') + '</small></div></div>';
+    return;
+  }
+  if (PR.error && !PR.loaded) {
+    body.innerHTML = '<div class="card flush"><div class="empty"><b>Could not read the portfolio</b>'
+      + '<small>' + escS(PR.error) + '</small></div></div>';
+    return;
+  }
+  if (!PR.loaded) {
+    body.innerHTML = '<div class="card flush"><div class="empty"><b>Reading the portfolio…</b>'
+      + '<small>Entities, properties, buildings and loans.</small></div></div>';
+    return;
+  }
+
+  body.innerHTML = prFilterBar() + prTree();
+  wireProperties(body);
+}
+
+function prFilterBar(){
+  const d = PR.data;
+  const props = d.properties || [];
+  const counts = {};
+  for (const p of props) counts[p.ownershipStatus] = (counts[p.ownershipStatus] || 0) + 1;
+
+  const opts = (arr, val) => arr.map(([v, l]) =>
+    '<option value="' + escS(v) + '"' + (v === val ? ' selected' : '') + '>' + escS(l) + '</option>').join('');
+
+  const states = [...new Set(props.map(p => p.state).filter(Boolean))].sort();
+  const managers = [...new Set(props.map(p => p.manager).filter(Boolean))].sort();
+  const entities = (d.entities || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+
+  /* Ownership always shows, even at its default. Hiding the filter that is doing
+     the most work is what makes "why is this list short?" unanswerable. */
+  const ownOrder = ['held', 'under_contract', 'sold', 'demolished', 'transferred', 'not_owned', 'unknown'];
+  const ownOpts = [['', 'All statuses (' + props.length + ')']]
+    .concat(ownOrder.filter(k => counts[k]).map(k => [k, PR_OWN_LABEL[k] + ' (' + counts[k] + ')']));
+
+  return '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px">'
+    + '<input id="pr-q" class="stagesel" style="flex:1 1 220px;min-width:160px" '
+    + 'placeholder="Search property, address, manager, lender" value="' + escS(PR.q) + '">'
+    + '<select class="stagesel" id="pr-own">' + opts(ownOpts, PR.own) + '</select>'
+    + '<select class="stagesel" id="pr-entity"><option value="">All entities</option>'
+    + opts(entities.map(e => [e.id, e.name]), PR.entity) + '</select>'
+    + '<select class="stagesel" id="pr-state"><option value="">All states</option>'
+    + opts(states.map(x => [x, x]), PR.state) + '</select>'
+    + '<select class="stagesel" id="pr-manager"><option value="">Any manager</option>'
+    + opts(managers.map(x => [x, x]), PR.manager) + '</select>'
+    + '<select class="stagesel" id="pr-loans">'
+    + opts([['', 'Loan: any'], ['has', 'Has a loan'], ['none', 'No loan']], PR.loans) + '</select>'
+    + '<button class="tgl" id="pr-expand">Expand all</button>'
+    + '</div>';
+}
+
+function prTree(){
+  const d = PR.data;
+  const byId = new Map((d.properties || []).map(p => [p.id, p]));
+  const passing = new Set((d.properties || []).filter(prPass).map(p => p.id));
+
+  /* An entity is worth showing when it, or anything under it, has a property
+     that survives the filters. */
+  const relevant = node =>
+    node.properties.some(id => passing.has(id)) || node.children.some(relevant);
+
+  const shownProps = new Set();
+  const renderNode = (node, depth) => {
+    if (!relevant(node)) return '';
+    const mine = node.properties.filter(id => passing.has(id)).map(id => byId.get(id));
+    for (const p of mine) shownProps.add(p.id);
+    const kids = node.children.map(c => renderNode(c, depth + 1)).join('');
+    const isOpen = PR.open.has(node.id);
+
+    /* Roll-ups come from the server and cover descendants; the visible count is
+       what the filters left, and those are different numbers on purpose. */
+    return '<div class="prent' + (isOpen ? ' open' : '') + '" style="margin-left:' + (depth * 16) + 'px">'
+      + '<button class="prrow" data-prent="' + escS(node.id) + '">'
+      +   '<span class="cv">' + (isOpen ? '▾' : '▸') + '</span>'
+      +   '<span class="nm">' + escS(node.name) + '</span>'
+      +   '<span class="ct">' + node.count + '</span>'
+      +   '<span class="fig"><em>Debt</em><b>' + prMoney(node.debt) + '</b></span>'
+      +   '<span class="fig"><em>Market value</em><b>' + prMoney(node.mv) + '</b></span>'
+      + '</button>'
+      + (isOpen
+          ? '<div class="prkids">'
+            + (mine.length
+                ? mine.sort((a, b) => a.name.localeCompare(b.name)).map(prPropRow).join('')
+                : '<div class="hint" style="padding:8px 12px">Nothing directly here.</div>')
+            + kids
+            + '</div>'
+          : kids)
+      + '</div>';
+  };
+
+  const html = (d.tree || []).slice().sort((a, b) => b.mv - a.mv).map(n => renderNode(n, 0)).join('');
+  const shown = [...shownProps].length || (d.properties || []).filter(prPass).length;
+  const entityCount = new Set((d.properties || []).filter(prPass).flatMap(p => p.owners)).size;
+
+  return '<div class="card flush">'
+    + '<div class="cardhead"><h3>' + shown + ' properties</h3>'
+    + '<span class="eyebrow">in ' + entityCount + ' entities</span></div>'
+    + '<div class="prhead"><span></span><span>Entity</span><span>Properties</span>'
+    + '<span>Debt</span><span>Market value</span></div>'
+    + (html || '<div class="empty" style="padding:34px"><b>Nothing matches</b>'
+        + '<small>Ownership is set to <b>' + escS(PR_OWN_LABEL[PR.own] || 'all') + '</b>. '
+        + 'Try All statuses.</small></div>')
+    + '</div>';
+}
+
+function prPropRow(p){
+  const own = p.ownershipStatus !== 'held'
+    ? '<span class="chip2" style="opacity:.75">' + escS(PR_OWN_LABEL[p.ownershipStatus] || p.ownershipStatus) + '</span>'
+    : '';
+  const ls = { active: 'var(--jade)', pending: 'var(--amber)', closed: 'var(--s1)', none: 'var(--dimmer)' }[p.loanStatus];
+  return '<div class="prprop" data-prprop="' + escS(p.id) + '">'
+    + '<span class="nm">' + escS(p.name) + ' ' + own + '</span>'
+    + '<span class="lo">' + escS([p.city, p.state].filter(Boolean).join(', ') || '—') + '</span>'
+    + '<span class="chip2" style="border-color:' + ls + ';color:' + ls + '">' + escS(p.loanStatus) + '</span>'
+    + '<span class="bl">' + (p.buildings
+        ? p.buildings + ' bldg · ' + p.apartments.toLocaleString() + ' apt' : '—') + '</span>'
+    + '<span class="fg" title="' + prFull(p.marketValue) + '">MV ' + prMoney(p.marketValue) + '</span>'
+    + '<span class="fg" title="' + prFull(p.debt) + '">Debt ' + prMoney(p.debt) + '</span>'
+    + '</div>';
+}
+
+function wireProperties(root){
+  const on = (id, ev, fn) => { const el = root.querySelector('#' + id); if (el) el[ev] = fn; };
+  const q = root.querySelector('#pr-q');
+  if (q) q.oninput = () => {
+    PR.q = q.value;
+    drawProperties();
+    const again = document.getElementById('pr-q');
+    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+  };
+  on('pr-own', 'onchange', e => { PR.own = e.target.value; drawProperties(); });
+  on('pr-entity', 'onchange', e => { PR.entity = e.target.value; drawProperties(); });
+  on('pr-state', 'onchange', e => { PR.state = e.target.value; drawProperties(); });
+  on('pr-manager', 'onchange', e => { PR.manager = e.target.value; drawProperties(); });
+  on('pr-loans', 'onchange', e => { PR.loans = e.target.value; drawProperties(); });
+  on('pr-expand', 'onclick', () => {
+    const all = [];
+    const walk = n => { all.push(n.id); n.children.forEach(walk); };
+    (PR.data.tree || []).forEach(walk);
+    if (PR.open.size >= all.length) PR.open.clear();
+    else all.forEach(id => PR.open.add(id));
+    drawProperties();
+  });
+
+  root.querySelectorAll('[data-prent]').forEach(b => b.onclick = () => {
+    const id = b.dataset.prent;
+    if (PR.open.has(id)) PR.open.delete(id); else PR.open.add(id);
+    drawProperties();
+  });
+
+  root.querySelectorAll('[data-prprop]').forEach(row => row.onclick = () => {
+    const p = (PR.data.properties || []).find(x => x.id === row.dataset.prprop);
+    if (p) prDetail(p);
+  });
+}
+
+/* The detail drawer. Reuses the social drawer so there is one overlay in the
+   page rather than two that can both be open. */
+function prDetail(p){
+  const h = document.getElementById('so-drawerh');
+  const b = document.getElementById('so-drawerb');
+  if (!h || !b) return;
+
+  h.innerHTML = '<div><h3>' + escS(p.name) + '</h3>'
+    + '<p class="hint">' + escS([p.street, p.city, p.state, p.zip].filter(Boolean).join(', ') || '—') + '</p></div>'
+    /* closePost is the page's one drawer-closer; a second would mean two ways to
+       leave the same overlay and one of them eventually breaking. */
+    + '<button class="tgl" onclick="closePost()">Close</button>';
+
+  const kv = (k, v) => v == null || v === '' || v === 0
+    ? '' : '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>';
+
+  b.innerHTML = '<div class="kvs">'
+    + kv('Ownership', escS(PR_OWN_LABEL[p.ownershipStatus] || p.ownershipStatus))
+    + kv('Operational', escS(p.status || ''))
+    + kv('Asset type', escS(p.assetType || ''))
+    + kv('Manager', escS(p.manager || ''))
+    + kv('Buildings', p.buildings)
+    + kv('Apartments', p.apartments ? p.apartments.toLocaleString() : '')
+    + (p.unitsVerified !== null && p.unitsVerified !== p.apartments
+        ? kv('Units (verified)', p.unitsVerified) : '')
+    + kv('Market value', prFull(p.marketValue) + (p.marketValueAsOf
+        ? ' <span class="hint">as of ' + escS(String(p.marketValueAsOf).slice(0, 10)) + '</span>' : ''))
+    + kv('Purchase', p.purchasePrice ? prFull(p.purchasePrice)
+        + (p.purchaseDate ? ' <span class="hint">' + escS(String(p.purchaseDate).slice(0, 10)) + '</span>' : '') : '')
+    + kv('Debt', prFull(p.debt))
+    + kv('NOI', p.noi ? prFull(p.noi) : '')
+    + kv('Occupancy', p.occupancy == null ? '' : escS(String(p.occupancy)))
+    + kv('Year built', p.yearBuilt)
+    + kv('Parcels', p.parcels.length
+        ? p.parcels.map(x => '<span class="chip2 mono">' + escS(x.number || '?') + '</span>').join(' ') : '')
+    + '</div>'
+    + (p.loans.length
+        ? '<div class="eyebrow" style="margin:16px 0 7px">Loans</div>'
+          + p.loans.map(l =>
+            '<div class="insrow"><span class="tx"><b>' + escS(l.name) + '</b><br>'
+            + '<span class="hint">' + escS(l.lender || 'no lender') + ' · ' + prFull(l.balance)
+            + (l.ratePct ? ' · ' + (l.ratePct * 100).toFixed(2) + '%' : '')
+            + (l.maturity ? ' · matures ' + escS(String(l.maturity).slice(0, 10)) : '')
+            + '</span></span></div>').join('')
+        : '<div class="hint" style="margin-top:14px">No loans against this property.</div>');
+
+  document.getElementById('so-drawer').classList.add('on');
+  document.getElementById('so-drawer').setAttribute('aria-hidden', 'false');
+  document.getElementById('so-scrim').classList.add('on');
+}
+
+document.getElementById('pr-refresh')?.addEventListener('click', () => prLoad(true));
+
 /* ================= VERSION AND UPDATES =================
 
    Only meaningful on a local install: the endpoints behind this are mounted
@@ -8180,6 +9134,10 @@ function ccStop(){
    NOT the machine running Claude. */
 document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.target === 'claude') ccProbe();
+  /* Loaded on first open rather than at boot: the ClickUp walk is three minutes
+     cold, and nobody who came to read their inbox should pay for it. */
+  if (b.dataset.target === 'tasks' && !TK.loaded && !TK.loading) tkLoad();
+  if (b.dataset.target === 'properties' && !PR.loaded && !PR.loading) prLoad();
 }));
 
 
