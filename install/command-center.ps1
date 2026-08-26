@@ -73,7 +73,12 @@ if (-not $port) {
   if ($m) { $port = $m.Matches[0].Groups[1].Value }
 }
 if (-not $port) { $port = '3000' }
-$url = "http://localhost:$port"
+# 127.0.0.1, not localhost. The server binds 0.0.0.0, which is IPv4 only, while
+# localhost resolves to ::1 first on a machine with IPv6 enabled -- so the health
+# check connected sometimes and not others, and when it did not, the launcher
+# started the server and then quietly never opened a window. That is the whole
+# "it doesn't launch" bug.
+$url = "http://127.0.0.1:$port"
 
 # Chromium's --app is a window with no address bar, no tabs and its own taskbar
 # button. A dedicated --user-data-dir gives it a separate window list so it does

@@ -27,13 +27,17 @@ function Log($m){
 Log ("waiting for " + $Url)
 $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
 $up = $false
+$lastErr = ''
 while ((Get-Date) -lt $deadline) {
   try {
-    Invoke-WebRequest -Uri ($Url + '/api/app/version') -UseBasicParsing -TimeoutSec 2 | Out-Null
+    # -ErrorAction Stop so a failure actually reaches the catch: with
+    # ErrorActionPreference = Continue a non-terminating error slips past it and
+    # the loop spins for the full timeout learning nothing.
+    Invoke-WebRequest -Uri ($Url + '/api/app/version') -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop | Out-Null
     $up = $true; break
-  } catch { Start-Sleep -Milliseconds 400 }
+  } catch { $lastErr = $_.Exception.Message; Start-Sleep -Milliseconds 400 }
 }
-if (-not $up) { Log 'server never answered; not opening a window'; exit 1 }
+if (-not $up) { Log ('server never answered; not opening a window -- ' + $lastErr); exit 1 }
 
 if ($Exe -and (Test-Path $Exe)) {
   $args = @("--app=$Url", "--no-first-run", "--no-default-browser-check", "--window-size=1440,900")
