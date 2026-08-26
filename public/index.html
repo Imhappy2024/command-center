@@ -1444,15 +1444,22 @@ main{min-width:0;display:flex;flex-direction:column}
 /* Tasks table. A grid rather than a <table> so the header and every row share
    one column definition -- with a table they drift the moment a cell wraps. */
 /* ---------- PROPERTIES ----------
-   Ported from the mockup. Class names carry a pr- prefix because .card, .tile,
-   .bar and .split are all taken elsewhere in this file, and a collision here
-   would silently restyle Social or Systems. */
-.prstrip{display:grid;grid-template-columns:1.35fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px}
-@media(max-width:900px){.prstrip{grid-template-columns:1fr 1fr}
-  /* Sticky inside a 320px box on a phone is just a smaller cage. */
-  .prnavcard{position:static;max-height:320px}}
+   Class names carry a pr- prefix because .card, .tile, .bar and .split are all
+   taken elsewhere in this file, and a collision here would silently restyle
+   Social or Systems.
+
+   The shape: a strip of figures, a toolbar, then one table. Entities are bands
+   inside that table rather than a separate navigator column, so a property and
+   the entity that owns it are read in the same eye movement. Depth is carried by
+   indent alone -- inventing a new treatment per level is how a three-level tree
+   ends up with three unrelated visual languages. */
+.prstrip{display:grid;grid-template-columns:1.4fr repeat(3,1fr);gap:12px;margin-bottom:14px}
+@media(max-width:1100px){.prstrip{grid-template-columns:1fr 1fr}}
+@media(max-width:700px){.prstrip{grid-template-columns:1fr}}
 .prtile{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
   padding:14px 16px 13px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.prtile::before{content:"";position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent)}
 .prtile .lab{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--dimmer);display:flex;align-items:center;gap:6px}
 .prtile .val{font-family:var(--ff-display);font-size:27px;font-weight:600;letter-spacing:-.035em;
@@ -1461,26 +1468,33 @@ main{min-width:0;display:flex;flex-direction:column}
 .prtile .sub{font-size:11.5px;color:var(--dimmer);margin-top:4px}
 
 /* The capital stack. Drawn once at portfolio level rather than per row: a
-   hundred little bars is decoration, one is a fact. */
+   4px bar repeated 168 times is noise, drawn once it is the headline. */
 .prstack{display:flex;height:9px;border-radius:99px;overflow:hidden;margin-top:11px;
   background:var(--ink2);border:1px solid var(--edge)}
 .prstack i{display:block;height:100%;transition:width .5s var(--ease)}
-.prstack .eq{background:linear-gradient(90deg,var(--jade),#5ee0bd)}
-.prstack .dt{background:linear-gradient(90deg,#4a3fb5,var(--brass))}
+.prstack i.eq{background:linear-gradient(90deg,var(--jade),#5ee0bd)}
+.prstack i.dt{background:linear-gradient(90deg,#4a3fb5,var(--brass))}
 .prlegend{display:flex;gap:14px;margin-top:9px;flex-wrap:wrap}
 .prlegend span{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--dim)}
 .prlegend i{width:8px;height:8px;border-radius:2px;display:block}
 
 .prbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+/* The grouping control wears its own label. It changes the shape of the table
+   rather than its contents, which is a different kind of thing from a filter and
+   should not look like one. */
+.prgb{display:flex;align-items:center;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:10px;overflow:hidden}
+.prgb label{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dimmer);padding:0 9px 0 11px;white-space:nowrap}
+.prgb select{background:none;border:0;color:var(--cream);font:inherit;font-size:12px;
+  padding:8px 10px 8px 0;cursor:pointer}
+.prgb select:focus{outline:none}
 .prseg{display:flex;background:var(--ink2);border:1px solid var(--edge);border-radius:10px;
-  padding:3px;gap:2px}
+  padding:3px;gap:2px;margin-left:auto}
 .prseg button{background:none;border:0;border-radius:7px;color:var(--dimmer);font:inherit;
-  font-size:11.5px;padding:6px 13px;cursor:pointer;display:flex;align-items:center;gap:7px;
-  transition:.18s var(--ease)}
+  font-size:11.5px;padding:6px 14px;cursor:pointer;transition:.18s var(--ease)}
 .prseg button:hover{color:var(--cream)}
-.prseg button.on{background:var(--panel2);color:var(--cream);
-  box-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 6px 14px -10px #000}
-.prseg button.on::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--brass)}
+.prseg button.on{background:var(--panel2);color:var(--cream)}
 
 .prchips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .prchip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--edge2);
@@ -1490,158 +1504,135 @@ main{min-width:0;display:flex;flex-direction:column}
   font-size:13px;line-height:1;padding:0 3px}
 .prchip button:hover{color:var(--rust)}
 
-/* Entities on the left, properties on the right. Nesting one inside the other
-   meant every row had to announce which kind of thing it was; separating them
-   means no row has to. */
-.prsplit{display:grid;grid-template-columns:272px minmax(0,1fr);gap:12px;align-items:start}
-@media(max-width:900px){.prsplit{grid-template-columns:1fr}}
-
-/* The entity list is bounded and sticky: it never sets the page height, and it
-   stays put while a long property table scrolls past it. 110 entities in an
-   unbounded column pushed the table's own header off the screen. */
-.prnavcard{position:sticky;top:16px;max-height:calc(100vh - 210px);
-  display:flex;flex-direction:column;overflow:hidden}
-.prnavlist{overflow-y:auto;flex:1;min-height:0;
-  scrollbar-width:thin;scrollbar-color:var(--edge2) transparent}
-/* This one list gets a visible scrollbar. The rest of the app hides them, but a
-   pane that scrolls inside a page that also scrolls has to say so. */
-.prnavlist::-webkit-scrollbar{display:block;width:6px;height:6px}
-.prnavlist::-webkit-scrollbar-thumb{background:var(--edge2);border-radius:99px}
-.prnavlist::-webkit-scrollbar-thumb:hover{background:var(--dimmer)}
-.prnavfilter{padding:9px 10px;border-bottom:1px solid var(--edge);flex:none}
-.prnavfilter input{width:100%;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
-  color:var(--text);font:inherit;font-size:11.5px;padding:6px 9px}
-.prnavfilter input::placeholder{color:var(--dimmer)}
-.prnavfoot{flex:none;padding:8px 12px;border-top:1px solid var(--edge);
-  font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);display:flex;gap:10px;
-  align-items:center}
-.prnavfoot button{background:none;border:0;color:var(--dim);font:inherit;font-size:10px;
-  cursor:pointer;padding:0;margin-left:auto}
-.prnavfoot button:hover{color:var(--cream)}
-
-.prnav{display:flex;align-items:center;gap:7px;width:100%;background:none;border:0;cursor:pointer;
-  font:inherit;text-align:left;color:var(--text);border-bottom:1px solid var(--edge);
-  transition:background .14s,color .14s;padding:7px 11px}
-.prnav:last-child{border-bottom:0}
-.prnav:hover{background:var(--panel2)}
-.prnav.on{background:var(--panel2);color:var(--cream);box-shadow:inset 3px 0 0 var(--brass)}
-.prnav .cv{width:10px;flex:none;color:var(--dimmer);font-size:9px;display:inline-block;
-  transition:transform .18s var(--ease)}
-.prnav.open .cv{transform:rotate(90deg)}
-.prnav .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
-.prnav.root .nm{font-family:var(--ff-display);font-weight:600;color:var(--cream);font-size:12.5px}
-.prnav mark{background:rgba(124,108,255,.28);color:var(--cream);border-radius:3px;padding:0 1px}
-.prnav .ct{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);flex:none}
-.prnav.on .ct{color:var(--brass)}
-
-.prcrumb{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:14px 16px 0;
-  font-size:12px;color:var(--dimmer)}
-.prcrumb button{background:none;border:0;color:var(--dim);font:inherit;font-size:12px;
-  cursor:pointer;padding:0}
-.prcrumb button:hover{color:var(--cream);text-decoration:underline}
-.prcrumb b{color:var(--cream);font-weight:600;font-family:var(--ff-display);font-size:14px;
-  letter-spacing:-.015em}
-.prcrumb i{color:var(--edge2);font-style:normal}
-
-.prscope{display:flex;align-items:center;gap:16px;padding:10px 16px 13px;flex-wrap:wrap;
-  border-bottom:1px solid var(--edge)}
-.prscope .fig{font-family:var(--ff-mono);font-size:11px;color:var(--dimmer)}
-.prscope .fig b{color:var(--cream);font-weight:500;font-size:12.5px;font-family:var(--ff-mono)}
-.prscope .sw{margin-left:auto;display:flex;background:var(--ink2);border:1px solid var(--edge);
-  border-radius:8px;padding:2px;gap:2px}
-.prscope .sw button{background:none;border:0;border-radius:6px;color:var(--dimmer);font:inherit;
-  font-size:11px;padding:5px 10px;cursor:pointer}
-.prscope .sw button.on{background:var(--panel2);color:var(--cream)}
-
-.prtb{width:100%}
-.prth,.prtr{display:grid;
-  grid-template-columns:minmax(0,2fr) minmax(0,1.2fr) 96px 96px 118px 78px 74px 74px;
-  gap:12px;align-items:center;padding:8px 16px}
-.prth{background:var(--panel2);border-bottom:1px solid var(--edge);position:sticky;top:0;z-index:2}
-.prthb{background:none;border:0;padding:0;text-align:left;cursor:pointer;font-family:var(--ff-mono);
-  font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer);
-  display:flex;align-items:center;gap:4px}
+/* ---- the table ----
+   A grid rather than a <table> so the header, the group bands and every row
+   share one column definition. With a table they drift the moment a cell wraps,
+   and the columns are computed per render here, which makes that certain. */
+.prtbwrap{overflow-x:auto}
+.prtb{min-width:960px}
+.prthead{display:grid;background:var(--panel2);border-bottom:1px solid var(--edge);
+  position:sticky;top:0;z-index:3}
+.prthb{background:none;border:0;padding:9px 12px;text-align:left;cursor:pointer;
+  font-family:var(--ff-mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--dimmer);display:flex;align-items:center;gap:4px;white-space:nowrap;
+  transition:color .14s;min-width:0}
 .prthb:hover{color:var(--cream)}
 .prthb.r{justify-content:flex-end}
 .prthb .ar{opacity:0;font-size:8px}
 .prthb.act{color:var(--brass)}
 .prthb.act .ar{opacity:1}
-.prtr{border-bottom:1px solid var(--edge);cursor:pointer;transition:background .14s;
-  content-visibility:auto;contain-intrinsic-size:auto 37px}
+
+.prtr{display:grid;border-bottom:1px solid rgba(38,44,70,.75);cursor:pointer;
+  transition:background .12s}
 .prtr:hover{background:var(--panel2)}
-.prtr .c{min-width:0;font-size:12.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap}
-.prtr .c.name{color:var(--cream);font-weight:500;display:flex;align-items:center;gap:7px}
-.prtr .c.dim{color:var(--dimmer);font-size:11.5px}
-.prtr .c.n{text-align:right;font-family:var(--ff-mono);font-variant-numeric:tabular-nums;
-  font-size:11.5px}
+.prtr>span{padding:8px 12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-size:12.5px;display:flex;align-items:center;gap:7px}
+.prtr .n{justify-content:flex-end;font-family:var(--ff-mono);font-size:11.5px;
+  font-variant-numeric:tabular-nums}
+.prtr .name{color:var(--cream);font-weight:500}
+.prtr .dim{color:var(--dimmer);font-size:11.5px}
+/* A dash is a value. An absent value is not, so it gets a muted tick instead:
+   a sparse column then reads as "not captured" rather than "zero". */
+.prnone{color:var(--edge2)}
+/* The rail that ties an indented row back to the band above it. */
+.prtr>span:first-child{position:relative}
+.prtr>span:first-child::before{content:"";position:absolute;left:calc(var(--i,0px) + 5px);
+  top:0;bottom:0;width:1px;background:var(--edge)}
+
 /* Leverage reads as a bar and a number together: the number is the fact, the bar
-   is what makes eighty rows comparable at a glance. */
+   is how it compares to the rows around it without reading any of them. */
 .prltv{display:flex;align-items:center;gap:7px;justify-content:flex-end}
-.prltv .track{flex:1;max-width:52px;height:5px;border-radius:99px;background:var(--ink2);
-  overflow:hidden}
+.prltv .track{width:44px;height:4px;border-radius:99px;background:var(--ink2);
+  border:1px solid var(--edge);overflow:hidden;flex:none}
 .prltv .track i{display:block;height:100%}
-.prltv .pc{flex:none;font-variant-numeric:tabular-nums}
+.prltv .pc{font-family:var(--ff-mono);font-size:11px;width:32px;text-align:right;
+  font-variant-numeric:tabular-nums}
 
-.prtwo{display:grid;grid-template-columns:1.5fr 1fr;gap:12px;align-items:start}
-@media(max-width:960px){.prtwo{grid-template-columns:1fr}}
+/* Group bands. An entity is a band, a property is a plain row; that is the whole
+   distinction. d0/d1/d2 change only the ground and the edge marker. */
+.prgrp{display:grid;align-items:center;width:100%;background:var(--ink2);border:0;cursor:pointer;
+  font:inherit;text-align:left;border-bottom:1px solid var(--edge);
+  transition:background .16s var(--ease),box-shadow .16s var(--ease)}
+.prgrp:hover{background:var(--panel3)}
+.prgrp.d0{box-shadow:inset 3px 0 0 var(--edge2)}
+.prgrp.d0>span{padding:14px 12px}
+.prgrp.d0 .gname{font-size:15px;letter-spacing:-.02em}
+.prgrp.d1{background:#141830;box-shadow:inset 3px 0 0 #2E2860}
+.prgrp.d2{background:#12162A;box-shadow:inset 3px 0 0 var(--edge2)}
+.prgrp.open{background:var(--panel2)}
+.prgrp.d0.open{box-shadow:inset 3px 0 0 var(--brass)}
+.prgrp.d1.open{box-shadow:inset 3px 0 0 #5B4FD6}
+.prgrp>span{padding:9px 12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  display:flex;align-items:center;gap:8px}
+.prgrp .gname{font-family:var(--ff-display);font-size:12.5px;font-weight:600;color:var(--cream)}
+.prgrp .gname.sub{font-weight:500;color:var(--text)}
+.prgrp .cv{color:var(--dimmer);font-size:10px;transition:transform .18s var(--ease),color .18s;
+  flex:none;width:9px;display:inline-block}
+.prgrp.open .cv{transform:rotate(90deg);color:var(--brass)}
+.prgrp .gct{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);flex:none;
+  border:1px solid var(--edge2);border-radius:99px;padding:1px 7px}
+.prgrp.open .gct{color:var(--brass);border-color:rgba(124,108,255,.4)}
+.prgrp .n{justify-content:flex-end;font-family:var(--ff-mono);font-size:11.5px;color:var(--text);
+  font-variant-numeric:tabular-nums}
+.prgrp.d0 .n{font-size:12.5px;color:var(--cream)}
+.prgrp .path{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
+.prgrp mark{background:rgba(124,108,255,.28);color:var(--cream);border-radius:3px;padding:0 1px}
+/* The open entity's properties read as one block sitting inside it. */
+.prnest{background:var(--panel);box-shadow:inset 0 1px 0 var(--edge2)}
 
+/* ---- debt ---- */
+.prtwo{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:12px;align-items:start}
+@media(max-width:1000px){.prtwo{grid-template-columns:1fr}}
 /* The maturity wall. The one chart that answers "what is about to hurt". */
-.prwall{padding:20px 18px 12px}
-.prwallgrid{display:flex;align-items:flex-end;gap:10px;height:210px;position:relative;
-  padding-bottom:2px}
+.prwall{padding:20px 16px 10px}
+.prwallgrid{display:flex;align-items:flex-end;gap:9px;height:200px;position:relative}
 .prwallgrid::before,.prwallgrid::after{content:"";position:absolute;left:0;right:0;height:1px;
-  background:var(--edge);pointer-events:none}
+  background:var(--edge)}
 .prwallgrid::before{top:33%}
 .prwallgrid::after{top:66%}
 .pryr{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;
-  height:100%;cursor:pointer;position:relative}
-.pryr .col{width:100%;border-radius:6px 6px 2px 2px;min-height:2px;
-  background:linear-gradient(180deg,var(--brass),#4a3fb5);transition:.3s var(--ease);
-  box-shadow:0 -1px 0 rgba(255,255,255,.16) inset}
-.pryr.soon .col{background:linear-gradient(180deg,var(--amber),#b87a10)}
-.pryr.now .col{background:linear-gradient(180deg,var(--rust),#a32d1f)}
-.pryr:hover .col{filter:brightness(1.22)}
+  height:100%;cursor:pointer;background:none;border:0;font:inherit;padding:0;min-width:0}
+.pryr .col{width:100%;border-radius:5px 5px 2px 2px;min-height:2px;
+  background:linear-gradient(180deg,var(--brass),#453BA6);transition:.28s var(--ease);
+  box-shadow:0 -1px 0 rgba(255,255,255,.15) inset}
+.pryr.soon .col{background:linear-gradient(180deg,var(--amber),#a8710f)}
+.pryr.now .col{background:linear-gradient(180deg,var(--rust),#9c2b1e)}
+.pryr:hover .col{filter:brightness(1.2)}
 .pryr.sel .col{outline:2px solid var(--cream);outline-offset:2px}
-.pryr .amt{font-family:var(--ff-mono);font-size:10.5px;color:var(--text);margin-bottom:6px;
-  font-variant-numeric:tabular-nums;white-space:nowrap}
-.pryr .yl{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);margin-top:8px;
-  letter-spacing:.05em}
+.pryr .amt{font-family:var(--ff-mono);font-size:10px;color:var(--text);margin-bottom:6px}
+.pryr .yl{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);margin-top:7px}
 .pryr.now .yl,.pryr.soon .yl{color:var(--text)}
-
-.prexprow{display:grid;grid-template-columns:minmax(0,1fr) 74px;gap:10px;align-items:center;
-  padding:9px 16px;border-bottom:1px solid var(--edge)}
+.prexprow{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:10px;padding:9px 16px;
+  border-bottom:1px solid var(--edge)}
 .prexprow:last-child{border-bottom:0}
-.prexprow .nm{font-size:12px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap}
+.prexprow .nm{font-size:12px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .prexprow .nm small{display:block;color:var(--dimmer);font-size:10.5px;margin-top:2px}
-.prexprow .barr{grid-column:1/-1;height:4px;border-radius:99px;background:var(--ink2);
-  overflow:hidden;margin-top:-3px}
-.prexprow .barr i{display:block;height:100%;
-  background:linear-gradient(90deg,#4a3fb5,var(--brass));transition:width .5s var(--ease)}
-.prexprow .fg{text-align:right;font-family:var(--ff-mono);font-size:11.5px;color:var(--text);
-  font-variant-numeric:tabular-nums}
-
-.prloan{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr) 74px 92px 96px;gap:10px;
-  align-items:center;padding:10px 16px;border-bottom:1px solid var(--edge);cursor:pointer}
+.prexprow .fg{text-align:right;font-family:var(--ff-mono);font-size:11.5px;
+  font-variant-numeric:tabular-nums;color:var(--text)}
+.prexprow .barr{grid-column:1/-1;height:3px;border-radius:99px;background:var(--ink2);
+  overflow:hidden;margin-top:-2px}
+.prexprow .barr i{display:block;height:100%;background:linear-gradient(90deg,#453BA6,var(--brass))}
+.prloan{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr) 74px 108px 92px;
+  gap:10px;padding:8px 16px;border-bottom:1px solid var(--edge);cursor:pointer;font-size:12.5px;
+  align-items:center}
 .prloan:last-child{border-bottom:0}
 .prloan:hover{background:var(--panel2)}
-.prloan .nm{font-size:12.5px;color:var(--cream);overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap}
-.prloan .nm small{display:block;color:var(--dimmer);font-size:10.5px;font-family:var(--ff-mono);
-  margin-top:2px}
-.prloan .c{font-size:11.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;
-  white-space:nowrap}
-.prloan .n{text-align:right;font-family:var(--ff-mono);font-size:11.5px;color:var(--text);
+.prloan>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.prloan .nm{color:var(--cream)}
+.prloan .nm small{display:block;color:var(--dimmer);font-size:10.5px;margin-top:2px}
+.prloan .c{color:var(--dim);font-size:11.5px}
+.prloan .n{text-align:right;font-family:var(--ff-mono);font-size:11.5px;
   font-variant-numeric:tabular-nums}
 
-.prhero{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
-.prhero div{background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);
+/* ---- drawer ---- */
+.prhero{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:16px}
+.prhero>div{background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);
   padding:11px 12px}
 .prhero .l{font-family:var(--ff-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
   color:var(--dimmer)}
 .prhero .v{font-family:var(--ff-display);font-size:19px;font-weight:600;color:var(--cream);
   margin-top:5px;letter-spacing:-.03em;font-feature-settings:'tnum'}
+.prhero .v.absent{font-size:13px;font-weight:500;color:var(--dimmer);font-family:var(--ff-body)}
 
 .kvs{display:flex;flex-direction:column;gap:1px}
 .kv{display:grid;grid-template-columns:minmax(120px,38%) 1fr;gap:10px;padding:7px 0;
@@ -7674,34 +7665,39 @@ document.getElementById('tk-refresh')?.addEventListener('click', () => tkLoad(tr
 
 /* ================= PROPERTIES =================
 
-   Three ways of asking about the same portfolio, because they are three different
-   questions:
+   One table, two questions.
 
-     Structure — who owns what. Entities on the left, their properties on the
-       right. Nesting them in one tree meant every row had to announce which kind
-       of thing it was; separating them means no row has to.
-     Assets — one flat sortable table, for "which of these is underperforming".
+     Portfolio — every property, grouped however you need to see it. The default
+       grouping is the owner entity, because that is the axis the book is
+       actually organised on; the rest (asset type, manager, lender, maturity
+       year, state) are the same rows re-cut.
      Debt — the maturity wall, lender concentration, and every loan by date. The
        question here is what is about to hurt, and no amount of asset detail
        answers it.
 
-   No summary cards of the old kind. Summing `unit_count_reported` produces an
-   authoritative-looking number that is wrong (the column holds only the first
-   building's count), so apartments come from the buildings themselves. The strip
-   at the top carries portfolio figures instead: value against the capital stack,
-   NOI with its blended cap rate, occupancy weighted by unit count, and what is
-   maturing inside eighteen months. */
+   Two rules run through the whole view, and both exist because this data is
+   sparse in ways a generic table handles badly:
+
+     A column that is blank for most rows costs width and reads as broken. So
+     columns are chosen per render: anything populated on fewer than a third of
+     the visible rows is dropped, and the drawer carries it instead.
+
+     A summary tile computed from a tenth of the rows is a rumour. So each tile
+     says how many rows it is standing on, and tiles below a third coverage do
+     not appear at all.
+
+   No summary card sums `unit_count_reported`: that column holds only the first
+   building's count, so apartments come from the buildings themselves. */
 
 const PR = {
   loaded: false, loading: false, error: null,
   data: null,
-  mode: 'tree',                     // tree | table | debt
-  q: '', own: 'held', entity: '', state: '', manager: '', loans: '',
+  mode: 'portfolio',                // portfolio | debt
+  q: '', own: 'held', state: '', manager: '', lender: '', loans: '',
+  group: 'entity',                  // see PR_GROUPERS
   sort: 'marketValue', dir: 'desc',
-  open: new Set(), sel: null,
-  navq: '',                         // filter the entity list itself
-  deep: true,                       // include sub-entities in the right pane
-  year: null                        // a bar on the maturity wall, as a filter
+  open: null,                       // the one open group; an entity id in entity mode
+  year: null                        // a bar on the maturity wall, used as a filter
 };
 
 async function prLoad(force){
@@ -7714,6 +7710,25 @@ async function prLoad(force){
     if (!r.ok) throw new Error(j.error || ('properties ' + r.status));
     PR.data = j;
     prIndex();
+    /* Open the largest root entity, so the first thing on screen is properties
+       rather than a hundred collapsed holding companies. Everything after this
+       is the user's choice, including closing it.
+
+       Largest *of the ones the current filter leaves standing*: the default
+       filter is Held, and the biggest root by raw value can easily be a shell
+       whose properties were all sold, which would open onto nothing. */
+    const passing = new Set((PR.data.properties || []).filter(prPass).map(p => p.id));
+    let best = null;
+    for (const t of PR.data.tree || []) {
+      let mv = 0, n = 0;
+      for (const id of PR.data.subtree.get(t.id) || []) {
+        if (!passing.has(id)) continue;
+        const p = PR.data.byId.get(id);
+        if (p) { mv += p.marketValue; n++; }
+      }
+      if (n && (!best || mv > best.mv)) best = { id: t.id, mv };
+    }
+    PR.open = best ? best.id : null;
     PR.loaded = true;
   } catch (err) { PR.error = err.message; }
   PR.loading = false;
@@ -7721,7 +7736,7 @@ async function prLoad(force){
 }
 
 /* The server sends the tree with placement and roll-ups already computed. What
-   it does not send is the id sets, because 110 entities × 168 ids is a lot of
+   it does not send is the id sets, because 110 entities x 168 ids is a lot of
    payload for something derivable in a millisecond. */
 function prIndex(){
   const d = PR.data;
@@ -7730,6 +7745,7 @@ function prIndex(){
   d.place = new Map();
   d.subtree = new Map();
   d.parentOf = new Map();
+  d.nameOf = new Map((d.entities || []).map(e => [e.id, e.name]));
 
   const walk = (n, parent) => {
     d.node.set(n.id, n);
@@ -7743,10 +7759,6 @@ function prIndex(){
     d.subtree.set(n.id, set);
   };
   (d.tree || []).forEach(n => walk(n, null));
-
-  /* Nothing is opened here on purpose. The tree opens the path to whatever is
-     selected and nothing else, so the list's length tracks where you are rather
-     than how big the org chart is. */
 }
 
 /* ---------- formatting ---------- */
@@ -7761,6 +7773,10 @@ const prMoney = n => {
 const prFull = n => '$' + Math.round(Number(n) || 0).toLocaleString();
 const prPct = n => (n == null ? '—' : (n * 100).toFixed(1) + '%');
 
+/* A dash is a value. Absence is not, so it gets its own mark and a title that
+   says which it is. */
+const PR_GAP = '<span class="prnone" title="Not recorded">·</span>';
+
 const PR_OWN_LABEL = {
   held: 'Held', sold: 'Sold', demolished: 'Demolished', not_owned: 'Not owned',
   under_contract: 'Under contract', transferred: 'Transferred', unknown: 'Unknown'
@@ -7771,23 +7787,38 @@ const PR_OWN_LABEL = {
 const prLtvColour = r => r >= 0.85 ? 'var(--rust)' : r >= 0.70 ? 'var(--amber)'
   : r > 0 ? 'var(--jade)' : 'var(--dimmer)';
 const prLtv = p => (p.marketValue ? p.debt / p.marketValue : 0);
-const prCap = p => (p.marketValue ? p.noi / p.marketValue : 0);
+const prCap = p => (p.marketValue && p.noi ? p.noi / p.marketValue : null);
 const prYear = iso => { const t = Date.parse(iso); return Number.isFinite(t) ? new Date(t).getFullYear() : null; };
+const prNextMat = p => {
+  const ds = p.loans.map(l => l.maturity).filter(Boolean).sort();
+  return ds.length ? String(ds[0]).slice(0, 10) : null;
+};
+/* The entity a property hangs off. `entityId` is the column on the row; `owners`
+   adds anyone holding it through an ownership record, which is how the four-way
+   TIC splits show up. */
+const prOwner = p => p.entityId || p.owners[0] || null;
+const prEntName = id => (PR.data.nameOf.get(id) || (id ? 'Unknown entity' : 'Unassigned'));
+
+function prPathTo(id){
+  const out = [];
+  for (let cur = id; cur; cur = PR.data.parentOf.get(cur)) out.unshift(cur);
+  return out;
+}
 
 /* ---------- filtering ---------- */
 
 function prPass(p){
   if (PR.own && p.ownershipStatus !== PR.own) return false;
-  if (PR.entity && !p.owners.includes(PR.entity)) return false;
   if (PR.state && p.state !== PR.state) return false;
   if (PR.manager && p.manager !== PR.manager) return false;
+  if (PR.lender && !p.loans.some(l => l.lender === PR.lender)) return false;
   if (PR.loans === 'has' && !p.loans.length) return false;
   if (PR.loans === 'none' && p.loans.length) return false;
   if (PR.year && !p.loans.some(l => prYear(l.maturity) === PR.year)) return false;
   const q = PR.q.trim().toLowerCase();
   if (q) {
     const hay = [p.name, p.street, p.city, p.state, p.manager, p.assetType,
-      ...p.loans.map(l => l.lender || '')].join(' ').toLowerCase();
+      ...p.owners.map(prEntName), ...p.loans.map(l => l.lender || '')].join(' ').toLowerCase();
     if (!hay.includes(q)) return false;
   }
   return true;
@@ -7835,61 +7866,80 @@ function drawProperties(){
   }
 
   body.innerHTML = prStrip() + prToolbar() + prChips()
-    + (PR.mode === 'tree' ? prTreeView() : PR.mode === 'table' ? prTableView() : prDebtView());
+    + (PR.mode === 'debt' ? prDebtView() : prTableView());
   wirePr(body);
 }
 
-/* ---------- portfolio strip ---------- */
+/* ---------- the strip ----------
+   Four tiles at most: the capital stack, then whichever three of the candidates
+   have enough behind them to be worth the space. */
 
 function prStrip(){
   const ps = prShown();
+  const n = ps.length || 1;
   const mv = ps.reduce((a, p) => a + p.marketValue, 0);
   const debt = ps.reduce((a, p) => a + p.debt, 0);
-  const noi = ps.reduce((a, p) => a + p.noi, 0);
-  const apts = ps.reduce((a, p) => a + p.apartments, 0);
-  const blds = ps.reduce((a, p) => a + p.buildings, 0);
   const eq = mv - debt;
   const ltv = mv ? debt / mv : 0;
+  const apts = ps.reduce((a, p) => a + p.apartments, 0);
+  const blds = ps.reduce((a, p) => a + p.buildings, 0);
+  const levered = ps.filter(p => p.debt).length;
+
+  const withNoi = ps.filter(p => p.noi);
+  const noi = withNoi.reduce((a, p) => a + p.noi, 0);
+  const noiMv = withNoi.reduce((a, p) => a + p.marketValue, 0);
 
   /* Occupancy weighted by unit count. An unweighted mean lets a 58-unit
      renovation drag exactly as hard as a 242-unit stabilised asset. */
-  const withUnits = ps.filter(p => p.apartments && p.occupancy != null);
-  const unitTotal = withUnits.reduce((a, p) => a + p.apartments, 0);
-  const occ = unitTotal ? withUnits.reduce((a, p) => a + p.occupancy * p.apartments, 0) / unitTotal : null;
+  const withOcc = ps.filter(p => p.apartments && p.occupancy != null);
+  const occUnits = withOcc.reduce((a, p) => a + p.apartments, 0);
+  const occ = occUnits ? withOcc.reduce((a, p) => a + p.occupancy * p.apartments, 0) / occUnits : null;
 
   const allLoans = ps.flatMap(p => p.loans);
   const horizon = Date.now() + 550 * 86400000;         // roughly eighteen months
   const soon = allLoans.filter(l => { const t = Date.parse(l.maturity); return t && t < horizon; });
   const soonAmt = soon.reduce((a, l) => a + l.balance, 0);
+  const ratedBal = allLoans.filter(l => l.ratePct).reduce((a, l) => a + l.balance, 0);
+  const wRate = ratedBal
+    ? allLoans.reduce((a, l) => a + (l.ratePct || 0) * l.balance, 0) / ratedBal : null;
 
-  const tile = (lab, val, sub2, accent) =>
-    '<div class="prtile"><div class="lab">' + lab + '</div>'
-    + '<div class="val"' + (accent ? ' style="color:' + accent + '"' : '') + '>' + val + '</div>'
-    + '<div class="sub">' + sub2 + '</div></div>';
+  const head = '<div class="prtile"><div class="lab">Portfolio value</div>'
+    + '<div class="val">' + prMoney(mv) + ' <small>' + (mv ? prPct(ltv) + ' LTV' : '') + '</small></div>'
+    + '<div class="prstack"><i class="eq" style="width:' + (mv ? (eq / mv * 100).toFixed(1) : 0) + '%"></i>'
+    +   '<i class="dt" style="width:' + (mv ? (ltv * 100).toFixed(1) : 0) + '%"></i></div>'
+    + '<div class="prlegend"><span><i style="background:var(--jade)"></i>Equity ' + prMoney(eq) + '</span>'
+    +   '<span><i style="background:var(--brass)"></i>Debt ' + prMoney(debt) + '</span></div>'
+    + '</div>';
 
-  return '<div class="prstrip">'
-    + '<div class="prtile"><div class="lab">Portfolio value</div>'
-    +   '<div class="val">' + prMoney(mv) + ' <small>' + (mv ? prPct(ltv) + ' LTV' : '') + '</small></div>'
-    +   '<div class="prstack"><i class="eq" style="width:' + (mv ? (eq / mv * 100).toFixed(1) : 0) + '%"></i>'
-    +     '<i class="dt" style="width:' + (mv ? (ltv * 100).toFixed(1) : 0) + '%"></i></div>'
-    +   '<div class="prlegend"><span><i style="background:var(--jade)"></i>Equity ' + prMoney(eq) + '</span>'
-    +     '<span><i style="background:var(--brass)"></i>Debt ' + prMoney(debt) + '</span></div>'
-    + '</div>'
-    + tile('Net operating income', prMoney(noi),
-        noi && mv ? (noi / mv * 100).toFixed(2) + '% blended cap rate' : 'no NOI recorded')
-    + tile('Occupancy', occ == null ? '—' : prPct(occ),
-        apts.toLocaleString() + ' apartments · ' + blds + ' buildings')
-    + tile('Maturing within 18 months', prMoney(soonAmt),
-        allLoans.length ? soon.length + ' of ' + allLoans.length + ' loans come due' : 'no loans in view',
-        debt && soonAmt / debt > 0.25 ? 'var(--amber)' : null)
-    /* Closing .prstrip. Without it the toolbar, the chips and both panes were
+  const cands = [
+    { ok: withNoi.length / n >= 0.3, lab: 'Net operating income', val: prMoney(noi),
+      sub: (noiMv ? (noi / noiMv * 100).toFixed(2) + '% blended cap rate · ' : '')
+        + withNoi.length + ' of ' + ps.length + ' reporting' },
+    { ok: soon.length > 0, lab: 'Maturing within 18 months', val: prMoney(soonAmt),
+      accent: debt && soonAmt / debt > 0.25 ? 'var(--amber)' : null,
+      sub: soon.length + ' of ' + allLoans.length + ' loans come due' },
+    { ok: true, lab: 'Leverage spread', val: levered + ' of ' + ps.length,
+      sub: 'carry debt' + (wRate ? ' · ' + (wRate * 100).toFixed(2) + '% weighted rate' : '') },
+    { ok: apts > 0, lab: 'Residential scale', val: apts.toLocaleString(),
+      sub: 'apartments across ' + blds + ' buildings' },
+    { ok: withOcc.length / n >= 0.3, lab: 'Occupancy', val: prPct(occ),
+      sub: withOcc.length + ' of ' + ps.length + ' reporting, weighted by units' }
+  ].filter(c => c.ok).slice(0, 3);
+
+  return '<div class="prstrip">' + head + cands.map(c =>
+    '<div class="prtile"><div class="lab">' + c.lab + '</div>'
+    + '<div class="val"' + (c.accent ? ' style="color:' + c.accent + '"' : '') + '>' + c.val + '</div>'
+    + '<div class="sub">' + c.sub + '</div></div>').join('')
+    /* Closing .prstrip. Without it the toolbar, the chips and the table were
        adopted as extra cells of this four-column grid, which is precisely what a
        missing tag looks like from the outside: everything in the wrong place and
        nothing obviously broken. */
     + '</div>';
 }
 
-/* ---------- toolbar and chips ---------- */
+/* ---------- toolbar and chips ----------
+   A select with one option is a control that cannot do anything, so filters
+   appear only when the data gives them something to choose between. */
 
 function prToolbar(){
   const props = PR.data.properties || [];
@@ -7902,29 +7952,36 @@ function prToolbar(){
 
   const states = [...new Set(props.map(p => p.state).filter(Boolean))].sort();
   const managers = [...new Set(props.map(p => p.manager).filter(Boolean))].sort();
-  const entities = (PR.data.entities || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  const lenders = [...new Set(props.flatMap(p => p.loans.map(l => l.lender).filter(Boolean)))].sort();
 
-  return '<div class="prbar">'
+  let h = '<div class="prbar">'
     + '<input class="stagesel" id="pr-q" style="flex:1 1 230px;min-width:170px" '
-    + 'placeholder="Search property, address, manager, lender" value="' + escS(PR.q) + '">'
+    + 'placeholder="Search property, address, entity, manager, lender" value="' + escS(PR.q) + '">'
     + '<select class="stagesel" id="pr-own">'
     +   opt([['', 'All statuses (' + props.length + ')']].concat(
           order.filter(k => counts[k]).map(k => [k, PR_OWN_LABEL[k] + ' (' + counts[k] + ')'])), PR.own)
-    + '</select>'
-    + '<select class="stagesel" id="pr-entity">'
-    +   opt([['', 'All entities']].concat(entities.map(e => [e.id, e.name])), PR.entity) + '</select>'
-    + '<select class="stagesel" id="pr-state">'
-    +   opt([['', 'All states']].concat(states.map(x => [x, x])), PR.state) + '</select>'
-    + '<select class="stagesel" id="pr-manager">'
-    +   opt([['', 'Any manager']].concat(managers.map(x => [x, x])), PR.manager) + '</select>'
-    + '<select class="stagesel" id="pr-loans">'
-    +   opt([['', 'Loan: any'], ['has', 'Has a loan'], ['none', 'No loan']], PR.loans) + '</select>'
-    + '<div class="prseg" id="pr-seg">'
-    +   ['tree,Structure', 'table,Assets', 'debt,Debt'].map(s => {
-          const [m, l] = s.split(',');
-          return '<button data-prmode="' + m + '"' + (PR.mode === m ? ' class="on"' : '') + '>' + l + '</button>';
-        }).join('')
+    + '</select>';
+  if (states.length > 1) h += '<select class="stagesel" id="pr-fstate">'
+    + opt([['', 'All states']].concat(states.map(x => [x, x])), PR.state) + '</select>';
+  if (managers.length > 1) h += '<select class="stagesel" id="pr-manager">'
+    + opt([['', 'Any manager']].concat(managers.map(x => [x, x])), PR.manager) + '</select>';
+  if (lenders.length > 1) h += '<select class="stagesel" id="pr-lender">'
+    + opt([['', 'Any lender']].concat(lenders.map(x => [x, x])), PR.lender) + '</select>';
+  h += '<select class="stagesel" id="pr-loans">'
+    + opt([['', 'Loan: any'], ['has', 'Has a loan'], ['none', 'No loan']], PR.loans) + '</select>';
+
+  if (PR.mode !== 'debt') {
+    h += '<span class="prgb"><label for="pr-group">Group</label><select id="pr-group">'
+      + opt(Object.entries(PR_GROUPERS).map(([k, g]) => [k, g.label])
+            .concat([['none', 'No grouping']]), PR.group)
+      + '</select></span>';
+  }
+
+  h += '<div class="prseg" id="pr-seg">'
+    + [['portfolio', 'Portfolio'], ['debt', 'Debt']].map(([m, l]) =>
+        '<button data-prmode="' + m + '"' + (PR.mode === m ? ' class="on"' : '') + '>' + l + '</button>').join('')
     + '</div></div>';
+  return h;
 }
 
 /* Every active filter as a removable chip, so a short list is always
@@ -7936,9 +7993,9 @@ function prChips(){
     + '</b><button data-prclear="' + key + '" aria-label="Clear ' + label + '">×</button></span>');
 
   if (PR.own) add('Status', PR_OWN_LABEL[PR.own] || PR.own, 'own');
-  if (PR.entity) add('Entity', (PR.data.entities.find(e => e.id === PR.entity) || {}).name || PR.entity, 'entity');
   if (PR.state) add('State', PR.state, 'state');
   if (PR.manager) add('Manager', PR.manager, 'manager');
+  if (PR.lender) add('Lender', PR.lender, 'lender');
   if (PR.loans) add('Loans', PR.loans === 'has' ? 'has a loan' : 'no loan', 'loans');
   if (PR.year) add('Maturing', String(PR.year), 'year');
   if (PR.q) add('Search', PR.q, 'q');
@@ -7950,175 +8007,241 @@ function prChips(){
     + '</div>';
 }
 
-/* ---------- Structure ---------- */
-
-function prPathTo(id){
-  const out = [];
-  for (let cur = id; cur; cur = PR.data.parentOf.get(cur)) out.unshift(cur);
-  return out;
-}
-
-function prTreeView(){
-  const d = PR.data;
-  const passing = new Set(prShown().map(p => p.id));
-  const relevant = id => [...(d.subtree.get(id) || [])].some(x => passing.has(x));
-
-  /* Selection has to survive a filter change: falling back to the first entity
-     that still has something under it beats showing an empty right pane. */
-  if (!PR.sel || !d.node.has(PR.sel) || !relevant(PR.sel)) {
-    PR.sel = [...d.node.keys()].find(relevant) || (d.tree[0] && d.tree[0].id) || null;
-  }
-  /* Open the ancestors of the selection, so a deep entity is reachable without
-     hunting for it, and nothing else is unfolded to get there. */
-  if (PR.sel) prPathTo(PR.sel).slice(0, -1).forEach(id => PR.open.add(id));
-
-  const nq = PR.navq.trim().toLowerCase();
-  const hit = n => !nq || n.name.toLowerCase().includes(nq);
-  const hitInside = n => hit(n) || (n.children || []).some(hitInside);
-  /* The needle goes into a regex, so it has to be escaped: an entity search for
-     "(" would otherwise throw and blank the pane. */
-  const mark = str => {
-    const safe = escS(str);
-    if (!nq) return safe;
-    const needle = nq.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return safe.replace(new RegExp('(' + needle + ')', 'ig'), '<mark>$1</mark>');
-  };
-
-  const rows = [];
-  const walk = (n, depth) => {
-    if (!relevant(n.id) || !hitInside(n)) return;
-    const kids = (n.children || []).filter(c => relevant(c.id) && hitInside(c));
-    /* A search opens what it found; otherwise the saved open set decides. */
-    const open = nq ? true : PR.open.has(n.id);
-    const count = [...d.subtree.get(n.id)].filter(x => passing.has(x)).length;
-    rows.push('<button class="prnav' + (depth ? '' : ' root') + (PR.sel === n.id ? ' on' : '')
-      + (open && kids.length ? ' open' : '') + '" data-prnav="' + escS(n.id) + '" '
-      + 'title="' + escS(n.name) + '" '
-      + 'style="padding-left:' + (11 + depth * 14) + 'px">'
-      + '<span class="cv">' + (kids.length ? '▸' : '') + '</span>'
-      + '<span class="nm">' + mark(n.name) + '</span>'
-      + '<span class="ct">' + count + '</span></button>');
-    if (open) kids.forEach(c => walk(c, depth + 1));
-  };
-  (d.tree || []).slice().sort((a, b) => b.mv - a.mv).forEach(n => walk(n, 0));
-
-  const nav = '<div class="card prnavcard">'
-    + '<div class="prnavfilter"><input id="pr-navq" placeholder="Filter entities" '
-    +   'value="' + escS(PR.navq) + '" autocomplete="off" spellcheck="false"></div>'
-    + '<div class="prnavlist">'
-    +   (rows.join('') || '<div class="empty" style="padding:28px 16px"><b>No entity matches</b>'
-        + '<small>' + (nq ? 'Nothing named like that.' : 'Every entity is filtered out.') + '</small></div>')
-    + '</div>'
-    + '<div class="prnavfoot"><span>' + rows.length + ' shown</span><span>·</span>'
-    +   '<span>' + d.node.size + ' total</span>'
-    +   '<button data-prcollapse="1">Collapse</button></div>'
-    + '</div>';
-
-  if (!PR.sel) return '<div class="prsplit">' + nav + '<div class="card">' + prEmpty() + '</div></div>';
-
-  const ids = PR.deep ? d.subtree.get(PR.sel) : new Set(d.place.get(PR.sel) || []);
-  const list = [...ids].map(id => d.byId.get(id)).filter(Boolean).filter(prPass);
-  const mv = list.reduce((a, p) => a + p.marketValue, 0);
-  const debt = list.reduce((a, p) => a + p.debt, 0);
-  const r = mv ? debt / mv : 0;
-  const extra = d.subtree.get(PR.sel).size - (d.place.get(PR.sel) || []).length;
-
-  const path = prPathTo(PR.sel).map(id => d.node.get(id)).filter(Boolean);
-  const crumb = path.map((n, i) => i === path.length - 1
-    ? '<b>' + escS(n.name) + '</b>'
-    : '<button data-prnav="' + escS(n.id) + '">' + escS(n.name) + '</button><i>›</i>').join('');
-
-  const right = '<div class="card">'
-    + '<div class="prcrumb">' + crumb + '</div>'
-    + '<div class="prscope">'
-    +   '<span class="fig">Value <b>' + prMoney(mv) + '</b></span>'
-    +   '<span class="fig">Debt <b>' + prMoney(debt) + '</b></span>'
-    +   '<span class="fig">Leverage <b style="color:' + prLtvColour(r) + '">'
-    +     (r ? (r * 100).toFixed(0) + '%' : '—') + '</b></span>'
-    +   '<span class="sw">'
-    +     '<button data-prscope="0"' + (PR.deep ? '' : ' class="on"') + '>Held directly</button>'
-    +     '<button data-prscope="1"' + (PR.deep ? ' class="on"' : '') + '>Including sub-entities'
-    +       (extra ? ' (+' + extra + ')' : '') + '</button>'
-    +   '</span>'
-    + '</div>'
-    + prAssetTable(list, PR.deep ? 'Everything under this entity' : 'Held directly by this entity')
-    + '</div>';
-
-  return '<div class="prsplit">' + nav + right + '</div>';
-}
-
-function prEmpty(){
-  return '<div class="empty"><b>Nothing matches</b><small>Ownership is set to <b>'
-    + escS(PR_OWN_LABEL[PR.own] || 'all') + '</b>. Clear it to see every property.</small></div>';
-}
-
-/* ---------- the asset table, shared by Structure and Assets ---------- */
+/* ---------- columns ---------- */
 
 const PR_COLS = [
-  { k: 'name', l: 'Property' },
-  { k: 'city', l: 'Location' },
-  { k: 'marketValue', l: 'Market value', n: 1 },
-  { k: 'debt', l: 'Debt', n: 1 },
-  { k: 'ltv', l: 'Leverage', n: 1 },
-  { k: 'cap', l: 'Cap rate', n: 1 },
-  { k: 'occupancy', l: 'Occupancy', n: 1 },
-  { k: 'apartments', l: 'Units', n: 1 }
+  { k: 'name', l: 'Property', w: 'minmax(150px,1.6fr)', always: 1,
+    get: p => p.name,
+    cell: p => '<span class="name">' + escS(p.name) + '</span>'
+      + (p.ownershipStatus !== 'held'
+          ? '<span class="chip2" style="opacity:.75">'
+            + escS(PR_OWN_LABEL[p.ownershipStatus] || p.ownershipStatus) + '</span>' : '') },
+  { k: 'entity', l: 'Owner entity', w: 'minmax(130px,1.3fr)', always: 1,
+    get: p => prEntName(prOwner(p)),
+    /* Co-ownership is real here, and a table that shows only the first owner
+       makes four TIC entities look like one. */
+    cell: p => '<span class="dim">' + escS(prEntName(prOwner(p))) + '</span>'
+      + (p.owners.length > 1
+          ? '<span class="chip2" title="' + escS(p.owners.map(prEntName).join(', ')) + '">+'
+            + (p.owners.length - 1) + '</span>' : '') },
+  { k: 'assetType', l: 'Type', w: '104px',
+    get: p => p.assetType,
+    cell: p => p.assetType ? '<span class="dim">' + escS(p.assetType) + '</span>' : PR_GAP },
+  { k: 'city', l: 'Location', w: '124px',
+    get: p => p.city,
+    cell: p => p.city ? '<span class="dim">' + escS([p.city, p.state].filter(Boolean).join(', ')) + '</span>' : PR_GAP },
+  { k: 'apartments', l: 'Units', w: '72px', n: 1,
+    get: p => p.apartments || null,
+    cell: p => p.apartments ? p.apartments.toLocaleString() : PR_GAP },
+  { k: 'marketValue', l: 'Market value', w: '108px', n: 1, always: 1,
+    get: p => p.marketValue,
+    cell: p => p.marketValue
+      ? '<b style="font-weight:500;color:var(--cream)" title="' + prFull(p.marketValue) + '">'
+        + prMoney(p.marketValue) + '</b>' : PR_GAP },
+  { k: 'debt', l: 'Debt', w: '98px', n: 1, always: 1,
+    get: p => p.debt || null,
+    cell: p => p.debt ? '<span title="' + prFull(p.debt) + '">' + prMoney(p.debt) + '</span>' : PR_GAP },
+  { k: 'ltv', l: 'Leverage', w: '116px', n: 1, always: 1,
+    get: p => (p.debt ? prLtv(p) : null),
+    cell: p => p.debt ? prLtvBar(prLtv(p)) : PR_GAP },
+  { k: 'cap', l: 'Cap rate', w: '86px', n: 1,
+    get: p => prCap(p),
+    cell: p => prCap(p) ? (prCap(p) * 100).toFixed(2) + '%' : PR_GAP },
+  { k: 'noi', l: 'NOI', w: '94px', n: 1,
+    get: p => p.noi || null,
+    cell: p => p.noi ? prMoney(p.noi) : PR_GAP },
+  { k: 'occupancy', l: 'Occupancy', w: '94px', n: 1,
+    get: p => p.occupancy,
+    cell: p => p.occupancy == null ? PR_GAP
+      : '<span' + (p.occupancy < 0.85 ? ' style="color:var(--amber)"' : '') + '>'
+        + prPct(p.occupancy) + '</span>' },
+  { k: 'maturity', l: 'Next maturity', w: '112px', n: 1,
+    get: p => prNextMat(p),
+    cell: p => {
+      const m = prNextMat(p);
+      if (!m) return PR_GAP;
+      const y = prYear(m), now = new Date().getFullYear();
+      const c = y <= now ? 'var(--rust)' : y === now + 1 ? 'var(--amber)' : 'var(--dim)';
+      return '<span style="color:' + c + '">' + escS(m.slice(0, 7)) + '</span>';
+    } },
+  { k: 'manager', l: 'Manager', w: '132px',
+    get: p => p.manager,
+    cell: p => p.manager ? '<span class="dim">' + escS(p.manager) + '</span>' : PR_GAP }
 ];
 
-function prAssetTable(list, note){
-  const val = (p, k) => k === 'ltv' ? prLtv(p) : k === 'cap' ? prCap(p) : p[k];
-  const rows = list.slice().sort((a, b) => {
-    const x = val(a, PR.sort), y = val(b, PR.sort);
-    const c = typeof x === 'string' ? String(x).localeCompare(String(y)) : (Number(x) || 0) - (Number(y) || 0);
-    return PR.dir === 'asc' ? c : -c;
-  });
-
-  const head = PR_COLS.map(c =>
-    '<button class="prthb' + (c.n ? ' r' : '') + (PR.sort === c.k ? ' act' : '') + '" '
-    + 'data-prsort="' + c.k + '">' + c.l
-    + '<span class="ar">' + (PR.dir === 'asc' ? '▲' : '▼') + '</span></button>').join('');
-
-  const CAP = 400;
-  const body = rows.slice(0, CAP).map(p => {
-    const r = prLtv(p);
-    return '<div class="prtr" data-prprop="' + escS(p.id) + '" tabindex="0">'
-      + '<span class="c name">' + escS(p.name)
-      +   (p.ownershipStatus !== 'held'
-            ? '<span class="chip2" style="opacity:.75">' + escS(PR_OWN_LABEL[p.ownershipStatus] || p.ownershipStatus) + '</span>'
-            : '')
-      + '</span>'
-      + '<span class="c dim">' + escS([p.city, p.state].filter(Boolean).join(', ') || '—') + '</span>'
-      + '<span class="c n" title="' + prFull(p.marketValue) + '">' + prMoney(p.marketValue) + '</span>'
-      + '<span class="c n" title="' + prFull(p.debt) + '">' + prMoney(p.debt) + '</span>'
-      + '<span class="c n"><span class="prltv"><span class="track"><i style="width:'
-      +   Math.min(100, r * 100).toFixed(1) + '%;background:' + prLtvColour(r) + '"></i></span>'
-      +   '<span class="pc" style="color:' + prLtvColour(r) + '">'
-      +   (r ? (r * 100).toFixed(0) + '%' : '—') + '</span></span></span>'
-      + '<span class="c n">' + (prCap(p) ? (prCap(p) * 100).toFixed(2) + '%' : '—') + '</span>'
-      + '<span class="c n"' + (p.occupancy != null && p.occupancy < 0.85 ? ' style="color:var(--amber)"' : '') + '>'
-      +   prPct(p.occupancy) + '</span>'
-      + '<span class="c n">' + (p.apartments || '—') + '</span>'
-      + '</div>';
-  }).join('');
-
-  const nothingHere = '<div class="empty"><b>Nothing sits here</b><small>' + escS(note)
-    + ' comes to zero properties. Try including sub-entities.</small></div>';
-
-  return '<div class="prtb"><div class="prth">' + head + '</div>'
-    + (body || (list.length ? prEmpty() : nothingHere))
-    + (rows.length > CAP
-        ? '<div class="hint" style="padding:10px 16px;border-top:1px solid var(--edge)">Showing '
-          + CAP + ' of ' + rows.length + '. Narrow the filters to see the rest.</div>'
-        : '')
-    + '</div>';
+function prLtvBar(r){
+  return '<span class="prltv"><span class="track"><i style="width:'
+    + Math.min(100, r * 100).toFixed(1) + '%;background:' + prLtvColour(r) + '"></i></span>'
+    + '<span class="pc" style="color:' + prLtvColour(r) + '">'
+    + (r ? (r * 100).toFixed(0) + '%' : '—') + '</span></span>';
 }
+
+/* A column blank on two thirds of the rows costs width and reads as broken data.
+   Dropping it is not hiding anything: the drawer carries every field. */
+function prLiveCols(list){
+  const n = list.length || 1;
+  const filled = c => list.filter(p => {
+    const v = c.get(p);
+    return v !== null && v !== undefined && v !== '' && v !== 0;
+  }).length;
+  return PR_COLS.filter(c => c.always || filled(c) / n >= 0.33);
+}
+
+/* ---------- groupings ----------
+   `entity` is special: it nests, and it comes from the tree the server placed
+   the properties into. The rest are one flat cut each. */
+
+const PR_GROUPERS = {
+  entity: { label: 'Owner entity' },
+  assetType: { label: 'Asset type', key: p => p.assetType || 'No type recorded' },
+  manager: { label: 'Manager', key: p => p.manager || 'No manager recorded' },
+  lender: { label: 'Lender',
+    key: p => p.loans.length
+      ? ([...new Set(p.loans.map(l => l.lender).filter(Boolean))].sort().join(' + ') || 'Lender not recorded')
+      : 'Unlevered' },
+  maturity: { label: 'Maturity year',
+    key: p => { const m = prNextMat(p); return m ? String(prYear(m)) : 'No loan'; } },
+  ownershipStatus: { label: 'Status', key: p => PR_OWN_LABEL[p.ownershipStatus] || p.ownershipStatus },
+  state: { label: 'State', key: p => p.state || 'No location recorded' }
+};
+
+/* ---------- the table ---------- */
 
 function prTableView(){
   const list = prShown();
+  if (!list.length) return '<div class="card flush">' + prEmpty() + '</div>';
+
+  const cols = prLiveCols(list);
+  const grid = cols.map(c => c.w).join(' ');
+  const sortCol = cols.find(c => c.k === PR.sort) || cols[0];
+  const cmp = (a, b) => {
+    const x = sortCol.get(a), y = sortCol.get(b);
+    /* Absent always sinks, whichever way the column is pointing. A blank that
+       floats to the top of a descending sort is just a second empty state. */
+    if (x == null && y == null) return 0;
+    if (x == null) return 1;
+    if (y == null) return -1;
+    const c = typeof x === 'string' ? String(x).localeCompare(String(y)) : (Number(x) || 0) - (Number(y) || 0);
+    return PR.dir === 'asc' ? c : -c;
+  };
+
+  const head = '<div class="prthead" style="grid-template-columns:' + grid + '">'
+    + cols.map(c => '<button class="prthb' + (c.n ? ' r' : '') + (PR.sort === c.k ? ' act' : '') + '" '
+        + 'data-prsort="' + c.k + '">' + c.l + '<span class="ar">'
+        + (PR.dir === 'asc' ? '▲' : '▼') + '</span></button>').join('')
+    + '</div>';
+
+  const row = (p, depth) => '<div class="prtr" data-prprop="' + escS(p.id) + '" tabindex="0" '
+    + 'style="grid-template-columns:' + grid + '">'
+    + cols.map((c, i) => '<span' + (c.n ? ' class="n"' : '')
+        + (i === 0 ? ' style="--i:' + (12 + (depth || 0) * 18) + 'px;padding-left:calc(var(--i) + 14px)"' : '')
+        + '>' + c.cell(p) + '</span>').join('')
+    + '</div>';
+
+  /* One band shape, used by every grouping. Depth changes the indent and the
+     ground, never the shape of the row. */
+  const band = (name, sub, r, depth, key, shut) => {
+    const lv = r.mv ? r.debt / r.mv : 0;
+    const cells = cols.map((c, i) => {
+      if (i === 0) return '<span style="padding-left:' + (12 + depth * 18) + 'px">'
+        + '<span class="cv">▸</span><span class="gname' + (depth ? ' sub' : '') + '">'
+        + escS(name) + '</span><span class="gct">' + r.n + '</span></span>';
+      if (i === 1) return '<span>' + (sub ? '<span class="path">' + escS(sub) + '</span>' : '')
+        + (r.units ? '<span class="gct">' + r.units.toLocaleString() + ' units</span>' : '') + '</span>';
+      if (c.k === 'marketValue') return '<span class="n">' + prMoney(r.mv) + '</span>';
+      if (c.k === 'debt') return '<span class="n">' + (r.debt ? prMoney(r.debt) : PR_GAP) + '</span>';
+      if (c.k === 'ltv') return '<span class="n">' + (r.debt ? prLtvBar(lv) : PR_GAP) + '</span>';
+      return '<span></span>';
+    }).join('');
+    return '<button class="prgrp d' + Math.min(depth, 2) + (shut ? '' : ' open') + '" '
+      + 'data-prgrp="' + escS(key) + '" style="grid-template-columns:' + grid + '">'
+      + cells + '</button>';
+  };
+
+  let rows = '', scope = '';
+
+  if (PR.group === 'none') {
+    rows = list.slice().sort(cmp).map(p => row(p, 0)).join('');
+  } else if (PR.group === 'entity') {
+    const d = PR.data;
+    const passing = new Set(list.map(p => p.id));
+    /* Roll up over a SET of property ids, never by adding child totals. Four TIC
+       entities holding one building each are placed under all four, so summing
+       the subtrees counted that building four times: one holding company read
+       $124M of debt against a real $31M. */
+    const roll = id => {
+      let mv = 0, debt = 0, units = 0, n = 0;
+      for (const pid of d.subtree.get(id) || []) {
+        if (!passing.has(pid)) continue;
+        const p = d.byId.get(pid);
+        if (!p) continue;
+        mv += p.marketValue; debt += p.debt; units += p.apartments; n++;
+      }
+      return { mv, debt, units, n };
+    };
+
+    /* Opening a sub-entity keeps its ancestors open, so the path down to what
+       you are looking at stays visible and everything else folds away. */
+    const path = new Set(PR.open ? prPathTo(PR.open) : []);
+
+    let seen = 0;
+    const node = (n, depth) => {
+      const r = roll(n.id);
+      if (!r.n) return '';
+      seen++;
+      const open = path.has(n.id);
+      const kids = (n.children || []).slice().sort((a, b) => roll(b.id).mv - roll(a.id).mv);
+      const mine = (d.place.get(n.id) || []).map(id => d.byId.get(id))
+        .filter(p => p && passing.has(p.id)).sort(cmp);
+      return band(n.name, '', r, depth, n.id, !open)
+        + (open ? '<div class="prnest">' + kids.map(c => node(c, depth + 1)).join('')
+            + mine.map(p => row(p, depth + 1)).join('') + '</div>' : '');
+    };
+
+    rows = (d.tree || []).map(n => ({ n, r: roll(n.id) })).filter(x => x.r.n)
+      .sort((a, b) => b.r.mv - a.r.mv).map(x => node(x.n, 0)).join('');
+    scope = ' · across ' + seen + ' entities';
+  } else {
+    const g = PR_GROUPERS[PR.group];
+    const map = new Map();
+    for (const p of list) {
+      const k = g.key(p);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(p);
+    }
+    const groups = [...map.entries()].map(([k, v]) => ({
+      k, v,
+      mv: v.reduce((a, p) => a + p.marketValue, 0),
+      debt: v.reduce((a, p) => a + p.debt, 0),
+      units: v.reduce((a, p) => a + p.apartments, 0)
+    }));
+    /* Maturity years read in time order; every other cut reads biggest first. */
+    groups.sort((a, b) => PR.group === 'maturity' ? String(a.k).localeCompare(String(b.k)) : b.mv - a.mv);
+    rows = groups.map(gr => {
+      const open = PR.open === gr.k;
+      return band(gr.k, '', { mv: gr.mv, debt: gr.debt, units: gr.units, n: gr.v.length }, 0, gr.k, !open)
+        + (open ? '<div class="prnest">' + gr.v.slice().sort(cmp).map(p => row(p, 1)).join('') + '</div>' : '');
+    }).join('');
+    scope = ' · grouped by ' + g.label.toLowerCase();
+  }
+
+  const hidden = PR_COLS.length - cols.length;
+  const notice = hidden
+    ? '<span class="eyebrow" style="margin-left:auto" title="A column hides when fewer than a '
+      + 'third of the rows in view have a value for it. The drawer still has them.">'
+      + hidden + ' sparse column' + (hidden > 1 ? 's' : '') + ' hidden</span>'
+    : '';
+
   return '<div class="card flush"><div class="cardhead"><h3>' + list.length + ' properties</h3>'
-    + '<span class="eyebrow">sorted by '
-    + escS((PR_COLS.find(c => c.k === PR.sort) || { l: '' }).l.toLowerCase()) + '</span></div>'
-    + prAssetTable(list, 'This filter') + '</div>';
+    + '<span class="eyebrow">' + prMoney(list.reduce((a, p) => a + p.marketValue, 0)) + scope
+    +   ' · sorted by ' + escS(sortCol.l.toLowerCase()) + '</span>' + notice
+    + '</div><div class="prtbwrap"><div class="prtb">' + head + rows + '</div></div></div>';
+}
+
+function prEmpty(){
+  return '<div class="empty"><b>Nothing matches</b><small>'
+    + (PR.own ? 'Ownership is set to <b>' + escS(PR_OWN_LABEL[PR.own] || PR.own) + '</b>. ' : '')
+    + 'Clear a filter to see more.</small></div>';
 }
 
 /* ---------- Debt ---------- */
@@ -8149,13 +8272,13 @@ function prDebtView(){
     wall = '<div class="prwall"><div class="prwallgrid">' + span.map(y => {
       const amt = years[y] || 0;
       const cls = y <= thisYear ? 'now' : y === thisYear + 1 ? 'soon' : '';
-      return '<div class="pryr ' + cls + (PR.year === y ? ' sel' : '') + '" data-pryear="' + y + '" '
-        + 'tabindex="0" title="' + prFull(amt) + ' maturing in ' + y + '">'
-        + '<div class="amt">' + (amt ? prMoney(amt) : '') + '</div>'
-        + '<div class="col" style="height:' + (amt ? Math.max(2, amt / max * 150) : 2) + 'px"></div>'
-        + '<div class="yl">' + y + '</div></div>';
-    }).join('') + '</div></div>'
-      + '<div style="padding:0 18px 15px"><p class="hint">Click a year to filter every view to the '
+      return '<button class="pryr ' + cls + (PR.year === y ? ' sel' : '') + '" data-pryear="' + y + '" '
+        + 'title="' + prFull(amt) + ' maturing in ' + y + '">'
+        + '<span class="amt">' + (amt ? prMoney(amt) : '') + '</span>'
+        + '<span class="col" style="height:' + (amt ? Math.max(2, amt / max * 150) : 2) + 'px"></span>'
+        + '<span class="yl">' + y + '</span></button>';
+    }).join('') + '</div>'
+      + '<p class="hint" style="margin-top:12px">Click a year to filter every view to the '
       + 'properties whose loans come due then.'
       + (undated ? ' ' + undated + ' loan' + (undated > 1 ? 's have' : ' has') + ' no maturity date and '
         + 'appear' + (undated > 1 ? '' : 's') + ' in no bar.' : '') + '</p></div>';
@@ -8183,10 +8306,8 @@ function prDebtView(){
   const ratedBal = rated.reduce((a, l) => a + l.balance, 0);
   const wAvg = ratedBal ? rated.reduce((a, l) => a + l.ratePct * l.balance, 0) / ratedBal : null;
 
-  const rows = loans.slice().sort((a, b) => {
-    const x = Date.parse(a.maturity) || Infinity, y = Date.parse(b.maturity) || Infinity;
-    return x - y;
-  }).map(l => {
+  const rows = loans.slice().sort((a, b) =>
+    (Date.parse(a.maturity) || Infinity) - (Date.parse(b.maturity) || Infinity)).map(l => {
     const y = prYear(l.maturity);
     const col = y == null ? 'var(--dimmer)' : y <= thisYear ? 'var(--rust)'
       : y === thisYear + 1 ? 'var(--amber)' : 'var(--dim)';
@@ -8218,24 +8339,32 @@ function prDetail(p){
   const b = document.getElementById('so-drawerb');
   if (!h || !b) return;
   const r = prLtv(p);
+  const owners = p.owners.length ? p.owners : [prOwner(p)].filter(Boolean);
 
   h.innerHTML = '<div style="flex:1;min-width:0"><h3>' + escS(p.name) + '</h3>'
-    + '<p class="hint">' + escS([p.street, p.city, p.state, p.zip].filter(Boolean).join(', ') || '—')
+    + '<p class="hint">' + escS(prPathTo(prOwner(p)).map(prEntName).join(' › ') || 'Unassigned')
     + '</p></div><button class="tgl" onclick="closePost()">Close</button>';
 
   const kv = (k, v) => (v == null || v === '' || v === 0) ? ''
     : '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>';
+  /* An absent figure in the hero says so in words. Rendering it as a dash next to
+     three real numbers reads as a value. */
+  const hero = (l, v, absent, style) => '<div><div class="l">' + l + '</div>'
+    + '<div class="v' + (absent ? ' absent' : '') + '"' + (style || '') + '>' + v + '</div></div>';
 
   b.innerHTML = '<div class="prhero">'
-    + '<div><div class="l">Market value</div><div class="v">' + prMoney(p.marketValue) + '</div></div>'
-    + '<div><div class="l">Leverage</div><div class="v" style="color:' + prLtvColour(r) + '">'
-    +   (r ? (r * 100).toFixed(0) + '%' : 'Unlevered') + '</div></div>'
-    + '<div><div class="l">NOI</div><div class="v">' + prMoney(p.noi) + '</div></div>'
-    + '<div><div class="l">Occupancy</div><div class="v"'
-    +   (p.occupancy != null && p.occupancy < 0.85 ? ' style="color:var(--amber)"' : '') + '>'
-    +   prPct(p.occupancy) + '</div></div>'
+    + hero('Market value', p.marketValue ? prMoney(p.marketValue) : 'Not recorded', !p.marketValue)
+    + hero('Leverage', p.debt ? (r * 100).toFixed(0) + '%' : 'Unlevered', !p.debt,
+        p.debt ? ' style="color:' + prLtvColour(r) + '"' : '')
+    + hero('NOI', p.noi ? prMoney(p.noi) : 'Not reported', !p.noi)
+    + hero('Occupancy', p.occupancy == null ? 'Not reported' : prPct(p.occupancy), p.occupancy == null,
+        p.occupancy != null && p.occupancy < 0.85 ? ' style="color:var(--amber)"' : '')
     + '</div>'
     + '<div class="kvs">'
+    + kv('Address', escS([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))
+        || '<span class="hint">Not recorded</span>')
+    + kv('Owner' + (owners.length > 1 ? 's' : ''),
+        owners.map(id => escS(prEntName(id))).join('<br>') || '<span class="hint">Unassigned</span>')
     + kv('Ownership', escS(PR_OWN_LABEL[p.ownershipStatus] || p.ownershipStatus))
     + kv('Operational', escS(p.status || ''))
     + kv('Asset type', escS(p.assetType || ''))
@@ -8283,13 +8412,23 @@ function wirePr(root){
   if (q) q.oninput = () => {
     PR.q = q.value;
     drawProperties();
+    /* Redrawing on every keystroke drops the caret, so it goes back where it was. */
     const again = document.getElementById('pr-q');
     if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
   };
-  ['own', 'entity', 'state', 'manager', 'loans'].forEach(k => {
-    const el = root.querySelector('#pr-' + k);
-    if (el) el.onchange = () => { PR[k] = el.value; drawProperties(); };
-  });
+
+  const selects = { 'pr-own': 'own', 'pr-fstate': 'state', 'pr-manager': 'manager',
+    'pr-lender': 'lender', 'pr-loans': 'loans', 'pr-group': 'group' };
+  for (const [id, key] of Object.entries(selects)) {
+    const el = root.querySelector('#' + id);
+    if (!el) continue;
+    el.onchange = () => {
+      PR[key] = el.value;
+      /* A group open under the old grouping means nothing under the new one. */
+      if (key === 'group') PR.open = null;
+      drawProperties();
+    };
+  }
 
   root.querySelectorAll('[data-prmode]').forEach(b => b.onclick = () => {
     PR.mode = b.dataset.prmode; drawProperties();
@@ -8297,62 +8436,38 @@ function wirePr(root){
 
   root.querySelectorAll('[data-prclear]').forEach(b => b.onclick = () => {
     const k = b.dataset.prclear;
-    if (k === 'all') Object.assign(PR, { q: '', own: '', entity: '', state: '', manager: '', loans: '', year: null });
+    if (k === 'all') Object.assign(PR, { q: '', own: '', state: '', manager: '', lender: '', loans: '', year: null });
     else if (k === 'year') PR.year = null;
     else PR[k] = '';
     drawProperties();
   });
 
-  /* One click does both jobs: select the entity, and open it if it has children.
-     Clicking the row that is already selected collapses it. */
-  root.querySelectorAll('[data-prnav]').forEach(b => b.onclick = () => {
-    const id = b.dataset.prnav;
-    const n = PR.data.node.get(id);
-    const hasKids = Boolean(n && (n.children || []).length);
-    if (PR.sel === id && hasKids) {
-      if (PR.open.has(id)) PR.open.delete(id); else PR.open.add(id);
-    } else {
-      PR.sel = id;
-      if (hasKids) PR.open.add(id);
-    }
+  root.querySelectorAll('[data-prgrp]').forEach(b => b.onclick = () => {
+    const k = b.dataset.prgrp;
+    if (PR.open === k) {
+      /* Clicking what is already open closes it. For a nested entity that means
+         falling back to its parent, not collapsing the whole branch you are in. */
+      PR.open = PR.group === 'entity' ? (PR.data.parentOf.get(k) || null) : null;
+    } else PR.open = k;
     drawProperties();
-  });
-
-  /* Same treatment as the main search: redrawing on every keystroke would drop
-     the caret, so it is put back where it was. */
-  const nq = root.querySelector('#pr-navq');
-  if (nq) nq.oninput = () => {
-    PR.navq = nq.value;
-    drawProperties();
-    const again = document.getElementById('pr-navq');
-    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
-  };
-
-  root.querySelectorAll('[data-prcollapse]').forEach(b => b.onclick = () => {
-    PR.open.clear();
-    PR.navq = '';
-    drawProperties();
-  });
-
-  root.querySelectorAll('[data-prscope]').forEach(b => b.onclick = () => {
-    PR.deep = b.dataset.prscope === '1'; drawProperties();
   });
 
   root.querySelectorAll('[data-prsort]').forEach(b => b.onclick = () => {
     const k = b.dataset.prsort;
     if (PR.sort === k) PR.dir = PR.dir === 'asc' ? 'desc' : 'asc';
-    else { PR.sort = k; PR.dir = (k === 'name' || k === 'city') ? 'asc' : 'desc'; }
+    else { PR.sort = k; PR.dir = PR_COLS.find(c => c.k === k)?.n ? 'desc' : 'asc'; }
     drawProperties();
   });
 
   root.querySelectorAll('[data-pryear]').forEach(b => {
-    const go = () => {
+    b.onclick = () => {
       const y = Number(b.dataset.pryear);
       PR.year = PR.year === y ? null : y;
+      /* The year is a filter, and a filter you cannot see acting on anything is
+         indistinguishable from a broken button. */
+      PR.mode = 'portfolio';
       drawProperties();
     };
-    b.onclick = go;
-    b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
   });
 
   root.querySelectorAll('[data-prprop]').forEach(el => {

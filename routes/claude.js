@@ -40,6 +40,33 @@ export function claudeIsLocal(env = process.env){
   return !HOSTED_MARKERS.some(k => env[k]);
 }
 
+/* Tools that cannot work on this surface, whatever the permission settings say.
+
+   AskUserQuestion is the interactive question widget. A stream-json session has
+   no terminal to draw it in and no channel to answer it on, so the call fails
+   and the turn stops -- which is what the "connectors are connected but Claude
+   cannot access them" report actually was: the connector calls had succeeded,
+   and the widget failing straight afterwards ended the turn before the work.
+
+   --allowed-tools would not have stopped it. That flag auto-approves; it does
+   not remove. A tool left off the list still exists and simply asks permission,
+   and asking permission in a headless run is the same thing as failing. Only
+   --disallowed-tools takes the tool out of Claude's hands, which turns the
+   question into plain text the chat can actually render. */
+const IMPOSSIBLE_HERE = ['AskUserQuestion'];
+
+/* The CLAUDE.md files on this machine tell Claude to ask with that widget, in
+   detail and by name. Removing the tool without saying why leaves it trying to
+   follow an instruction it has no way to carry out. */
+const SURFACE_NOTE = [
+  'You are running inside the Command Center dashboard, in a chat panel in a web page.',
+  'There is no terminal and no interactive question widget: the AskUserQuestion tool is',
+  'not available to you here. Any standing instruction to ask with tappable options or an',
+  'interactive widget cannot be followed on this surface. When you need the user to choose',
+  'between options, write the question and the numbered options as plain text and end your',
+  'turn there. The user replies in the same chat box.'
+].join(' ');
+
 const READ_TOOLS = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'TodoWrite'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash'];
 
@@ -685,7 +712,13 @@ export function claudeRoutes({ env, auth }){
       try { JSON.parse(b.settings); args.push('--settings', String(b.settings).trim()); }
       catch { return bad('Settings is not valid JSON.'); }
     }
-    if (b.appendSystem && String(b.appendSystem).trim()) args.push('--append-system-prompt', String(b.appendSystem).trim());
+    /* One flag, not two: a second --append-system-prompt replaces the first
+       rather than adding to it, and the surface note is the half that must not
+       be the one dropped. */
+    const extraSystem = [SURFACE_NOTE,
+      b.appendSystem && String(b.appendSystem).trim()].filter(Boolean).join('\n\n');
+    args.push('--append-system-prompt', extraSystem);
+    args.push('--disallowed-tools', ...IMPOSSIBLE_HERE);
     if (b.noSkills) args.push('--disable-slash-commands');
 
     /* The browser may narrow the tool set but never widen it past what this
