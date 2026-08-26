@@ -1196,6 +1196,48 @@ main{min-width:0;display:flex;flex-direction:column}
 .thumbside .noimg2{width:100%;aspect-ratio:9/16;border-radius:var(--r-md);background:var(--ink2);
   border:1px solid var(--edge);display:grid;place-items:center;color:var(--dimmer);font-size:11.5px}
 
+/* ---- date/time picker ----
+   Built rather than native. <input type="date"> renders its picker as browser
+   chrome, and inside a panel with backdrop-filter Chromium frequently fails to
+   position or open it at all — the field looks live, accepts a caret, and the
+   calendar never appears. This is deterministic and shows the timezone the
+   post will actually be published in. */
+.whenbtn{width:100%;display:flex;align-items:center;gap:9px;background:var(--ink2);
+  border:1px solid var(--edge);border-radius:var(--r-md);color:var(--text);cursor:pointer;
+  font:inherit;font-size:13px;padding:9px 12px;text-align:left}
+.whenbtn:hover{border-color:var(--edge2)}
+.whenbtn .cue{margin-left:auto;color:var(--dimmer);font-size:11px}
+.whenwrap{position:relative}
+.cal{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;background:var(--panel2);
+  border:1px solid var(--edge2);border-radius:var(--r-md);padding:13px;
+  box-shadow:0 24px 50px -24px rgba(0,0,0,.8);display:none}
+.cal.on{display:block}
+.calhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.calhead b{flex:1;text-align:center;font-size:13px;color:var(--cream);font-variation-settings:'wght' 600}
+.calnav{background:none;border:1px solid var(--edge);border-radius:7px;color:var(--dim);
+  cursor:pointer;font:inherit;width:26px;height:26px;line-height:1}
+.calnav:hover{border-color:var(--edge2);color:var(--cream)}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.calgrid .dow{font-family:var(--ff-mono);font-size:9px;letter-spacing:.06em;color:var(--dimmer);
+  text-align:center;padding-bottom:4px;text-transform:uppercase}
+.calday{aspect-ratio:1;display:grid;place-items:center;border:0;border-radius:7px;background:none;
+  color:var(--text);cursor:pointer;font:inherit;font-size:12px;font-feature-settings:'tnum'}
+.calday:hover:not(:disabled){background:var(--panel3)}
+.calday:disabled{color:var(--dimmer);opacity:.4;cursor:not-allowed}
+.calday.on{background:var(--brass);color:#fff;font-variation-settings:'wght' 600}
+.calday.today:not(.on){box-shadow:inset 0 0 0 1px var(--edge2)}
+.caltime{display:flex;align-items:center;gap:6px;margin-top:12px;padding-top:12px;
+  border-top:1px solid var(--edge)}
+.caltime select{background:var(--ink2);border:1px solid var(--edge);border-radius:7px;
+  color:var(--cream);font:inherit;font-size:12.5px;padding:6px 7px;cursor:pointer}
+.caltime .tzn{margin-left:auto;font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
+.calfoot{display:flex;gap:6px;margin-top:11px}
+.calfoot button{flex:1;border-radius:8px;border:1px solid var(--edge);background:var(--ink2);
+  color:var(--dim);cursor:pointer;font:inherit;font-size:12px;padding:7px 0}
+.calfoot button:hover{border-color:var(--edge2);color:var(--cream)}
+.calfoot button.go{background:var(--brass);border-color:var(--brass);color:#fff;
+  font-variation-settings:'wght' 600}
+
 /* ---- drawer ---- */
 .scrim{position:fixed;inset:0;background:rgba(4,6,10,.58);backdrop-filter:blur(3px);
   opacity:0;pointer-events:none;transition:.22s;z-index:60}
@@ -1632,8 +1674,12 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
           <button data-priv="private">Private</button>
         </div><div class="hint">YouTube honours all three. Other platforms may ignore it.</div></div>
         <div class="fld"><label>When</label>
-          <div class="two"><input type="date" id="cl-date"><input type="time" id="cl-time"></div>
-          <div class="hint">Leave both empty to publish immediately. A time in the past is refused.</div></div>
+          <div class="whenwrap">
+            <button class="whenbtn" id="cl-whenbtn"><span id="cl-whenlabel">Publish immediately</span>
+              <span class="cue">change</span></button>
+            <div class="cal" id="cl-cal"></div>
+          </div>
+          <div class="hint">Publishes immediately unless you pick a time. A time in the past is refused.</div></div>
       </div>
       <div class="thumbside"><label style="display:block;font-size:11.5px;color:var(--dim);margin-bottom:6px">Thumbnail</label>
         <div id="cl-sthumb"></div>
@@ -6546,8 +6592,96 @@ function closePlayer(){
 
 /* ---------- schedule ---------- */
 
+/* The chosen instant, or null for "publish now". Held in state, never read back
+   out of the DOM, so re-rendering the account list cannot lose it. */
+function whenSelectedDate(){
+  const w = SY.when;
+  if (!w?.date) return null;
+  const [y, m, d] = w.date.split('-').map(Number);
+  let h = Number(w.hour) % 12;
+  if (w.mer === 'PM') h += 12;
+  const dt = new Date(y, m - 1, d, h, Number(w.minute) || 0, 0, 0);
+  return isNaN(dt.getTime()) ? null : dt;
+}
+
+const TZ_NAME = (() => {
+  try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'local time'; }
+  catch { return 'local time'; }
+})();
+
+function drawWhen(){
+  const label = document.getElementById('cl-whenlabel');
+  const cal = document.getElementById('cl-cal');
+  if (!label || !cal) return;
+
+  const chosen = whenSelectedDate();
+  label.textContent = chosen
+    ? chosen.toLocaleString([], { weekday:'short', month:'short', day:'numeric', hour:'numeric', minute:'2-digit' })
+    : 'Publish immediately';
+
+  const view = SY.calView || new Date();
+  const y = view.getFullYear(), m = view.getMonth();
+  const first = new Date(y, m, 1);
+  const days = new Date(y, m + 1, 0).getDate();
+  const lead = first.getDay();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+
+  let grid = ['S','M','T','W','T','F','S'].map(d => '<div class="dow">' + d + '</div>').join('');
+  for (let i = 0; i < lead; i++) grid += '<div></div>';
+  for (let d = 1; d <= days; d++) {
+    const iso = y + '-' + String(m + 1).padStart(2, '0') + '-' + String(d).padStart(2, '0');
+    const cell = new Date(y, m, d);
+    /* A past day cannot be scheduled, so it is not offered. */
+    const past = cell < today;
+    grid += '<button class="calday' + (SY.when?.date === iso ? ' on' : '')
+      + (cell.getTime() === today.getTime() ? ' today' : '') + '"'
+      + (past ? ' disabled' : ' data-calday="' + iso + '"') + '>' + d + '</button>';
+  }
+
+  const hours = Array.from({ length: 12 }, (_, i) => i + 1);
+  const mins = ['00', '15', '30', '45'];
+  const w = SY.when || {};
+
+  cal.innerHTML = '<div class="calhead">'
+    + '<button class="calnav" data-calmove="-1">‹</button>'
+    + '<b>' + view.toLocaleString([], { month:'long', year:'numeric' }) + '</b>'
+    + '<button class="calnav" data-calmove="1">›</button></div>'
+    + '<div class="calgrid">' + grid + '</div>'
+    + '<div class="caltime">'
+    +   '<select data-calpart="hour">' + hours.map(h => '<option' + (Number(w.hour) === h ? ' selected' : '') + '>' + h + '</option>').join('') + '</select>'
+    +   '<span style="color:var(--dimmer)">:</span>'
+    +   '<select data-calpart="minute">' + mins.map(x => '<option' + (String(w.minute ?? '').padStart(2,'0') === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
+    +   '<select data-calpart="mer">' + ['AM','PM'].map(x => '<option' + (w.mer === x ? ' selected' : '') + '>' + x + '</option>').join('') + '</select>'
+    +   '<span class="tzn">' + escS(TZ_NAME) + '</span>'
+    + '</div>'
+    + '<div class="calfoot"><button data-calnow="1">Publish now</button>'
+    + '<button class="go" data-caldone="1">Done</button></div>';
+
+  cal.querySelectorAll('[data-calday]').forEach(b => b.onclick = () => {
+    SY.when = { date: b.dataset.calday, hour: w.hour || 9, minute: w.minute ?? '00', mer: w.mer || 'AM' };
+    drawWhen();
+  });
+  cal.querySelectorAll('[data-calmove]').forEach(b => b.onclick = () => {
+    const v = new Date(y, m + Number(b.dataset.calmove), 1);
+    SY.calView = v; drawWhen();
+  });
+  cal.querySelectorAll('[data-calpart]').forEach(sel => sel.onchange = () => {
+    SY.when = { ...(SY.when || { date:null }), [sel.dataset.calpart]: sel.value };
+    if (!SY.when.date) SY.when.date = null;
+    drawWhen();
+  });
+  cal.querySelector('[data-calnow]').onclick = () => {
+    SY.when = null; cal.classList.remove('on'); drawWhen();
+  };
+  cal.querySelector('[data-caldone]').onclick = () => {
+    cal.classList.remove('on'); drawWhen();
+  };
+}
+
 function openSchedule(ids){
   SY.scheduling = ids;
+  SY.when = null;
+  SY.calView = new Date();
   SY.schedTargets = new Set(SY.destinations.length === 1 ? [SY.destinations[0].postAccountId] : []);
   SY.privacy = 'public';
   const first = SY.clips.find(c => c.id === ids[0]);
@@ -6557,8 +6691,6 @@ function openSchedule(ids){
   document.getElementById('cl-desch').textContent = ids.length === 1
     ? 'Prefilled from OpusClip’s own description and hashtags for this clip.'
     : 'Applied to all ' + ids.length + ' clips.';
-  document.getElementById('cl-date').value = '';
-  document.getElementById('cl-time').value = '';
   document.getElementById('cl-serr').textContent = '';
   document.getElementById('cl-scount').textContent = ids.length === 1
     ? 'One clip.' : ids.length + ' clips will each be posted with this title and text.';
@@ -6567,6 +6699,8 @@ function openSchedule(ids){
     ? '<img src="' + escS(first.thumbUrl) + '" alt="">'
     : '<div class="noimg2">No thumbnail</div>';
   drawSchedule();
+  drawWhen();
+  document.getElementById('cl-cal')?.classList.remove('on');
   document.getElementById('cl-sched').classList.add('on');
 }
 
@@ -6607,18 +6741,17 @@ function closeSchedule(){
 
 async function doSchedule(){
   if (!SY.scheduling?.length || !SY.schedTargets.size) return;
-  const date = document.getElementById('cl-date').value;
-  const time = document.getElementById('cl-time').value;
   const err = document.getElementById('cl-serr');
   err.textContent = '';
 
+  const chosen = whenSelectedDate();
   let publishAt = null;
-  if (date || time) {
-    if (!date || !time) { err.textContent = 'Give both a date and a time, or leave both empty to post now.'; return; }
-    const d = new Date(date + 'T' + time);
-    if (isNaN(d.getTime())) { err.textContent = 'That is not a valid date and time.'; return; }
-    if (d.getTime() < Date.now()) { err.textContent = 'That time has already passed.'; return; }
-    publishAt = d.toISOString();
+  if (chosen) {
+    if (chosen.getTime() < Date.now() + 30_000) {
+      err.textContent = 'That time has already passed. Pick a later one, or choose Publish now.';
+      return;
+    }
+    publishAt = chosen.toISOString();
   }
 
   const targets = SY.destinations.filter(a => SY.schedTargets.has(a.postAccountId))
@@ -6703,8 +6836,26 @@ document.getElementById('cl-allacct').onclick = () => {
 };
 document.getElementById('cl-noacct').onclick = () => { SY.schedTargets.clear(); drawSchedule(); };
 document.getElementById('cl-dosched').onclick = doSchedule;
+document.getElementById('cl-whenbtn').onclick = e => {
+  e.stopPropagation();
+  const cal = document.getElementById('cl-cal');
+  const opening = !cal.classList.contains('on');
+  cal.classList.toggle('on', opening);
+  if (opening) drawWhen();
+};
+/* Click anywhere else in the dialog and the calendar closes — but not when the
+   click is inside it, or picking a day would dismiss it. */
+document.getElementById('cl-sched').addEventListener('click', e => {
+  const cal = document.getElementById('cl-cal');
+  if (!cal?.classList.contains('on')) return;
+  if (cal.contains(e.target) || e.target.closest('#cl-whenbtn')) return;
+  cal.classList.remove('on');
+});
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
+  /* Innermost thing first: the calendar, then the player, then any dialog. */
+  const cal = document.getElementById('cl-cal');
+  if (cal?.classList.contains('on')) { cal.classList.remove('on'); return; }
   if (document.getElementById('cl-player')?.classList.contains('on')) return closePlayer();
   document.querySelectorAll('.mwrap.on').forEach(w => w.classList.remove('on'));
 });
