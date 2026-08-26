@@ -1300,6 +1300,23 @@ main{min-width:0;display:flex;flex-direction:column}
   line-height:1.6;resize:none;min-height:24px;max-height:220px;padding:2px 1px;display:block}
 .ccbox textarea:focus{outline:none}
 .ccbox textarea::placeholder{color:var(--dimmer)}
+/* Attachments sit above the text, the way every chat client does it, so the
+   caret never has to move past them. */
+.ccatts{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+.ccatt{display:flex;align-items:center;gap:7px;background:var(--panel2);border:1px solid var(--edge);
+  border-radius:9px;padding:4px 7px 4px 4px;max-width:230px}
+.ccatt img{width:26px;height:26px;object-fit:cover;border-radius:6px;flex:none;display:block}
+.ccatt .fi{width:26px;height:26px;border-radius:6px;flex:none;display:grid;place-items:center;
+  background:var(--ink2);font-family:var(--ff-mono);font-size:8.5px;color:var(--dimmer);
+  text-transform:uppercase}
+.ccatt .nm{font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccatt .x{background:none;border:0;color:var(--dimmer);cursor:pointer;font:inherit;font-size:13px;
+  line-height:1;padding:0 2px;flex:none}
+.ccatt .x:hover{color:var(--rust)}
+.ccatt.up{opacity:.55}
+.ccclip{width:28px;height:28px;border-radius:8px;border:1px solid var(--edge);background:var(--panel2);
+  color:var(--dim);cursor:pointer;display:grid;place-items:center;flex:none;font-size:15px;line-height:1}
+.ccclip:hover{border-color:var(--edge2);color:var(--cream)}
 .ccbar{display:flex;align-items:center;gap:7px;margin-top:7px}
 .ccbar .sel{background:var(--panel2);border:1px solid var(--edge);border-radius:7px;color:var(--dim);
   font:inherit;font-size:11px;padding:3px 7px;cursor:pointer}
@@ -6309,11 +6326,15 @@ const CC = {
   mode: null,             // 'local' (this server spawns Claude) | 'bridge'
   base: '',               // where the endpoints live
   info: null,
-  messages: [],           // { role, text, tools:[] }
+  messages: [],           // { role, text, steps:[] }
   sessionId: null,
-  busy: false,
+  busy: false, streaming: false,
   setup: false, config: false,
   account: null, plugins: null, mcpList: null, loadingEnv: false,
+  /* Files staged for the next message. Each is uploaded as it is added, so by
+     send time there is a path on disk rather than bytes still in the page. */
+  atts: [],
+  draft: '',
   abort: null
 };
 
@@ -6884,10 +6905,13 @@ function ccChat(){
         + '<span class="ccdots"><span></span><span></span><span></span></span></div></div>' : '')
     + '</div>'
     + '<div class="cccomposer"><div class="ccbox">'
+    + (CC.atts.length ? '<div class="ccatts">' + CC.atts.map(ccAttChip).join('') + '</div>' : '')
     + '<textarea id="cc-input" rows="1" placeholder="'
     + (CC.busy ? 'Claude is working…' : 'Reply to Claude…') + '"'
     + (CC.busy ? ' disabled' : '') + '></textarea>'
     + '<div class="ccbar">'
+    + '<button class="ccclip" id="cc-attach" title="Attach a file, or just paste an image">+</button>'
+    + '<input type="file" id="cc-file" multiple hidden>'
     + sel('cc-model2', models, CC.model || '')
     + sel('cc-effort2', efforts, CC.effort || '')
     + '<span class="grow"></span>'
@@ -7047,6 +7071,54 @@ function mdRender(text){
 /* Kept under the old name so callers do not have to change. */
 function ccRender(text){ return mdRender(text); }
 
+/* Send the file to the server and keep the path it was stored at. The path is
+   what goes to Claude -- it reads the file off disk with the Read tool rather
+   than being handed bytes, which is also why an attachment has to live somewhere
+   inside the directory Claude is allowed to read. */
+async function ccUpload(file){
+  const MAX = 64 * 1024 * 1024;
+  if (file.size > MAX) { banner(file.name + ' is over 64 MB.'); return; }
+
+  const entry = { name: file.name || 'pasted-image.png', uploading: true, size: file.size };
+  CC.atts.push(entry);
+  drawClaude();
+
+  try {
+    const r = await fetch(CC.base + '/files', {
+      method: 'POST',
+      headers: ccHeaders({ 'x-filename': encodeURIComponent(entry.name).replace(/%20/g, ' ') }),
+      body: file
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'upload failed');
+    entry.uploading = false;
+    entry.stored = j.name;
+    entry.path = j.path;
+  } catch (err) {
+    /* Drop the chip rather than leaving a permanent spinner claiming a file is
+       attached when it is not. */
+    const i = CC.atts.indexOf(entry);
+    if (i >= 0) CC.atts.splice(i, 1);
+    banner('Could not attach ' + entry.name + ': ' + err.message);
+  }
+  drawClaude();
+}
+
+/* An attachment, as a chip. Images preview from the same endpoint that stored
+   them, so what you see is the file Claude will read, not a local blob that
+   might not have uploaded. */
+function ccAttChip(a, i){
+  const img = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(a.name || '');
+  const ext = ((a.name || '').match(/\.([A-Za-z0-9]{1,5})$/) || [, '?'])[1];
+  return '<span class="ccatt' + (a.uploading ? ' up' : '') + '">'
+    + (img && !a.uploading
+        ? '<img src="/api/claude/files/attachments/' + encodeURIComponent(a.stored) + '" alt="">'
+        : '<span class="fi">' + escS(a.uploading ? '···' : ext) + '</span>')
+    + '<span class="nm">' + escS(a.name || 'file') + '</span>'
+    + (a.uploading ? '' : '<button class="x" data-ccdrop="' + i + '" title="Remove">×</button>')
+    + '</span>';
+}
+
 /* One exchange. The assistant's turn is prose in a reading column; the user's
    is a contained block. Steps — tool calls and thinking — sit above the prose,
    collapsed, in the order they happened. */
@@ -7133,6 +7205,39 @@ function wireClaudeChat(root){
     if (CC.draft) { ta.value = CC.draft; CC.draft = ''; fit(); }
     if (!CC.busy) ta.focus();
   }
+  /* Paste an image straight into the box. Chromium puts screenshots on the
+     clipboard as a file with no name, hence the fallback. */
+  if (ta) ta.onpaste = ev => {
+    const items = [...(ev.clipboardData?.items || [])];
+    const files = items.filter(i => i.kind === 'file').map(i => i.getAsFile()).filter(Boolean);
+    if (!files.length) return;                  // plain text paste, leave it alone
+    ev.preventDefault();
+    for (const f of files) ccUpload(f);
+  };
+
+  const clip = root.querySelector('#cc-attach');
+  const picker = root.querySelector('#cc-file');
+  if (clip && picker) {
+    clip.onclick = () => picker.click();
+    picker.onchange = () => { for (const f of picker.files) ccUpload(f); picker.value = ''; };
+  }
+
+  /* Dropping onto the composer is the other thing people try. */
+  const box = root.querySelector('.ccbox');
+  if (box) {
+    box.ondragover = ev => { ev.preventDefault(); box.style.borderColor = 'var(--brass)'; };
+    box.ondragleave = () => { box.style.borderColor = ''; };
+    box.ondrop = ev => {
+      ev.preventDefault(); box.style.borderColor = '';
+      for (const f of ev.dataTransfer?.files || []) ccUpload(f);
+    };
+  }
+
+  root.querySelectorAll('[data-ccdrop]').forEach(b => b.onclick = () => {
+    CC.atts.splice(Number(b.dataset.ccdrop), 1);
+    drawClaude();
+  });
+
   const send = root.querySelector('#cc-send');
   if (send) send.onclick = () => ccSend(document.getElementById('cc-input')?.value || '');
   const stop = root.querySelector('#cc-stop');
@@ -7197,13 +7302,25 @@ function wireClaudeFeed(root){
 }
 
 async function ccSend(text){
-  const prompt = String(text || '').trim();
-  if (!prompt || CC.busy) return;
+  const typed = String(text || '').trim();
+  /* Attachments still uploading are not ready to be referenced. */
+  const ready = CC.atts.filter(a => !a.uploading && a.path);
+  if ((!typed && !ready.length) || CC.busy) return;
+  if (CC.atts.some(a => a.uploading)) { banner('Still uploading — one moment.'); return; }
 
-  CC.messages.push({ role:'user', text: prompt, tools: [] });
-  const reply = { role:'assistant', text:'', tools: [] };
+  /* Claude reads attachments off disk with the Read tool rather than being
+     handed bytes, so the message names the paths. Listed on their own lines
+     above the text so a prompt that refers to "this screenshot" still reads
+     naturally. */
+  const prompt = ready.length
+    ? ready.map(a => 'Attached file: ' + a.path).join('\n') + (typed ? '\n\n' + typed : '')
+    : typed;
+
+  CC.messages.push({ role:'user', text: typed || '(attachment)', steps: [], atts: ready.map(a => a.name) });
+  const reply = { role:'assistant', text:'', tools: [], steps: [] };
   CC.messages.push(reply);
   CC.busy = true;
+  CC.atts = [];
   drawClaude();
 
   const ctrl = new AbortController();

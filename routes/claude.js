@@ -321,6 +321,144 @@ export function claudeRoutes({ env, auth }){
     } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
+  /* ---- chat history -------------------------------------------------------
+
+     Claude Code already keeps every session on disk, so this reads those rather
+     than inventing a second store. Two things follow, and both are the point:
+     history here is the same history as the CLI and the VS Code extension, and
+     nothing has to be migrated or kept in sync.
+
+     Layout is ~/.claude/projects/<encoded cwd>/<session-id>.jsonl, one JSON
+     record per line. The directory name is the working directory with every
+     character that is not a letter or digit replaced by a hyphen -- checked
+     against the real directories on disk rather than assumed. */
+
+  function projectDirFor(cwd){
+    const encoded = String(cwd).replace(/[^A-Za-z0-9]/g, '-');
+    const base = path.join(os.homedir(), '.claude', 'projects');
+    const guess = path.join(base, encoded);
+    if (fs.existsSync(guess)) return guess;
+    /* The encoding could change. Fall back to asking the transcripts where they
+       came from, which is authoritative. */
+    try {
+      for (const d of fs.readdirSync(base, { withFileTypes: true })) {
+        if (!d.isDirectory()) continue;
+        const dir = path.join(base, d.name);
+        const first = fs.readdirSync(dir).find(f => f.endsWith('.jsonl'));
+        if (!first) continue;
+        const head = fs.readFileSync(path.join(dir, first), 'utf8').slice(0, 8000).split('\n');
+        for (const line of head) {
+          try {
+            const rec = JSON.parse(line);
+            if (rec.cwd && path.resolve(rec.cwd) === path.resolve(cwd)) return dir;
+          } catch { /* not every line is a record we can read */ }
+        }
+      }
+    } catch { /* no projects directory yet */ }
+    return guess;
+  }
+
+  /* First user prompt makes the title, the way every chat client does it. */
+  function summarise(file){
+    const out = { title: '', prompts: 0, lastAt: null, model: null };
+    let text = '';
+    try { text = fs.readFileSync(file, 'utf8'); } catch { return out; }
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      let rec;
+      try { rec = JSON.parse(line); } catch { continue; }
+      if (rec.timestamp) out.lastAt = rec.timestamp;
+      if (rec.type === 'user' && rec.message) {
+        const c = rec.message.content;
+        const str = typeof c === 'string' ? c
+          : Array.isArray(c) ? c.map(b => (typeof b === 'string' ? b : b.text || '')).join(' ') : '';
+        const clean = str.replace(/\s+/g, ' ').trim();
+        /* Skip the synthetic frames: tool results and interrupt notices arrive
+           as user records too, and neither is something anybody typed. */
+        if (clean && !/^(<|\[Request interrupted)/.test(clean)) {
+          out.prompts++;
+          if (!out.title) out.title = clean.slice(0, 120);
+        }
+      }
+      if (rec.type === 'assistant' && rec.message?.model && !out.model) out.model = rec.message.model;
+    }
+    return out;
+  }
+
+  r.get('/api/claude/sessions', auth.require, (req, res) => {
+    const dir = projectDirFor(CWD);
+    let files = [];
+    try { files = fs.readdirSync(dir).filter(f => f.endsWith('.jsonl')); }
+    catch { return res.json({ ok: true, sessions: [], dir, note: 'no history yet' }); }
+
+    const sessions = [];
+    for (const f of files) {
+      const full = path.join(dir, f);
+      let st;
+      try { st = fs.statSync(full); } catch { continue; }
+      const info = summarise(full);
+      /* A transcript with no real prompt in it is a session that never got off
+         the ground -- showing it would just be noise in the list. */
+      if (!info.prompts) continue;
+      sessions.push({
+        id: path.basename(f, '.jsonl'),
+        title: info.title || 'Untitled',
+        prompts: info.prompts,
+        model: info.model,
+        updated: (info.lastAt || st.mtime.toISOString()),
+        bytes: st.size
+      });
+    }
+    sessions.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
+    res.json({ ok: true, sessions, dir, cwd: CWD });
+  });
+
+  /* The transcript itself, so opening a past chat shows what was said rather
+     than an empty pane with a session id attached. */
+  r.get('/api/claude/sessions/:id', auth.require, (req, res) => {
+    if (!/^[0-9a-fA-F-]{8,64}$/.test(req.params.id)) return res.status(400).json({ error: 'not a session id' });
+    const file = path.join(projectDirFor(CWD), req.params.id + '.jsonl');
+    if (!fs.existsSync(file)) return res.status(404).json({ error: 'no transcript for that session' });
+
+    const messages = [];
+    let text = '';
+    try { text = fs.readFileSync(file, 'utf8'); } catch (err) { return res.status(500).json({ error: err.message }); }
+
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      let rec;
+      try { rec = JSON.parse(line); } catch { continue; }
+      if (rec.type !== 'user' && rec.type !== 'assistant') continue;
+      const c = rec.message?.content;
+      const blocks = Array.isArray(c) ? c : (typeof c === 'string' ? [{ type: 'text', text: c }] : []);
+
+      let bodyText = '';
+      const steps = [];
+      for (const b of blocks) {
+        if (b.type === 'text' && b.text) bodyText += (bodyText ? '\n' : '') + b.text;
+        else if (b.type === 'thinking' && b.thinking) steps.push({ kind: 'thinking', name: 'Thinking', body: b.thinking });
+        else if (b.type === 'tool_use') {
+          const detail = b.input?.file_path || b.input?.pattern || b.input?.command || b.input?.url || '';
+          let body = '';
+          try { body = JSON.stringify(b.input, null, 2); } catch { /* unserialisable input */ }
+          steps.push({ kind: 'tool', id: b.id, name: b.name, detail: String(detail).slice(0, 140), body });
+        } else if (b.type === 'tool_result') {
+          /* Attach to whichever step asked, so the row can be opened. */
+          const step = messages.flatMap(m => m.steps || []).find(t => t.id === b.tool_use_id);
+          const out = Array.isArray(b.content) ? b.content.map(x => x.text || '').join('\n')
+                    : (typeof b.content === 'string' ? b.content : '');
+          if (step) step.body = (step.body ? step.body + '\n\n— result —\n' : '') + out;
+        }
+      }
+      const interrupted = /^\[Request interrupted/.test(bodyText);
+      if (!bodyText && !steps.length) continue;
+      if (rec.type === 'user' && interrupted) continue;
+      messages.push({ role: rec.type === 'user' ? 'user' : 'assistant', text: bodyText, steps, at: rec.timestamp });
+    }
+
+    res.json({ ok: true, id: req.params.id, messages });
+  });
+
   /* ---- attachments --------------------------------------------------------
 
      Raw body with the name in a header, rather than multipart: there is no
