@@ -7318,7 +7318,12 @@ function prStrip(){
         apts.toLocaleString() + ' apartments · ' + blds + ' buildings')
     + tile('Maturing within 18 months', prMoney(soonAmt),
         allLoans.length ? soon.length + ' of ' + allLoans.length + ' loans come due' : 'no loans in view',
-        debt && soonAmt / debt > 0.25 ? 'var(--amber)' : null);
+        debt && soonAmt / debt > 0.25 ? 'var(--amber)' : null)
+    /* Closing .prstrip. Without it the toolbar, the chips and both panes were
+       adopted as extra cells of this four-column grid, which is precisely what a
+       missing tag looks like from the outside: everything in the wrong place and
+       nothing obviously broken. */
+    + '</div>';
 }
 
 /* ---------- toolbar and chips ---------- */
