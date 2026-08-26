@@ -97,7 +97,16 @@ function makeClient(token){
     try { json = text ? JSON.parse(text) : null; } catch { /* ClickUp sometimes returns HTML on 5xx */ }
     if (!res.ok) {
       const detail = json?.err || json?.error || text.slice(0, 200) || res.statusText;
-      throw new ClickUpError('ClickUp ' + res.status + ': ' + detail, res.status);
+      /* The path and ClickUp's own ECODE go in the message.
+
+         "ClickUp 404: Not found" on a screen is unactionable: a workspace walk
+         touches /team, /space, /folder and a list endpoint per list, and the one
+         that failed is the entire diagnosis. ECODE separates the cases that read
+         identically -- a deleted list, a token that lost access to a space, and a
+         team id that is not this token's. */
+      const where = method + ' ' + String(path).split('?')[0];
+      const code = json?.ECODE ? ' [' + json.ECODE + ']' : '';
+      throw new ClickUpError('ClickUp ' + res.status + ' on ' + where + ': ' + detail + code, res.status);
     }
     return json || {};
   };
@@ -119,8 +128,19 @@ async function mapLimit(items, limit, fn){
   return out;
 }
 
-/* Every list in the workspace, with the space and folder it belongs to. */
+/* Every list in the workspace, with the space and folder it belongs to.
+
+   Nothing below the top-level space call is allowed to be fatal. A workspace
+   this size is a few hundred requests against a token someone else is also
+   using, and a single space that has been archived out from under the walk, or
+   one 429 that outlasts its retries, used to throw all 4,800 tasks away and put
+   "ClickUp 404: Not found" on the screen with no way to tell which of those
+   hundreds of calls it was. Skipping the piece that failed and saying so is
+   worth far more than the missing rows cost. */
 async function discoverLists(call, teamId){
+  const problems = [];
+  const note = (where, err) => problems.push({ where, status: err.status || 0, message: err.message });
+
   const spacesRes = await call(`/team/${teamId}/space?archived=false`);
   const spaces = spacesRes.spaces || [];
   const lists = [];
@@ -129,21 +149,24 @@ async function discoverLists(call, teamId){
     const meta = { id: space.id, name: space.name };
 
     /* Folderless lists hang directly off the space. */
-    const direct = await call(`/space/${space.id}/list?archived=false`).catch(() => ({ lists: [] }));
+    const direct = await call(`/space/${space.id}/list?archived=false`)
+      .catch(err => { note('lists in space "' + space.name + '"', err); return { lists: [] }; });
     for (const l of direct.lists || []) lists.push({ id: l.id, name: l.name, space: meta, folder: null });
 
-    const folders = await call(`/space/${space.id}/folder?archived=false`).catch(() => ({ folders: [] }));
+    const folders = await call(`/space/${space.id}/folder?archived=false`)
+      .catch(err => { note('folders in space "' + space.name + '"', err); return { folders: [] }; });
     await mapLimit(folders.folders || [], 3, async f => {
       const fmeta = { id: f.id, name: f.name };
       /* The folder payload usually embeds its lists; fall back to asking. */
       const inner = f.lists?.length
         ? { lists: f.lists }
-        : await call(`/folder/${f.id}/list?archived=false`).catch(() => ({ lists: [] }));
+        : await call(`/folder/${f.id}/list?archived=false`)
+            .catch(err => { note('lists in folder "' + f.name + '"', err); return { lists: [] }; });
       for (const l of inner.lists || []) lists.push({ id: l.id, name: l.name, space: meta, folder: fmeta });
     });
   });
 
-  return { lists, spaces: spaces.map(s => ({ id: s.id, name: s.name })) };
+  return { lists, spaces: spaces.map(s => ({ id: s.id, name: s.name })), problems };
 }
 
 /* Every page of one list. `include_closed` matters: without it a board looks
@@ -153,16 +176,20 @@ async function listTasks(call, listId, { archived = false, maxPages = 40 } = {})
   for (let page = 0; page < maxPages; page++) {
     const q = `?page=${page}&include_closed=true&subtasks=true&order_by=due_date`
       + (archived ? '&archived=true' : '&archived=false');
-    const res = await call(`/list/${listId}/task${q}`).catch(err => {
-      /* One bad list must not lose the whole walk. */
-      if (err.status === 404 || err.status === 401) return { tasks: [], last_page: true };
-      throw err;
-    });
+    let res;
+    try {
+      res = await call(`/list/${listId}/task${q}`);
+    } catch (err) {
+      /* One bad list must not lose the whole walk -- and that has to mean ANY
+         failure, not just the two statuses that were easy to predict. Whatever
+         pages already came back are kept; the caller is told what was lost. */
+      return { tasks: out, error: err.message, status: err.status || 0 };
+    }
     const tasks = res.tasks || [];
     out.push(...tasks);
     if (res.last_page || tasks.length === 0) break;
   }
-  return out;
+  return { tasks: out, error: null };
 }
 
 export function createClickUp({ token, teamId }){
@@ -185,18 +212,34 @@ export function createClickUp({ token, teamId }){
       }));
     },
 
-    /* The whole workspace. Slow by nature; cache the result. */
-    async workspace(){
+    /* The whole workspace. Slow by nature; cache the result.
+
+       Roughly three hundred requests against a token limited to a hundred a
+       minute, so this takes minutes and no amount of concurrency changes that --
+       it is rate-bound, not connection-bound. What does change is whether the
+       wait is legible, which is why it reports progress. */
+    async workspace({ onProgress } = {}){
+      const tick = (phase, done, total) => {
+        if (typeof onProgress === 'function') {
+          try { onProgress({ phase, done, total }); } catch { /* never break the walk */ }
+        }
+      };
+      tick('teams', 0, 0);
       const teams = await this.teams();
       const team = teams.find(t => String(t.id) === String(teamId)) || teams[0];
       if (!team) throw new ClickUpError('That token can see no ClickUp workspaces', 403);
 
-      const { lists, spaces } = await discoverLists(call, team.id);
+      tick('lists', 0, 0);
+      const { lists, spaces, problems } = await discoverLists(call, team.id);
+      tick('tasks', 0, lists.length);
 
       /* Three, not five: the rate limit is per token, and the walk finishing
          two minutes later beats it failing halfway. */
+      let walked = 0;
       const perList = await mapLimit(lists, 3, async l => {
-        const tasks = await listTasks(call, l.id);
+        const { tasks, error, status } = await listTasks(call, l.id);
+        if (error) problems.push({ where: 'tasks in list "' + l.name + '"', status, message: error });
+        tick('tasks', ++walked, lists.length);
         /* Stamp the walk metadata on: the task payload does not carry names. */
         return tasks.map(t => ({ ...t, space: l.space, folder: l.folder, list: { id: l.id, name: l.name } }));
       });
@@ -206,6 +249,14 @@ export function createClickUp({ token, teamId }){
 
       const tasks = [...byId.values()].map(shapeTask);
 
+      /* Every list failing is not a partial result, it is a broken token or a
+         dead API, and serving an empty board as though it were the truth is the
+         one outcome worse than an error. */
+      if (lists.length && !tasks.length && problems.length >= lists.length) {
+        throw new ClickUpError('Every list failed to read. First: ' + problems[0].message,
+          problems[0].status || 502);
+      }
+
       return {
         teamId: team.id,
         teamName: team.name,
@@ -213,6 +264,10 @@ export function createClickUp({ token, teamId }){
         spaces,
         lists: lists.map(l => ({ id: l.id, name: l.name, spaceId: l.space.id, folderId: l.folder?.id || null })),
         tasks,
+        /* What the walk could not read. Empty because there was nothing, or
+           empty because a call broke? The UI cannot tell on its own. */
+        problems,
+        listCount: lists.length,
         fetchedAt: new Date().toISOString()
       };
     },

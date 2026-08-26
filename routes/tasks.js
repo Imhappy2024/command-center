@@ -37,10 +37,14 @@ export function taskRoutes({ env, auth }){
   let cache = null;          // { payload, at }
   let inFlight = null;       // the shared walk
   let lastError = null;
+  /* Where the current walk has got to, so a first load can show something
+     moving instead of a spinner that looks identical to a hang. */
+  let progress = null;
 
   function refresh(){
     if (inFlight) return inFlight;
-    inFlight = cu.workspace()
+    progress = { phase: 'teams', done: 0, total: 0, startedAt: Date.now() };
+    inFlight = cu.workspace({ onProgress: p => { progress = { ...progress, ...p }; } })
       .then(payload => {
         cache = { payload, at: Date.now() };
         lastError = null;
@@ -51,7 +55,7 @@ export function taskRoutes({ env, auth }){
         lastError = { message: err.message, at: new Date().toISOString() };
         throw err;
       })
-      .finally(() => { inFlight = null; });
+      .finally(() => { inFlight = null; progress = null; });
     return inFlight;
   }
 
@@ -62,6 +66,7 @@ export function taskRoutes({ env, auth }){
     stale: Date.now() - cache.at > STALE_MS,
     ancient: Date.now() - cache.at > ANCIENT_MS,
     refreshing: Boolean(inFlight),
+    progress,
     lastError
   });
 
@@ -76,20 +81,23 @@ export function taskRoutes({ env, auth }){
 
     const force = req.query.force === '1';
 
-    /* Nothing cached: this request has to wait. It is the only one that ever
-       does, and the UI shows a "first load walks the workspace" state. */
-    if (!cache || force) {
-      try {
-        await refresh();
-      } catch (err) {
-        if (!cache) {
-          return res.status(err.status === 429 ? 429 : 502).json({
-            configured: true, error: err.message,
-            tasks: [], spaces: [], lists: [], members: [], canonical: CANONICAL
-          });
-        }
-        /* A forced refresh that failed still has the old payload to hand back. */
-      }
+    /* Nothing cached, so there is nothing to serve -- but this request still
+       must not wait for it. The walk is three minutes; a browser fetch is not,
+       and the old code's await turned a slow first load into a hung one and then
+       a "could not reach ClickUp" that was not true. Start the walk, say so, and
+       let the UI poll for progress. */
+    if (!cache) {
+      if (!inFlight) refresh().catch(() => { /* lastError already has it */ });
+      return res.json({
+        configured: true, canonical: CANONICAL, warming: true,
+        progress, lastError,
+        tasks: [], spaces: [], lists: [], members: []
+      });
+    }
+
+    /* A forced refresh has the old payload to hand back while it runs. */
+    if (force) {
+      if (!inFlight) refresh().catch(() => {});
       return res.json({ configured: true, canonical: CANONICAL, ...shape() });
     }
 
@@ -111,6 +119,8 @@ export function taskRoutes({ env, auth }){
         spaces: cache.payload.spaces.length
       } : null,
       refreshing: Boolean(inFlight),
+      progress,
+      problems: cache ? (cache.payload.problems || []).length : null,
       lastError
     });
   });

@@ -1656,6 +1656,39 @@ main{min-width:0;display:flex;flex-direction:column}
 .tkroster{max-height:330px;overflow-y:auto}
 
 .tktable{display:flex;flex-direction:column;min-width:0}
+
+/* First-load progress. Three minutes of nothing looks exactly like a hang, and
+   the only difference a reader can see is whether a number moves. */
+.tkwarm{margin:16px auto 0;max-width:380px;display:flex;flex-direction:column;gap:8px}
+.tkwarm .bar{height:5px;border-radius:99px;background:var(--ink2);border:1px solid var(--edge);
+  overflow:hidden}
+.tkwarm .bar i{display:block;height:100%;background:linear-gradient(90deg,#4a3fb5,var(--brass));
+  transition:width .6s var(--ease)}
+.tkwarm span{font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
+
+/* A property band in the Property tasks view. Same idea as the Properties
+   table: the group is a band, the task is an ordinary row. */
+.tkpgrp{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:10px;align-items:center;
+  width:100%;background:var(--ink2);border:0;border-bottom:1px solid var(--edge);cursor:pointer;
+  font:inherit;text-align:left;padding:11px 14px;transition:background .16s var(--ease);
+  box-shadow:inset 3px 0 0 var(--edge2)}
+.tkpgrp:hover{background:var(--panel3)}
+.tkpgrp.open{background:var(--panel2);box-shadow:inset 3px 0 0 var(--brass)}
+.tkpgrp .cv{color:var(--dimmer);font-size:10px;transition:transform .18s var(--ease);
+  display:inline-block}
+.tkpgrp.open .cv{transform:rotate(90deg);color:var(--brass)}
+.tkpgrp .nm{min-width:0;overflow:hidden}
+.tkpgrp .nm b{display:block;font-family:var(--ff-display);font-size:13px;font-weight:600;
+  color:var(--cream);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkpgrp .nm small{display:block;color:var(--dimmer);font-size:10.5px;margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tkpgrp .figs{display:flex;gap:7px;align-items:center;flex:none}
+.tkpgrp .fig{font-family:var(--ff-mono);font-size:10px;border:1px solid var(--edge2);
+  border-radius:99px;padding:2px 8px;color:var(--dim);white-space:nowrap}
+.tkpgrp .fig.due{color:var(--rust);border-color:rgba(255,90,69,.4)}
+.tkpgrp .fig.val{color:var(--jade);border-color:rgba(53,208,165,.35)}
+.tkpgrp .fig.none{color:var(--dimmer)}
+.tkpnest{background:var(--panel);box-shadow:inset 0 1px 0 var(--edge2)}
 /* Popover, modal and bulk bar for editing a task in place. */
 .tkpop{position:fixed;z-index:70;min-width:220px;max-width:280px;background:var(--panel2);
   border:1px solid var(--edge2);border-radius:var(--r-md);padding:5px;
@@ -6595,7 +6628,10 @@ document.addEventListener('keydown', e => {
 const TK = {
   loaded: false, loading: false, error: null,
   data: null,                 // the payload
-  view: 'overview',           // overview | all
+  view: 'overview',           // overview | all | property
+  warming: false, progress: null, pollTimer: null,
+  propOpen: null,             // which property band is expanded
+  propQ: '',                  // the property view searches properties, not tasks
   q: '',                      // free-text search (the source dashboard had none)
   sort: 'due', dir: 'asc',    // nor sorting
   space: '', list: '', assignee: '', status: '', priority: '',
@@ -6612,13 +6648,51 @@ async function tkLoad(force){
     const r = await fetch('/api/tasks' + (force ? '?force=1' : ''));
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || ('tasks ' + r.status));
-    TK.data = j;
-    TK.loaded = true;
+    /* The server no longer waits three minutes for the first walk -- it starts
+       it and says so. Waiting was the bug behind "Could not reach ClickUp": the
+       browser gave up on a request that was still working, and the error it
+       showed was about the fetch, not about ClickUp. */
+    if (j.warming) {
+      TK.warming = true;
+      TK.progress = j.progress || null;
+      TK.loaded = false;
+      tkPoll();
+    } else {
+      TK.data = j;
+      TK.warming = false;
+      TK.progress = null;
+      TK.loaded = true;
+    }
   } catch (err) {
     TK.error = err.message;
   }
   TK.loading = false;
   drawTasks();
+}
+
+/* While the walk runs, ask where it has got to. Cheap: /status reads a counter,
+   it does not touch ClickUp. */
+function tkPoll(){
+  clearTimeout(TK.pollTimer);
+  TK.pollTimer = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/tasks/status');
+      const st = await r.json();
+      TK.progress = st.progress || null;
+      if (st.cached) { TK.warming = false; return tkLoad(); }
+      if (!st.refreshing && st.lastError) {
+        TK.warming = false;
+        TK.error = st.lastError.message;
+        drawTasks();
+        return;
+      }
+      drawTasks();
+      tkPoll();
+    } catch {
+      /* A blip while polling is not a failure of the walk. */
+      tkPoll();
+    }
+  }, 4000);
 }
 
 /* ---------- helpers ---------- */
@@ -6742,24 +6816,42 @@ function drawTasks(){
     return;
   }
   if (!TK.loaded) {
+    const p = TK.progress;
+    const pct = p && p.total ? Math.min(100, Math.round(p.done / p.total * 100)) : 0;
+    const where = !p ? 'starting…'
+      : p.phase === 'teams' ? 'reading the workspace…'
+      : p.phase === 'lists' ? 'finding the lists…'
+      : p.total ? p.done + ' of ' + p.total + ' lists read'
+      : 'reading lists…';
     body.innerHTML = '<div class="card flush"><div class="empty"><b>Walking the workspace</b>'
       + '<small>ClickUp has no endpoint that returns a whole workspace, so the first load reads '
-      + 'every list one at a time. About three minutes. It is cached after that.</small></div></div>';
+      + 'every list one at a time. About three minutes. It is cached after that.</small>'
+      + '<div class="tkwarm"><div class="bar"><i style="width:' + pct + '%"></i></div>'
+      +   '<span>' + escS(where) + '</span></div>'
+      + '</div></div>';
     return;
   }
 
-  body.innerHTML = TK.view === 'all' ? tkAllView() : tkOverview();
+  body.innerHTML = TK.view === 'all' ? tkAllView()
+    : TK.view === 'property' ? tkPropertyView()
+    : tkOverview();
   wireTasks(body);
 }
 
 function drawTaskSubnav(){
   if (!tkSubEl) return;
-  const items = [['overview', 'Overview'], ['all', 'All tasks']];
+  const items = [['overview', 'Overview'], ['all', 'All tasks'], ['property', 'Property tasks']];
+  const count = k => {
+    if (!TK.loaded) return '';
+    if (k === 'all') return tkFiltered().length;
+    if (k === 'property') return tkPropTasks().length;
+    return '';
+  };
   tkSubEl.innerHTML = items.map(([k, label]) =>
     '<button class="subitem' + (TK.view === k ? ' on' : '') + '" data-tkview="' + k + '">'
     + '<span class="sdot" style="--c:var(--brass)"></span>'
     + '<span class="slabel">' + label + '</span>'
-    + '<span class="scount">' + (k === 'all' && TK.loaded ? tkFiltered().length : '') + '</span></button>').join('');
+    + '<span class="scount">' + count(k) + '</span></button>').join('');
   tkSubEl.querySelectorAll('[data-tkview]').forEach(b => b.onclick = () => {
     TK.view = b.dataset.tkview; drawTasks();
   });
@@ -7145,6 +7237,195 @@ function tkSort(rows){
   });
 }
 
+/* ---------- Property tasks ----------
+
+   ClickUp already models this and nothing needs inferring: there is a space
+   called Properties whose lists are named after the buildings, so the list IS
+   the property. 711 of the 4,842 tasks live there.
+
+   Where a list name lines up with a property in the portfolio the two are
+   joined and the band carries its market value and owning entity. Where it does
+   not, the tasks still show. An unmatched list is a difference in naming, not an
+   absence of work, and dropping it would silently lose real tasks -- so the
+   footer counts what did not match rather than the view hiding it. */
+
+/* Addresses are written a dozen ways ("1409/15 Vinton St", "1409 Vinton
+   Street"), so comparison happens on a stripped form: no punctuation, no street
+   suffixes, single spaces. */
+const TK_SUFFIX = /\b(st|street|ave|avenue|av|rd|road|dr|drive|blvd|boulevard|ln|lane|ct|court|cir|circle|way|pl|place|hwy|highway|ste|suite|unit|units|apt|llc|lp|inc)\b/g;
+function tkNorm(v){
+  return String(v || '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(TK_SUFFIX, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/* Every task ClickUp files under a property. */
+function tkPropTasks(){
+  const d = TK.data;
+  if (!d || !d.tasks) return [];
+  return d.tasks.filter(t => /propert/i.test(t.space?.name || ''));
+}
+
+/* One entry per list in that space, joined to the portfolio where possible.
+   Recomputed per render: it is a walk over a few hundred tasks, and caching it
+   would mean deciding when a status edit invalidates it. */
+function tkPropGroups(){
+  const tasks = tkPropTasks();
+  const byList = new Map();
+  for (const t of tasks) {
+    const id = t.list?.id;
+    if (!id) continue;
+    if (!byList.has(id)) {
+      byList.set(id, { id, name: t.list.name || '(unnamed list)', folder: t.folder?.name || '', tasks: [] });
+    }
+    byList.get(id).tasks.push(t);
+  }
+
+  /* The portfolio side, if Properties has been loaded. Both sections can be
+     visited in either order, so this is opportunistic rather than required. */
+  const props = (PR.data && PR.data.properties) || [];
+  const index = props.map(p => ({
+    p,
+    keys: [p.name, p.street, [p.street, p.city].filter(Boolean).join(' ')]
+      .map(tkNorm).filter(k => k.length >= 4)
+  }));
+
+  const groups = [...byList.values()].map(g => {
+    const open = g.tasks.filter(tkOpen);
+    return {
+      ...g,
+      property: null,
+      key: tkNorm(g.name),
+      open: open.length,
+      overdue: g.tasks.filter(tkOverdue).length,
+      unassigned: open.filter(t => !t.assignees.length).length
+    };
+  });
+
+  /* The join is one-to-one, and it has to be decided globally.
+
+     Matching each list against the portfolio on its own let a single property be
+     the best answer for three different lists -- so the same building appeared
+     three times, each band carrying its full market value, and the totals were
+     three times the truth. Scoring every candidate pair and then assigning them
+     best-first means a property is spent once. */
+  const pairs = [];
+  for (const g of groups) {
+    if (g.key.length < 4) continue;
+    for (const row of index) {
+      let best = 0;
+      for (const k of row.keys) {
+        /* Containment either way: a list name is often the address plus a unit
+           count, and a property name is often just the address. */
+        if (k === g.key) best = Math.max(best, 1000);
+        else if (k.length >= 8 && g.key.includes(k)) best = Math.max(best, k.length);
+        else if (g.key.length >= 8 && k.includes(g.key)) best = Math.max(best, g.key.length);
+      }
+      if (best) pairs.push({ g, p: row.p, score: best });
+    }
+  }
+  pairs.sort((a, b) => b.score - a.score);
+  const usedList = new Set(), usedProp = new Set();
+  for (const pair of pairs) {
+    if (usedList.has(pair.g.id) || usedProp.has(pair.p.id)) continue;
+    usedList.add(pair.g.id);
+    usedProp.add(pair.p.id);
+    pair.g.property = pair.p;
+  }
+
+  /* Most work first, and a property with nothing open sinks below one that has
+     something -- an empty band at the top is the least useful row on screen. */
+  groups.sort((a, b) => (b.overdue - a.overdue) || (b.open - a.open) || a.name.localeCompare(b.name));
+  return groups;
+}
+
+function tkPropertyView(){
+  const groups = tkPropGroups();
+  if (!groups.length) {
+    return '<div class="card flush"><div class="empty"><b>No property tasks</b>'
+      + '<small>Nothing in this workspace sits in a space named Properties. If your properties '
+      + 'live under a differently named space, the All tasks view can filter to it.</small></div></div>';
+  }
+
+  const q = TK.propQ.trim().toLowerCase();
+  const shown = q
+    ? groups.filter(g => g.name.toLowerCase().includes(q)
+        || (g.property && String(g.property.name || '').toLowerCase().includes(q))
+        || g.tasks.some(t => t.name.toLowerCase().includes(q)))
+    : groups;
+
+  const withOpen = groups.filter(g => g.open).length;
+  const totalOpen = groups.reduce((a, g) => a + g.open, 0);
+  const totalOver = groups.reduce((a, g) => a + g.overdue, 0);
+  const unassigned = groups.reduce((a, g) => a + g.unassigned, 0);
+  const matched = groups.filter(g => g.property).length;
+
+  const kpi = (lab, val, sub2, accent) =>
+    '<div class="prtile"><div class="lab">' + lab + '</div>'
+    + '<div class="val"' + (accent ? ' style="color:' + accent + '"' : '') + '>' + val + '</div>'
+    + '<div class="sub">' + sub2 + '</div></div>';
+
+  const strip = '<div class="prstrip">'
+    + kpi('Properties with open work', withOpen + ' of ' + groups.length, 'lists in the Properties space')
+    + kpi('Open tasks', totalOpen.toLocaleString(), 'across every property')
+    + kpi('Overdue', totalOver.toLocaleString(), totalOver ? 'past their due date' : 'nothing late',
+        totalOver ? 'var(--rust)' : null)
+    + kpi('Unassigned', unassigned.toLocaleString(), 'open with nobody on them',
+        unassigned ? 'var(--amber)' : null)
+    + '</div>';
+
+  const bar = '<div class="tkfilter">'
+    + '<span class="eyebrow">Filter</span>'
+    + '<input id="tk-propq" class="stagesel" style="flex:0 1 300px" '
+    +   'placeholder="Search a property or a task" value="' + escS(TK.propQ) + '">'
+    + '<label class="hint" style="display:flex;gap:6px;align-items:center;cursor:pointer">'
+    +   '<input type="checkbox" id="tk-done"' + (TK.showDone ? ' checked' : '') + '> Show completed</label>'
+    + '<span class="grow" style="flex:1"></span>'
+    + '<span class="eyebrow">' + matched + ' of ' + groups.length + ' matched to the portfolio</span>'
+    + '</div>';
+
+  const bands = shown.map(g => {
+    const open = TK.propOpen === g.id;
+    const rows = TK.showDone ? g.tasks : g.tasks.filter(tkOpen);
+    const p = g.property;
+    const figs = '<span class="figs">'
+      + (g.overdue ? '<span class="fig due">' + g.overdue + ' overdue</span>' : '')
+      + '<span class="fig' + (g.open ? '' : ' none') + '">' + g.open + ' open</span>'
+      + (p && p.marketValue ? '<span class="fig val">' + prMoney(p.marketValue) + '</span>' : '')
+      + '</span>';
+    const sub2 = p
+      ? escS([prEntName(prOwner(p)), p.apartments ? p.apartments + ' units' : ''].filter(Boolean).join(' · '))
+      : (g.folder ? escS(g.folder) + ' · not matched to a property record' : 'not matched to a property record');
+    return '<button class="tkpgrp' + (open ? ' open' : '') + '" data-tkprop="' + escS(g.id) + '">'
+      + '<span class="cv">▸</span>'
+      + '<span class="nm"><b>' + escS(g.name) + '</b><small>' + sub2 + '</small></span>'
+      + figs
+      + '</button>'
+      + (open
+          ? '<div class="tkpnest">'
+            + '<div class="tkhead"><span></span><span>Task</span><span>Space</span><span>Assignee</span>'
+            +   '<span>Status</span><span>Due</span><span>Priority</span><span></span></div>'
+            + (rows.length ? tkSort(rows).map(tkRow).join('')
+                : '<div class="empty" style="padding:22px"><b>Nothing open here</b>'
+                  + '<small>Tick "Show completed" to see what has been done.</small></div>')
+            + '</div>'
+          : '');
+  }).join('');
+
+  return strip + bar
+    + '<div class="card flush">'
+    + '<div class="cardhead"><h3>Property tasks</h3><span class="grow" style="flex:1"></span>'
+    +   '<span class="card-count eyebrow">' + shown.length + '</span></div>'
+    + '<div class="tktable">'
+    +   (shown.length ? bands
+        : '<div class="empty" style="padding:34px"><b>No property matches that</b>'
+          + '<small>Clear the search to see all ' + groups.length + '.</small></div>')
+    + '</div></div>'
+    + tkBulkBar();
+}
+
 function tkRow(t){
   const who = t.assignees[0];
   /* Each cell is its own control. The row is not a link any more: the name opens
@@ -7192,6 +7473,22 @@ function wireTasks(root){
       if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
     };
   }
+  /* The property view has its own search: it filters properties, not the task
+     list, so sharing TK.q would make switching views change what you see. */
+  const pq = root.querySelector('#tk-propq');
+  if (pq) {
+    pq.oninput = () => {
+      TK.propQ = pq.value;
+      drawTasks();
+      const again = document.getElementById('tk-propq');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
+  root.querySelectorAll('[data-tkprop]').forEach(b => b.onclick = () => {
+    TK.propOpen = TK.propOpen === b.dataset.tkprop ? null : b.dataset.tkprop;
+    drawTasks();
+  });
+
   on('tk-space', 'onchange', e => { TK.space = e.target.value; drawTasks(); });
   on('tk-list', 'onchange', e => { TK.list = e.target.value; drawTasks(); });
   root.querySelectorAll('[data-tkquick]').forEach(b => b.onclick = () => {
