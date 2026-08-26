@@ -192,3 +192,59 @@ DELETE FROM ads_daily WHERE spend > 0 AND impressions = 0 AND clicks = 0;
    clicks, ctr, cpc, cpm and frequency, and reading the note as though it did is
    what left the ads table with three columns and the ads view with no
    efficiency metric at all. */
+
+/* ---------------------------------------------------------------------------
+   Systems: clip projects and what comes out of them.
+
+   command-center's own tables. The uploaded source video is NOT stored here —
+   only the token that names it on disk. A 30 GB ceiling and a bytea column do
+   not belong in the same sentence.
+   --------------------------------------------------------------------------- */
+
+CREATE TABLE IF NOT EXISTS clip_projects (
+  id               TEXT PRIMARY KEY,
+  opus_project_id  TEXT UNIQUE,               -- null until the service accepts it
+  title            TEXT,
+  source_kind      TEXT NOT NULL,             -- 'url' | 'upload'
+  source_url       TEXT,                      -- what OpusClip was actually given
+  media_token      TEXT,                      -- names the uploaded file on disk
+  status           TEXT NOT NULL DEFAULT 'draft',  -- draft|processing|ready|failed
+  prefs            JSONB NOT NULL DEFAULT '{}',
+  raw              JSONB,                     -- the service's own create response
+  last_error       TEXT,
+  submitted_at     TIMESTAMPTZ,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS clip_projects_created ON clip_projects (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS clips (
+  id            TEXT PRIMARY KEY,
+  project_id    TEXT NOT NULL REFERENCES clip_projects(id) ON DELETE CASCADE,
+  opus_clip_id  TEXT NOT NULL,
+  title         TEXT,
+  score         NUMERIC(10,3),
+  start_sec     NUMERIC(12,3),
+  end_sec       NUMERIC(12,3),
+  duration_sec  NUMERIC(12,3),
+  video_url     TEXT,
+  thumb_url     TEXT,
+  transcript    TEXT,
+  status        TEXT,
+  raw           JSONB,
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (project_id, opus_clip_id)
+);
+
+CREATE TABLE IF NOT EXISTS clip_schedules (
+  id               TEXT PRIMARY KEY,
+  clip_id          TEXT NOT NULL REFERENCES clips(id) ON DELETE CASCADE,
+  target           TEXT,          -- the social account the clip goes to
+  caption          TEXT,
+  scheduled_at     TIMESTAMPTZ,   -- null means it was published immediately
+  opus_schedule_id TEXT,
+  status           TEXT NOT NULL DEFAULT 'scheduled',
+  last_error       TEXT,
+  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS clip_schedules_clip ON clip_schedules (clip_id);

@@ -264,6 +264,57 @@ and an explanation, so anything still calling them is told why.
   catches *new* contacts while an edit to an old one arrives by webhook and,
   failing that, on the daily full pass.
 
+## Systems
+
+Automations you trigger by hand. Six are listed; **Create a Clip** is built and
+the other five are marked "Not built yet" rather than offering a dead button.
+
+### Create a Clip
+
+Wraps [OpusClip](https://api.opus.pro). Source, curation and render preferences,
+submit, preview the rendered clips in the browser, then schedule each one to a
+connected social account.
+
+```
+drop a file ──► streamed to disk ──► served at /media/<token> ──┐
+                                                                 ├─► POST /clip-projects
+paste a URL ────────────────────────────────────────────────────┘
+                                                                     │
+        preview + schedule ◄── clips table ◄── poll or webhook ◄──────┘
+```
+
+**The service fetches a URL; it does not accept an upload.** That single fact
+shapes the screen. A dropped file is streamed to this server — never buffered,
+because a 30 GB ceiling and `express.raw()` in the same process is an
+out-of-memory crash — and served back at `/media/<48-hex-token>`, which is what
+OpusClip is given.
+
+`/media/:token` is deliberately unauthenticated: OpusClip carries no session.
+What contains it is the token — 24 random bytes generated server-side, used as
+the filename, pattern-checked on return so it cannot be walked into another
+path, and swept after 24 hours. Range requests are supported, since a fetcher
+pulling gigabytes asks for them in pieces.
+
+| Need | Why |
+|---|---|
+| `OPUS_API_KEY` | every call is 401 without it |
+| `PUBLIC_URL` | the address OpusClip fetches uploads from |
+| A mounted volume | otherwise uploads are on ephemeral disk and die on deploy |
+
+**Response shapes are inferred, not verified.** The base URL and bearer auth are
+confirmed against the live service — `/clip-projects`, `/brand-templates` and
+`/social-accounts` all answer 401 unauthenticated, which proves the paths exist.
+The public documentation names the endpoints and request fields but does not
+publish the response bodies, so every reader in `providers/opus.js` accepts
+several plausible field names and keeps the untouched payload in `raw`.
+`GET /api/systems/clip/diag` returns raw responses so the mapping can be
+corrected against a real payload on the first authenticated call. Guessing one
+field name and shipping it is how the Meta integration failed twice.
+
+Clips are collected by polling (`Check for clips`) as well as by webhook at
+`POST /webhooks/opus`, because a webhook that was never configured leaves a
+project stuck at "processing" with no way to find out.
+
 ## Social
 
 Sub-menu under the nav item: **Overview, YouTube, Meta, X**. Each platform view

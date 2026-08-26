@@ -1002,6 +1002,70 @@ main{min-width:0;display:flex;flex-direction:column}
 .sev.bad{background:rgba(255,90,69,.15);color:var(--rust)}
 .sev.info{background:rgba(124,108,255,.15);color:var(--brass)}
 
+/* ================= systems ================= */
+.autos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}
+@media(max-width:1180px){.autos{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.autos{grid-template-columns:minmax(0,1fr)}}
+.auto{display:flex;flex-direction:column;gap:8px;background:var(--panel);border:1px solid var(--edge);
+  border-radius:var(--r-lg);padding:16px 17px 14px;box-shadow:var(--shadow);text-align:left;
+  cursor:pointer;transition:.18s var(--ease);min-height:132px}
+.auto:hover{border-color:var(--edge2);transform:translateY(-2px)}
+.auto.on{border-color:rgba(124,108,255,.6);box-shadow:var(--shadow),0 0 0 3px rgba(124,108,255,.13)}
+.auto.soon{cursor:default;opacity:.72}
+.auto.soon:hover{transform:none;border-color:var(--edge)}
+.auto h4{font-family:var(--ff-display);font-size:14.5px;font-weight:600;color:var(--cream);letter-spacing:-.01em}
+.auto p{font-size:12px;color:var(--dim);line-height:1.5}
+.auto .foot{margin-top:auto;display:flex;align-items:center;gap:8px}
+
+.steps{display:flex;align-items:center;gap:0;margin-bottom:16px;flex-wrap:wrap}
+.step{display:flex;align-items:center;gap:8px;padding:7px 14px 7px 11px;font-size:12.5px;color:var(--dimmer);
+  border:1px solid var(--edge);background:var(--panel);border-right:0}
+.step:first-child{border-radius:999px 0 0 999px;padding-left:14px}
+.step:last-child{border-radius:0 999px 999px 0;border-right:1px solid var(--edge)}
+.step .n{width:19px;height:19px;border-radius:50%;display:grid;place-items:center;
+  background:var(--panel2);color:var(--dimmer);font-family:var(--ff-mono);font-size:10px;flex:none}
+.step.on{color:var(--cream);background:var(--panel2)}
+.step.on .n{background:var(--brass);color:#fff}
+.step.done .n{background:rgba(53,208,165,.2);color:var(--jade)}
+.step.done{color:var(--dim)}
+
+.drop{border:1.5px dashed var(--edge2);border-radius:var(--r-lg);padding:30px 20px;text-align:center;
+  background:var(--ink2);transition:.16s;cursor:pointer}
+.drop:hover,.drop.over{border-color:var(--brass);background:rgba(124,108,255,.05)}
+.drop b{display:block;color:var(--cream);font-size:14px;margin-bottom:5px;font-family:var(--ff-display)}
+.drop small{color:var(--dim);font-size:12px}
+.orbar{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--dimmer);font-size:11px;
+  font-family:var(--ff-mono);letter-spacing:.14em;text-transform:uppercase}
+.orbar::before,.orbar::after{content:'';flex:1;height:1px;background:var(--edge)}
+
+.fld{margin-bottom:13px}
+.fld label{display:block;font-size:11.5px;color:var(--dim);margin-bottom:6px}
+.fld input[type=text],.fld input[type=url],.fld input[type=number],.fld input[type=datetime-local],
+.fld select,.fld textarea{
+  width:100%;background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);
+  color:var(--text);font:inherit;font-size:13px;padding:9px 12px}
+.fld textarea{min-height:70px;resize:vertical}
+.fld input:focus,.fld select:focus,.fld textarea:focus{outline:none;border-color:var(--edge2)}
+.fld .hint{font-size:11px;color:var(--dimmer);margin-top:5px;line-height:1.5}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+
+.prog{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin-top:10px}
+.prog i{display:block;height:100%;background:var(--brass);border-radius:3px;transition:width .2s}
+
+.clipgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:14px}
+.clipcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
+  overflow:hidden;box-shadow:var(--shadow);display:flex;flex-direction:column}
+.clipcard video{width:100%;aspect-ratio:9/16;background:#000;display:block;object-fit:contain}
+.clipcard .noplay{width:100%;aspect-ratio:9/16;background:var(--ink2);display:grid;place-items:center;
+  color:var(--dimmer);font-size:11.5px;text-align:center;padding:16px;line-height:1.5}
+.clipcard .cb{padding:12px 13px 13px;display:flex;flex-direction:column;gap:7px;flex:1}
+.clipcard .ct{font-size:12.5px;color:var(--cream);line-height:1.35;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.clipcard .cm{display:flex;align-items:center;gap:7px;font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
+.clipcard .cact{margin-top:auto;display:flex;gap:6px}
+.scorepill{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 7px;
+  font-family:var(--ff-mono);font-size:10px;background:rgba(124,108,255,.15);color:var(--brass)}
+
 /* ---- drawer ---- */
 .scrim{position:fixed;inset:0;background:rgba(4,6,10,.58);backdrop-filter:blur(3px);
   opacity:0;pointer-events:none;transition:.22s;z-index:60}
@@ -1375,13 +1439,13 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   <!-- SYSTEMS -->
   <section class="view" id="v-systems">
     <div class="vhead">
-      <div><h1>Systems</h1><p>No automations connected.</p></div>
-      <span class="chip rust">Not connected</span>
+      <div><h1 id="sy-title">Systems</h1><p id="sy-sub">Automations you run by hand.</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="synced" id="sy-state"></span>
+        <button class="btn" id="sy-back" hidden>All automations</button>
+      </div>
     </div>
-    <div class="grid g4" style="margin-bottom:14px">
-      <div class="stat"><div class="eyebrow">Active workflows</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Runs</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Failures</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Time saved</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div>
-    </div>
-    <div class="card flush"><div class="empty"><b>No workflows</b><small>Each automation renders as a row with its run history and health.</small></div></div>
+    <div id="sy-body"></div>
   </section>
 </main>
 <div class="scrim" id="so-scrim"></div>
@@ -5672,6 +5736,533 @@ document.addEventListener('keydown', e => {
   const jump = { '1':'overview', '2':'youtube', '3':'meta', '4':'x' }[e.key];
   if (jump) { SO.view = jump; SO.section = 'performance'; SO.zoom = null; drawSocial(); loadSocialView(); }
 });
+
+
+/* ================= SYSTEMS =================
+
+   Automations run by hand. Six are listed; Create a Clip is built and the other
+   five say so on their face rather than offering a button that does nothing.
+
+   Create a Clip wraps OpusClip. The one structural fact that shapes this whole
+   screen: OpusClip fetches a URL, it does not accept an upload. A dropped file
+   is therefore streamed to this server, served back at an unguessable public
+   address, and that address is what the service is given. */
+
+const SY = {
+  open: null,            // null = the grid, otherwise an automation id
+  step: 1,
+  cfg: null,             // { configured, durableStorage, setupHint }
+  automations: [],
+  projects: [],
+  project: null, clips: [], schedules: [],
+  templates: [], destinations: [], destError: null,
+  source: { kind:'url', url:'', token:null, bytes:0, name:'' },
+  uploading: 0,          // 0-100 while a file is going up
+  busy: false,
+  scheduling: null       // the clip being scheduled
+};
+
+/* Preferences, defaulted to what OpusClip itself treats as sensible. Only
+   fields the documentation actually names are sent; nothing is invented to
+   fill a form. */
+const SY_PREFS = {
+  startSec: '', endSec: '',
+  durations: ['<30s', '30s-60s', '60s-90s'],
+  keywords: '',
+  genre: 'Auto',
+  skipCurate: false,
+  sourceLang: 'auto',
+  brandTemplateId: '',
+  maxClips: ''
+};
+let SYP = { ...SY_PREFS };
+
+const syFmtBytes = n => n >= 1e9 ? (n/1e9).toFixed(2) + ' GB'
+  : n >= 1e6 ? (n/1e6).toFixed(1) + ' MB' : Math.round(n/1e3) + ' KB';
+const syFmtSec = n => n == null ? '—'
+  : Math.floor(n/60) + ':' + String(Math.round(n%60)).padStart(2,'0');
+
+async function loadSystems(){
+  if (CAL.demo) return;
+  try {
+    const out = await api('/api/systems');
+    SY.automations = out.automations || [];
+    SY.cfg = out.clip || null;
+    SY.projects = out.clip?.recent || [];
+  } catch (err) {
+    SY.automations = [];
+    SY.cfg = { configured:false, error: err.message };
+  }
+  drawSystems();
+}
+
+function drawSystems(){
+  const body = document.getElementById('sy-body');
+  const title = document.getElementById('sy-title');
+  const sub = document.getElementById('sy-sub');
+  const back = document.getElementById('sy-back');
+  const state = document.getElementById('sy-state');
+  if (!body) return;
+
+  const auto = SY.automations.find(a => a.id === SY.open);
+  title.textContent = auto ? auto.name : 'Systems';
+  sub.textContent = auto ? auto.blurb : 'Automations you run by hand.';
+  back.hidden = !SY.open;
+
+  if (SY.open === 'clip' && SY.cfg) {
+    state.innerHTML = SY.cfg.configured
+      ? '<span class="d" style="background:var(--jade)"></span>OpusClip connected'
+      : '<span class="d" style="background:var(--rust)"></span>OpusClip not configured';
+  } else state.innerHTML = '';
+
+  body.innerHTML = SY.open === 'clip' ? clipSystem() : automationGrid();
+
+  body.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => {
+    const a = SY.automations.find(x => x.id === b.dataset.auto);
+    if (!a?.built) return;
+    SY.open = a.id; SY.step = 1; SY.project = null; SY.clips = [];
+    drawSystems();
+    if (a.id === 'clip') loadClipExtras();
+  });
+  wireClip(body);
+}
+
+function automationGrid(){
+  if (!SY.automations.length) {
+    return '<div class="vwrap viz"><div class="vempty"><b>Loading automations…</b></div></div>';
+  }
+  return '<div class="autos">' + SY.automations.map(a =>
+    '<button class="auto' + (a.built ? '' : ' soon') + '" data-auto="' + escS(a.id) + '"'
+    + (a.built ? '' : ' disabled') + '>'
+    + '<h4>' + escS(a.name) + '</h4>'
+    + '<p>' + escS(a.blurb) + '</p>'
+    + '<div class="foot">'
+    + (a.built
+        ? '<span class="chip2 up">Ready</span>'
+        : '<span class="chip2 flat">Not built yet</span>')
+    + (a.built && a.id === 'clip' && SY.projects.length
+        ? '<span class="kbench">' + SY.projects.length + ' recent project' + (SY.projects.length === 1 ? '' : 's') + '</span>' : '')
+    + '</div></button>').join('') + '</div>'
+    + '<div class="vwrap viz"><div class="vbody" style="font-size:12.5px;color:var(--dim);line-height:1.65">'
+    + 'Each automation is something you trigger, not a schedule. <b style="color:var(--cream)">Create a Clip</b> '
+    + 'is wired to OpusClip end to end — source, preferences, render, preview and scheduling. '
+    + 'The other five are listed so the shape of this screen is visible; none of them pretend to run.'
+    + '</div></div>';
+}
+
+/* ---------- Create a Clip ---------- */
+
+function clipSystem(){
+  if (!SY.cfg) return '<div class="vwrap viz"><div class="vempty"><b>Loading…</b></div></div>';
+
+  const notConfigured = !SY.cfg.configured
+    ? '<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
+      + '<span class="tx"><b>OpusClip is not configured.</b> Set <span class="mono">OPUS_API_KEY</span> from '
+      + 'clip.opus.pro/dashboard on the server, then reload. Everything below is inert until then — '
+      + 'the API refuses every call with 401 without it.</span></div></div></div>'
+    : '';
+
+  const ephemeral = (SY.cfg.durableStorage === false && SY.source.kind === 'file')
+    ? '<div class="insrow"><span class="sev warn">i</span><span class="tx">No storage volume is mounted, so an '
+      + 'uploaded file sits on ephemeral disk and is lost on the next deploy. OpusClip fetches it within minutes '
+      + 'of submitting, so this is usually fine — submit now rather than later.</span></div>'
+    : '';
+
+  if (SY.project) return notConfigured + clipProjectView();
+
+  return notConfigured + clipSteps() + clipSourceStep() + ephemeral + clipPrefsStep() + clipSubmitBar() + clipRecent();
+}
+
+function clipSteps(){
+  const steps = [['Source', 1], ['Preferences', 2], ['Render', 3], ['Schedule', 4]];
+  const at = SY.project ? 3 : (SY.source.url || SY.source.token ? 2 : 1);
+  return '<div class="steps">' + steps.map(([label, n]) =>
+    '<div class="step' + (n === at ? ' on' : n < at ? ' done' : '') + '">'
+    + '<span class="n">' + (n < at ? '✓' : n) + '</span>' + escS(label) + '</div>').join('') + '</div>';
+}
+
+function clipSourceStep(){
+  const src = SY.source;
+  const chosen = src.kind === 'file' && src.token;
+
+  const dropped = chosen
+    ? '<div class="insrow" style="border:0;padding:0"><span class="sev good">✓</span><span class="tx">'
+      + '<b>' + escS(src.name || 'Uploaded file') + '</b> — ' + escS(syFmtBytes(src.bytes))
+      + '<small style="display:block;color:var(--dimmer);margin-top:3px">Served to OpusClip from this server at a private address.</small>'
+      + '</span></div>'
+    : '';
+
+  const bar = SY.uploading > 0 && SY.uploading < 100
+    ? '<div class="prog"><i style="width:' + SY.uploading + '%"></i></div>'
+      + '<div class="hint">Uploading — ' + SY.uploading + '%. Large files take a while; leaving this page cancels it.</div>'
+    : '';
+
+  return '<div class="vwrap viz"><div class="vhead2"><h3>Source video</h3>'
+    + '<span class="sub">up to 10 hours · 30 GB</span></div><div class="vbody">'
+    + (chosen ? dropped : '<div class="drop" id="sy-drop"><b>Drop a video here, or click to choose</b>'
+        + '<small>MP4, MOV, WebM. It is uploaded to this server and OpusClip fetches it from there — '
+        + 'the service takes a URL, not a file.</small></div>'
+        + '<input type="file" id="sy-file" accept="video/*" hidden>')
+    + bar
+    + (chosen ? '<button class="tgl" data-syclear="1" style="margin-top:12px">Choose a different file</button>'
+              : '<div class="orbar">or</div>'
+                + '<div class="fld"><label>Paste a video URL</label>'
+                + '<input type="url" id="sy-url" placeholder="https://www.youtube.com/watch?v=… or a direct .mp4" value="' + escS(src.url) + '">'
+                + '<div class="hint">A YouTube link or any publicly reachable video file.</div></div>')
+    + '</div></div>';
+}
+
+function clipPrefsStep(){
+  const durs = ['<30s', '30s-60s', '60s-90s', '90s-3min'];
+  return '<div class="vwrap viz"><div class="vhead2"><h3>Curation</h3>'
+    + '<span class="sub">what to look for</span></div><div class="vbody">'
+    + '<div class="two">'
+    +   '<div class="fld"><label>Start at (seconds)</label><input type="number" min="0" id="syp-start" value="' + escS(SYP.startSec) + '" placeholder="0"></div>'
+    +   '<div class="fld"><label>End at (seconds)</label><input type="number" min="0" id="syp-end" value="' + escS(SYP.endSec) + '" placeholder="end of video"></div>'
+    + '</div>'
+    + '<div class="fld"><label>Clip lengths</label><div class="seg" style="flex-wrap:wrap">'
+    + durs.map(d => '<button class="' + (SYP.durations.includes(d) ? 'on' : '') + '" data-sydur="' + escS(d) + '">' + escS(d) + '</button>').join('')
+    + '</div><div class="hint">Which lengths OpusClip is allowed to cut to.</div></div>'
+    + '<div class="fld"><label>Topic keywords</label><input type="text" id="syp-kw" value="' + escS(SYP.keywords) + '" placeholder="pricing, objections, onboarding">'
+    + '<div class="hint">Comma separated. Left empty, OpusClip picks the moments itself.</div></div>'
+    + '<div class="two">'
+    +   '<div class="fld"><label>Genre</label><select id="syp-genre">'
+    +     ['Auto','Podcast','Interview','Talking Head','Vlog','Gaming','Sports','Webinar'].map(g =>
+            '<option' + (SYP.genre === g ? ' selected' : '') + '>' + escS(g) + '</option>').join('')
+    +   '</select></div>'
+    +   '<div class="fld"><label>Source language</label><select id="syp-lang">'
+    +     [['auto','Detect automatically'],['en','English'],['es','Spanish'],['fr','French'],['de','German'],['pt','Portuguese'],['it','Italian'],['nl','Dutch'],['ja','Japanese'],['ko','Korean'],['zh','Chinese'],['hi','Hindi'],['ar','Arabic']]
+            .map(([v,l]) => '<option value="' + v + '"' + (SYP.sourceLang === v ? ' selected' : '') + '>' + escS(l) + '</option>').join('')
+    +   '</select></div>'
+    + '</div>'
+    + '<label class="tgl" style="display:inline-flex"><input type="checkbox" id="syp-skip"' + (SYP.skipCurate ? ' checked' : '')
+    + ' style="accent-color:var(--brass)"> Skip curation and cut the whole range</label>'
+    + '<div class="hint" style="margin-top:8px">With this on, OpusClip stops choosing moments and simply cuts the range into clips.</div>'
+    + '</div></div>'
+    + '<div class="vwrap viz"><div class="vhead2"><h3>Render</h3><span class="sub">how the clips look</span></div><div class="vbody">'
+    + '<div class="fld"><label>Brand template</label><select id="syp-tpl">'
+    + '<option value="">OpusClip default</option>'
+    + SY.templates.map(t => '<option value="' + escS(t.id) + '"' + (SYP.brandTemplateId === t.id ? ' selected' : '') + '>' + escS(t.name) + '</option>').join('')
+    + '</select><div class="hint">'
+    + (SY.templates.length
+        ? 'Templates come from your OpusClip account — captions, layout and branding.'
+        : (SY.cfg?.configured ? 'No brand templates on the account yet, so the default is used.' : 'Connect OpusClip to load your templates.'))
+    + '</div></div></div></div>';
+}
+
+function clipSubmitBar(){
+  const ready = Boolean(SY.source.token || /^https?:\/\//i.test(SY.source.url.trim()));
+  return '<div class="fbar" style="justify-content:flex-end">'
+    + '<span class="flabel" style="margin-right:auto">'
+    + (ready ? 'Ready to submit' : 'Add a source video to continue') + '</span>'
+    + '<button class="btn primary" id="sy-submit"' + (ready && !SY.busy && SY.cfg?.configured ? '' : ' disabled style="opacity:.5;cursor:not-allowed"') + '>'
+    + (SY.busy ? 'Submitting…' : 'Create clips') + '</button></div>';
+}
+
+function clipRecent(){
+  if (!SY.projects.length) return '';
+  return '<div class="vwrap viz"><div class="vhead2"><h3>Recent projects</h3>'
+    + '<span class="sub">' + SY.projects.length + '</span></div>'
+    + '<div class="vscroll"><table class="vtable"><thead><tr><th>Project</th><th>Source</th><th>Status</th><th>Clips</th><th>Created</th></tr></thead><tbody>'
+    + SY.projects.map(pr => '<tr data-syopen="' + escS(pr.id) + '" style="cursor:pointer">'
+        + '<td>' + escS(pr.title || pr.id) + (pr.lastError ? '<span class="sm" style="display:block;color:var(--rust)">' + escS(pr.lastError) + '</span>' : '') + '</td>'
+        + '<td style="color:var(--dimmer)">' + escS(pr.sourceKind) + '</td>'
+        + '<td>' + statusChip(pr.status) + '</td>'
+        + '<td>' + (pr.clipCount ?? 0) + '</td>'
+        + '<td style="color:var(--dimmer)">' + escS(new Date(pr.createdAt).toLocaleString()) + '</td></tr>').join('')
+    + '</tbody></table></div></div>';
+}
+
+const statusChip = st => {
+  const cls = st === 'ready' ? 'up' : st === 'failed' ? 'down' : 'flat';
+  return '<span class="chip2 ' + cls + '">' + escS(st || 'draft') + '</span>';
+};
+
+function clipProjectView(){
+  const pr = SY.project;
+  const head = '<div class="vwrap viz"><div class="vhead2"><h3>' + escS(pr.title || 'Project') + '</h3>'
+    + '<span class="sub">' + escS(pr.sourceKind) + '</span><span class="grow" style="flex:1"></span>'
+    + statusChip(pr.status)
+    + '<button class="tgl" data-syrefresh="1"' + (SY.busy ? ' disabled' : '') + '>'
+    + (SY.busy ? 'Checking…' : 'Check for clips') + '</button>'
+    + '<button class="tgl" data-syclose="1">Back</button></div>'
+    + '<div class="vbody" style="font-size:12px;color:var(--dim)">'
+    + (pr.opusProjectId ? 'OpusClip project <span class="mono">' + escS(pr.opusProjectId) + '</span>. ' : '')
+    + (pr.lastError ? '<span style="color:var(--rust)">' + escS(pr.lastError) + '</span>'
+        : (SY.clips.length ? SY.clips.length + ' clip' + (SY.clips.length === 1 ? '' : 's') + ' rendered.'
+           : 'No clips yet. Rendering usually takes a few minutes per hour of source — press Check for clips.'))
+    + '</div></div>';
+
+  if (!SY.clips.length) return head;
+
+  const byClip = {};
+  for (const sc of SY.schedules) (byClip[sc.clipId] ||= []).push(sc);
+
+  return head + '<div class="clipgrid">' + SY.clips.map(c => {
+    const sched = byClip[c.id] || [];
+    return '<div class="clipcard">'
+      + (c.videoUrl
+          ? '<video src="' + escS(c.videoUrl) + '" controls preload="metadata"'
+            + (c.thumbUrl ? ' poster="' + escS(c.thumbUrl) + '"' : '') + '></video>'
+          : '<div class="noplay">No playable URL on this clip yet.<br>It may still be rendering.</div>')
+      + '<div class="cb">'
+      + '<div class="ct">' + escS(c.title || 'Untitled clip') + '</div>'
+      + '<div class="cm">'
+      +   (c.score != null ? '<span class="scorepill">' + c.score + '</span>' : '')
+      +   '<span>' + escS(syFmtSec(c.startSec)) + '–' + escS(syFmtSec(c.endSec)) + '</span>'
+      +   (c.durationSec != null ? '<span>· ' + Math.round(c.durationSec) + 's</span>' : '')
+      + '</div>'
+      + (sched.length
+          ? '<div class="cm" style="color:var(--jade)">' + sched.map(x =>
+              (x.status === 'failed' ? '✕ ' + escS(x.lastError || 'failed')
+               : (x.scheduledAt ? '⏱ ' + new Date(x.scheduledAt).toLocaleString() : '✓ published'))).join('<br>') + '</div>'
+          : '')
+      + '<div class="cact">'
+      + '<button class="tgl" data-syschedule="' + escS(c.id) + '" style="flex:1;justify-content:center">Schedule</button>'
+      + (c.videoUrl ? '<a class="tgl" href="' + escS(c.videoUrl) + '" download target="_blank" rel="noopener" style="text-decoration:none">Save</a>' : '')
+      + '</div></div></div>';
+  }).join('') + '</div>' + schedulePanel();
+}
+
+function schedulePanel(){
+  if (!SY.scheduling) return '';
+  const c = SY.clips.find(x => x.id === SY.scheduling);
+  if (!c) return '';
+  const dests = SY.destinations;
+  return '<div class="vwrap viz" style="margin-top:14px"><div class="vhead2"><h3>Schedule this clip</h3>'
+    + '<span class="sub">' + escS(c.title || 'Untitled') + '</span><span class="grow" style="flex:1"></span>'
+    + '<button class="tgl" data-sycancelsched="1">Cancel</button></div><div class="vbody">'
+    + (dests.length
+        ? '<div class="fld"><label>Post to</label><div class="seg" style="flex-wrap:wrap">'
+          + dests.map(d => '<button class="' + (SY.pickedDest === d.id ? 'on' : '') + '" data-sydest="' + escS(d.id) + '">'
+              + escS([d.platform, d.handle].filter(Boolean).join(' · ') || d.id) + '</button>').join('')
+          + '</div><div class="hint">Accounts connected inside OpusClip. Connect more there and they appear here.</div></div>'
+        : '<div class="insrow"><span class="sev warn">i</span><span class="tx">'
+          + (SY.destError
+              ? 'Could not load destinations: ' + escS(SY.destError)
+              : 'No social accounts are connected in OpusClip, so there is nowhere to post yet. Connect them at clip.opus.pro, then reopen this.')
+          + '</span></div>')
+    + '<div class="fld"><label>Caption</label><textarea id="sy-cap" placeholder="Optional. Left empty, the platform default is used."></textarea></div>'
+    + '<div class="fld"><label>When</label><input type="datetime-local" id="sy-when">'
+    + '<div class="hint">Leave empty to publish immediately. A time in the past is refused.</div></div>'
+    + '<button class="btn primary" id="sy-doschedule"' + (dests.length && SY.pickedDest ? '' : ' disabled style="opacity:.5;cursor:not-allowed"') + '>'
+    + 'Schedule clip</button></div></div>';
+}
+
+/* ---------- wiring ---------- */
+
+async function loadClipExtras(){
+  try { const t = await api('/api/systems/clip/templates'); SY.templates = t.templates || []; } catch { SY.templates = []; }
+  try {
+    const d = await api('/api/systems/clip/destinations');
+    SY.destinations = d.accounts || []; SY.destError = d.error || null;
+  } catch (err) { SY.destinations = []; SY.destError = err.message; }
+  drawSystems();
+}
+
+function wireClip(root){
+  const drop = root.querySelector('#sy-drop');
+  const file = root.querySelector('#sy-file');
+  if (drop && file) {
+    drop.onclick = () => file.click();
+    drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = e => {
+      e.preventDefault(); drop.classList.remove('over');
+      if (e.dataTransfer.files?.[0]) uploadSource(e.dataTransfer.files[0]);
+    };
+    file.onchange = () => { if (file.files?.[0]) uploadSource(file.files[0]); };
+  }
+
+  const url = root.querySelector('#sy-url');
+  if (url) url.oninput = () => { SY.source.url = url.value; SY.source.kind = 'url';
+    const b = document.getElementById('sy-submit');
+    if (b) { const ok = /^https?:\/\//i.test(url.value.trim()) && SY.cfg?.configured;
+      b.disabled = !ok; b.style.opacity = ok ? '' : '.5'; b.style.cursor = ok ? '' : 'not-allowed'; } };
+
+  /* Bound on input, so state survives the next render. */
+  const bind = (id, key, kind) => {
+    const e = root.querySelector('#' + id);
+    if (!e) return;
+    const read = () => kind === 'check' ? e.checked : e.value;
+    e[kind === 'select' || kind === 'check' ? 'onchange' : 'oninput'] = () => { SYP[key] = read(); };
+    /* Selects and checkboxes also fire input in some browsers; harmless. */
+    if (kind !== 'check') e.onchange = () => { SYP[key] = read(); };
+  };
+  bind('syp-start', 'startSec');
+  bind('syp-end', 'endSec');
+  bind('syp-kw', 'keywords');
+  bind('syp-genre', 'genre', 'select');
+  bind('syp-lang', 'sourceLang', 'select');
+  bind('syp-tpl', 'brandTemplateId', 'select');
+  bind('syp-skip', 'skipCurate', 'check');
+
+  root.querySelectorAll('[data-syclear]').forEach(b => b.onclick = () => {
+    SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' }; SY.uploading = 0; drawSystems();
+  });
+  root.querySelectorAll('[data-sydur]').forEach(b => b.onclick = () => {
+    const d = b.dataset.sydur, i = SYP.durations.indexOf(d);
+    if (i >= 0) { if (SYP.durations.length > 1) SYP.durations.splice(i, 1); }
+    else SYP.durations.push(d);
+    drawSystems();
+  });
+  root.querySelectorAll('[data-syopen]').forEach(b => b.onclick = () => openProject(b.dataset.syopen));
+  root.querySelectorAll('[data-syclose]').forEach(b => b.onclick = () => {
+    SY.project = null; SY.clips = []; SY.scheduling = null; drawSystems();
+  });
+  root.querySelectorAll('[data-syrefresh]').forEach(b => b.onclick = refreshProject);
+  root.querySelectorAll('[data-syschedule]').forEach(b => b.onclick = () => {
+    SY.scheduling = b.dataset.syschedule; SY.pickedDest = SY.destinations[0]?.id || null; drawSystems();
+  });
+  root.querySelectorAll('[data-sycancelsched]').forEach(b => b.onclick = () => { SY.scheduling = null; drawSystems(); });
+  root.querySelectorAll('[data-sydest]').forEach(b => b.onclick = () => { SY.pickedDest = b.dataset.sydest; drawSystems(); });
+
+  const sub = root.querySelector('#sy-submit');
+  if (sub) sub.onclick = submitProject;
+  const doSch = root.querySelector('#sy-doschedule');
+  if (doSch) doSch.onclick = doSchedule;
+}
+
+/* XHR rather than fetch: fetch reports no upload progress, and a multi-gigabyte
+   file with no progress bar looks like a hang. The body is the raw file — no
+   multipart, so there is no parser on the server either. */
+function uploadSource(f){
+  SY.source = { kind:'file', url:'', token:null, bytes:f.size, name:f.name };
+  SY.uploading = 1; drawSystems();
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/systems/clip/upload');
+  xhr.setRequestHeader('Content-Type', f.type || 'application/octet-stream');
+  xhr.upload.onprogress = e => {
+    if (!e.lengthComputable) return;
+    const pct = Math.round(e.loaded / e.total * 100);
+    if (pct !== SY.uploading) { SY.uploading = pct; drawSystems(); }
+  };
+  xhr.onload = () => {
+    let j = {};
+    try { j = JSON.parse(xhr.responseText); } catch {}
+    if (xhr.status >= 200 && xhr.status < 300 && j.token) {
+      SY.source.token = j.token; SY.uploading = 100;
+      toast('Uploaded ' + syFmtBytes(j.bytes));
+      if (j.note) banner(j.note);
+    } else {
+      SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' };
+      SY.uploading = 0;
+      banner('Upload failed: ' + (j.error || xhr.status));
+    }
+    drawSystems();
+  };
+  xhr.onerror = () => {
+    SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' }; SY.uploading = 0;
+    banner('Upload failed — the connection dropped.'); drawSystems();
+  };
+  xhr.send(f);
+}
+
+/* Reads SYP, never the DOM.
+
+   This used to scrape the inputs at submit time, which meant every re-render
+   in between silently discarded whatever had been typed: the panel is rebuilt
+   from SYP, so a value that only existed in an input was gone the moment a
+   duration chip was clicked. The inputs now write into SYP as they change and
+   this reads the state. */
+function collectPrefs(){
+  /* Only fields with a value are sent. An empty string is not "no preference"
+     to an API — it is a value, and often an invalid one. */
+  const curationPref = {};
+  const st = Number(SYP.startSec), en = Number(SYP.endSec);
+  if (SYP.startSec !== '' || SYP.endSec !== '') {
+    curationPref.range = {};
+    if (SYP.startSec !== '' && isFinite(st)) curationPref.range.startSec = st;
+    if (SYP.endSec !== '' && isFinite(en)) curationPref.range.endSec = en;
+  }
+  if (SYP.durations.length) curationPref.clipDurations = SYP.durations.slice();
+  const kw = SYP.keywords.split(',').map(x => x.trim()).filter(Boolean);
+  if (kw.length) curationPref.topicKeywords = kw;
+  if (SYP.genre && SYP.genre !== 'Auto') curationPref.genre = SYP.genre;
+  if (SYP.skipCurate) curationPref.skipCurate = true;
+
+  return {
+    curationPref: Object.keys(curationPref).length ? curationPref : undefined,
+    importPref: { sourceLang: SYP.sourceLang || 'auto' },
+    brandTemplateId: SYP.brandTemplateId || undefined
+  };
+}
+
+async function submitProject(){
+  if (SY.busy) return;
+  SY.busy = true; drawSystems();
+  const prefs = collectPrefs();
+  const body = {
+    title: SY.source.name || SY.source.url.slice(0, 90) || 'Clip project',
+    ...prefs
+  };
+  if (SY.source.token) body.mediaToken = SY.source.token;
+  else body.videoUrl = SY.source.url.trim();
+
+  try {
+    const out = await api('/api/systems/clip/projects', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    toast('Submitted to OpusClip');
+    SY.source = { kind:'url', url:'', token:null, bytes:0, name:'' };
+    await openProject(out.project.id);
+    await loadSystems();
+  } catch (err) {
+    banner('Could not create the project: ' + err.message);
+  } finally {
+    SY.busy = false; drawSystems();
+  }
+}
+
+async function openProject(id){
+  try {
+    const out = await api('/api/systems/clip/projects/' + encodeURIComponent(id));
+    SY.project = out.project; SY.clips = out.clips || []; SY.schedules = out.schedules || [];
+    SY.open = 'clip'; SY.scheduling = null;
+  } catch (err) { banner('Could not open that project: ' + err.message); }
+  drawSystems();
+}
+
+async function refreshProject(){
+  if (!SY.project || SY.busy) return;
+  SY.busy = true; drawSystems();
+  try {
+    const out = await api('/api/systems/clip/projects/' + encodeURIComponent(SY.project.id) + '/refresh', { method: 'POST' });
+    SY.project = out.project; SY.clips = out.clips || [];
+    toast(out.found ? out.found + ' clip' + (out.found === 1 ? '' : 's') + ' found' : (out.note || 'Nothing yet'));
+  } catch (err) {
+    banner('Check failed: ' + err.message);
+  } finally { SY.busy = false; drawSystems(); }
+}
+
+async function doSchedule(){
+  const clip = SY.clips.find(c => c.id === SY.scheduling);
+  if (!clip || !SY.pickedDest) return;
+  const when = document.getElementById('sy-when')?.value || '';
+  const caption = document.getElementById('sy-cap')?.value || '';
+  try {
+    await api('/api/systems/clip/clips/' + encodeURIComponent(clip.id) + '/schedule', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        socialAccountIds: [SY.pickedDest],
+        caption,
+        scheduledAt: when ? new Date(when).toISOString() : null
+      })
+    });
+    toast(when ? 'Scheduled' : 'Published');
+    SY.scheduling = null;
+    await openProject(SY.project.id);
+  } catch (err) {
+    banner('Could not schedule: ' + err.message);
+  }
+}
+
+document.getElementById('sy-back').onclick = () => {
+  SY.open = null; SY.project = null; SY.clips = []; SY.scheduling = null; drawSystems();
+};
+document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.target === 'systems' && !SY.automations.length) loadSystems();
+}));
 
 
 /* ================= LOADERS =================
