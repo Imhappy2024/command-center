@@ -47,7 +47,12 @@ export function selfUpdateRoutes({ env, auth }){
     const [head, branch, dirty] = await Promise.all([
       git(['rev-parse', 'HEAD']),
       git(['rev-parse', '--abbrev-ref', 'HEAD']),
-      git(['status', '--porcelain'])
+      /* --untracked-files=no: an untracked file is not a reason to refuse.
+         A stray note or log in the install folder would otherwise block every
+         update forever, and a pull only conflicts with an untracked file when
+         it would overwrite one — which git refuses by itself, with a message
+         that says which file. */
+      git(['status', '--porcelain', '--untracked-files=no'])
     ]);
     res.json({
       version: pkgVersion(),
@@ -103,7 +108,8 @@ export function selfUpdateRoutes({ env, auth }){
     if (updating) return res.status(409).json({ error:'an update is already running' });
     updating = true;
     try {
-      const dirty = await git(['status', '--porcelain']);
+      /* Tracked changes only — see the note in /api/app/version. */
+      const dirty = await git(['status', '--porcelain', '--untracked-files=no']);
       /* Never discard someone's uncommitted work to install an update. */
       if (dirty.ok && dirty.stdout) {
         return res.status(409).json({
