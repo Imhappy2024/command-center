@@ -20,7 +20,7 @@
 
 import express from 'express';
 import path from 'node:path';
-import { spawnClaude, claudeOnce, resolveClaude } from '../lib/claude-cli.js';
+import { spawnClaude, claudeOnce, resolveClaude, strippedBilling } from '../lib/claude-cli.js';
 
 /* Hosted platforms all announce themselves. If any of these is set we are not
    on someone's laptop, and this router does not exist. */
@@ -58,7 +58,10 @@ export function claudeRoutes({ env, auth }){
       permitted: PERMITTED,
       writable: Boolean(writable || env.CLAUDE_YOLO === '1'),
       busy: Boolean(running),
-      launch: resolveClaude(env).kind
+      launch: resolveClaude(env).kind,
+      /* Names any API-billing variable found in the environment and removed
+         from the child, so "this bills to the subscription" is checkable. */
+      strippedForBilling: strippedBilling(env)
     });
   });
 
