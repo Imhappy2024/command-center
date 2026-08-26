@@ -90,7 +90,9 @@ if ($NoShortcuts) {
 }
 
 Step 'Creating shortcuts'
-$launcher = Join-Path $Dir 'install\Command Center.cmd'
+# The .vbs starts the launcher hidden -- no console window behind the app.
+# install\"Command Center.cmd" is still there for a visible, debuggable run.
+$launcher = Join-Path $Dir 'install\command-center.vbs'
 $icon     = Join-Path $Dir 'public\favicon.ico'
 $shell    = New-Object -ComObject WScript.Shell
 foreach ($where in @(
@@ -109,7 +111,8 @@ foreach ($where in @(
 Write-Host ''
 Write-Host 'Installed.' -ForegroundColor Green
 Write-Host "  Location : $Dir"
-Write-Host "  Launch   : the Command Center shortcut, or install\Command Center.cmd"
+Write-Host "  Launch   : the Command Center shortcut (no console window)"
+Write-Host "  Debug    : install\Command Center.cmd runs the same thing visibly"
 Write-Host "  Config   : $Dir\.env"
 Write-Host ''
 Write-Host 'Updates: the dashboard checks GitHub itself and shows an Update button' -ForegroundColor DarkGray

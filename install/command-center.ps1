@@ -1,47 +1,71 @@
 # Command Center launcher and supervisor (Windows).
 #
-# Two jobs:
-#   1. Start the server with CC_SUPERVISED=1, so the in-app "Update now" button
-#      can restart into the new code instead of just killing the process. That
-#      env var is the only thing /api/app/restart checks -- without a supervisor
-#      it refuses, because exiting would leave nothing running.
-#   2. Open the dashboard once the port answers.
+# Started hidden by command-center.vbs, so there is no console window behind the
+# app. That has consequences this script has to handle rather than ignore:
 #
-# A clean exit (code 0) is treated as "restart me" -- that is what the update
-# flow does. Any other exit code is a crash, and it stops so the error stays on
-# screen instead of scrolling past in a restart loop.
+#   * Nothing can be printed at the user. Output goes to logs\launcher.log and
+#     logs\server.log, and a real failure raises a message box, because a hidden
+#     process that dies silently is indistinguishable from one that never ran.
+#   * There is no window to close to stop it. /api/app/quit exits with
+#     $QUIT_CODE and this loop treats that as "stop", as opposed to 0 which
+#     means "the updater restarted me".
+#   * Clicking the shortcut twice must not start a second server fighting for
+#     the port. If the port already answers, this just opens the app window.
+#
+# Run install\"Command Center.cmd" instead to get the same thing with a visible
+# console, which is what you want when something is wrong.
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-  Write-Host "Node.js is not installed or not on PATH." -ForegroundColor Red
-  Write-Host "Install it from https://nodejs.org (LTS), then run this again."
-  Read-Host "Press Enter to close"
+$QUIT_CODE = 9          # matches CC_QUIT_CODE in routes/selfupdate.js
+$logDir = Join-Path $root 'logs'
+New-Item -ItemType Directory -Force -Path $logDir | Out-Null
+$launcherLog = Join-Path $logDir 'launcher.log'
+$serverLog = Join-Path $logDir 'server.log'
+
+function Log($m){
+  $line = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + '  ' + $m
+  Add-Content -Path $launcherLog -Value $line -Encoding utf8
+  # Harmless when hidden, useful when run from the .cmd.
+  Write-Host $m
+}
+
+function Fail($title, $body){
+  Log ("FAILED: " + $title + " -- " + $body)
+  try {
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.MessageBox]::Show(
+      ($body + "`n`nLog: " + $launcherLog), ('Command Center - ' + $title),
+      'OK', 'Error') | Out-Null
+  } catch {
+    # No WinForms (rare). The log is still there, and a visible run shows this.
+    Write-Host $body -ForegroundColor Red
+  }
   exit 1
 }
 
-if (-not (Test-Path (Join-Path $root 'node_modules'))) {
-  Write-Host "Installing dependencies (first run only)..." -ForegroundColor Cyan
-  # npm writes progress to stderr; ErrorActionPreference is not 'Stop' here, but
-  # judge it by the exit code regardless.
-  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-  try { npm install --omit=dev; $code = $LASTEXITCODE } finally { $ErrorActionPreference = $prev }
-  if ($code -ne 0) { Read-Host "npm install failed. Press Enter to close"; exit 1 }
+Log '--- launch ---'
+
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+  Fail 'Node.js missing' 'Node.js is not installed, or not on PATH. Install the LTS build from https://nodejs.org and launch again.'
 }
 
 if (-not (Test-Path (Join-Path $root '.env'))) {
-  Write-Host ".env is missing. Copy .env.example to .env and fill it in first." -ForegroundColor Yellow
-  Read-Host "Press Enter to close"
-  exit 1
+  Fail 'Not configured' 'There is no .env in the install folder. Copy .env.example to .env and fill in DATABASE_URL and ENCRYPTION_KEY.'
 }
 
-$env:CC_SUPERVISED = '1'
-# Local run: the Claude section mounts, and so do the update endpoints.
+if (-not (Test-Path (Join-Path $root 'node_modules'))) {
+  Log 'installing dependencies (first run)'
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { npm install --omit=dev 2>&1 | Add-Content -Path $launcherLog -Encoding utf8; $code = $LASTEXITCODE }
+  finally { $ErrorActionPreference = $prev }
+  if ($code -ne 0) { Fail 'Install failed' "npm install exited with code $code." }
+}
 
-# Read PORT out of .env rather than assuming 3000. server.js loads .env itself,
-# so guessing here only means opening the browser on the wrong port.
+# PORT comes from .env -- server.js reads it from there, so guessing would only
+# mean opening the app window on the wrong address.
 $port = $env:PORT
 if (-not $port) {
   $m = Select-String -Path (Join-Path $root '.env') -Pattern '^\s*(?:export\s+)?PORT\s*[=:]\s*(\d+)' |
@@ -51,28 +75,88 @@ if (-not $port) {
 if (-not $port) { $port = '3000' }
 $url = "http://localhost:$port"
 
-# Open the browser once, after the port actually answers. A restart should not
-# pile up another tab.
-Start-Job -ScriptBlock {
-  param($u)
-  for ($i = 0; $i -lt 60; $i++) {
-    try { Invoke-WebRequest -Uri $u -UseBasicParsing -TimeoutSec 2 | Out-Null; Start-Process $u; return }
-    catch { Start-Sleep -Milliseconds 500 }
-  }
-} -ArgumentList $url | Out-Null
+# Chromium's --app is a window with no address bar, no tabs and its own taskbar
+# button. A dedicated --user-data-dir gives it a separate window list so it does
+# not group under the everyday browser. AUTH_MODE is open on a local install, so
+# a separate profile costs nothing -- there is no login to carry over.
+function Find-Chromium {
+  $candidates = @(
+    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
+    "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
+    "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+  )
+  foreach ($c in $candidates) { if ($c -and (Test-Path $c)) { return $c } }
+  return $null
+}
 
-Write-Host "Command Center -> $url" -ForegroundColor Green
-Write-Host "Close this window to stop it.`n" -ForegroundColor DarkGray
+$browser = Find-Chromium
+$profileDir = Join-Path $env:LOCALAPPDATA 'CommandCenter\.appwindow'
+
+function Open-AppWindow {
+  if ($browser) {
+    New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
+    Start-Process $browser -ArgumentList @(
+      "--app=$url", "--user-data-dir=$profileDir", "--no-first-run",
+      "--no-default-browser-check", "--window-size=1440,900"
+    )
+  } else {
+    Start-Process $url          # default browser, as a tab
+  }
+}
+
+function Test-Up {
+  try { Invoke-WebRequest -Uri ($url + '/api/app/version') -UseBasicParsing -TimeoutSec 2 | Out-Null; return $true }
+  catch { return $false }
+}
+
+# Already running? Just show it. Two servers on one port is the more confusing
+# failure, and it is the one a second click would otherwise cause.
+if (Test-Up) {
+  Log 'already running; opening the app window'
+  Open-AppWindow
+  exit 0
+}
+
+$env:CC_SUPERVISED = '1'        # lets /api/app/restart actually restart
+$env:CC_QUIT_CODE = "$QUIT_CODE"
+
+# Open the window once the port answers, in the background, so a restart does
+# not stack up another one.
+Start-Job -ScriptBlock {
+  param($u, $exe, $prof)
+  for ($i = 0; $i -lt 120; $i++) {
+    try {
+      Invoke-WebRequest -Uri ($u + '/api/app/version') -UseBasicParsing -TimeoutSec 2 | Out-Null
+      if ($exe) {
+        New-Item -ItemType Directory -Force -Path $prof | Out-Null
+        Start-Process $exe -ArgumentList @(
+          "--app=$u", "--user-data-dir=$prof", "--no-first-run",
+          "--no-default-browser-check", "--window-size=1440,900"
+        )
+      } else { Start-Process $u }
+      return
+    } catch { Start-Sleep -Milliseconds 500 }
+  }
+} -ArgumentList $url, $browser, $profileDir | Out-Null
+
+$where = ' in the default browser'
+if ($browser) { $where = ' in ' + (Split-Path -Leaf $browser) }
+Log ("serving " + $url + $where)
 
 while ($true) {
-  node server.js
-  $code = $LASTEXITCODE
-  if ($code -eq 0) {
-    Write-Host "`nRestarting into the updated version...`n" -ForegroundColor Cyan
-    Start-Sleep -Seconds 1
-    continue
-  }
-  Write-Host "`nCommand Center exited with code $code." -ForegroundColor Red
-  Read-Host "Press Enter to close"
-  break
+  # Keep the previous run's log rather than growing one forever; a crash is
+  # diagnosed from the run that crashed.
+  if (Test-Path $serverLog) { Move-Item $serverLog ($serverLog + '.1') -Force }
+  $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
+  try { node server.js 2>&1 | Tee-Object -FilePath $serverLog | Out-Null; $code = $LASTEXITCODE }
+  finally { $ErrorActionPreference = $prev }
+
+  if ($code -eq 0) { Log 'restarting into the updated version'; Start-Sleep -Seconds 1; continue }
+  if ($code -eq $QUIT_CODE) { Log 'quit requested'; break }
+
+  $tail = ''
+  if (Test-Path $serverLog) { $tail = (Get-Content $serverLog -Tail 12) -join "`n" }
+  Fail 'Stopped unexpectedly' ("Command Center exited with code $code.`n`n" + $tail)
 }

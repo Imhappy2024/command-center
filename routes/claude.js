@@ -72,6 +72,113 @@ export function claudeRoutes({ env, auth }){
     catch { res.json({ ok:true, raw: out.stdout }); }
   });
 
+  /* ---- signing in and switching accounts ----------------------------------
+
+     `claude auth login` prints an authorize URL, opens a browser, and starts a
+     callback server on an ephemeral localhost port. So the flow completes on its
+     own as long as the process stays alive -- which means this endpoint has to
+     hold the child open and stream, not spawn-and-collect. (Learned the hard
+     way: killing it early leaves the browser landing on a dead port.)
+
+     The page also shows a code, for when the callback cannot be reached, so
+     /auth/code exists to paste one into the waiting process's stdin.
+
+     The link is handed to the browser rather than followed here. Signing in is
+     the user's action -- the server should never be the one authenticating an
+     account on their behalf. */
+
+  let pendingLogin = null;
+
+  r.post('/api/claude/auth/login', auth.require, express.json(), (req, res) => {
+    if (pendingLogin) return res.status(409).json({ error: 'a sign-in is already waiting' });
+
+    const b = req.body || {};
+    const args = ['auth', 'login'];
+    /* --console would bill to API credits, which is the opposite of the point,
+       so it is not offered. */
+    args.push('--claudeai');
+    if (b.sso) args.push('--sso');
+    if (typeof b.email === 'string' && /^[^\s@]{1,120}@[^\s@]{1,120}$/.test(b.email.trim())) {
+      args.push('--email', b.email.trim());
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive'
+    });
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+    const child = spawnClaude(args, { cwd: CWD, prompt: null });
+    pendingLogin = child;
+
+    let buf = '', urlSent = false;
+    const onText = chunk => {
+      /* The CLI paints with ANSI. Strip it before matching or the URL comes
+         back wrapped in escape codes. */
+      const text = chunk.toString().replace(/\x1B\[[0-?]*[ -\/]*[@-~]/g, '');
+      buf += text;
+      send('log', { text });
+      if (!urlSent) {
+        const m = buf.match(/https:\/\/[^\s'"]+oauth[^\s'"]*/i);
+        if (m) { urlSent = true; send('url', { url: m[0] }); }
+      }
+    };
+    child.stdout.on('data', onText);
+    child.stderr.on('data', onText);
+
+    /* Five minutes is generous for a browser round trip and short enough that a
+       forgotten tab does not pin a child process forever. */
+    const giveUp = setTimeout(() => {
+      if (pendingLogin === child) { send('log', { text: '\nTimed out waiting for the browser.\n' }); child.kill('SIGTERM'); }
+    }, 5 * 60_000);
+
+    child.on('error', err => {
+      clearTimeout(giveUp);
+      send('fatal', { error: err.message });
+      pendingLogin = null; res.end();
+    });
+
+    child.on('close', async code => {
+      clearTimeout(giveUp);
+      pendingLogin = null;
+      /* Report what actually happened rather than trusting the exit code. */
+      const after = await claudeOnce(['auth', 'status'], { cwd: CWD });
+      let account = null;
+      try { account = JSON.parse(after.stdout); } catch { /* leave null */ }
+      send('done', { code, loggedIn: Boolean(account?.loggedIn), account });
+      res.end();
+    });
+
+    /* Unlike a chat turn, this must NOT die when the browser navigates away --
+       the callback server inside the child is what the OAuth redirect hits. */
+    res.on('close', () => { /* deliberately empty */ });
+  });
+
+  r.post('/api/claude/auth/code', auth.require, express.json(), (req, res) => {
+    if (!pendingLogin) return res.status(409).json({ error: 'no sign-in is waiting for a code' });
+    const code = String(req.body?.code || '').trim();
+    /* Whatever the page shows, it is an opaque token: accept a conservative
+       character set and nothing whitespace-separated. */
+    if (!/^[A-Za-z0-9._~#-]{8,512}$/.test(code)) return res.status(400).json({ error: 'that does not look like an authorization code' });
+    pendingLogin.stdin.write(code + '\n');
+    res.json({ ok: true });
+  });
+
+  r.post('/api/claude/auth/cancel', auth.require, (req, res) => {
+    if (pendingLogin) { pendingLogin.kill('SIGTERM'); pendingLogin = null; }
+    res.json({ ok: true });
+  });
+
+  r.post('/api/claude/auth/logout', auth.require, async (req, res) => {
+    if (pendingLogin) { pendingLogin.kill('SIGTERM'); pendingLogin = null; }
+    const out = await claudeOnce(['auth', 'logout'], { cwd: CWD, timeoutMs: 30_000 });
+    const after = await claudeOnce(['auth', 'status'], { cwd: CWD });
+    let account = null;
+    try { account = JSON.parse(after.stdout); } catch { /* leave null */ }
+    res.json({ ok: out.ok, text: out.stdout || out.stderr || '', loggedIn: Boolean(account?.loggedIn) });
+  });
+
   r.get('/api/claude/plugins', auth.require, async (req, res) => {
     const out = await claudeOnce(['plugin','list'], { cwd: CWD });
     res.json({ ok: out.ok, text: out.stdout || out.stderr || '', error: out.error });

@@ -79,6 +79,8 @@ export function selfUpdateRoutes({ env, auth }){
       branch: branch.ok ? branch.stdout : null,
       /* Uncommitted work is why an update might refuse, so say it up front. */
       dirty: dirty.ok ? Boolean(dirty.stdout) : null,
+      /* The UI only offers Quit when something is listening for it. */
+      supervised: env.CC_SUPERVISED === '1',
       root: ROOT
     });
   });
@@ -159,6 +161,20 @@ export function selfUpdateRoutes({ env, auth }){
         restartRequired: true
       });
     } finally { updating = false; }
+  });
+
+  /* Stop for good. With the launcher running hidden there is no console window
+     to close, so the only way out would otherwise be Task Manager.
+
+     The exit code is what separates this from a restart: 0 tells the launcher
+     loop to bring the new build up, this one tells it to stop. */
+  r.post('/api/app/quit', auth.require, (req, res) => {
+    if (env.CC_SUPERVISED !== '1') {
+      return res.status(400).json({ error: 'Not running under the launcher, so there is nothing to signal. Stop the process however you started it.' });
+    }
+    const code = Number(env.CC_QUIT_CODE) || 9;
+    res.json({ ok: true, quitting: true });
+    setTimeout(() => process.exit(code), 250);
   });
 
   /* Exits so a supervisor — the launcher script, a service wrapper, nodemon —

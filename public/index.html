@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Command Center</title>
+<!-- Installable as a desktop app: Edge/Chrome offer "Install" with these, and
+     the result is a real window with its own taskbar icon rather than a tab.
+     No Electron, no build step, and the self-updater keeps working because the
+     page is still served by the local server. -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="theme-color" content="#0E1120">
+<meta name="color-scheme" content="dark">
+<link rel="icon" href="/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+<link rel="apple-touch-icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Command Center">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -6102,9 +6114,14 @@ function drawVersion(){
     + (VER.info.commit ? ' · ' + escS(VER.info.commit) : '')
     + (VER.info.dirty ? ' · <span style="color:var(--amber)">local edits</span>' : '')
     + (c?.behind ? ' · <button class="up" id="ver-upd">update</button>'
-       : c?.ok ? ' · up to date' : '');
+       : c?.ok ? ' · up to date' : '')
+    /* Launched from the shortcut there is no console window to close, so this
+       is the only way to stop it short of Task Manager. */
+    + (VER.info.supervised ? ' · <button class="up" id="ver-quit">quit</button>' : '');
   const b = document.getElementById('ver-upd');
   if (b) b.onclick = () => { VER.dismissed = false; drawUpdBar(); };
+  const q = document.getElementById('ver-quit');
+  if (q) q.onclick = verQuit;
   drawUpdBar();
 }
 
@@ -6150,6 +6167,20 @@ async function verUpdate(){
     VER.busy = false;
     if (go.textContent === 'Updating…') { go.disabled = false; go.textContent = 'Update now'; }
   }
+}
+
+async function verQuit(){
+  if (!confirm('Stop Command Center? The window will close and the server will shut down.')) return;
+  try {
+    const r = await fetch('/api/app/quit', { method:'POST' });
+    if (!r.ok) { banner((await r.json()).error || 'Could not stop it.'); return; }
+    document.body.innerHTML = '<div style="display:grid;place-items:center;height:100vh;'
+      + 'font-family:var(--ff-sans);color:var(--dim);background:var(--ink)">'
+      + 'Command Center has stopped. You can close this window.</div>';
+    /* An app window with no tabs cannot be closed by script unless script
+       opened it, so say so rather than leaving a dead page. */
+    setTimeout(() => { try { window.close(); } catch {} }, 600);
+  } catch (err) { banner('Could not stop it: ' + err.message); }
 }
 
 document.getElementById('upd-go').onclick = verUpdate;

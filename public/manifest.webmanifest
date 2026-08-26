@@ -1,0 +1,25 @@
+{
+  "name": "Command Center",
+  "short_name": "Command",
+  "description": "Single-pane operations dashboard: mail, calendar, leads, social and systems.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0E1120",
+  "theme_color": "#0E1120",
+  "orientation": "any",
+  "categories": ["business", "productivity"],
+  "icons": [
+    { "src": "/icons/icon-64.png",  "sizes": "64x64",   "type": "image/png" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Inbox",   "url": "/#inbox" },
+    { "name": "Leads",   "url": "/#leads" },
+    { "name": "Social",  "url": "/#social" },
+    { "name": "Systems", "url": "/#systems" },
+    { "name": "Claude",  "url": "/#claude" }
+  ]
+}
