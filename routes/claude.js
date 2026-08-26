@@ -780,14 +780,19 @@ export function claudeRoutes({ env, auth }){
         /* Server states arrive on `system` frames after init. Once none are
            pending, the session is as connected as it is going to get. */
         if (!promptSent && frame.type === 'system' && Array.isArray(frame.mcp_servers)) {
-          const pending = frame.mcp_servers.filter(sv => sv.status === 'pending');
+          /* Only the servers this turn actually asked for. Waiting on all 25 --
+             including a dozen that need re-authenticating and will never settle --
+             turned a nine-second turn into a fifty-nine-second one for no gain. */
+          const wanted = frame.mcp_servers.filter(sv =>
+            mcpAllow.includes('mcp__' + String(sv.name).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_+|_+$/g, '')));
+          const watch = wanted.length ? wanted : frame.mcp_servers;
+          const pending = watch.filter(sv => sv.status === 'pending');
           send('status', {
             phase: 'connectors',
             text: pending.length
-              ? 'attaching connectors… ' + (frame.mcp_servers.length - pending.length)
-                + '/' + frame.mcp_servers.length
+              ? 'attaching connectors… ' + (watch.length - pending.length) + '/' + watch.length
               : 'connectors ready',
-            servers: frame.mcp_servers.map(sv => ({ name: sv.name, status: sv.status }))
+            servers: watch.map(sv => ({ name: sv.name, status: sv.status }))
           });
           if (!pending.length) {
             if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }

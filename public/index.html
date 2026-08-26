@@ -6405,6 +6405,9 @@ const CC = {
   model: '', effort: '',
   listening: false, heard: '',
   instr: null, instrScope: 'user', instrDirty: false,
+  /* Off by default on purpose: the connector list includes Gmail, GHL and
+     Supabase, so this is the difference between reading and sending. */
+  useMcp: localStorage.getItem('cc.usemcp') === '1',
   sessions: [], sessionsLoaded: false,
   panel: null,            // null = chat, else skills | connectors | plugins | settings
   skills: null, q: '',
@@ -6713,18 +6716,15 @@ function ccConnectorsPanel(){
         + ' Ones marked <em>account</em> come from your Claude account — re-authenticate those in the Claude app, '
         + 'since this page cannot complete someone else\'s OAuth flow.',
         '<button class="tgl" id="cc-refresh">Refresh</button>')
-    /* The distinction that actually matters, stated where it is read. A green
-       badge here previously implied Claude could use the server, and it cannot. */
-    + (d && d.usableInTurns === false
-        ? '<div class="insrow" style="margin-bottom:12px"><span class="sev warn">i</span><span class="tx">'
-          + '<b>Connected does not yet mean usable here.</b> These badges are health checks. '
-          + 'Chats in Command Center run Claude Code non-interactively, and on this version a '
-          + 'non-interactive run finishes with no MCP tools attached — the servers register as '
-          + '<span class="mono">pending</span> and never arrive. Verified against the session\'s own '
-          + 'init frame with the account connectors, with a local config, and with an explicit '
-          + '<span class="mono">--mcp-config</span>. Use these connectors from the Claude app or the '
-          + 'CLI until that changes.</span></div>'
-        : '')
+    /* The switch that decides whether a chat can reach any of this. */
+    + '<div class="ccrow" style="margin-bottom:14px;background:var(--panel2)">'
+    +   '<div class="t"><b>Let Claude use these connectors</b>'
+    +   '<small>Off by default. This list includes Gmail, GHL and Supabase, so turning it on is the '
+    +   'difference between Claude reading your data and Claude sending mail or running SQL. '
+    +   'Turns that use a connector take longer, because the servers have to attach first.</small></div>'
+    +   '<button class="tgl' + (CC.useMcp ? ' on' : '') + '" id="cc-usemcp">'
+    +   (CC.useMcp ? 'On' : 'Off') + '</button>'
+    + '</div>'
     + '<input class="ccsearch" id="cc-q" placeholder="Filter connectors" value="' + escS(CC.q) + '">'
     + rows
     + '<div class="ccrow" style="margin-top:14px;background:var(--panel2)">'
@@ -6928,6 +6928,14 @@ function wireClaudePanel(root){
       if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
     };
   }
+
+  const um = root.querySelector('#cc-usemcp');
+  if (um) um.onclick = () => {
+    CC.useMcp = !CC.useMcp;
+    localStorage.setItem('cc.usemcp', CC.useMcp ? '1' : '0');
+    toast(CC.useMcp ? 'Connectors enabled for new messages' : 'Connectors disabled');
+    drawClaude();
+  };
 
   root.querySelectorAll('[data-ccmcpdel]').forEach(b => b.onclick = async () => {
     if (!confirm('Remove ' + b.dataset.ccmcpdel + '?')) return;
@@ -7443,6 +7451,7 @@ function ccChat(){
         : '<button class="ccgo" id="cc-send" title="Send (Enter)">' + arrow + '</button>')
     + '</div></div>'
     + '<div class="ccmeta">'
+    + (CC.useMcp ? '<span style="color:var(--brass)">connectors on</span> · ' : '')
     + (ccfgActive().length ? escS(ccfgActive().join(' · ')) : (CC.info?.tools ? escS(CC.info.tools) : ''))
     + (CC.sessionId ? '<span style="margin-left:auto">session ' + escS(CC.sessionId.slice(0, 8)) + '</span>' : '')
     + '</div></div></div>';
@@ -7998,7 +8007,13 @@ async function ccSend(text){
         settings: CCFG.settings.trim() || undefined,
         permissionMode: CCFG.permissionMode || undefined,
         tools: CCFG.tools.length ? CCFG.tools : undefined,
-        noSkills: CCFG.noSkills || undefined
+        noSkills: CCFG.noSkills || undefined,
+        /* Only the servers that passed their health check -- naming one that
+           needs re-authenticating would just make the turn wait for nothing. */
+        useMcp: CC.useMcp || undefined,
+        mcpServers: CC.useMcp
+          ? (CC.mcpList?.servers || []).filter(x => x.state === 'connected').map(x => x.name)
+          : undefined
       }),
       signal: ctrl.signal
     });
