@@ -272,6 +272,72 @@ export function claudeRoutes({ env, auth }){
     res.status(400).json({ error: 'need action add|remove' });
   });
 
+  /* ---- custom instructions -----------------------------------------------
+
+     Claude Code reads CLAUDE.md as standing instructions: ~/.claude/CLAUDE.md
+     applies everywhere, and one in the working directory applies to this project.
+     So this edits those files rather than inventing a settings field -- the same
+     reasoning as the session history. Instructions written here apply to the CLI
+     and the editor extension too, which is usually what someone wants and always
+     worth saying out loud.
+
+     Distinct from the per-message system-prompt suffix in Settings: that one
+     lasts a single turn, these persist. */
+
+  const INSTRUCTION_LIMIT = 256 * 1024;
+
+  function instructionFile(scope){
+    if (scope === 'user') return path.join(os.homedir(), '.claude', 'CLAUDE.md');
+    if (scope === 'project') return path.join(CWD, 'CLAUDE.md');
+    return null;
+  }
+
+  function readInstruction(scope){
+    const file = instructionFile(scope);
+    let text = '', exists = false, bytes = 0;
+    try {
+      const st = fs.statSync(file);
+      exists = st.isFile();
+      bytes = st.size;
+      /* Refuse to load something enormous into a textarea rather than hanging
+         the page trying. */
+      text = bytes <= INSTRUCTION_LIMIT ? fs.readFileSync(file, 'utf8') : '';
+    } catch { /* not written yet, which is the normal case */ }
+    return { scope, path: file, exists, bytes, text, tooBig: bytes > INSTRUCTION_LIMIT };
+  }
+
+  r.get('/api/claude/instructions', auth.require, (req, res) => {
+    res.json({
+      ok: true,
+      user: readInstruction('user'),
+      project: readInstruction('project'),
+      note: 'CLAUDE.md is read by Claude Code itself, so these apply to the CLI and the editor extension as well.'
+    });
+  });
+
+  r.put('/api/claude/instructions', auth.require, express.json({ limit: '1mb' }), (req, res) => {
+    const scope = req.body?.scope;
+    const file = instructionFile(scope);
+    if (!file) return res.status(400).json({ error: 'scope must be user or project' });
+
+    const text = String(req.body?.text ?? '');
+    if (text.length > INSTRUCTION_LIMIT) return res.status(413).json({ error: 'that is larger than 256 KB' });
+
+    try {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      /* Keep one backup before overwriting. These are hand-written instructions
+         that may have taken a while to get right, and a web textarea is exactly
+         the sort of place they get wiped by accident. */
+      if (fs.existsSync(file)) {
+        try { fs.copyFileSync(file, file + '.bak'); } catch { /* best effort */ }
+      }
+      fs.writeFileSync(file, text, 'utf8');
+      res.json({ ok: true, ...readInstruction(scope) });
+    } catch (err) {
+      res.status(500).json({ error: 'could not write ' + file + ': ' + err.message });
+    }
+  });
+
   /* ---- skills -------------------------------------------------------------
 
      Claude Code loads skills from disk, not from the account: the Skills list in

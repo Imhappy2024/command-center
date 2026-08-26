@@ -6404,6 +6404,7 @@ const CC = {
      to keep in sync, and resuming uses the real session id. */
   model: '', effort: '',
   listening: false, heard: '',
+  instr: null, instrScope: 'user', instrDirty: false,
   sessions: [], sessionsLoaded: false,
   panel: null,            // null = chat, else skills | connectors | plugins | settings
   skills: null, q: '',
@@ -6554,6 +6555,7 @@ function drawClaude(){
 
 function ccSurface(){
   if (CC.panel === 'settings')   return ccConfig();
+  if (CC.panel === 'instructions') return ccInstructionsPanel();
   if (CC.panel === 'skills')     return ccSkillsPanel();
   if (CC.panel === 'connectors') return ccConnectorsPanel();
   if (CC.panel === 'plugins')    return ccPluginsPanel();
@@ -6577,6 +6579,7 @@ function ccSidebar(){
     +   ccChatList()
     + '</div>'
     + '<div class="ccnavfoot">'
+    +   item('instructions', 'Instructions', '')
     +   item('skills', 'Skills', CC.skills ? String(CC.skills.length) : '')
     +   item('connectors', 'Connectors', counts ? counts.connected + '/' + counts.total : '')
     +   item('plugins', 'Plugins', '')
@@ -6628,6 +6631,37 @@ function ccWhoChip(){
 function ccPanelHead(title, desc, extra){
   return '<div class="ph"><h3>' + title + '</h3><span class="grow"></span>' + (extra || '') + '</div>'
     + '<div class="pd">' + desc + '</div>';
+}
+
+function ccInstructionsPanel(){
+  const d = CC.instr;
+  const cur = d ? d[CC.instrScope] : null;
+  const tab = (id, label) => '<button class="tgl' + (CC.instrScope === id ? ' on' : '') + '" '
+    + 'data-ccscope="' + id + '">' + label + '</button>';
+
+  return '<div class="ccpanel">'
+    + ccPanelHead('Custom instructions',
+        'Standing instructions Claude follows on every turn. These are CLAUDE.md files that '
+        + 'Claude Code reads itself, so what you write here also applies in the CLI and the VS Code '
+        + 'extension. For something that should only affect the next message, use the system-prompt '
+        + 'suffix in Settings instead.',
+        tab('user', 'All projects') + ' ' + tab('project', 'This app only'))
+    + (!d ? '<div class="hint">Reading…</div>'
+       : cur.tooBig
+         ? '<div class="insrow"><span class="sev warn">i</span><span class="tx">'
+           + escS(cur.path) + ' is ' + Math.round(cur.bytes / 1024) + ' KB, which is too large to edit here. '
+           + 'Open it in an editor.</span></div>'
+         : '<div class="hint" style="margin-bottom:8px;font-family:var(--ff-mono);font-size:10.5px">'
+           + escS(cur.path) + (cur.exists ? '' : ' · will be created') + '</div>'
+           + '<textarea id="cc-instr" style="width:100%;min-height:340px;background:var(--ink2);'
+           + 'border:1px solid var(--edge);border-radius:10px;color:var(--text);font-family:var(--ff-mono);'
+           + 'font-size:12.5px;line-height:1.6;padding:13px;resize:vertical">' + escS(cur.text) + '</textarea>'
+           + '<div style="display:flex;gap:8px;align-items:center;margin-top:10px">'
+           + '<button class="btn primary" id="cc-instrsave"' + (CC.instrDirty ? '' : ' disabled') + '>Save</button>'
+           + '<span class="hint">' + (CC.instrDirty ? 'Unsaved changes' : 'Saved')
+           + ' · a copy of the previous version is kept as <span class="mono">CLAUDE.md.bak</span></span>'
+           + '</div>')
+    + '</div>';
 }
 
 function ccSkillsPanel(){
@@ -6744,6 +6778,35 @@ async function ccOpenSession(id){
   drawClaude();
 }
 
+async function ccLoadInstructions(){
+  try {
+    const r = await fetch(CC.base + '/instructions', { headers: ccHeaders() });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not read them');
+    CC.instr = j;
+    CC.instrDirty = false;
+  } catch (err) { banner(err.message); }
+  drawClaude();
+}
+
+async function ccSaveInstructions(){
+  const ta = document.getElementById('cc-instr');
+  if (!ta || !CC.instr) return;
+  const scope = CC.instrScope;
+  try {
+    const r = await fetch(CC.base + '/instructions', {
+      method: 'PUT', headers: ccHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ scope, text: ta.value })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not save');
+    CC.instr[scope] = j;
+    CC.instrDirty = false;
+    toast('Instructions saved');
+    drawClaude();
+  } catch (err) { banner(err.message); }
+}
+
 async function ccLoadSkills(){
   try {
     const r = await fetch(CC.base + '/skills', { headers: ccHeaders() });
@@ -6763,6 +6826,7 @@ function wireClaudeSidebar(root){
     const id = b.dataset.ccpanel;
     CC.panel = CC.panel === id ? null : id;
     CC.q = '';
+    if (CC.panel === 'instructions' && !CC.instr) ccLoadInstructions();
     if (CC.panel === 'skills' && !CC.skills) ccLoadSkills();
     if (CC.panel === 'connectors' && !CC.mcpList) ccLoadEnv();
     if (CC.panel === 'plugins' && CC.plugins == null) ccLoadEnv();
@@ -6812,6 +6876,26 @@ function ccNewChat(){
 function wireClaudePanel(root){
   if (CC.panel === 'settings') { wireClaudeConfig(root); return; }
   wireClaudeAccount(root);
+
+  root.querySelectorAll('[data-ccscope]').forEach(b => b.onclick = () => {
+    /* Switching scope with unsaved edits would lose them silently. */
+    if (CC.instrDirty && !confirm('Discard the unsaved changes?')) return;
+    CC.instrScope = b.dataset.ccscope;
+    CC.instrDirty = false;
+    drawClaude();
+  });
+
+  const instr = root.querySelector('#cc-instr');
+  if (instr) {
+    instr.oninput = () => {
+      if (CC.instrDirty) return;              // one redraw to enable Save, not one per key
+      CC.instrDirty = true;
+      const save = document.getElementById('cc-instrsave');
+      if (save) save.disabled = false;
+    };
+  }
+  const save = root.querySelector('#cc-instrsave');
+  if (save) save.onclick = ccSaveInstructions;
 
   const refresh = root.querySelector('#cc-refresh');
   if (refresh) refresh.onclick = () => {
