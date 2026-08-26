@@ -495,6 +495,27 @@ main{min-width:0;display:flex;flex-direction:column}
   letter-spacing:.05em;color:var(--rust)}
 .subempty{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);padding:5px 10px;letter-spacing:.05em}
 
+/* ---------- view tabs ----------
+
+   The rail says which section of the app you are in; these say which view of
+   that section. Two different questions, and putting both in the same left menu
+   meant a platform's own tabs only existed while that platform was selected --
+   the menu changed shape as you moved through it, and the view itself never
+   said what else it could show. */
+.viewtabs{display:flex;gap:2px;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:11px;padding:3px;margin:0 0 14px;width:fit-content;max-width:100%;
+  overflow-x:auto;flex:none}
+.viewtabs::-webkit-scrollbar{display:none}
+.viewtabs button{background:none;border:0;border-radius:8px;color:var(--dimmer);font:inherit;
+  font-size:12.5px;padding:7px 16px;cursor:pointer;white-space:nowrap;flex:none;
+  display:flex;align-items:center;gap:8px;transition:.16s var(--ease)}
+.viewtabs button:hover{color:var(--cream)}
+.viewtabs button.on{background:var(--panel2);color:var(--cream)}
+.viewtabs button .n{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);
+  font-variant-numeric:tabular-nums}
+.viewtabs button.on .n{color:var(--brass)}
+.viewtabs button .sdot{width:6px;height:6px;border-radius:50%;flex:none}
+
 /* ---------- connect form ---------- */
 .form{padding:18px 20px;display:flex;flex-direction:column;gap:15px}
 .fld{display:block}
@@ -4765,6 +4786,36 @@ function soAccountsFor(keys){
   return [...out.values()];
 }
 
+/* One tab strip, used by Tasks and by every platform in Social. The caller
+   passes the data attribute it will wire; the strip itself knows nothing about
+   what it switches. */
+function viewTabs(items, active, attr){
+  return '<div class="viewtabs">' + items.map(it => {
+    const [key, label, count] = it;
+    return '<button class="' + (key === active ? 'on' : '') + '" ' + attr + '="' + escS(key) + '">'
+      + escS(label)
+      + (count === '' || count === null || count === undefined ? ''
+          : '<span class="n">' + escS(String(count)) + '</span>')
+      + '</button>';
+  }).join('') + '</div>';
+}
+
+/* Performance / Videos / Audience live at the top of the platform's own view,
+   not in the rail. Meta's three properties are its sections; YouTube and X get
+   Performance / Content / Audience, with "Content" named for what it holds. */
+const SO_SECTIONS = {
+  youtube: [['performance', 'Performance'], ['content', 'Videos'], ['audience', 'Audience']],
+  x:       [['performance', 'Performance'], ['content', 'Posts'],  ['audience', 'Audience']],
+  meta:    [['facebook', 'FB Page'], ['instagram', 'Instagram'], ['meta_ads', 'Meta Ads']]
+};
+
+function soTabs(){
+  const defs = SO_SECTIONS[SO.view];
+  if (!defs) return '';
+  const active = SO.view === 'meta' ? SO.metaTab : SO.section;
+  return viewTabs(defs.map(([k, label]) => [k, label, '']), active, 'data-sosection');
+}
+
 function drawSocialSubnav(){
   if (!soSubEl) return;
   const row = (key, label, count, color, dot) =>
@@ -4779,31 +4830,12 @@ function drawSocialSubnav(){
     return acc.every(a => a.status === 'ok') ? 'ok' : 'warn';
   };
 
-  /* Sections nest under whichever platform is open, so the left menu carries
-     the whole hierarchy rather than the view hiding its own structure. Meta's
-     three properties are its sections; the others get Performance / Content /
-     Audience. */
-  const SECTIONS = {
-    youtube: [['performance','Performance'],['content','Videos'],['audience','Audience']],
-    x:       [['performance','Performance'],['content','Posts'],['audience','Audience']],
-    meta:    [['facebook','FB Page'],['instagram','Instagram'],['meta_ads','Meta Ads']]
-  };
-
-  const sectionRows = view => {
-    if (SO.view !== view) return '';
-    return SECTIONS[view].map(([k, label]) => {
-      const on = view === 'meta' ? SO.metaTab === k : SO.section === k;
-      return '<button class="subsec' + (on ? ' on' : '') + '" data-sosection="' + k + '" data-soparent="' + view + '">'
-        + escS(label) + '</button>';
-    }).join('');
-  };
-
   soSubEl.innerHTML =
     row('overview', 'Overview', SOCIAL.filter(s => s.status === 'ok').length, 'linear-gradient(135deg,var(--yt),var(--ig) 52%,var(--fb))')
     + '<div class="subhead">Platforms</div>'
-    + row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube)) + sectionRows('youtube')
-    + row('meta',    'Meta',    0, 'var(--fb)', state(SO_VIEW_KEYS.meta))    + sectionRows('meta')
-    + row('x',       'X',       0, 'var(--xx)', state(SO_VIEW_KEYS.x))       + sectionRows('x');
+    + row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube))
+    + row('meta',    'Meta',    0, 'var(--fb)', state(SO_VIEW_KEYS.meta))
+    + row('x',       'X',       0, 'var(--xx)', state(SO_VIEW_KEYS.x));
 
   soSubEl.querySelectorAll('[data-soview]').forEach(b => b.onclick = () => {
     SO.view = b.dataset.soview;
@@ -4816,13 +4848,6 @@ function drawSocialSubnav(){
     loadSocialView();
   });
 
-  soSubEl.querySelectorAll('[data-sosection]').forEach(b => b.onclick = () => {
-    const parent = b.dataset.soparent, k = b.dataset.sosection;
-    if (parent === 'meta') { SO.metaTab = k; SO.section = 'performance'; }
-    else SO.section = k;
-    SO.q = '';
-    drawSocial();
-  });
 }
 
 /* Fetches the platform payloads the current view needs, in parallel, then
@@ -4896,7 +4921,7 @@ function drawSocial(){
        showing whichever platform was open last — a YouTube title over a Meta
        panel, which reads as "stuck loading" rather than as the error it is. */
     try {
-      body.innerHTML = SO.view === 'meta' ? metaView() : platformView(keys[0]);
+      body.innerHTML = soTabs() + (SO.view === 'meta' ? metaView() : platformView(keys[0]));
       sub.textContent = soSubtitle(keys);
     } catch (err) {
       console.error('[social] render failed', err);
@@ -4907,6 +4932,16 @@ function drawSocial(){
       sub.textContent = 'Render error';
     }
   }
+
+  /* The section tabs are inside the body now, so they are wired with everything
+     else in it rather than with the rail. */
+  body.querySelectorAll('[data-sosection]').forEach(b => b.onclick = () => {
+    const k = b.dataset.sosection;
+    if (SO.view === 'meta') { SO.metaTab = k; SO.section = 'performance'; }
+    else SO.section = k;
+    SO.q = '';
+    drawSocial();
+  });
 
   body.querySelectorAll('[data-solink]').forEach(b => b.onclick = () =>
     window.open(b.dataset.solink, '_blank', 'noopener'));
@@ -6863,6 +6898,8 @@ function drawTasks(){
   }
   if (!TK.loaded) {
     const p = TK.progress;
+    /* Tabs stay up during the walk: three minutes with no way to move is a
+       section that looks broken rather than busy. */
     const pct = p && p.total ? Math.min(100, Math.round(p.done / p.total * 100)) : 0;
     const where = !p ? 'starting…'
       : p.phase === 'teams' ? 'reading the workspace…'
@@ -6878,29 +6915,34 @@ function drawTasks(){
     return;
   }
 
-  body.innerHTML = TK.view === 'all' ? tkAllView()
-    : TK.view === 'property' ? tkPropertyView()
-    : tkOverview();
+  body.innerHTML = tkTabs()
+    + (TK.view === 'all' ? tkAllView()
+      : TK.view === 'property' ? tkPropertyView()
+      : tkOverview());
   wireTasks(body);
 }
 
-function drawTaskSubnav(){
-  if (!tkSubEl) return;
-  const items = [['overview', 'Overview'], ['all', 'All tasks'], ['property', 'Property tasks']];
+/* The three views sit on top of the view, not in the rail. The rail answers
+   "which section of the app", the tabs answer "which view of it", and a reader
+   should not have to look in two places to find out where they are. */
+function tkTabs(){
   const count = k => {
     if (!TK.loaded) return '';
     if (k === 'all') return tkFiltered().length;
     if (k === 'property') return tkPropTasks().length;
     return '';
   };
-  tkSubEl.innerHTML = items.map(([k, label]) =>
-    '<button class="subitem' + (TK.view === k ? ' on' : '') + '" data-tkview="' + k + '">'
-    + '<span class="sdot" style="--c:var(--brass)"></span>'
-    + '<span class="slabel">' + label + '</span>'
-    + '<span class="scount">' + count(k) + '</span></button>').join('');
-  tkSubEl.querySelectorAll('[data-tkview]').forEach(b => b.onclick = () => {
-    TK.view = b.dataset.tkview; drawTasks();
-  });
+  return viewTabs([
+    ['overview', 'Overview', ''],
+    ['all', 'All tasks', count('all')],
+    ['property', 'Property tasks', count('property')]
+  ], TK.view, 'data-tkview');
+}
+
+function drawTaskSubnav(){
+  /* Nothing in the rail any more. Left populated it showed the same three views
+     twice, and clicking one of them moved the highlight on the other. */
+  if (tkSubEl) { tkSubEl.innerHTML = ''; tkSubEl.hidden = true; }
 }
 
 /* ---------- Overview ---------- */
@@ -7505,6 +7547,11 @@ function tkRow(t){
 
 function wireTasks(root){
   const on = (id, ev, fn) => { const el = root.querySelector('#' + id); if (el) el[ev] = fn; };
+
+  root.querySelectorAll('[data-tkview]').forEach(b => b.onclick = () => {
+    TK.view = b.dataset.tkview;
+    drawTasks();
+  });
 
   on('tk-vol', 'onchange', e => { TK.volDays = Number(e.target.value); drawTasks(); });
 
