@@ -6219,6 +6219,26 @@ async function verLoad(){
 function drawVersion(){
   const el = document.getElementById('ver-line');
   if (!el || !VER.info) return;
+
+  /* The server restarted since this page was served, so the UI on screen is the
+     previous build's. Nothing else in the app can tell you that, and the failure
+     mode is silent: you update, nothing looks different, and you conclude the
+     update did nothing. */
+  if (window.__BOOT && VER.info.boot && VER.info.boot !== window.__BOOT && !VER.reloadOffered) {
+    VER.reloadOffered = true;
+    const bar = document.getElementById('upd-bar');
+    if (bar) {
+      document.getElementById('upd-title').textContent = 'Restarted — reload to see it';
+      document.getElementById('upd-note').textContent =
+        'Command Center restarted into a newer build. This page is still running the old one.';
+      const go = document.getElementById('upd-go');
+      go.textContent = 'Reload';
+      go.onclick = () => location.reload();
+      bar.classList.add('on');
+    }
+    return;
+  }
+
   const c = VER.check;
   el.innerHTML = 'v' + escS(VER.info.version)
     + (VER.info.commit ? ' · ' + escS(VER.info.commit) : '')

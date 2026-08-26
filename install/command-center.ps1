@@ -94,16 +94,14 @@ function Find-Chromium {
 $browser = Find-Chromium
 $profileDir = Join-Path $env:LOCALAPPDATA 'CommandCenter\.appwindow'
 
+# Hand the window off to a detached process. Doing it inline would block the
+# supervisor, and doing it in a Start-Job did not reliably open anything.
 function Open-AppWindow {
-  if ($browser) {
-    New-Item -ItemType Directory -Force -Path $profileDir | Out-Null
-    Start-Process $browser -ArgumentList @(
-      "--app=$url", "--user-data-dir=$profileDir", "--no-first-run",
-      "--no-default-browser-check", "--window-size=1440,900"
-    )
-  } else {
-    Start-Process $url          # default browser, as a tab
-  }
+  $opener = Join-Path $PSScriptRoot 'open-window.ps1'
+  Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $opener + '"'),
+    '-Url', $url, '-Exe', ('"' + $browser + '"'), '-ProfileDir', ('"' + $profileDir + '"')
+  )
 }
 
 function Test-Up {
@@ -122,24 +120,9 @@ if (Test-Up) {
 $env:CC_SUPERVISED = '1'        # lets /api/app/restart actually restart
 $env:CC_QUIT_CODE = "$QUIT_CODE"
 
-# Open the window once the port answers, in the background, so a restart does
-# not stack up another one.
-Start-Job -ScriptBlock {
-  param($u, $exe, $prof)
-  for ($i = 0; $i -lt 120; $i++) {
-    try {
-      Invoke-WebRequest -Uri ($u + '/api/app/version') -UseBasicParsing -TimeoutSec 2 | Out-Null
-      if ($exe) {
-        New-Item -ItemType Directory -Force -Path $prof | Out-Null
-        Start-Process $exe -ArgumentList @(
-          "--app=$u", "--user-data-dir=$prof", "--no-first-run",
-          "--no-default-browser-check", "--window-size=1440,900"
-        )
-      } else { Start-Process $u }
-      return
-    } catch { Start-Sleep -Milliseconds 500 }
-  }
-} -ArgumentList $url, $browser, $profileDir | Out-Null
+# The opener waits for the port itself, so this returns immediately and the
+# supervisor gets on with starting the server.
+Open-AppWindow
 
 $where = ' in the default browser'
 if ($browser) { $where = ' in ' + (Split-Path -Leaf $browser) }

@@ -58,7 +58,7 @@ function parseRemote(url){
   return m ? { owner: m[1], repo: m[2] } : null;
 }
 
-export function selfUpdateRoutes({ env, auth }){
+export function selfUpdateRoutes({ env, auth, boot = Date.now() }){
   const r = express.Router();
   let updating = false;
 
@@ -81,6 +81,10 @@ export function selfUpdateRoutes({ env, auth }){
       dirty: dirty.ok ? Boolean(dirty.stdout) : null,
       /* The UI only offers Quit when something is listening for it. */
       supervised: env.CC_SUPERVISED === '1',
+      /* Compared against the stamp baked into the page. Different means the
+         server restarted underneath the browser, so what is on screen is the
+         previous build's UI. */
+      boot,
       root: ROOT
     });
   });
