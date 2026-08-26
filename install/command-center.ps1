@@ -133,18 +133,41 @@ $where = ' in the default browser'
 if ($browser) { $where = ' in ' + (Split-Path -Leaf $browser) }
 Log ("serving " + $url + $where)
 
+# A desktop app should survive a blip. The Postgres this talks to is a public
+# Railway proxy, and a connection timeout at startup is a network hiccup, not a
+# reason to make someone find the shortcut again -- but a real misconfiguration
+# must still stop rather than loop forever. So: retry a few times with backoff,
+# and give up once it is clearly not transient.
+$MAX_RETRIES = 4
+$fails = 0
+
 while ($true) {
   # Keep the previous run's log rather than growing one forever; a crash is
   # diagnosed from the run that crashed.
   if (Test-Path $serverLog) { Move-Item $serverLog ($serverLog + '.1') -Force }
+  $started = Get-Date
   $prev = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
   try { node server.js 2>&1 | Tee-Object -FilePath $serverLog | Out-Null; $code = $LASTEXITCODE }
   finally { $ErrorActionPreference = $prev }
+  $ranFor = ((Get-Date) - $started).TotalSeconds
 
-  if ($code -eq 0) { Log 'restarting into the updated version'; Start-Sleep -Seconds 1; continue }
+  if ($code -eq 0) { Log 'restarting into the updated version'; $fails = 0; Start-Sleep -Seconds 1; continue }
   if ($code -eq $QUIT_CODE) { Log 'quit requested'; break }
+
+  # A server that ran for a while and then died is a fresh problem, not a
+  # failing retry -- start the count again so a long-lived instance is not
+  # judged by something that happened an hour ago.
+  if ($ranFor -gt 120) { $fails = 0 }
+  $fails++
+
+  if ($fails -le $MAX_RETRIES) {
+    $wait = [Math]::Min(30, [Math]::Pow(2, $fails))
+    Log ("exited with code $code after {0:N0}s; retry $fails of $MAX_RETRIES in {1}s" -f $ranFor, $wait)
+    Start-Sleep -Seconds $wait
+    continue
+  }
 
   $tail = ''
   if (Test-Path $serverLog) { $tail = (Get-Content $serverLog -Tail 12) -join "`n" }
-  Fail 'Stopped unexpectedly' ("Command Center exited with code $code.`n`n" + $tail)
+  Fail 'Stopped unexpectedly' ("Command Center exited with code $code, $MAX_RETRIES retries apart.`n`n" + $tail)
 }
