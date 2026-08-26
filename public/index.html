@@ -1213,13 +1213,21 @@ main{min-width:0;display:flex;flex-direction:column}
 .ccnavscroll{flex:1;overflow-y:auto;min-height:0;padding:2px 8px 8px}
 .cceyebrow{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--dimmer);padding:9px 5px 5px}
+.ccchatw{position:relative}
 .ccchat{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;
-  padding:7px 9px;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;
+  padding:7px 26px 7px 9px;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
 .ccchat:hover{background:var(--panel2);color:var(--cream)}
 .ccchat.on{background:var(--panel3);color:var(--cream)}
 .ccchat small{display:block;font-family:var(--ff-mono);font-size:9px;color:var(--dimmer);
   margin-top:2px}
+/* Revealed on hover: a delete button on every row at all times is an invitation
+   to click the wrong one. */
+.ccdel{position:absolute;right:4px;top:6px;width:20px;height:20px;border-radius:6px;border:0;
+  background:none;color:var(--dimmer);cursor:pointer;font:inherit;font-size:14px;line-height:1;
+  opacity:0;transition:opacity .12s}
+.ccchatw:hover .ccdel{opacity:1}
+.ccdel:hover{background:var(--panel3);color:var(--rust)}
 .ccnavfoot{border-top:1px solid var(--edge);padding:7px 8px 8px}
 .ccnavitem{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;
   border-radius:8px;padding:7px 9px;color:var(--dim);font:inherit;font-size:12px;cursor:pointer}
@@ -1378,6 +1386,13 @@ main{min-width:0;display:flex;flex-direction:column}
 .ccclip{width:28px;height:28px;border-radius:8px;border:1px solid var(--edge);background:var(--panel2);
   color:var(--dim);cursor:pointer;display:grid;place-items:center;flex:none;font-size:15px;line-height:1}
 .ccclip:hover{border-color:var(--edge2);color:var(--cream)}
+/* Recording is a state you must not be able to miss: a muted mic icon looks
+   identical to a live one at 28px, so the button itself changes colour and
+   pulses. */
+.ccclip.rec{border-color:var(--rust);color:var(--rust);background:rgba(255,90,69,.12);
+  animation:ccrec 1.4s ease-in-out infinite}
+@keyframes ccrec{0%,100%{box-shadow:0 0 0 0 rgba(255,90,69,.45)}50%{box-shadow:0 0 0 5px rgba(255,90,69,0)}}
+.ccheard{font-size:11.5px;color:var(--dimmer);font-style:italic;margin-top:5px;min-height:0}
 .ccbar{display:flex;align-items:center;gap:7px;margin-top:7px}
 .ccbar .sel{background:var(--panel2);border:1px solid var(--edge);border-radius:7px;color:var(--dim);
   font:inherit;font-size:11px;padding:3px 7px;cursor:pointer}
@@ -1864,24 +1879,12 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   <section class="view" id="v-claude">
     <div class="vhead">
       <div><h1>Claude</h1><p id="cc-sub">Runs on your machine, on your subscription.</p></div>
+      <!-- Model, effort, New chat and Session all moved into the shell: the
+           pickers belong in the composer where the decision is made, and the
+           rest are in the sidebar. Leaving duplicates up here just meant two
+           controls for one thing, one of which was always further away. -->
       <div style="display:flex;gap:8px;align-items:center">
         <span class="synced" id="cc-state"></span>
-        <select class="stagesel" id="cc-model">
-          <option value="">Default model</option>
-          <option value="opus">Opus</option>
-          <option value="sonnet">Sonnet</option>
-          <option value="haiku">Haiku</option>
-        </select>
-        <select class="stagesel" id="cc-effort" title="Effort is the thinking control — Claude Code has no separate thinking toggle">
-          <option value="">Default effort</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-          <option value="max">Max</option>
-        </select>
-        <button class="tgl" id="cc-newchat">New chat</button>
-        <button class="tgl" id="cc-config">Session</button>
-        <button class="tgl" id="cc-setup">Bridge</button>
       </div>
     </div>
     <div id="cc-body"></div>
@@ -6399,6 +6402,8 @@ const CC = {
   /* Chat history comes from Claude Code's own session store, so this list is the
      same one the CLI and the editor extension show. Nothing to migrate, nothing
      to keep in sync, and resuming uses the real session id. */
+  model: '', effort: '',
+  listening: false, heard: '',
   sessions: [], sessionsLoaded: false,
   panel: null,            // null = chat, else skills | connectors | plugins | settings
   skills: null, q: '',
@@ -6584,10 +6589,13 @@ function ccChatList(){
   if (!CC.sessionsLoaded) return '<div class="hint" style="padding:6px 5px">Loading…</div>';
   if (!CC.sessions.length) return '<div class="hint" style="padding:6px 5px">No chats yet.</div>';
   return CC.sessions.slice(0, 60).map(sn =>
-    '<button class="ccchat' + (CC.sessionId === sn.id ? ' on' : '') + '" data-ccopen="' + escS(sn.id) + '">'
+    '<div class="ccchatw">'
+    + '<button class="ccchat' + (CC.sessionId === sn.id ? ' on' : '') + '" data-ccopen="' + escS(sn.id) + '">'
     + escS(sn.title)
     + '<small>' + escS(ccWhen(sn.updated)) + (sn.prompts > 1 ? ' · ' + sn.prompts + ' turns' : '') + '</small>'
-    + '</button>').join('');
+    + '</button>'
+    + '<button class="ccdel" data-ccdel="' + escS(sn.id) + '" title="Delete this chat">×</button>'
+    + '</div>').join('');
 }
 
 /* Relative for the last week, then a date. A wall of timestamps is unreadable
@@ -6762,6 +6770,35 @@ function wireClaudeSidebar(root){
   });
 
   root.querySelectorAll('[data-ccopen]').forEach(b => b.onclick = () => ccOpenSession(b.dataset.ccopen));
+  root.querySelectorAll('[data-ccdel]').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();               // do not open the chat we are deleting
+    ccDeleteSession(b.dataset.ccdel);
+  });
+}
+
+/* Deleting removes Claude Code's own transcript, so it is gone from the CLI and
+   the editor extension too. The confirm says so rather than pretending this is
+   a local list. */
+async function ccDeleteSession(id){
+  const sn = CC.sessions.find(x => x.id === id);
+  const title = sn ? sn.title.slice(0, 60) : 'this chat';
+  if (!confirm('Delete "' + title + '"?\n\nThis removes the transcript from Claude Code, so it also '
+    + 'disappears from the CLI and the VS Code extension. It cannot be undone.')) return;
+
+  try {
+    const r = await fetch(CC.base + '/sessions/' + encodeURIComponent(id), {
+      method: 'DELETE', headers: ccHeaders()
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not delete it');
+    CC.sessions = CC.sessions.filter(x => x.id !== id);
+    /* If that was the chat on screen, there is nothing to keep showing. */
+    if (CC.sessionId === id) { CC.sessionId = null; CC.messages = []; }
+    toast('Chat deleted');
+    drawClaude();
+  } catch (err) {
+    banner(err.message);
+  }
 }
 
 function ccNewChat(){
@@ -6919,8 +6956,12 @@ function ccConfig(){
   const offer = permitted ? CC_ALL_TOOLS.filter(t => permitted.includes(t)) : CC_ALL_TOOLS;
   const blocked = permitted ? CC_ALL_TOOLS.filter(t => !permitted.includes(t)) : [];
 
-  return '<div class="vwrap viz"><div class="vhead2"><h3>Session</h3>'
+  return '<div class="ccpanel" style="padding-top:18px">'
+    + '<div class="vwrap viz" style="box-shadow:none"><div class="vhead2"><h3>Session</h3>'
     + '<span class="sub">applies to the next message</span><span class="grow" style="flex:1"></span>'
+    /* Only useful when the dashboard is NOT the machine running Claude, which is
+       why it lives here rather than in the header taking up room every day. */
+    + (CC.mode === 'local' ? '' : '<button class="tgl" id="cc-bridge">Bridge…</button>')
     + '<button class="tgl" id="cc-cfgreset">Reset</button>'
     + '<button class="btn primary" id="cc-cfgdone">Done</button></div><div class="vbody">'
 
@@ -6986,7 +7027,7 @@ function ccConfig(){
     + '<div class="hint">Invoke one by typing <span class="mono">/name</span> at the start of a message, exactly as in the terminal.</div></div>'
     + '</div>'
 
-    + '</div></div>';
+    + '</div></div></div>';
 }
 
 /* Installed plugins, live from `claude plugin list`, with the enable and
@@ -7069,6 +7110,8 @@ function wireClaudeConfig(root){
   if (done) done.onclick = () => { grab(); CC.panel = null; drawClaude(); };
   const reset = root.querySelector('#cc-cfgreset');
   if (reset) reset.onclick = () => { CCFG = { ...CCFG_DEFAULTS, tools: [] }; ccfgSave(); drawClaude(); };
+  const bridge = root.querySelector('#cc-bridge');
+  if (bridge) bridge.onclick = () => { CC.setup = true; CC.panel = null; drawClaude(); };
   wireClaudeAccount(root);
 }
 
@@ -7286,11 +7329,16 @@ function ccChat(){
     + '<div class="cccomposer"><div class="ccbox">'
     + (CC.atts.length ? '<div class="ccatts">' + CC.atts.map(ccAttChip).join('') + '</div>' : '')
     + '<textarea id="cc-input" rows="1" placeholder="'
-    + (CC.busy ? 'Claude is working…' : 'Reply to Claude…') + '"'
+    + (CC.busy ? 'Claude is working…' : (CC.listening ? 'Listening…' : 'Reply to Claude…')) + '"'
     + (CC.busy ? ' disabled' : '') + '></textarea>'
+    /* Interim words, shown but not yet committed to the box, so you can see it
+       is hearing you before deciding whether it heard you correctly. */
+    + (CC.heard ? '<div class="ccheard">' + escS(CC.heard) + '</div>' : '')
     + '<div class="ccbar">'
     + '<button class="ccclip" id="cc-attach" title="Attach a file, or just paste an image">+</button>'
     + '<input type="file" id="cc-file" multiple hidden>'
+    + '<button class="ccclip' + (CC.listening ? ' rec' : '') + '" id="cc-mic" hidden '
+    + 'title="Dictate">' + micIcon() + '</button>'
     + sel('cc-model2', models, CC.model || '')
     + sel('cc-effort2', efforts, CC.effort || '')
     + '<span class="grow"></span>'
@@ -7450,6 +7498,98 @@ function mdRender(text){
 /* Kept under the old name so callers do not have to change. */
 function ccRender(text){ return mdRender(text); }
 
+function micIcon(){
+  return '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" '
+    + 'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">'
+    + '<rect x="9" y="2" width="6" height="11" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/>'
+    + '<path d="M12 17v4"/></svg>';
+}
+
+/* Dictation, using the browser's own speech recognition.
+
+   Deliberately not an API call: the whole point of this section is that it runs
+   on the subscription rather than on metered credits, and routing audio through
+   a paid transcription endpoint would quietly undo that. The trade is that
+   Chromium's implementation sends audio to Google for recognition -- so the
+   button is only offered where the browser actually provides it, and this is
+   worth knowing before dictating anything sensitive.
+
+   The recogniser is created per session rather than kept around: a long-lived
+   one stops firing results after the first idle timeout and gives no indication
+   that it has. */
+let ccRecog = null;
+
+function ccSpeechAvailable(){
+  return typeof window !== 'undefined'
+    && Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+}
+
+function ccToggleMic(){
+  if (CC.listening) { ccStopMic(); return; }
+  const Impl = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!Impl) { banner('This browser has no speech recognition.'); return; }
+
+  const rec = new Impl();
+  rec.continuous = true;
+  rec.interimResults = true;
+  rec.lang = navigator.language || 'en-US';
+
+  rec.onresult = ev => {
+    let finalText = '', interim = '';
+    for (let i = ev.resultIndex; i < ev.results.length; i++) {
+      const r = ev.results[i];
+      if (r.isFinal) finalText += r[0].transcript;
+      else interim += r[0].transcript;
+    }
+    if (finalText) {
+      /* Append to whatever is typed rather than replacing it, so dictating
+         after typing extends the message instead of eating it. */
+      const ta = document.getElementById('cc-input');
+      if (ta) {
+        const sep = ta.value && !/\s$/.test(ta.value) ? ' ' : '';
+        ta.value = ta.value + sep + finalText.trim();
+        ta.dispatchEvent(new Event('input'));
+      }
+    }
+    CC.heard = interim.trim();
+    ccPaintHeard();
+  };
+
+  rec.onerror = ev => {
+    /* 'no-speech' and 'aborted' are ordinary, not failures worth a banner. */
+    if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+      banner('Microphone access was refused. Allow it for this site and try again.');
+    } else if (ev.error && ev.error !== 'no-speech' && ev.error !== 'aborted') {
+      banner('Dictation stopped: ' + ev.error);
+    }
+    ccStopMic();
+  };
+  /* Chromium ends the session on its own after a pause. Reflect that rather
+     than leaving a button that claims to still be listening. */
+  rec.onend = () => { if (CC.listening) ccStopMic(); };
+
+  try { rec.start(); } catch (err) { banner('Could not start dictation: ' + err.message); return; }
+  ccRecog = rec;
+  CC.listening = true;
+  CC.heard = '';
+  drawClaude();
+}
+
+function ccStopMic(){
+  if (ccRecog) { try { ccRecog.stop(); } catch { /* already stopped */ } ccRecog = null; }
+  CC.listening = false;
+  CC.heard = '';
+  drawClaude();
+}
+
+/* Interim words change several times a second; redrawing the whole view for
+   each would fight the caret and the scroll position. */
+function ccPaintHeard(){
+  const el = document.querySelector('.ccheard');
+  if (el) { el.textContent = CC.heard; return; }
+  if (CC.heard) drawClaude();
+}
+
 /* Send the file to the server and keep the path it was stored at. The path is
    what goes to Claude -- it reads the file off disk with the Read tool rather
    than being handed bytes, which is also why an attachment has to live somewhere
@@ -7607,6 +7747,12 @@ function wireClaudeChat(root){
     for (const f of files) ccUpload(f);
   };
 
+  const mic = root.querySelector('#cc-mic');
+  if (mic) {
+    /* Hidden rather than shown-and-broken where the browser has no recogniser. */
+    if (ccSpeechAvailable()) { mic.hidden = false; mic.onclick = ccToggleMic; }
+  }
+
   const clip = root.querySelector('#cc-attach');
   const picker = root.querySelector('#cc-file');
   if (clip && picker) {
@@ -7635,11 +7781,11 @@ function wireClaudeChat(root){
   const stop = root.querySelector('#cc-stop');
   if (stop) stop.onclick = ccStop;
 
-  /* The composer's pickers mirror the header ones, so either stays correct. */
+  /* The composer is now the only place these are set, so state is the truth. */
   const m = root.querySelector('#cc-model2');
-  if (m) m.onchange = () => { CC.model = m.value; const h = document.getElementById('cc-model'); if (h) h.value = m.value; };
+  if (m) m.onchange = () => { CC.model = m.value; };
   const ef = root.querySelector('#cc-effort2');
-  if (ef) ef.onchange = () => { CC.effort = ef.value; const h = document.getElementById('cc-effort'); if (h) h.value = ef.value; };
+  if (ef) ef.onchange = () => { CC.effort = ef.value; };
 
   wireClaudeFeed(root);
 }
@@ -7708,6 +7854,7 @@ async function ccSend(text){
     ? ready.map(a => 'Attached file: ' + a.path).join('\n') + (typed ? '\n\n' + typed : '')
     : typed;
 
+  if (CC.listening) ccStopMic();
   CC.messages.push({ role:'user', text: typed || '(attachment)', steps: [], atts: ready.map(a => a.name) });
   const reply = { role:'assistant', text:'', tools: [], steps: [] };
   CC.messages.push(reply);
@@ -7725,8 +7872,8 @@ async function ccSend(text){
       body: JSON.stringify({
         prompt,
         sessionId: CC.sessionId,
-        model: document.getElementById('cc-model')?.value || undefined,
-        effort: document.getElementById('cc-effort')?.value || undefined,
+        model: CC.model || undefined,
+        effort: CC.effort || undefined,
         mcp: CCFG.mcp.trim() || undefined,
         pluginDirs: ccLines(CCFG.plugins),
         addDirs: ccLines(CCFG.addDirs),
@@ -7897,16 +8044,9 @@ function ccStop(){
   CC.busy = false; CC.abort = null; drawClaude();
 }
 
-/* The header keeps the two escape hatches -- bridge setup, and a way back to
-   settings -- but they now select a panel inside the shell rather than replacing
-   the whole view, so the conversation is still there when you come back. */
-document.getElementById('cc-setup').onclick = () => { CC.setup = !CC.setup; CC.panel = null; drawClaude(); };
-document.getElementById('cc-config').onclick = () => {
-  CC.panel = CC.panel === 'settings' ? null : 'settings';
-  CC.setup = false;
-  drawClaude();
-};
-document.getElementById('cc-newchat').onclick = ccNewChat;
+/* Nothing to wire in the header any more. Bridge setup lives in Settings, and
+   it is only reachable there because it matters solely when the dashboard is
+   NOT the machine running Claude. */
 document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.target === 'claude') ccProbe();
 }));

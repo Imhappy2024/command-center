@@ -459,6 +459,36 @@ export function claudeRoutes({ env, auth }){
     res.json({ ok: true, id: req.params.id, messages });
   });
 
+  /* Deleting a chat deletes Claude Code's transcript, because that store is the
+     history -- there is no private copy to remove instead. Worth being plain
+     about in the UI: the chat also disappears from the CLI and the editor
+     extension, since all three read the same directory.
+
+     The id is checked against the file that is actually there rather than
+     trusted into a path. */
+  r.delete('/api/claude/sessions/:id', auth.require, (req, res) => {
+    const id = String(req.params.id || '');
+    if (!/^[0-9a-fA-F-]{8,64}$/.test(id)) return res.status(400).json({ error: 'not a session id' });
+
+    const dir = projectDirFor(CWD);
+    const file = path.join(dir, id + '.jsonl');
+    /* path.join with a checked id cannot escape, but assert it anyway: this
+       deletes a file, and the cost of being wrong is somebody's history. */
+    if (path.dirname(file) !== dir) return res.status(400).json({ error: 'not a session id' });
+    if (!fs.existsSync(file)) return res.status(404).json({ error: 'that chat is already gone' });
+
+    /* Refuse while a turn is in flight -- Claude Code has the file open and is
+       still appending to it. */
+    if (running) return res.status(409).json({ error: 'a turn is running; stop it first' });
+
+    try {
+      fs.unlinkSync(file);
+      res.json({ ok: true, id });
+    } catch (err) {
+      res.status(500).json({ error: 'could not delete it: ' + err.message });
+    }
+  });
+
   /* ---- attachments --------------------------------------------------------
 
      Raw body with the name in a header, rather than multipart: there is no
