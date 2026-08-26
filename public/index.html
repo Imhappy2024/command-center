@@ -1195,9 +1195,70 @@ main{min-width:0;display:flex;flex-direction:column}
   color:var(--dim);cursor:pointer;font:inherit;font-size:12px;padding:8px 0;transition:.14s}
 .privrow button.on{border-color:var(--brass);color:var(--cream);background:rgba(124,108,255,.09)}
 .thumbside img{width:100%;border-radius:var(--r-md);display:block;border:1px solid var(--edge)}
-.ccwrap{display:flex;flex-direction:column;height:calc(100vh - 190px);min-height:440px;
-  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
-  box-shadow:var(--shadow);overflow:hidden}
+/* Two panes: a sidebar carrying chats and everything configurable, and the
+   surface itself. This is the shape claude.ai uses, and the reason is that a
+   chat client without its own history is a toy -- you cannot go back to what
+   you asked yesterday. The history here is Claude Code's own session store, so
+   it is the same list the CLI and the editor extension see. */
+.ccapp{display:grid;grid-template-columns:236px minmax(0,1fr);height:calc(100vh - 190px);
+  min-height:460px;background:var(--panel);border:1px solid var(--edge);
+  border-radius:var(--r-lg);box-shadow:var(--shadow);overflow:hidden}
+.ccnav{display:flex;flex-direction:column;min-height:0;background:var(--ink2);
+  border-right:1px solid var(--edge)}
+.ccnew{margin:12px 12px 8px;padding:8px 11px;border-radius:9px;border:1px solid var(--edge2);
+  background:var(--panel2);color:var(--cream);font:inherit;font-size:12.5px;cursor:pointer;
+  display:flex;align-items:center;gap:8px}
+.ccnew:hover{border-color:var(--brass);background:var(--panel3)}
+.ccnew b{font-weight:400}
+.ccnavscroll{flex:1;overflow-y:auto;min-height:0;padding:2px 8px 8px}
+.cceyebrow{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dimmer);padding:9px 5px 5px}
+.ccchat{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;
+  padding:7px 9px;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;line-height:1.4}
+.ccchat:hover{background:var(--panel2);color:var(--cream)}
+.ccchat.on{background:var(--panel3);color:var(--cream)}
+.ccchat small{display:block;font-family:var(--ff-mono);font-size:9px;color:var(--dimmer);
+  margin-top:2px}
+.ccnavfoot{border-top:1px solid var(--edge);padding:7px 8px 8px}
+.ccnavitem{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;
+  border-radius:8px;padding:7px 9px;color:var(--dim);font:inherit;font-size:12px;cursor:pointer}
+.ccnavitem:hover{background:var(--panel2);color:var(--cream)}
+.ccnavitem.on{background:var(--panel3);color:var(--cream)}
+.ccnavitem .n{flex:1;text-align:left}
+.ccnavitem .c{font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer)}
+.ccwho{display:flex;align-items:center;gap:9px;width:100%;background:none;border:0;
+  border-top:1px solid var(--edge);margin-top:6px;padding:10px 9px 4px;cursor:pointer;text-align:left}
+.ccwho:hover .nm{color:var(--cream)}
+.ccwho .av{width:24px;height:24px;border-radius:7px;flex:none;display:grid;place-items:center;
+  background:linear-gradient(150deg,var(--yt),var(--ig) 52%,var(--fb));color:#fff;
+  font-size:10.5px;font-weight:700}
+.ccwho .nm{font-size:11.5px;color:var(--dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccwho .nm small{display:block;font-size:9.5px;color:var(--dimmer)}
+
+.ccpane{min-width:0;display:flex;flex-direction:column;overflow:hidden}
+.ccpanel{flex:1;overflow-y:auto;padding:22px 26px 26px}
+.ccpanel .ph{display:flex;align-items:center;gap:10px;margin-bottom:5px}
+.ccpanel .ph h3{font-family:var(--ff-display);font-size:17px;color:var(--cream);font-weight:600}
+.ccpanel .ph .grow{flex:1}
+.ccpanel .pd{font-size:12.5px;color:var(--dim);line-height:1.6;margin-bottom:16px;max-width:640px}
+.ccrow{display:flex;align-items:center;gap:11px;padding:10px 12px;border:1px solid var(--edge);
+  border-radius:10px;background:var(--ink2);margin-bottom:7px}
+.ccrow .t{min-width:0;flex:1}
+.ccrow .t b{display:block;font-size:12.5px;color:var(--cream);font-weight:500}
+.ccrow .t small{display:block;font-size:11px;color:var(--dimmer);line-height:1.5;margin-top:2px;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.ccrow .st{font-family:var(--ff-mono);font-size:9.5px;padding:3px 7px;border-radius:6px;flex:none}
+.ccrow .st.ok{background:rgba(53,208,165,.14);color:var(--jade)}
+.ccrow .st.warn{background:rgba(255,176,32,.14);color:var(--amber)}
+.ccrow .st.bad{background:rgba(255,90,69,.14);color:var(--rust)}
+.ccrow .st.dim{background:var(--panel2);color:var(--dimmer)}
+.ccsearch{width:100%;background:var(--ink2);border:1px solid var(--edge);border-radius:9px;
+  color:var(--text);font:inherit;font-size:12.5px;padding:8px 11px;margin-bottom:12px}
+.ccsearch:focus{outline:none;border-color:var(--edge2)}
+
+.ccwrap{display:flex;flex-direction:column;height:100%;min-height:0;
+  background:none;border:0;border-radius:0;box-shadow:none;overflow:hidden}
 
 /* The feed is a reading column, not a chat log of bubbles. Claude's own surface
    gives the assistant plain prose at a comfortable measure and marks the user's
@@ -6329,12 +6390,18 @@ const CC = {
   messages: [],           // { role, text, steps:[] }
   sessionId: null,
   busy: false, streaming: false,
-  setup: false, config: false,
+  setup: false,
   account: null, plugins: null, mcpList: null, loadingEnv: false,
   /* Files staged for the next message. Each is uploaded as it is added, so by
      send time there is a path on disk rather than bytes still in the page. */
   atts: [],
   draft: '',
+  /* Chat history comes from Claude Code's own session store, so this list is the
+     same one the CLI and the editor extension show. Nothing to migrate, nothing
+     to keep in sync, and resuming uses the real session id. */
+  sessions: [], sessionsLoaded: false,
+  panel: null,            // null = chat, else skills | connectors | plugins | settings
+  skills: null, q: '',
   abort: null
 };
 
@@ -6394,6 +6461,7 @@ async function ccProbe(){
         CC.status = 'ready';
         CC.info = j;
         if (!CC.account) ccLoadEnv();
+        if (!CC.sessionsLoaded) ccLoadSessions();
         return drawClaude();
       }
     }
@@ -6410,6 +6478,7 @@ async function ccProbe(){
     CC.status = j.authed ? 'ready' : 'unauthed';
     CC.info = j.authed ? j : null;
     if (j.authed && !CC.account) ccLoadEnv();
+    if (j.authed && !CC.sessionsLoaded) ccLoadSessions();
   } catch {
     /* Refused, blocked, wrong port — all the same to the reader: nothing there. */
     CC.status = 'offline';
@@ -6462,11 +6531,320 @@ function drawClaude(){
     : 'Runs on your machine, on your subscription.';
 
   if (CC.setup || CC.status !== 'ready') { body.innerHTML = ccSetup(); wireClaudeSetup(body); return; }
-  if (CC.config) { body.innerHTML = ccConfig(); wireClaudeConfig(body); return; }
-  body.innerHTML = ccChat();
-  wireClaudeChat(body);
-  const feed = document.getElementById('cc-feed');
-  if (feed) feed.scrollTop = feed.scrollHeight;
+
+  /* One shell: sidebar plus whichever surface is selected. The panels used to be
+     full-page takeovers reached from header buttons, which meant losing your
+     place in the conversation to check which connectors were attached. */
+  body.innerHTML = '<div class="ccapp">' + ccSidebar()
+    + '<div class="ccpane">' + ccSurface() + '</div></div>';
+
+  wireClaudeSidebar(body);
+  if (CC.panel) wireClaudePanel(body);
+  else {
+    wireClaudeChat(body);
+    const feed = document.getElementById('cc-feed');
+    if (feed) feed.scrollTop = feed.scrollHeight;
+  }
+}
+
+function ccSurface(){
+  if (CC.panel === 'settings')   return ccConfig();
+  if (CC.panel === 'skills')     return ccSkillsPanel();
+  if (CC.panel === 'connectors') return ccConnectorsPanel();
+  if (CC.panel === 'plugins')    return ccPluginsPanel();
+  if (CC.panel === 'account')    return ccAccountPanel();
+  return ccChat();
+}
+
+/* ---- sidebar ------------------------------------------------------------ */
+
+function ccSidebar(){
+  const counts = CC.mcpList?.counts;
+  const item = (id, label, count) =>
+    '<button class="ccnavitem' + (CC.panel === id ? ' on' : '') + '" data-ccpanel="' + id + '">'
+    + '<span class="n">' + label + '</span>'
+    + (count ? '<span class="c">' + escS(count) + '</span>' : '') + '</button>';
+
+  return '<aside class="ccnav">'
+    + '<button class="ccnew" id="cc-newchat2"><b>+</b> New chat</button>'
+    + '<div class="ccnavscroll">'
+    +   '<div class="cceyebrow">Chats</div>'
+    +   ccChatList()
+    + '</div>'
+    + '<div class="ccnavfoot">'
+    +   item('skills', 'Skills', CC.skills ? String(CC.skills.length) : '')
+    +   item('connectors', 'Connectors', counts ? counts.connected + '/' + counts.total : '')
+    +   item('plugins', 'Plugins', '')
+    +   item('settings', 'Settings', '')
+    +   ccWhoChip()
+    + '</div></aside>';
+}
+
+function ccChatList(){
+  if (!CC.sessionsLoaded) return '<div class="hint" style="padding:6px 5px">Loading…</div>';
+  if (!CC.sessions.length) return '<div class="hint" style="padding:6px 5px">No chats yet.</div>';
+  return CC.sessions.slice(0, 60).map(sn =>
+    '<button class="ccchat' + (CC.sessionId === sn.id ? ' on' : '') + '" data-ccopen="' + escS(sn.id) + '">'
+    + escS(sn.title)
+    + '<small>' + escS(ccWhen(sn.updated)) + (sn.prompts > 1 ? ' · ' + sn.prompts + ' turns' : '') + '</small>'
+    + '</button>').join('');
+}
+
+/* Relative for the last week, then a date. A wall of timestamps is unreadable
+   and "3h ago" is what anyone actually wants from a chat list. */
+function ccWhen(iso){
+  const t = Date.parse(iso);
+  if (!t) return '';
+  const mins = Math.floor((Date.now() - t) / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return mins + 'm ago';
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return hrs + 'h ago';
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return days + 'd ago';
+  return new Date(t).toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function ccWhoChip(){
+  const a = CC.account;
+  const signedIn = a && a.loggedIn !== false && a.email;
+  return '<button class="ccwho" data-ccpanel="account">'
+    + '<span class="av">' + escS(signedIn ? a.email[0].toUpperCase() : '?') + '</span>'
+    + '<span class="nm">' + escS(signedIn ? a.email : 'Not signed in')
+    + '<small>' + escS(signedIn ? (a.subscriptionType ? a.subscriptionType + ' plan' : (a.orgName || '')) : 'Connect an account')
+    + '</small></span></button>';
+}
+
+/* ---- panels ------------------------------------------------------------- */
+
+function ccPanelHead(title, desc, extra){
+  return '<div class="ph"><h3>' + title + '</h3><span class="grow"></span>' + (extra || '') + '</div>'
+    + '<div class="pd">' + desc + '</div>';
+}
+
+function ccSkillsPanel(){
+  const list = CC.skills;
+  const q = CC.q.toLowerCase();
+  const rows = !list ? '<div class="hint">Reading skills…</div>'
+    : !list.length ? '<div class="hint">No skills on disk yet.</div>'
+    : list.filter(k => !q || k.name.toLowerCase().includes(q) || (k.description || '').toLowerCase().includes(q))
+        .map(k => '<div class="ccrow"><div class="t"><b>' + escS(k.name) + '</b>'
+          + (k.description ? '<small>' + escS(k.description) + '</small>' : '') + '</div>'
+          + '<span class="st dim">' + escS(k.scope) + '</span></div>').join('')
+      || '<div class="hint">Nothing matches that.</div>';
+
+  return '<div class="ccpanel">'
+    + ccPanelHead('Skills',
+        'Claude Code loads these from disk, and they are the ones a turn here can invoke. '
+        + 'Skills you add in the Claude apps are a separate set and do not appear here.',
+        '<button class="tgl" id="cc-refresh">Refresh</button>')
+    + '<input class="ccsearch" id="cc-q" placeholder="Filter skills" value="' + escS(CC.q) + '">'
+    + rows + '</div>';
+}
+
+function ccConnectorsPanel(){
+  const d = CC.mcpList;
+  const q = CC.q.toLowerCase();
+  const badge = st => st === 'connected' ? '<span class="st ok">connected</span>'
+    : st === 'needs-auth' ? '<span class="st warn">needs auth</span>'
+    : st === 'failed' ? '<span class="st bad">failed</span>'
+    : '<span class="st dim">unknown</span>';
+
+  const rows = !d ? '<div class="hint">Checking connectors…</div>'
+    : !d.servers.length ? '<div class="hint">No MCP servers configured.</div>'
+    : d.servers.filter(x => !q || x.name.toLowerCase().includes(q))
+        .map(x => '<div class="ccrow"><div class="t"><b>' + escS(x.name) + '</b>'
+          + '<small>' + escS(x.url) + '</small></div>'
+          + badge(x.state)
+          + (x.source === 'local'
+              ? '<button class="tgl" data-ccmcpdel="' + escS(x.name) + '">Remove</button>'
+              : '<span class="st dim">account</span>')
+          + '</div>').join('')
+      || '<div class="hint">Nothing matches that.</div>';
+
+  return '<div class="ccpanel">'
+    + ccPanelHead('Connectors',
+        'MCP servers Claude Code can reach.'
+        + (d ? ' <b>' + d.counts.connected + '</b> of ' + d.counts.total + ' connected'
+             + (d.counts.needsAuth ? ', ' + d.counts.needsAuth + ' need re-authenticating' : '')
+             + (d.counts.failed ? ', ' + d.counts.failed + ' failing' : '') + '.' : '')
+        + ' Ones marked <em>account</em> come from your Claude account — re-authenticate those in the Claude app, '
+        + 'since this page cannot complete someone else\'s OAuth flow.',
+        '<button class="tgl" id="cc-refresh">Refresh</button>')
+    + '<input class="ccsearch" id="cc-q" placeholder="Filter connectors" value="' + escS(CC.q) + '">'
+    + rows
+    + '<div class="ccrow" style="margin-top:14px;background:var(--panel2)">'
+    +   '<input class="ccsearch" id="cc-mcpname" placeholder="Name" style="margin:0;flex:0 0 150px">'
+    +   '<input class="ccsearch" id="cc-mcpurl" placeholder="https://example.com/mcp" style="margin:0">'
+    +   '<button class="btn primary" id="cc-mcpadd">Add</button>'
+    + '</div>'
+    + '<div class="hint" style="margin-top:7px">https only. A server that runs a local command has to be added with the CLI — '
+    + 'letting a web page start arbitrary processes on this machine is not something this offers.</div>'
+    + '</div>';
+}
+
+function ccPluginsPanel(){
+  const text = CC.plugins;
+  return '<div class="ccpanel">'
+    + ccPanelHead('Plugins',
+        'Installed with <span class="mono">claude plugin install</span>. Enable or disable one by name.',
+        '<button class="tgl" id="cc-refresh">Refresh</button>')
+    + (text == null ? '<div class="hint">Reading plugins…</div>'
+       : '<pre style="background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:12px;'
+         + 'font-family:var(--ff-mono);font-size:11.5px;color:var(--dim);white-space:pre-wrap">'
+         + escS(text) + '</pre>')
+    + '<div class="ccrow" style="margin-top:12px;background:var(--panel2)">'
+    +   '<input class="ccsearch" id="cc-plugname" placeholder="plugin name" style="margin:0">'
+    +   '<button class="tgl" data-cplug="enable">Enable</button>'
+    +   '<button class="tgl" data-cplug="disable">Disable</button>'
+    + '</div></div>';
+}
+
+function ccAccountPanel(){
+  return '<div class="ccpanel">'
+    + ccPanelHead('Account', 'Which Claude account this machine runs turns as, and what it is billed to.', '')
+    + ccAccountBlock() + '</div>';
+}
+
+/* ---- loading ------------------------------------------------------------ */
+
+async function ccLoadSessions(){
+  try {
+    const r = await fetch(CC.base + '/sessions', { headers: ccHeaders() });
+    if (!r.ok) throw new Error('sessions ' + r.status);
+    const j = await r.json();
+    CC.sessions = j.sessions || [];
+  } catch { CC.sessions = []; }
+  CC.sessionsLoaded = true;
+  drawClaude();
+}
+
+async function ccOpenSession(id){
+  CC.panel = null;
+  CC.messages = [];
+  CC.sessionId = id;
+  CC.busy = false;
+  drawClaude();
+  try {
+    const r = await fetch(CC.base + '/sessions/' + encodeURIComponent(id), { headers: ccHeaders() });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not open that chat');
+    CC.messages = (j.messages || []).map(m => ({ role: m.role, text: m.text, steps: m.steps || [] }));
+  } catch (err) {
+    banner(err.message);
+  }
+  drawClaude();
+}
+
+async function ccLoadSkills(){
+  try {
+    const r = await fetch(CC.base + '/skills', { headers: ccHeaders() });
+    const j = await r.json();
+    CC.skills = j.skills || [];
+  } catch { CC.skills = []; }
+  drawClaude();
+}
+
+/* ---- wiring ------------------------------------------------------------- */
+
+function wireClaudeSidebar(root){
+  const nw = root.querySelector('#cc-newchat2');
+  if (nw) nw.onclick = ccNewChat;
+
+  root.querySelectorAll('[data-ccpanel]').forEach(b => b.onclick = () => {
+    const id = b.dataset.ccpanel;
+    CC.panel = CC.panel === id ? null : id;
+    CC.q = '';
+    if (CC.panel === 'skills' && !CC.skills) ccLoadSkills();
+    if (CC.panel === 'connectors' && !CC.mcpList) ccLoadEnv();
+    if (CC.panel === 'plugins' && CC.plugins == null) ccLoadEnv();
+    drawClaude();
+  });
+
+  root.querySelectorAll('[data-ccopen]').forEach(b => b.onclick = () => ccOpenSession(b.dataset.ccopen));
+}
+
+function ccNewChat(){
+  CC.messages = [];
+  CC.sessionId = null;
+  CC.atts = [];
+  CC.panel = null;
+  drawClaude();
+}
+
+function wireClaudePanel(root){
+  if (CC.panel === 'settings') { wireClaudeConfig(root); return; }
+  wireClaudeAccount(root);
+
+  const refresh = root.querySelector('#cc-refresh');
+  if (refresh) refresh.onclick = () => {
+    if (CC.panel === 'skills') { CC.skills = null; drawClaude(); ccLoadSkills(); }
+    else { CC.mcpList = null; CC.plugins = null; drawClaude(); ccLoadEnv(); }
+  };
+
+  const q = root.querySelector('#cc-q');
+  if (q) {
+    /* Redrawing on every keystroke would lose the caret, so filter in place. */
+    q.oninput = () => {
+      CC.q = q.value;
+      const pane = root.querySelector('.ccpane');
+      if (!pane) return;
+      pane.innerHTML = ccSurface();
+      wireClaudePanel(root);
+      const again = root.querySelector('#cc-q');
+      if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+    };
+  }
+
+  root.querySelectorAll('[data-ccmcpdel]').forEach(b => b.onclick = async () => {
+    if (!confirm('Remove ' + b.dataset.ccmcpdel + '?')) return;
+    b.disabled = true;
+    try {
+      const r = await fetch(CC.base + '/mcp', {
+        method: 'POST', headers: ccHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: 'remove', name: b.dataset.ccmcpdel })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || j.text || 'could not remove it');
+      toast('Removed ' + b.dataset.ccmcpdel);
+      CC.mcpList = null; drawClaude(); ccLoadEnv();
+    } catch (err) { banner(err.message); b.disabled = false; }
+  });
+
+  const add = root.querySelector('#cc-mcpadd');
+  if (add) add.onclick = async () => {
+    const name = root.querySelector('#cc-mcpname')?.value.trim();
+    const url = root.querySelector('#cc-mcpurl')?.value.trim();
+    if (!name || !url) { banner('Both a name and an https URL.'); return; }
+    add.disabled = true;
+    try {
+      const r = await fetch(CC.base + '/mcp', {
+        method: 'POST', headers: ccHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: 'add', name, url })
+      });
+      const j = await r.json();
+      if (!r.ok || !j.ok) throw new Error(j.error || j.text || 'could not add it');
+      toast('Added ' + name);
+      CC.mcpList = null; drawClaude(); ccLoadEnv();
+    } catch (err) { banner(err.message); add.disabled = false; }
+  };
+
+  root.querySelectorAll('[data-cplug]').forEach(b => b.onclick = async () => {
+    const name = root.querySelector('#cc-plugname')?.value.trim();
+    if (!name) { banner('Which plugin?'); return; }
+    b.disabled = true;
+    try {
+      const r = await fetch(CC.base + '/plugins', {
+        method: 'POST', headers: ccHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ action: b.dataset.cplug, name })
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || j.text || 'that did not work');
+      toast(b.dataset.cplug + 'd ' + name);
+      CC.plugins = null; drawClaude(); ccLoadEnv();
+    } catch (err) { banner(err.message); }
+    b.disabled = false;
+  });
 }
 
 function ccSetup(){
@@ -6688,7 +7066,7 @@ function wireClaudeConfig(root){
   });
 
   const done = root.querySelector('#cc-cfgdone');
-  if (done) done.onclick = () => { grab(); CC.config = false; drawClaude(); };
+  if (done) done.onclick = () => { grab(); CC.panel = null; drawClaude(); };
   const reset = root.querySelector('#cc-cfgreset');
   if (reset) reset.onclick = () => { CCFG = { ...CCFG_DEFAULTS, tools: [] }; ccfgSave(); drawClaude(); };
   wireClaudeAccount(root);
@@ -6880,10 +7258,11 @@ async function ccLogout(){
 function ccChat(){
   const feed = CC.messages.length
     ? CC.messages.map((m, i) => ccBubble(m, i)).join('')
-    : '<div class="ccblank"><b>What are we working on?</b>'
-      + '<p>Claude Code is running in <span class="mono">' + escS(CC.info?.cwd || '') + '</span> and can '
-      + (CC.info?.writable ? 'read and edit files there.' : 'read files there, but not change them.')
-      + '</p></div>';
+    /* A greeting, not a status report. Where Claude is running and what it may
+       touch belongs in Settings -- putting it on the empty state made the first
+       thing you saw every time a sentence about a file path. */
+    : '<div class="ccblank"><b>' + escS(ccGreeting()) + '</b>'
+      + '<p>Ask anything, paste a screenshot, or pick up an earlier chat from the left.</p></div>';
 
   /* The model and effort pickers live in the composer rather than the header:
      they are per-message decisions, and reaching to the top of the page to
@@ -7102,6 +7481,19 @@ async function ccUpload(file){
     banner('Could not attach ' + entry.name + ': ' + err.message);
   }
   drawClaude();
+}
+
+/* "Evening, Jay" -- the account's own first name, and the part of the day it
+   actually is here. Falls back to something that still reads as a sentence when
+   no account is attached yet. */
+function ccGreeting(){
+  const h = new Date().getHours();
+  const part = h < 5 ? 'Still up' : h < 12 ? 'Morning' : h < 18 ? 'Afternoon' : 'Evening';
+  const email = CC.account?.email || '';
+  /* jay@leavenwealth.com -> Jay. A dotted local part takes the first word. */
+  const first = email ? email.split('@')[0].split(/[._-]/)[0] : '';
+  const name = first ? first[0].toUpperCase() + first.slice(1) : '';
+  return name ? part + ', ' + name : part;
 }
 
 /* An attachment, as a chip. Images preview from the same endpoint that stored
@@ -7387,6 +7779,9 @@ async function ccSend(text){
   CC.busy = false; CC.abort = null; CC.streaming = false;
   if (!reply.text && !(reply.steps || reply.tools || []).length) reply.text = '_(no output)_';
   drawClaude();
+  /* The turn just wrote a transcript, so the sidebar is now out of date -- a
+     brand new chat would otherwise not appear in its own list until a reload. */
+  ccLoadSessions();
 }
 
 /* Translates Claude Code's stream-json into what the feed shows. Returns true
@@ -7502,11 +7897,16 @@ function ccStop(){
   CC.busy = false; CC.abort = null; drawClaude();
 }
 
-document.getElementById('cc-setup').onclick = () => { CC.setup = !CC.setup; CC.config = false; drawClaude(); };
-document.getElementById('cc-config').onclick = () => { CC.config = !CC.config; CC.setup = false; drawClaude(); };
-document.getElementById('cc-newchat').onclick = () => {
-  CC.messages = []; CC.sessionId = null; drawClaude();
+/* The header keeps the two escape hatches -- bridge setup, and a way back to
+   settings -- but they now select a panel inside the shell rather than replacing
+   the whole view, so the conversation is still there when you come back. */
+document.getElementById('cc-setup').onclick = () => { CC.setup = !CC.setup; CC.panel = null; drawClaude(); };
+document.getElementById('cc-config').onclick = () => {
+  CC.panel = CC.panel === 'settings' ? null : 'settings';
+  CC.setup = false;
+  drawClaude();
 };
+document.getElementById('cc-newchat').onclick = ccNewChat;
 document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.target === 'claude') ccProbe();
 }));
