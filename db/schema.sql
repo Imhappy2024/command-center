@@ -248,3 +248,14 @@ CREATE TABLE IF NOT EXISTS clip_schedules (
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS clip_schedules_clip ON clip_schedules (clip_id);
+
+/* Fields the real OpusClip payload carries that the first schema did not
+   anticipate: the composite id used by the edit/duplicate endpoints, the
+   description and hashtags used to prefill a post, the HD export URL that is
+   separate from the preview, and the rank the product sorts by. */
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS full_id     TEXT;
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS hashtags    TEXT;
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS export_url  TEXT;
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS rank        INTEGER;
+ALTER TABLE clips ADD COLUMN IF NOT EXISTS hook_note   TEXT;
