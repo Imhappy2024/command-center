@@ -1448,7 +1448,9 @@ main{min-width:0;display:flex;flex-direction:column}
    .bar and .split are all taken elsewhere in this file, and a collision here
    would silently restyle Social or Systems. */
 .prstrip{display:grid;grid-template-columns:1.35fr 1fr 1fr 1fr;gap:12px;margin-bottom:14px}
-@media(max-width:900px){.prstrip{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){.prstrip{grid-template-columns:1fr 1fr}
+  /* Sticky inside a 320px box on a phone is just a smaller cage. */
+  .prnavcard{position:static;max-height:320px}}
 .prtile{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
   padding:14px 16px 13px;box-shadow:var(--shadow);position:relative;overflow:hidden}
 .prtile .lab{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;
@@ -1491,19 +1493,44 @@ main{min-width:0;display:flex;flex-direction:column}
 /* Entities on the left, properties on the right. Nesting one inside the other
    meant every row had to announce which kind of thing it was; separating them
    means no row has to. */
-.prsplit{display:grid;grid-template-columns:290px minmax(0,1fr);gap:12px;align-items:start}
+.prsplit{display:grid;grid-template-columns:272px minmax(0,1fr);gap:12px;align-items:start}
 @media(max-width:900px){.prsplit{grid-template-columns:1fr}}
-.prnav{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;cursor:pointer;
+
+/* The entity list is bounded and sticky: it never sets the page height, and it
+   stays put while a long property table scrolls past it. 110 entities in an
+   unbounded column pushed the table's own header off the screen. */
+.prnavcard{position:sticky;top:16px;max-height:calc(100vh - 210px);
+  display:flex;flex-direction:column;overflow:hidden}
+.prnavlist{overflow-y:auto;flex:1;min-height:0;
+  scrollbar-width:thin;scrollbar-color:var(--edge2) transparent}
+/* This one list gets a visible scrollbar. The rest of the app hides them, but a
+   pane that scrolls inside a page that also scrolls has to say so. */
+.prnavlist::-webkit-scrollbar{display:block;width:6px;height:6px}
+.prnavlist::-webkit-scrollbar-thumb{background:var(--edge2);border-radius:99px}
+.prnavlist::-webkit-scrollbar-thumb:hover{background:var(--dimmer)}
+.prnavfilter{padding:9px 10px;border-bottom:1px solid var(--edge);flex:none}
+.prnavfilter input{width:100%;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
+  color:var(--text);font:inherit;font-size:11.5px;padding:6px 9px}
+.prnavfilter input::placeholder{color:var(--dimmer)}
+.prnavfoot{flex:none;padding:8px 12px;border-top:1px solid var(--edge);
+  font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);display:flex;gap:10px;
+  align-items:center}
+.prnavfoot button{background:none;border:0;color:var(--dim);font:inherit;font-size:10px;
+  cursor:pointer;padding:0;margin-left:auto}
+.prnavfoot button:hover{color:var(--cream)}
+
+.prnav{display:flex;align-items:center;gap:7px;width:100%;background:none;border:0;cursor:pointer;
   font:inherit;text-align:left;color:var(--text);border-bottom:1px solid var(--edge);
-  transition:background .14s,color .14s;padding:9px 12px}
+  transition:background .14s,color .14s;padding:7px 11px}
 .prnav:last-child{border-bottom:0}
 .prnav:hover{background:var(--panel2)}
 .prnav.on{background:var(--panel2);color:var(--cream);box-shadow:inset 3px 0 0 var(--brass)}
 .prnav .cv{width:10px;flex:none;color:var(--dimmer);font-size:9px;display:inline-block;
   transition:transform .18s var(--ease)}
 .prnav.open .cv{transform:rotate(90deg)}
-.prnav .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12.5px}
-.prnav.root .nm{font-family:var(--ff-display);font-weight:600;color:var(--cream);font-size:13px}
+.prnav .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px}
+.prnav.root .nm{font-family:var(--ff-display);font-weight:600;color:var(--cream);font-size:12.5px}
+.prnav mark{background:rgba(124,108,255,.28);color:var(--cream);border-radius:3px;padding:0 1px}
 .prnav .ct{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);flex:none}
 .prnav.on .ct{color:var(--brass)}
 
@@ -7135,6 +7162,7 @@ const PR = {
   q: '', own: 'held', entity: '', state: '', manager: '', loans: '',
   sort: 'marketValue', dir: 'desc',
   open: new Set(), sel: null,
+  navq: '',                         // filter the entity list itself
   deep: true,                       // include sub-entities in the right pane
   year: null                        // a bar on the maturity wall, as a filter
 };
@@ -7179,11 +7207,9 @@ function prIndex(){
   };
   (d.tree || []).forEach(n => walk(n, null));
 
-  /* Open the largest holdings by default. A tree that starts fully collapsed
-     makes you click before you learn anything. */
-  if (!PR.open.size) {
-    (d.tree || []).slice().sort((a, b) => b.mv - a.mv).slice(0, 3).forEach(n => PR.open.add(n.id));
-  }
+  /* Nothing is opened here on purpose. The tree opens the path to whatever is
+     selected and nothing else, so the list's length tracks where you are rather
+     than how big the org chart is. */
 }
 
 /* ---------- formatting ---------- */
@@ -7389,6 +7415,12 @@ function prChips(){
 
 /* ---------- Structure ---------- */
 
+function prPathTo(id){
+  const out = [];
+  for (let cur = id; cur; cur = PR.data.parentOf.get(cur)) out.unshift(cur);
+  return out;
+}
+
 function prTreeView(){
   const d = PR.data;
   const passing = new Set(prShown().map(p => p.id));
@@ -7399,29 +7431,53 @@ function prTreeView(){
   if (!PR.sel || !d.node.has(PR.sel) || !relevant(PR.sel)) {
     PR.sel = [...d.node.keys()].find(relevant) || (d.tree[0] && d.tree[0].id) || null;
   }
+  /* Open the ancestors of the selection, so a deep entity is reachable without
+     hunting for it, and nothing else is unfolded to get there. */
+  if (PR.sel) prPathTo(PR.sel).slice(0, -1).forEach(id => PR.open.add(id));
+
+  const nq = PR.navq.trim().toLowerCase();
+  const hit = n => !nq || n.name.toLowerCase().includes(nq);
+  const hitInside = n => hit(n) || (n.children || []).some(hitInside);
+  /* The needle goes into a regex, so it has to be escaped: an entity search for
+     "(" would otherwise throw and blank the pane. */
+  const mark = str => {
+    const safe = escS(str);
+    if (!nq) return safe;
+    const needle = nq.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return safe.replace(new RegExp('(' + needle + ')', 'ig'), '<mark>$1</mark>');
+  };
 
   const rows = [];
   const walk = (n, depth) => {
-    if (!relevant(n.id)) return;
-    const kids = (n.children || []).filter(c => relevant(c.id));
-    const open = PR.open.has(n.id);
+    if (!relevant(n.id) || !hitInside(n)) return;
+    const kids = (n.children || []).filter(c => relevant(c.id) && hitInside(c));
+    /* A search opens what it found; otherwise the saved open set decides. */
+    const open = nq ? true : PR.open.has(n.id);
     const count = [...d.subtree.get(n.id)].filter(x => passing.has(x)).length;
     rows.push('<button class="prnav' + (depth ? '' : ' root') + (PR.sel === n.id ? ' on' : '')
-      + (open ? ' open' : '') + '" data-prnav="' + escS(n.id) + '" '
-      + 'style="padding-left:' + (12 + depth * 15) + 'px">'
+      + (open && kids.length ? ' open' : '') + '" data-prnav="' + escS(n.id) + '" '
+      + 'title="' + escS(n.name) + '" '
+      + 'style="padding-left:' + (11 + depth * 14) + 'px">'
       + '<span class="cv">' + (kids.length ? '▸' : '') + '</span>'
-      + '<span class="nm">' + escS(n.name) + '</span>'
+      + '<span class="nm">' + mark(n.name) + '</span>'
       + '<span class="ct">' + count + '</span></button>');
     if (open) kids.forEach(c => walk(c, depth + 1));
   };
   (d.tree || []).slice().sort((a, b) => b.mv - a.mv).forEach(n => walk(n, 0));
 
-  const nav = '<div class="card flush"><div class="cardhead"><h3>Ownership</h3>'
-    + '<span class="eyebrow">' + rows.length + ' entities</span></div>'
-    + (rows.join('') || '<div class="empty"><b>No entity matches</b>'
-        + '<small>Every entity is filtered out.</small></div>') + '</div>';
+  const nav = '<div class="card prnavcard">'
+    + '<div class="prnavfilter"><input id="pr-navq" placeholder="Filter entities" '
+    +   'value="' + escS(PR.navq) + '" autocomplete="off" spellcheck="false"></div>'
+    + '<div class="prnavlist">'
+    +   (rows.join('') || '<div class="empty" style="padding:28px 16px"><b>No entity matches</b>'
+        + '<small>' + (nq ? 'Nothing named like that.' : 'Every entity is filtered out.') + '</small></div>')
+    + '</div>'
+    + '<div class="prnavfoot"><span>' + rows.length + ' shown</span><span>·</span>'
+    +   '<span>' + d.node.size + ' total</span>'
+    +   '<button data-prcollapse="1">Collapse</button></div>'
+    + '</div>';
 
-  if (!PR.sel) return '<div class="prsplit">' + nav + '<div class="card flush">' + prEmpty() + '</div></div>';
+  if (!PR.sel) return '<div class="prsplit">' + nav + '<div class="card">' + prEmpty() + '</div></div>';
 
   const ids = PR.deep ? d.subtree.get(PR.sel) : new Set(d.place.get(PR.sel) || []);
   const list = [...ids].map(id => d.byId.get(id)).filter(Boolean).filter(prPass);
@@ -7430,13 +7486,12 @@ function prTreeView(){
   const r = mv ? debt / mv : 0;
   const extra = d.subtree.get(PR.sel).size - (d.place.get(PR.sel) || []).length;
 
-  const path = [];
-  for (let id = PR.sel; id; id = d.parentOf.get(id)) path.unshift(d.node.get(id));
+  const path = prPathTo(PR.sel).map(id => d.node.get(id)).filter(Boolean);
   const crumb = path.map((n, i) => i === path.length - 1
     ? '<b>' + escS(n.name) + '</b>'
     : '<button data-prnav="' + escS(n.id) + '">' + escS(n.name) + '</button><i>›</i>').join('');
 
-  const right = '<div class="card flush">'
+  const right = '<div class="card">'
     + '<div class="prcrumb">' + crumb + '</div>'
     + '<div class="prscope">'
     +   '<span class="fig">Value <b>' + prMoney(mv) + '</b></span>'
@@ -7723,6 +7778,22 @@ function wirePr(root){
       PR.sel = id;
       if (hasKids) PR.open.add(id);
     }
+    drawProperties();
+  });
+
+  /* Same treatment as the main search: redrawing on every keystroke would drop
+     the caret, so it is put back where it was. */
+  const nq = root.querySelector('#pr-navq');
+  if (nq) nq.oninput = () => {
+    PR.navq = nq.value;
+    drawProperties();
+    const again = document.getElementById('pr-navq');
+    if (again) { again.focus(); again.setSelectionRange(again.value.length, again.value.length); }
+  };
+
+  root.querySelectorAll('[data-prcollapse]').forEach(b => b.onclick = () => {
+    PR.open.clear();
+    PR.navq = '';
     drawProperties();
   });
 
