@@ -1361,20 +1361,48 @@ main{min-width:0;display:flex;flex-direction:column}
 /* Tool calls and thinking: collapsed by default. A transcript full of expanded
    tool output is unreadable, and the detail matters only when something looks
    wrong. */
-.ccstep{border:1px solid var(--edge);border-radius:9px;background:var(--ink2);margin:0 0 9px;
-  overflow:hidden}
-.ccstep>summary{display:flex;align-items:center;gap:9px;padding:7px 11px;cursor:pointer;
-  font-family:var(--ff-mono);font-size:11px;color:var(--dim);list-style:none}
-.ccstep>summary::-webkit-details-marker{display:none}
-.ccstep>summary:hover{background:var(--panel2)}
-.ccstep>summary .tn{color:var(--cream);font-weight:500}
-.ccstep>summary .td{color:var(--dimmer);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
-  min-width:0;flex:1}
-.ccstep>summary .cv{flex:none;color:var(--dimmer);font-size:9.5px}
-.ccstep[open]>summary{border-bottom:1px solid var(--edge)}
-.ccstep .sb{padding:10px 12px;font-family:var(--ff-mono);font-size:11.5px;color:var(--dim);
-  white-space:pre-wrap;overflow-x:auto;max-height:340px;overflow-y:auto;line-height:1.55}
-.ccstep.think>summary .tn{color:var(--dim);font-style:italic}
+/* A whole run of work reads as one line of prose -- "Thought, loaded tools, used
+   Front Attachments MCP" -- and unfolds into a timeline.
+
+   The old shape was one bordered card per call. Fourteen of them stacked above a
+   two-line answer, each announcing mcp__claude_ai_Front_Attachments_MCP__… in
+   monospace, and the answer itself was the smallest thing on screen. What Claude
+   did is worth a line; it is not worth more room than what Claude said. */
+.ccrun{margin:0 0 11px}
+.ccrunh{display:flex;align-items:center;gap:8px;background:none;border:0;padding:3px 0;
+  color:var(--dimmer);font:inherit;font-size:12.5px;cursor:pointer;text-align:left;
+  transition:color .14s;max-width:100%}
+.ccrunh:hover{color:var(--text)}
+.ccrunh .cv{flex:none;font-size:9px;color:var(--edge2);display:inline-block;
+  transition:transform .18s var(--ease),color .18s}
+.ccrun.on .ccrunh{color:var(--text)}
+.ccrun.on .ccrunh .cv{transform:rotate(90deg);color:var(--brass)}
+.ccrunh .txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ccrunh .bad{color:var(--rust);flex:none}
+.ccrunh .spin{width:6px;height:6px;border-radius:50%;background:var(--brass);flex:none;
+  animation:ccbl 1.4s ease-in-out infinite}
+
+/* The rail is what makes it a sequence rather than a list. */
+.cctl{margin:6px 0 0 4px;padding-left:16px;border-left:1px solid var(--edge);
+  display:flex;flex-direction:column}
+.cctrow{display:flex;align-items:center;gap:10px;background:none;border:0;
+  padding:5px 8px 5px 0;color:var(--dim);font:inherit;font-size:12px;cursor:pointer;
+  text-align:left;position:relative;transition:color .14s;width:100%;min-width:0}
+.cctrow:hover{color:var(--cream)}
+.cctrow::before{content:"";position:absolute;left:-21px;top:50%;width:9px;height:9px;
+  border-radius:50%;background:var(--ink);border:1px solid var(--edge2);
+  transform:translateY(-50%);box-sizing:border-box}
+.cctrow.on::before{border-color:var(--brass);background:var(--brass)}
+.cctrow.bad::before{border-color:var(--rust);background:var(--rust)}
+.cctrow.think{font-style:italic;color:var(--dimmer)}
+.cctrow .lb{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cctrow .mt{margin-left:auto;flex:none;font-family:var(--ff-mono);font-size:9.5px;
+  color:var(--dimmer);letter-spacing:.03em}
+.cctrow.bad .mt{color:var(--rust)}
+.cctbody{margin:1px 0 7px;padding:9px 11px;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:8px;font-family:var(--ff-mono);font-size:11px;color:var(--dim);
+  white-space:pre-wrap;line-height:1.6;max-height:320px;overflow:auto;
+  overflow-wrap:anywhere}
 
 /* The question widget.
 
@@ -9743,6 +9771,9 @@ const CC = {
   /* Off by default on purpose: the connector list includes Gmail, GHL and
      Supabase, so this is the difference between reading and sending. */
   useMcp: localStorage.getItem('cc.usemcp') === '1',
+  /* Which runs and which steps inside them the reader has unfolded. Keyed
+     "<message>:<run>" and "<message>:<run>:<step>". */
+  openRuns: {},
   sessions: [], sessionsLoaded: false,
   panel: null,            // null = chat, else skills | connectors | plugins | settings
   skills: null, q: '',
@@ -11200,19 +11231,110 @@ function ccAskSummary(t){
   return bits.join(' · ') || '(nothing)';
 }
 
+/* mcp__claude_ai_Front_Attachments_MCP__request_file_upload is a wire name. It
+   says which server and which tool, and nobody wants to read it in that form. */
+function ccMcpParts(name){
+  const m = /^mcp__(.+?)__(.+)$/.exec(String(name || ''));
+  if (!m) return null;
+  return {
+    server: m[1].replace(/^claude_ai_/, '').replace(/_MCP$/, '').replace(/_/g, ' ').trim(),
+    tool: m[2]
+  };
+}
+const ccSentence = t => String(t || '').replace(/_/g, ' ').replace(/^./, c => c.toUpperCase());
+
+function ccStepLabel(t){
+  if (t.kind === 'thinking') return 'Thinking';
+  if (t.name === 'ToolSearch') return 'Found tools';
+  const mcp = ccMcpParts(t.name);
+  return mcp ? ccSentence(mcp.tool) : (t.name || 'Tool');
+}
+
+/* "a, b and c" -- an Oxford-less list, because these are read aloud in the head
+   as a sentence and "a, b, and c" reads as a stutter at this length. */
+function ccList(items){
+  if (items.length <= 1) return items[0] || '';
+  if (items.length === 2) return items[0] + ' and ' + items[1];
+  return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+}
+
+/* The one line that stands for the whole run. Built from what was actually
+   called, so it says something specific: which integrations, how much thinking,
+   and whether anything failed. */
+function ccRunSummary(run){
+  const bits = [];
+  if (run.some(t => t.kind === 'thinking')) bits.push('Thought');
+  if (run.some(t => t.name === 'ToolSearch')) bits.push('loaded tools');
+
+  const servers = [...new Set(run.map(t => ccMcpParts(t.name)).filter(Boolean).map(x => x.server))];
+  if (servers.length) {
+    bits.push('used ' + ccList(servers) + ' integration' + (servers.length > 1 ? 's' : ''));
+  }
+  const own = [...new Set(run
+    .filter(t => t.kind === 'tool' && t.name !== 'ToolSearch' && !ccMcpParts(t.name))
+    .map(t => t.name))];
+  if (own.length) bits.push('ran ' + ccList(own.slice(0, 4)) + (own.length > 4 ? ' and more' : ''));
+
+  if (!bits.length) return 'Worked on it';
+  return bits.join(', ').replace(/^./, c => c.toUpperCase());
+}
+
+/* Steps become runs, and an ask widget ends one: a question is not part of the
+   work you can fold away, it is the thing waiting for you. */
+function ccRuns(steps){
+  const out = [];
+  for (const t of steps) {
+    if (t.kind === 'ask') { out.push({ ask: t }); continue; }
+    const last = out[out.length - 1];
+    if (last && last.run) last.run.push(t);
+    else out.push({ run: [t] });
+  }
+  return out;
+}
+
 function ccSteps(m){
   const steps = ccMergeSteps(m.steps || m.tools || []);
   if (!steps.length) return '';
-  return steps.map(t => {
-    if (t.kind === 'ask') return ccAskWidget(t);
-    const isThink = t.kind === 'thinking';
-    const label = isThink ? 'Thinking' : (t.name || 'Tool');
-    return '<details class="ccstep' + (isThink ? ' think' : '') + '">'
-      + '<summary><span class="tn">' + escS(label) + '</span>'
-      + '<span class="td">' + escS(t.detail || '') + '</span>'
-      + '<span class="cv">' + (t.body ? 'details' : '') + '</span></summary>'
-      + (t.body ? '<div class="sb">' + escS(String(t.body).slice(0, 8000)) + '</div>' : '')
-      + '</details>';
+  /* Open state is keyed by message and position rather than held in the markup,
+     because the feed is rebuilt every 90ms while a turn streams and anything in
+     the DOM is wiped between frames. */
+  const mi = CC.messages.indexOf(m);
+
+  return ccRuns(steps).map((seg, si) => {
+    if (seg.ask) return ccAskWidget(seg.ask);
+    const key = mi + ':' + si;
+    const open = Boolean(CC.openRuns[key]);
+    const failed = seg.run.filter(t => /(^|\W)failed(\W|$)/.test(t.detail || '')).length;
+    /* A run still being added to is a run still happening. */
+    const live = CC.busy && m === CC.messages[CC.messages.length - 1]
+      && si === ccRuns(steps).length - 1;
+
+    const head = '<button class="ccrunh" data-ccrun="' + key + '">'
+      + '<span class="cv">▸</span>'
+      + (live ? '<span class="spin"></span>' : '')
+      + '<span class="txt">' + escS(ccRunSummary(seg.run)) + '</span>'
+      + (failed ? '<span class="bad">· ' + failed + ' failed</span>' : '')
+      + '</button>';
+
+    if (!open) return '<div class="ccrun">' + head + '</div>';
+
+    const rows = seg.run.map((t, ti) => {
+      const rk = key + ':' + ti;
+      const shown = Boolean(CC.openRuns[rk]);
+      const mcp = ccMcpParts(t.name);
+      const bad = /(^|\W)failed(\W|$)/.test(t.detail || '');
+      const body = t.kind === 'thinking' ? (t.body || '') : (t.body || '');
+      return '<button class="cctrow' + (t.kind === 'thinking' ? ' think' : '')
+        +   (bad ? ' bad' : '') + (shown ? ' on' : '') + '" data-ccrun="' + rk + '">'
+        + '<span class="lb">' + escS(ccStepLabel(t)) + '</span>'
+        + '<span class="mt">' + escS(bad ? 'failed' : (mcp ? mcp.server : (t.detail || ''))) + '</span>'
+        + '</button>'
+        + (shown && body
+            ? '<div class="cctbody">' + escS(String(body).slice(0, 8000)) + '</div>'
+            : shown ? '<div class="cctbody">Nothing was recorded for this step.</div>' : '');
+    }).join('');
+
+    return '<div class="ccrun on">' + head + '<div class="cctl">' + rows + '</div></div>';
   }).join('');
 }
 
@@ -11343,6 +11465,22 @@ function wireClaudeChat(root){
         if (found && found.step.state === 'open') ccAskSend(found.step);
       }
     });
+    feed.addEventListener('click', ev => {
+      const row = ev.target.closest('[data-ccrun]');
+      if (!row) return;
+      const k = row.dataset.ccrun;
+      CC.openRuns[k] = !CC.openRuns[k];
+      /* Folding a run away should not leave its steps remembering they were
+         open, or reopening it dumps the whole transcript back on screen. */
+      if (!CC.openRuns[k]) {
+        for (const other of Object.keys(CC.openRuns)) {
+          if (other.startsWith(k + ':')) delete CC.openRuns[other];
+        }
+      }
+      const last = CC.messages[CC.messages.length - 1];
+      if (last && last.role === 'assistant') ccPatch(last); else drawClaude();
+    });
+
     feed.addEventListener('input', ev => {
       const box = ev.target.closest('[data-askfree]');
       if (!box) return;
@@ -11683,16 +11821,13 @@ function ccPatch(reply){
   if (!last || !last.classList.contains('ai')) { drawClaude(); return; }
   const bd = last.querySelector('.bd');
   if (!bd) return;
-  /* Preserve which steps the reader has opened; a redraw that snaps them all
-     shut mid-stream is worse than no detail at all. */
-  const openIdx = new Set();
-  bd.querySelectorAll('.ccstep').forEach((d, i) => { if (d.open) openIdx.add(i); });
+  /* What the reader has unfolded lives in CC.openRuns, not in the markup, so a
+     redraw mid-stream cannot snap it shut and nothing has to be put back. */
   const stuck = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
 
   bd.innerHTML = ccSteps(reply)
     + '<div class="ccprose">' + mdRender(reply.text || '')
     + (CC.busy ? '<span class="cccaret"></span>' : '') + '</div>';
-  bd.querySelectorAll('.ccstep').forEach((d, i) => { if (openIdx.has(i)) d.open = true; });
   if (stuck) feed.scrollTop = feed.scrollHeight;
 }
 
