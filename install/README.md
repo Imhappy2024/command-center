@@ -49,10 +49,10 @@ Launched some other way — `npm start` in a terminal, say — nothing is superv
 the process, so `/api/app/restart` refuses and the banner tells you to restart it
 yourself. That is deliberate: exiting would just stop it.
 
-The repo is private, so the unauthenticated GitHub check answers 404. The
-sidebar reports that as a permissions problem rather than as "up to date" —
-`git pull` in the install folder still works, and a `GITHUB_TOKEN` in `.env`
-would make the check work too.
+The check is an unauthenticated read of the GitHub API, which works because the
+repo is public. If it ever goes private that read starts answering 404, and the
+sidebar reports it as a permissions problem rather than as "up to date" — an
+update check that cannot see the remote must not claim the install is current.
 
 ## Why there is no .exe
 

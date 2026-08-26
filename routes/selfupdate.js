@@ -28,6 +28,25 @@ function git(args, timeoutMs = 20_000){
   });
 }
 
+/* npm without a shell.
+   `spawn('npm.cmd', args)` fails outright on Windows (Node refuses to spawn a
+   .cmd without a shell) and `shell: true` concatenates argv instead of escaping
+   it — Node says so with DEP0190. Same trap as lib/claude-cli.js. npm ships as
+   a plain Node script next to the node binary, so spawn that directly. */
+function spawnNpm(args){
+  const dir = path.dirname(process.execPath);
+  for (const cli of [
+    path.join(dir, 'node_modules', 'npm', 'bin', 'npm-cli.js'),          // Windows
+    path.join(dir, '..', 'lib', 'node_modules', 'npm', 'bin', 'npm-cli.js')  // Unix
+  ]) {
+    if (fs.existsSync(cli)) return spawn(process.execPath, [cli, ...args], { cwd: ROOT });
+  }
+  /* Not where it usually lives. The shell form is the fallback, and these
+     particular arguments contain nothing that needs escaping. */
+  return spawn(process.platform === 'win32' ? 'npm.cmd' : 'npm', args,
+               { cwd: ROOT, shell: process.platform === 'win32' });
+}
+
 function pkgVersion(){
   try { return JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '0.0.0'; }
   catch { return '0.0.0'; }
@@ -82,10 +101,13 @@ export function selfUpdateRoutes({ env, auth }){
         signal: AbortSignal.timeout(12_000)
       });
       if (!gh.ok) {
-        /* A private repo answers 404 to an unauthenticated read; that is a
-           permissions answer, not "no updates". */
+        /* A 404 here means the remote could not be seen — the repo went
+           private, was renamed, or this branch is local-only. Either way it is
+           an answer about visibility, not "no updates", and reporting it as
+           up to date would be a lie the user acts on. */
         return res.json({ ok:false, error: gh.status === 404
-          ? 'GitHub returned 404 — the repo is private, so this check needs a token'
+          ? `GitHub returned 404 for ${info.owner}/${info.repo}@${branch} — the repo may be private `
+            + 'or the branch may not exist there. Pulling in the install folder still works.'
           : 'GitHub returned ' + gh.status });
       }
       const j = await gh.json();
@@ -123,8 +145,7 @@ export function selfUpdateRoutes({ env, auth }){
         return res.status(502).json({ error: 'git pull failed: ' + (pull.stderr || pull.error || 'unknown') });
       }
       const install = await new Promise(resolve => {
-        const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-        const child = spawn(npm, ['install', '--omit=dev'], { cwd: ROOT, shell: process.platform === 'win32' });
+        const child = spawnNpm(['install', '--omit=dev']);
         let err = '';
         child.stderr.on('data', c => { err += c; });
         child.on('error', e => resolve({ ok:false, error: e.message }));
