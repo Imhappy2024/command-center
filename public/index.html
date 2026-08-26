@@ -933,16 +933,6 @@ main{min-width:0;display:flex;flex-direction:column}
   width:3px;height:3px;border-radius:50%;background:var(--brass)}
 
 /* ---- platform strip ---- */
-.pstrip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.ptab{display:inline-flex;align-items:center;gap:9px;padding:9px 16px 9px 12px;border-radius:999px;
-  border:1px solid var(--edge);background:var(--panel);font-size:13px;color:var(--dim);
-  cursor:pointer;transition:.16s}
-.ptab:hover{border-color:var(--edge2);color:var(--text)}
-.ptab .sw{width:9px;height:9px;border-radius:3px;background:var(--c);flex:none}
-.ptab .cnt{font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
-.ptab.on{color:var(--cream);background:var(--panel2);
-  border-color:color-mix(in srgb,var(--c) 55%,transparent);
-  box-shadow:0 0 0 3px color-mix(in srgb,var(--c) 12%,transparent)}
 
 /* ---- signal ---- */
 /* Signal beside its context, the way a control room reads: the series on the
@@ -4485,13 +4475,6 @@ function drawSocial(){
   body.querySelectorAll('[data-postopen]').forEach(b => b.onclick = () => {
     openPost(SO.view === 'meta' ? SO.metaTab : SO.view, b.dataset.postopen);
   });
-  body.querySelectorAll('[data-pstrip]').forEach(b => b.onclick = () => {
-    SO.view = b.dataset.pstrip;
-    SO.section = 'performance';
-    if (SO.view === 'meta') SO.metaTab = 'facebook';
-    SO.acct = 'all'; SO.split = false; SO.zoom = null; SO.q = '';
-    drawSocial(); loadSocialView();
-  });
   /* A tile is the fastest way to change what the chart shows, so it charts it.
      A ratio has no daily series of its own and says so rather than doing
      nothing. */
@@ -5240,31 +5223,6 @@ function filterBar(d, key, { metrics = [], showSplit = true, showSearch = false 
     + '</div>';
 }
 
-/* ---------- platform strip ----------
-   Real view counts per platform, from what is already loaded — no extra fetch
-   just to label a tab. */
-function platformStrip(){
-  /* Platform hues, not series slots. These say "which network" beside a
-     word that also says it, so hue is never the only channel.
-
-     "All" leads, because the first question is usually how everything is
-     doing rather than how one network is. */
-  const tabs = [
-    { id:'overview',  label:'All platforms', c:'var(--brass)', keys:['youtube','facebook','instagram','x'] },
-    { id:'youtube',   label:'YouTube',   c:'var(--yt)', keys:['youtube'] },
-    { id:'meta',      label:'Meta',      c:'var(--fb)', keys:['facebook','instagram','meta_ads'] },
-    { id:'x',         label:'X',         c:'var(--xx)', keys:['x'] }
-  ];
-  return '<div class="pstrip">' + tabs.map(t => {
-    const loaded = t.keys.map(k => PLAT[k]).filter(Boolean);
-    const views = loaded.reduce((n, d) =>
-      n + windowOf(d.series || [], RANGE_N(), 0).reduce((m, r) => m + (r.views || 0), 0), 0);
-    const connected = loaded.some(d => d.connected);
-    return '<button class="ptab' + (SO.view === t.id ? ' on' : '') + '" style="--c:' + t.c + '" data-pstrip="' + t.id + '">'
-      + '<i class="sw"></i>' + escS(t.label)
-      + '<span class="cnt">' + (connected ? (views ? compact(views) + ' views' : 'no data') : 'not connected') + '</span></button>';
-  }).join('') + '</div>';
-}
 
 /* ---------- what changed ----------
    Anomalies against the account's OWN baseline, never against an industry
@@ -5592,8 +5550,7 @@ function performanceSection(d, key){
     + '</div>';
 
   /* Series on the left, what it means on the right. */
-  return platformStrip()
-    + filterBar(d, key, { metrics: [] })
+  return filterBar(d, key, { metrics: [] })
     + band
     + '<div class="siggrid">'
     +   '<div class="col">' + signal + '</div>'
@@ -5716,7 +5673,7 @@ function contentSection(d, key){
         title: 'Top ' + words.posts.toLowerCase() + ' by ' + rank, sub: 'best 10', height: 170 })
     : '';
 
-  return platformStrip() + filterBar(d, key, { showSplit: false, showSearch: true })
+  return filterBar(d, key, { showSplit: false, showSearch: true })
     + tiles + topChart + table + accountsFooter(d);
 }
 
@@ -5748,7 +5705,7 @@ function audienceSection(d, key){
       spark: mine.map(r => r.followers).slice(-12), color: hueFor(a.id), na: now == null });
   }).join('');
 
-  return platformStrip() + filterBar(d, key, { showSplit: false })
+  return filterBar(d, key, { showSplit: false })
     + '<div class="kpis grid ' + (accounts.length > 2 ? 'g3' : 'g2') + '">' + perAcct + '</div>'
     + (SO.table
         ? frame(words.followers + ' by account', SO.range + ' days', vizTable(axis, series), series, '')
