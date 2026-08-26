@@ -734,6 +734,113 @@ main{min-width:0;display:flex;flex-direction:column}
 .soacct b{color:var(--text);font-variation-settings:'wght' 500}
 .soacct .mono{margin-left:auto;font-size:10.5px;color:var(--dimmer)}
 
+/* ================= metrics dashboard =================
+   Chart surface is --panel (#151A20). The eight categorical slots below are the
+   validated dark steps, checked against that exact surface: lightness band,
+   chroma floor, CVD separation, normal-vision floor and 3:1 contrast all pass.
+   They are assigned in fixed order and never cycled, so a series keeps its hue
+   when a filter removes its neighbours. */
+.viz{
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
+  --grid:#232B34; --axis:#303B45;
+}
+
+/* ---- filter bar: one row, above everything it scopes ---- */
+.fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;margin-bottom:14px;
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r)}
+.fbar .sep{width:1px;height:20px;background:var(--edge);margin:0 2px}
+.fbar .flabel{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dimmer);margin-right:2px}
+.seg{display:inline-flex;background:var(--ink2);border:1px solid var(--edge);border-radius:7px;padding:2px;gap:2px}
+.seg button{background:none;border:0;border-radius:5px;color:var(--dim);cursor:pointer;
+  font:inherit;font-size:11.5px;padding:5px 11px;transition:background .13s,color .13s;white-space:nowrap}
+.seg button:hover{color:var(--text)}
+.seg button.on{background:var(--panel2);color:var(--cream);box-shadow:0 1px 0 rgba(0,0,0,.28)}
+.fbar .grow{flex:1}
+.tgl{display:inline-flex;align-items:center;gap:7px;background:none;border:1px solid var(--edge);
+  border-radius:7px;color:var(--dim);cursor:pointer;font:inherit;font-size:11.5px;padding:6px 11px;transition:.13s}
+.tgl:hover{border-color:var(--edge2);color:var(--text)}
+.tgl.on{border-color:var(--brass);color:var(--cream)}
+.tgl .box{width:12px;height:12px;border:1px solid currentColor;border-radius:3px;display:grid;place-items:center;font-size:9px;line-height:1}
+.fsearch{background:var(--ink2);border:1px solid var(--edge);border-radius:7px;color:var(--text);
+  font:inherit;font-size:12px;padding:6px 11px;min-width:180px}
+.fsearch:focus{outline:none;border-color:var(--edge2)}
+.fsearch::placeholder{color:var(--dimmer)}
+
+/* ---- KPI tile ---- */
+.kpis{display:grid;gap:10px;margin-bottom:14px}
+.kpi{position:relative;background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);
+  padding:14px 15px 12px;overflow:hidden;transition:border-color .15s}
+.kpi:hover{border-color:var(--edge2)}
+.kpi .klab{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--dimmer);display:block;margin-bottom:7px}
+.kpi .kval{font-size:27px;line-height:1.05;color:var(--cream);
+  font-variation-settings:'wdth' 112,'wght' 650;letter-spacing:-.015em}
+.kpi .kval.na{color:var(--dimmer);font-variation-settings:'wdth' 100,'wght' 400;font-size:22px}
+.kpi .kfoot{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;color:var(--dim);flex-wrap:wrap}
+.kpi .kspark{position:absolute;right:0;bottom:0;width:58%;height:38px;opacity:.5;pointer-events:none}
+.chip2{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 8px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.03em;border:1px solid transparent}
+.chip2.up{background:rgba(12,163,12,.13);color:#0ca30c;border-color:rgba(12,163,12,.28)}
+.chip2.down{background:rgba(208,59,59,.13);color:#e06b6b;border-color:rgba(208,59,59,.28)}
+.chip2.flat{background:var(--ink2);color:var(--dim);border-color:var(--edge)}
+.kbench{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--dimmer)}
+
+/* ---- chart frame ---- */
+.vwrap{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);margin-bottom:14px}
+.vhead2{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px 0}
+.vhead2 h3{font-size:13.5px;color:var(--cream);font-variation-settings:'wght' 600}
+.vhead2 .sub{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--dimmer)}
+.vhead2 .grow{flex:1}
+.vbody{padding:12px 15px 15px}
+.vplot{position:relative;padding-left:46px}
+.vplot svg{display:block;width:100%;height:var(--vh,190px)}
+.vyaxis{position:absolute;left:0;top:0;width:44px;height:var(--vh,190px);pointer-events:none}
+.vyaxis span{position:absolute;right:6px;transform:translateY(-50%);font-family:'IBM Plex Mono',monospace;
+  font-size:9.5px;color:var(--dimmer);font-feature-settings:'tnum';white-space:nowrap}
+.vxaxis{display:flex;justify-content:space-between;margin-left:46px;padding-top:7px;
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--dimmer);font-feature-settings:'tnum'}
+.vcross{position:absolute;top:0;width:1px;background:var(--edge2);pointer-events:none;opacity:0;height:var(--vh,190px)}
+.vtip{position:absolute;z-index:40;min-width:150px;background:#0C1014;border:1px solid var(--edge2);
+  border-radius:8px;padding:9px 11px;pointer-events:none;opacity:0;transition:opacity .1s;
+  box-shadow:0 10px 26px rgba(0,0,0,.5)}
+.vtip .tday{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dimmer);display:block;margin-bottom:6px}
+.vtip .trow{display:flex;align-items:center;gap:8px;margin-top:4px}
+.vtip .tkey{width:12px;height:2px;border-radius:2px;flex:none}
+.vtip .tval{color:var(--cream);font-family:'IBM Plex Mono',monospace;font-size:12px;
+  font-feature-settings:'tnum';font-variation-settings:'wght' 600}
+.vtip .tname{color:var(--dim);font-size:11px;margin-left:auto}
+.vlegend{display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:10px 15px 0;
+  font-size:11.5px;color:var(--dim)}
+.vlegend .lk{display:inline-flex;align-items:center;gap:6px;cursor:pointer;user-select:none}
+.vlegend .lk .sw{width:11px;height:11px;border-radius:3px;flex:none}
+.vlegend .lk .sw.line{height:2px;width:14px;border-radius:2px}
+.vlegend .lk.off{opacity:.38}
+.vempty{padding:34px 16px;text-align:center;color:var(--dim);font-size:12.5px}
+.vempty b{display:block;color:var(--cream);font-size:13.5px;margin-bottom:5px}
+
+/* ---- table view twin ---- */
+.vtable{width:100%;border-collapse:collapse;font-size:12px}
+.vtable th,.vtable td{padding:7px 10px;border-bottom:1px solid var(--edge);text-align:right;
+  font-feature-settings:'tnum';white-space:nowrap}
+.vtable th{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--dimmer);font-weight:400}
+.vtable th:first-child,.vtable td:first-child{text-align:left}
+.vtable td{color:var(--text)}
+.vscroll{max-height:340px;overflow:auto}
+
+/* ---- section rail ---- */
+.subnav .subsec{display:flex;align-items:center;gap:8px;width:100%;background:none;border:0;
+  color:var(--dimmer);cursor:pointer;font:inherit;font-size:11.5px;padding:5px 14px 5px 34px;text-align:left;
+  transition:color .12s,background .12s;position:relative}
+.subnav .subsec:hover{color:var(--text);background:#12171C}
+.subnav .subsec.on{color:var(--cream)}
+.subnav .subsec.on::before{content:'';position:absolute;left:22px;top:50%;transform:translateY(-50%);
+  width:3px;height:3px;border-radius:50%;background:var(--brass)}
+
 /* ---------- ads dashboard ---------- */
 .adsflags{display:flex;flex-direction:column;gap:1px;margin-bottom:14px}
 .adsflag{display:flex;align-items:flex-start;gap:10px;padding:11px 15px;background:var(--panel);
@@ -3329,6 +3436,12 @@ let POSTS = [];
 /* view: overview | youtube | meta | x. metaTab: facebook | instagram | meta_ads.
    metric: the series each platform chart is showing, remembered per platform. */
 const SO = { view:'overview', metaTab:'facebook', range:'28', metric:{}, fetching:false,
+  /* Which section of a platform dashboard is open, and how it is sliced.
+     section: performance | content | audience
+     acct:    'all' or one account id — every platform view, not just ads
+     split:   plot one series PER ACCOUNT instead of one summed series
+     table:   the table twin, so no value is reachable only by hovering */
+  section:'performance', acct:'all', split:false, table:false, q:'', chartKind:'bar',
   /* Ads view: which ad account is in focus, how the campaign table is sorted,
      and which efficiency metric the line on the combo chart draws. */
   adsAcct:'all', adsSort:{ col:'spend', dir:-1 }, adsLine:'cpa' };
@@ -3419,17 +3532,49 @@ function drawSocialSubnav(){
     return acc.every(a => a.status === 'ok') ? 'ok' : 'warn';
   };
 
+  /* Sections nest under whichever platform is open, so the left menu carries
+     the whole hierarchy rather than the view hiding its own structure. Meta's
+     three properties are its sections; the others get Performance / Content /
+     Audience. */
+  const SECTIONS = {
+    youtube: [['performance','Performance'],['content','Videos'],['audience','Audience']],
+    x:       [['performance','Performance'],['content','Posts'],['audience','Audience']],
+    meta:    [['facebook','FB Page'],['instagram','Instagram'],['meta_ads','Meta Ads']]
+  };
+
+  const sectionRows = view => {
+    if (SO.view !== view) return '';
+    return SECTIONS[view].map(([k, label]) => {
+      const on = view === 'meta' ? SO.metaTab === k : SO.section === k;
+      return '<button class="subsec' + (on ? ' on' : '') + '" data-sosection="' + k + '" data-soparent="' + view + '">'
+        + escS(label) + '</button>';
+    }).join('');
+  };
+
   soSubEl.innerHTML =
     row('overview', 'Overview', SOCIAL.filter(s => s.status === 'ok').length, 'linear-gradient(135deg,#D9A441,#4E9E7E)')
     + '<div class="subhead">Platforms</div>'
-    + row('youtube', 'YouTube', 0, '#C2553F', state(SO_VIEW_KEYS.youtube))
-    + row('meta',    'Meta',    0, '#5B8DEF', state(SO_VIEW_KEYS.meta))
-    + row('x',       'X',       0, '#8E9BA8', state(SO_VIEW_KEYS.x));
+    + row('youtube', 'YouTube', 0, '#C2553F', state(SO_VIEW_KEYS.youtube)) + sectionRows('youtube')
+    + row('meta',    'Meta',    0, '#5B8DEF', state(SO_VIEW_KEYS.meta))    + sectionRows('meta')
+    + row('x',       'X',       0, '#8E9BA8', state(SO_VIEW_KEYS.x))       + sectionRows('x');
 
   soSubEl.querySelectorAll('[data-soview]').forEach(b => b.onclick = () => {
     SO.view = b.dataset.soview;
+    /* A platform always opens on its first section, never on whatever was left
+       selected under a different platform. */
+    SO.section = 'performance';
+    if (SO.view === 'meta') SO.metaTab = 'facebook';
+    SO.acct = 'all'; SO.split = false; SO.q = '';
     drawSocial();
     loadSocialView();
+  });
+
+  soSubEl.querySelectorAll('[data-sosection]').forEach(b => b.onclick = () => {
+    const parent = b.dataset.soparent, k = b.dataset.sosection;
+    if (parent === 'meta') { SO.metaTab = k; SO.section = 'performance'; }
+    else SO.section = k;
+    SO.q = '';
+    drawSocial();
   });
 }
 
@@ -3526,6 +3671,51 @@ function drawSocial(){
   body.querySelectorAll('[data-adsacct]').forEach(b => b.onclick = () => {
     SO.adsAcct = b.dataset.adsacct; drawSocial();
   });
+  body.querySelectorAll('[data-soacct2]').forEach(b => b.onclick = () => {
+    SO.acct = b.dataset.soacct2; drawSocial();
+  });
+  body.querySelectorAll('[data-sosplit]').forEach(b => b.onclick = () => {
+    SO.split = !SO.split; drawSocial();
+  });
+  body.querySelectorAll('[data-sotable]').forEach(b => b.onclick = () => {
+    SO.table = !SO.table; drawSocial();
+  });
+  body.querySelectorAll('[data-sokind]').forEach(b => b.onclick = () => {
+    SO.chartKind = b.dataset.sokind; drawSocial();
+  });
+  /* The range is a server-side window, so it refetches; everything else above
+     re-slices what is already loaded. */
+  body.querySelectorAll('[data-sorange]').forEach(b => b.onclick = () => {
+    if (SO.range === b.dataset.sorange) return;
+    SO.range = b.dataset.sorange;
+    const sel = document.getElementById('so-range');
+    if (sel) sel.value = SO.range;
+    PLAT = {};
+    drawSocial(); load(); loadSocialView();
+  });
+  /* Legend keys toggle a series. Identity is the mark's colour AND its name, so
+     hiding one never leaves the reader matching hues from memory. */
+  body.querySelectorAll('[data-vizkey]').forEach(b => {
+    const toggle = () => {
+      const id = b.dataset.vizkey;
+      if (VIZ_OFF.has(id)) VIZ_OFF.delete(id); else VIZ_OFF.add(id);
+      drawSocial();
+    };
+    b.onclick = toggle;
+    b.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } };
+  });
+  const q = document.getElementById('so-q');
+  if (q) {
+    q.oninput = () => {
+      SO.q = q.value;
+      clearTimeout(q._t);
+      /* Redraw is cheap and local, but debounced so a fast typist is not
+         rebuilding a table on every keystroke. */
+      q._t = setTimeout(() => { const at = document.activeElement === q; drawSocial();
+        if (at) { const n2 = document.getElementById('so-q'); if (n2) { n2.focus(); n2.setSelectionRange(n2.value.length, n2.value.length); } } }, 160);
+    };
+  }
+  wireViz(body);
   body.querySelectorAll('[data-adsline]').forEach(b => b.onclick = () => {
     SO.adsLine = b.dataset.adsline; drawSocial();
   });
@@ -3604,6 +3794,279 @@ function connectCard(key, d){
     + '</div></div>';
 }
 
+/* The hover layer, wired after every render because the body is rebuilt as a
+   string. The crosshair finds the X — the reader aims at a day, never at a 2px
+   line — and one tooltip lists every series at that day, so the pointer never
+   has to land on a mark. Values are also in the table twin, so this only ever
+   enhances. */
+function wireViz(root){
+  root.querySelectorAll('.vplot[data-viz]').forEach(plot => {
+    let data;
+    try { data = JSON.parse(plot.dataset.viz); } catch { return; }
+    if (!data.axis?.length) return;
+
+    const cross = plot.querySelector('.vcross');
+    const tip = plot.querySelector('.vtip');
+    const svg = plot.querySelector('svg');
+    if (!cross || !tip || !svg) return;
+
+    const show = clientX => {
+      const r = svg.getBoundingClientRect();
+      if (!r.width) return;
+      const t = Math.min(0.9999, Math.max(0, (clientX - r.left) / r.width));
+      const i = Math.min(data.axis.length - 1, Math.floor(t * data.axis.length));
+      const cx = ((i + 0.5) / data.axis.length) * r.width;
+
+      cross.style.left = (cx + 46) + 'px';
+      cross.style.opacity = '1';
+
+      /* textContent throughout: series and post names come from platform APIs
+         and are untrusted. */
+      tip.textContent = '';
+      const head = document.createElement('span');
+      head.className = 'tday';
+      head.textContent = dayLabel(data.axis[i]);
+      tip.appendChild(head);
+
+      for (const sr of data.series) {
+        const v = sr.values[i];
+        const row = document.createElement('div');
+        row.className = 'trow';
+        const key = document.createElement('i');
+        key.className = 'tkey';
+        key.style.background = sr.color;
+        const val = document.createElement('span');
+        val.className = 'tval';
+        val.textContent = v == null ? '—' : compact(v);
+        const name = document.createElement('span');
+        name.className = 'tname';
+        name.textContent = sr.label;
+        row.append(key, val, name);
+        tip.appendChild(row);
+      }
+
+      tip.style.opacity = '1';
+      const tw = tip.offsetWidth || 160;
+      const max = plot.clientWidth - tw - 6;
+      tip.style.left = Math.max(4, Math.min(max, cx + 46 - tw / 2)) + 'px';
+      tip.style.top = '4px';
+    };
+
+    const hide = () => { cross.style.opacity = '0'; tip.style.opacity = '0'; };
+
+    plot.addEventListener('pointermove', e => show(e.clientX));
+    plot.addEventListener('pointerleave', hide);
+    plot.addEventListener('pointerdown', e => show(e.clientX));
+  });
+}
+
+/* ================= chart engine =================
+
+   One axis, always. A second y-scale would let the chart invent a correlation
+   that is not in the data — two measures of different size get two stacked
+   plots sharing an x-axis instead, which is what drawPair below does.
+
+   Series colours are the eight validated categorical slots in fixed order,
+   assigned by ENTITY (this channel, this campaign) and never by rank, so
+   filtering one series out never repaints the others.
+
+   Every chart ships a crosshair, a tooltip listing every series at that x, a
+   legend once there are two or more series, and a table twin — no value is
+   reachable only by hovering. */
+
+const VIZ_SLOTS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)','var(--s8)'];
+
+/* Stable hue per entity id. Assignment order is first-seen and then frozen for
+   the session, so removing a channel from the filter cannot recolour the rest. */
+const VIZ_HUE = new Map();
+function hueFor(id){
+  if (!VIZ_HUE.has(id)) VIZ_HUE.set(id, VIZ_SLOTS[VIZ_HUE.size % VIZ_SLOTS.length]);
+  return VIZ_HUE.get(id);
+}
+
+const compact = n => {
+  if (n == null || !isFinite(n)) return '—';
+  const a = Math.abs(n);
+  if (a >= 1e9) return (n/1e9).toFixed(1).replace(/\.0$/,'') + 'B';
+  if (a >= 1e6) return (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (a >= 1e3) return (n/1e3).toFixed(1).replace(/\.0$/,'') + 'K';
+  return String(Math.round(n * 100) / 100);
+};
+
+/* Axis ticks on clean numbers, so the reader gets values that were not directly
+   labelled without reading a tooltip. */
+function niceTicks(max, count){
+  if (!(max > 0)) return [0, 1];
+  const raw = max / count;
+  const mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(v => v >= raw) || 10 * mag;
+  const out = [];
+  for (let v = 0; v <= max + step * 0.001; v += step) out.push(v);
+  return out;
+}
+
+const dayLabel = d => {
+  const t = new Date(d);
+  return isNaN(t) ? String(d).slice(0, 10)
+    : t.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+/* series: [{ id, label, values:[n|null], kind:'bar'|'line'|'area', color }] */
+function vizChart({ axis, series, fmt = compact, height = 190, title = '', sub = '', note = '' }){
+  const live = series.filter(s2 => !VIZ_OFF.has(s2.id));
+  const n = axis.length;
+  if (!n || !live.length) {
+    return frame(title, sub, '<div class="vempty"><b>Nothing to plot</b>'
+      + (series.length ? 'Every series is hidden — switch one back on in the legend.' : 'No data in this window yet.') + '</div>', series, '');
+  }
+
+  const W = 1000, H = height;
+  const allVals = live.flatMap(s2 => s2.values).filter(v => v != null && isFinite(v));
+  const max = Math.max(0, ...allVals);
+  const ticks = niceTicks(max, 4);
+  const top = ticks[ticks.length - 1] || 1;
+  const y = v => H - (v / top) * H;
+
+  /* Bars share each x band; 2px of surface between neighbours does the
+     separating, and the cap is rounded while the baseline stays square. */
+  const bars = live.filter(s2 => (s2.kind || 'bar') === 'bar');
+  const lines = live.filter(s2 => s2.kind === 'line' || s2.kind === 'area');
+  const band = W / n;
+  const barW = Math.min(24, Math.max(1, (band - 2) / Math.max(1, bars.length)));
+
+  let marks = '';
+
+  for (const [gi, s2] of bars.entries()) {
+    marks += s2.values.map((v, i) => {
+      if (v == null || !isFinite(v) || v <= 0) return '';
+      const h = Math.max(1.5, H - y(v));
+      const x = i * band + (band - barW * bars.length) / 2 + gi * barW;
+      const r = Math.min(4, barW / 2, h);
+      /* Rounded data-end, square at the baseline. */
+      return '<path d="M' + x.toFixed(2) + ' ' + H
+        + ' V' + (H - h + r).toFixed(2)
+        + ' a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 0 1 ' + r.toFixed(2) + ' -' + r.toFixed(2)
+        + ' h' + Math.max(0, barW - 2 * r).toFixed(2)
+        + ' a' + r.toFixed(2) + ' ' + r.toFixed(2) + ' 0 0 1 ' + r.toFixed(2) + ' ' + r.toFixed(2)
+        + ' V' + H + ' Z" fill="' + s2.color + '" opacity=".82"/>';
+    }).join('');
+  }
+
+  for (const s2 of lines) {
+    let d = '', area = '', open = false, firstX = 0, lastX = 0;
+    s2.values.forEach((v, i) => {
+      const x = i * band + band / 2;
+      if (v == null || !isFinite(v)) { open = false; return; }
+      const yy = y(v);
+      if (!open) { if (!d) firstX = x; d += 'M'; } else d += 'L';
+      d += x.toFixed(2) + ' ' + yy.toFixed(2) + ' ';
+      lastX = x; open = true;
+    });
+    if (s2.kind === 'area' && d) {
+      area = '<path d="' + d.trim() + ' L' + lastX.toFixed(2) + ' ' + H + ' L' + firstX.toFixed(2) + ' ' + H
+        + ' Z" fill="' + s2.color + '" opacity=".10"/>';
+    }
+    marks += area + (d ? '<path d="' + d.trim() + '" fill="none" stroke="' + s2.color
+      + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' : '');
+  }
+
+  const grid = ticks.map(t => '<line x1="0" y1="' + y(t).toFixed(2) + '" x2="' + W + '" y2="' + y(t).toFixed(2)
+    + '" stroke="var(--grid)" stroke-width="1" vector-effect="non-scaling-stroke"/>').join('');
+
+  const yaxis = ticks.map(t => '<span style="top:' + ((y(t) / H) * 100).toFixed(2) + '%">' + escS(fmt(t)) + '</span>').join('');
+
+  /* The payload the hover layer reads. Values live here as well as in the table
+     twin, so the tooltip only ever enhances. */
+  const payload = { axis, fmt: null, series: live.map(s2 => ({ id: s2.id, label: s2.label, color: s2.color, values: s2.values })) };
+
+  const plot = '<div class="vplot" style="--vh:' + H + 'px" data-viz="' + escS(JSON.stringify(payload)) + '">'
+    + '<div class="vyaxis" style="--vh:' + H + 'px">' + yaxis + '</div>'
+    + '<div class="vcross" style="--vh:' + H + 'px"></div>'
+    + '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img" aria-label="' + escS(title) + '">'
+    + grid + marks + '</svg>'
+    + '<div class="vtip"></div>'
+    + '</div>'
+    + '<div class="vxaxis"><span>' + escS(dayLabel(axis[0])) + '</span>'
+    + (n > 2 ? '<span>' + escS(dayLabel(axis[Math.floor(n / 2)])) + '</span>' : '')
+    + '<span>' + escS(dayLabel(axis[n - 1])) + '</span></div>'
+    + (note ? '<div class="vlegend" style="padding-left:0;color:var(--dimmer);font-size:11px">' + note + '</div>' : '');
+
+  return frame(title, sub, plot, series, '');
+}
+
+/* Hidden series, by id. Clicking a legend key toggles membership. */
+const VIZ_OFF = new Set();
+
+function frame(title, sub, body, series, extra){
+  const legend = series.length > 1
+    ? '<div class="vlegend">' + series.map(s2 =>
+        '<span class="lk' + (VIZ_OFF.has(s2.id) ? ' off' : '') + '" data-vizkey="' + escS(s2.id) + '" role="button" tabindex="0">'
+        + '<i class="sw' + (s2.kind === 'line' ? ' line' : '') + '" style="background:' + s2.color + '"></i>'
+        + escS(s2.label) + '</span>').join('')
+      + '<span style="margin-left:auto;color:var(--dimmer);font-size:10.5px">click a key to hide</span></div>'
+    : '';
+  return '<div class="vwrap viz">'
+    + (title ? '<div class="vhead2"><h3>' + escS(title) + '</h3>'
+        + (sub ? '<span class="sub">' + escS(sub) + '</span>' : '') + '<span class="grow"></span>' + extra + '</div>' : '')
+    + legend
+    + '<div class="vbody">' + body + '</div></div>';
+}
+
+/* The table twin. Every charted value is here too, so nothing is gated behind a
+   pointer. */
+function vizTable(axis, series, fmt = compact){
+  const live = series.filter(s2 => !VIZ_OFF.has(s2.id));
+  if (!axis.length || !live.length) return '<div class="vempty">No rows.</div>';
+  return '<div class="vscroll"><table class="vtable"><thead><tr><th>Day</th>'
+    + live.map(s2 => '<th>' + escS(s2.label) + '</th>').join('') + '</tr></thead><tbody>'
+    + axis.map((d, i) => '<tr><td>' + escS(dayLabel(d)) + '</td>'
+        + live.map(s2 => '<td>' + escS(s2.values[i] == null ? '—' : fmt(s2.values[i])) + '</td>').join('')
+        + '</tr>').reverse().join('')
+    + '</tbody></table></div>';
+}
+
+/* Two measures of unlike scale: two plots, one shared x-axis. Never two y-axes
+   on one plot. */
+function vizPair(a, b){
+  return '<div class="viz">' + a + b + '</div>';
+}
+
+/* A 12-point trend for a stat tile. Deliberately unlabelled — shape, not
+   values; the value sits above it and the chart below carries the detail. */
+function kpiSpark(values, color){
+  const pts = (values || []).filter(v => v != null && isFinite(v));
+  if (pts.length < 2) return '';
+  const W = 120, H = 38, max = Math.max(...pts), min = Math.min(...pts);
+  const span = (max - min) || 1;
+  const step = W / (pts.length - 1);
+  const d = pts.map((v, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (H - 2 - ((v - min) / span) * (H - 6)).toFixed(1)).join(' ');
+  return '<svg class="kspark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">'
+    + '<path d="' + d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z" fill="' + color + '" opacity=".12"/>'
+    + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+}
+
+/* Stat tile: label, value, optional delta against a named period, optional
+   trend. Values use proportional figures — tabular is for columns. */
+function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, spark = null, color = 'var(--s1)', bench = '', na = false } = {}){
+  let chip = '';
+  if (delta != null && isFinite(delta)) {
+    const better = goodDown ? delta < 0 : delta > 0;
+    const cls = delta === 0 ? 'flat' : better ? 'up' : 'down';
+    const mark = delta === 0 ? '=' : delta > 0 ? '▲' : '▼';
+    chip = '<span class="chip2 ' + cls + '">' + mark + ' ' + Math.abs(Math.round(delta)) + '%</span>';
+  } else if (deltaLabel) {
+    chip = '<span class="chip2 flat">' + escS(deltaLabel) + '</span>';
+  }
+  return '<div class="kpi">'
+    + (spark ? kpiSpark(spark, color) : '')
+    + '<span class="klab">' + escS(label) + '</span>'
+    + '<div class="kval' + (na ? ' na' : '') + '">' + escS(value) + '</div>'
+    + '<div class="kfoot">' + chip
+    + (deltaLabel && delta != null ? '<span>' + escS(deltaLabel) + '</span>' : '')
+    + (bench ? '<span class="kbench">' + escS(bench) + '</span>' : '')
+    + '</div></div>';
+}
+
 /* ---------- charts ----------
    Inline SVG bars, one per day. A null is a gap, not a zero: a platform that
    published no figure that day must not draw as a day with nothing happening. */
@@ -3643,83 +4106,252 @@ const SO_WORDS = {
 };
 
 /* ---------- a platform's dashboard ---------- */
+/* Accounts for a platform payload, in a stable order so hues stay put. */
+const acctsOf = d => (d.accounts || []).slice().sort((a, b) => a.id < b.id ? -1 : 1);
+
+/* Rows for the current account filter. */
+const rowsFor = (d, key) => (d.series || []).filter(r =>
+  SO.acct === 'all' || r.account === SO.acct);
+
+/* The day axis, ascending and de-duplicated — several accounts contribute rows
+   for the same day. */
+function axisOf(rows){
+  return [...new Set(rows.map(r => String(r.day).slice(0, 10)))].sort();
+}
+
+/* Sum a metric per day across whatever accounts are in scope. */
+function seriesTotal(rows, axis, metric){
+  const by = new Map();
+  for (const r of rows) {
+    if (r[metric] == null) continue;
+    const day = String(r.day).slice(0, 10);
+    by.set(day, (by.get(day) || 0) + Number(r[metric]));
+  }
+  return axis.map(d => by.has(d) ? by.get(d) : null);
+}
+
+/* One series per account — the compare view. Hue follows the account id, so
+   hiding one in the legend never recolours the others. */
+function seriesByAccount(rows, axis, metric, accounts, kind){
+  return accounts.map(a => {
+    const by = new Map();
+    for (const r of rows) {
+      if (r.account !== a.id || r[metric] == null) continue;
+      by.set(String(r.day).slice(0, 10), Number(r[metric]));
+    }
+    return { id: a.id, label: a.label, color: hueFor(a.id), kind,
+      values: axis.map(d => by.has(d) ? by.get(d) : null) };
+  });
+}
+
+/* The filter row. One row, above everything it scopes — never inside a card,
+   never per-chart. */
+function filterBar(d, key, { metrics = [], showSplit = true, showSearch = false } = {}){
+  const accounts = acctsOf(d);
+  const acctSeg = accounts.length > 1
+    ? '<span class="flabel">Account</span><div class="seg">'
+      + '<button class="' + (SO.acct === 'all' ? 'on' : '') + '" data-soacct2="all">All ' + accounts.length + '</button>'
+      + accounts.map(a => '<button class="' + (SO.acct === a.id ? 'on' : '') + '" data-soacct2="' + escS(a.id) + '">'
+          + escS(a.label) + '</button>').join('')
+      + '</div>'
+    : '';
+
+  const splitBtn = (showSplit && accounts.length > 1)
+    ? '<button class="tgl' + (SO.split ? ' on' : '') + '" data-sosplit="1">'
+      + '<span class="box">' + (SO.split ? '✓' : '') + '</span>Compare accounts</button>'
+    : '';
+
+  const metricSeg = metrics.length > 1
+    ? '<span class="flabel">Metric</span><div class="seg">'
+      + metrics.map(m => '<button class="' + ((SO.metric[key] || metrics[0].k) === m.k ? 'on' : '') + '" data-sometric="' + m.k + '" data-plat="' + key + '">'
+          + escS(m.label) + '</button>').join('')
+      + '</div>'
+    : '';
+
+  return '<div class="fbar">'
+    + '<span class="flabel">Range</span><div class="seg">'
+    + ['7', '28', '90'].map(r => '<button class="' + (SO.range === r ? 'on' : '') + '" data-sorange="' + r + '">' + r + 'd</button>').join('')
+    + '</div>'
+    + (acctSeg ? '<span class="sep"></span>' + acctSeg : '')
+    + (metricSeg ? '<span class="sep"></span>' + metricSeg : '')
+    + '<span class="grow"></span>'
+    + (showSearch ? '<input class="fsearch" id="so-q" placeholder="Search…" value="' + escS(SO.q) + '">' : '')
+    + splitBtn
+    + '<button class="tgl' + (SO.table ? ' on' : '') + '" data-sotable="1">'
+    + '<span class="box">' + (SO.table ? '✓' : '') + '</span>Table</button>'
+    + '</div>';
+}
+
+/* The section rail lives in the left menu; this is the content router. */
 function platformView(key){
   const d = PLAT[key];
-  const words = SO_WORDS[key] || SO_WORDS.facebook;
-  if (!d) return '<div class="card flush"><div class="empty"><b>Loading ' + (SO_VIEW_LABEL[SO.view] || key) + '…</b></div></div>';
+  const label = SO_VIEW_LABEL[SO.view] || key;
+  if (!d) return '<div class="card flush"><div class="empty"><b>Loading ' + escS(label) + '…</b></div></div>';
   if (d.error) return '<div class="card flush"><div class="empty"><b>Could not load</b><small>' + escS(d.error) + '</small></div></div>';
   if (!d.connected) return connectCard(key, d);
+  if (SO.section === 'content') return contentSection(d, key);
+  if (SO.section === 'audience') return audienceSection(d, key);
+  return performanceSection(d, key);
+}
 
-  const series = d.series || [];
-  const days = soDaily(series, 'followers');
-  const followersNow = days.length ? days[days.length - 1].v : 0;
-  const followersThen = days.length ? days[0].v : 0;
-  const sum = m => series.reduce((n, r) => n + (r[m] || 0), 0);
+const SO_METRICS = {
+  youtube:   [{k:'views',label:'Views'},{k:'interactions',label:'Interactions'},{k:'followers',label:'Subscribers'}],
+  x:         [{k:'views',label:'Views'},{k:'interactions',label:'Interactions'},{k:'followers',label:'Followers'}],
+  facebook:  [{k:'views',label:'Views'},{k:'interactions',label:'Interactions'},{k:'followers',label:'Followers'}],
+  instagram: [{k:'reach',label:'Reach'},{k:'views',label:'Views'},{k:'interactions',label:'Interactions'},{k:'followers',label:'Followers'}]
+};
+
+function performanceSection(d, key){
+  const words = SO_WORDS[key] || SO_WORDS.facebook;
+  const accounts = acctsOf(d);
+  const rows = rowsFor(d, key);
+  const axis = axisOf(rows);
+  const has = m => rows.some(r => r[m] != null);
+
+  const sum = m => { const v = rows.reduce((n2, r) => n2 + (r[m] || 0), 0); return has(m) ? v : null; };
   const reach = sum('reach'), views = sum('views'), inter = sum('interactions');
-  const eng = reach > 0 ? (inter / reach) * 100 : 0;
+  const eng = (reach && inter != null) ? (inter / reach) * 100 : null;
 
-  const stat = (k, v, m, tone) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
-    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div></div>';
+  /* Followers is a level, not a flow: the newest reading, and the change across
+     the window rather than a sum. */
+  const fRows = rows.filter(r => r.followers != null).sort((a, b) => a.day < b.day ? -1 : 1);
+  const fNow = fRows.length ? fRows[fRows.length - 1].followers : null;
+  const fThen = fRows.length ? fRows[0].followers : null;
+  const fDelta = (fNow != null && fThen != null && fRows.length > 1 && fThen) ? ((fNow - fThen) / fThen) * 100 : null;
 
-  const metric = SO.metric[key] || (key === 'youtube' ? 'views' : 'followers');
-  const metricsAvail = ['followers', 'reach', 'views', 'interactions'].filter(m => series.some(r => r[m] != null));
-  const toggles = metricsAvail.map(m =>
-    '<button class="sometric' + (m === metric ? ' on' : '') + '" data-sometric="' + m + '" data-plat="' + key + '">'
-    + (m === 'followers' ? words.followers : m) + '</button>').join('');
+  const metrics = (SO_METRICS[key] || SO_METRICS.facebook).filter(m => has(m.k));
+  const metric = metrics.some(m => m.k === (SO.metric[key])) ? SO.metric[key] : (metrics[0]?.k || 'views');
 
-  const posts = (d.posts || []).slice()
-    .sort((a, b) => (key === 'youtube' ? b.views - a.views : b.interactions - a.interactions))
-    .slice(0, 10);
+  const kind = SO.chartKind === 'line' ? 'line' : 'bar';
+  const series = SO.split && accounts.length > 1
+    ? seriesByAccount(rows, axis, metric, accounts, accounts.length > 3 ? 'line' : kind)
+    : [{ id: key, label: (metrics.find(m => m.k === metric)?.label || metric), color: hueFor(key), kind,
+         values: seriesTotal(rows, axis, metric) }];
 
-  const noData = !series.length;
+  const spark = seriesTotal(rows, axis, metric).filter(v => v != null).slice(-12);
 
-  /* A metric with no reading at all in the window is not zero — the platform
-     does not publish it. Facebook page-level reach was deprecated above Graph
-     v25 and YouTube and X have never exposed a unique-reach figure, so printing
-     "0" claims a measurement nobody made. Absent reads as a dash.
+  const tiles = '<div class="kpis grid g4">'
+    + kpi(words.followers, fNow == null ? '—' : compact(fNow), {
+        delta: fDelta, deltaLabel: fRows.length > 1 ? 'vs ' + SO.range + 'd ago' : 'no earlier reading',
+        spark: fRows.map(r => r.followers).slice(-12), color: 'var(--s3)', na: fNow == null })
+    + kpi('Reach', reach == null ? '—' : compact(reach), {
+        deltaLabel: reach == null ? 'not published by ' + (SO_VIEW_LABEL[SO.view] || key) : 'unique accounts, ' + SO.range + 'd',
+        color: 'var(--s1)', na: reach == null })
+    + kpi('Views', views == null ? '—' : compact(views), {
+        deltaLabel: views == null ? 'not published' : 'every appearance, ' + SO.range + 'd',
+        spark, color: 'var(--s1)', na: views == null })
+    + kpi(eng == null ? 'Interactions' : 'Engagement',
+        eng == null ? (inter == null ? '—' : compact(inter)) : eng.toFixed(2) + '%', {
+        deltaLabel: eng == null ? 'reach not published, so no rate' : 'interactions ÷ reach',
+        color: 'var(--s4)', na: eng == null && inter == null })
+    + '</div>';
 
-     Engagement is interactions over reach, so it is uncomputable when reach is
-     absent. Rather than show a dash in a tile that could carry something real,
-     that slot becomes Interactions, which every one of these platforms does
-     publish. */
-  const published = m => series.some(r => r[m] != null);
-  const tile = (label, m, value, note) => published(m)
-    ? stat(label, value, note)
-    : stat(label, '\u2014', 'not published by ' + (SO_VIEW_LABEL[SO.view] || key));
+  const chartTitle = (metrics.find(m => m.k === metric)?.label || metric)
+    + (SO.split && accounts.length > 1 ? ' by account' : ' per day');
 
-  return '<div class="grid g4" style="margin-bottom:14px">'
-    + stat(words.followers, num(followersNow), days.length > 1 ? delta(followersNow - followersThen) + ' in ' + SO.range + 'd' : 'no earlier reading')
-    + tile('Reach', 'reach', num(reach), 'unique accounts, ' + SO.range + 'd')
-    + tile('Views', 'views', num(views), 'every appearance, ' + SO.range + 'd')
-    + (published('reach')
-        ? stat('Engagement', eng.toFixed(2) + '%', 'interactions \u00f7 reach', eng > 0 ? 'up' : 'flat')
-        : tile('Interactions', 'interactions', num(inter), 'likes, comments, shares, ' + SO.range + 'd'))
-    + '</div>'
-    + '<div class="card" style="margin-bottom:14px">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    + '<h3>Daily ' + (metric === 'followers' ? words.followers.toLowerCase() : metric) + '</h3>'
-    + '<div class="sometrics">' + toggles + '</div></div>'
-    + (noData
-        ? '<div class="empty" style="padding:26px"><b>No data pulled yet</b><small>Connected, but nothing has been fetched from '
-          + (SO_VIEW_LABEL[SO.view] || key) + ' for this account. Use <b>Fetch now</b> above, or wait for the next scheduled pull.</small></div>'
-        : soChart(soDaily(series, metric), words.color, v => num(v)))
-    + '</div>'
-    + '<div class="card flush" style="margin-bottom:14px"><div class="cardhead"><h3>' + words.postTitle + '</h3>'
-    + '<span class="eyebrow">' + posts.length + ' of ' + (d.posts || []).length + ' · last ' + SO.range + ' days</span></div>'
-    + (posts.length
-        ? '<table class="tbl"><thead><tr><th>' + words.posts.replace(/s$/, '') + '</th>'
-          + (key !== 'youtube' && key !== 'x' ? '<th class="r">Reach</th>' : '')
-          + '<th class="r">Views</th><th class="r">Interactions</th><th class="r">Shares</th></tr></thead><tbody>'
-          + posts.map(pp => '<tr><td><span class="name">'
-              + (pp.permalink ? '<a href="' + escS(pp.permalink) + '" target="_blank" rel="noopener" style="color:inherit">' + escS(pp.title) + '</a>' : escS(pp.title))
-              + '</span><span class="sm">' + escS(pp.when) + '</span></td>'
-              + (key !== 'youtube' && key !== 'x' ? '<td class="r mono">' + num(pp.reach) + '</td>' : '')
-              + '<td class="r mono">' + num(pp.views) + '</td>'
-              + '<td class="r mono">' + num(pp.interactions) + '</td>'
-              + '<td class="r mono">' + num(pp.shares) + '</td></tr>').join('')
-          + '</tbody></table>'
-        : '<div class="empty"><small>No ' + words.posts.toLowerCase() + ' in this window.</small></div>')
-    + '</div>'
+  const kindSeg = '<div class="seg"><button class="' + (SO.chartKind === 'bar' ? 'on' : '') + '" data-sokind="bar">Bars</button>'
+    + '<button class="' + (SO.chartKind === 'line' ? 'on' : '') + '" data-sokind="line">Line</button></div>';
+
+  const body = !axis.length
+    ? '<div class="vwrap viz"><div class="vempty"><b>No data pulled yet</b>'
+      + 'Connected, but nothing has been fetched for this account. Use <b>Fetch now</b>, or wait for the next scheduled pull.</div></div>'
+    : SO.table
+      ? frame(chartTitle, SO.range + ' days', vizTable(axis, series), series, '')
+      : vizChart({ axis, series, title: chartTitle, sub: SO.range + ' days',
+          note: SO.split ? 'One line per account. A gap is a day that account published nothing — not a zero.' : '' });
+
+  return filterBar(d, key, { metrics }) + tiles
+    + (axis.length && !SO.table ? '<div class="vwrap viz" style="margin-bottom:14px;padding:0 15px 12px"><div class="vhead2" style="padding-left:0"><span class="sub">Chart</span><span class="grow"></span>' + kindSeg + '</div></div>' : '')
+    + body
+    + accountsFooter(d);
+}
+
+function contentSection(d, key){
+  const words = SO_WORDS[key] || SO_WORDS.facebook;
+  const q = SO.q.trim().toLowerCase();
+  let posts = (d.posts || []).filter(pp => SO.acct === 'all' || pp.account === SO.acct);
+  if (q) posts = posts.filter(pp => String(pp.title).toLowerCase().includes(q));
+  const rank = key === 'youtube' || key === 'x' ? 'views' : 'interactions';
+  posts = posts.slice().sort((a, b) => (b[rank] || 0) - (a[rank] || 0));
+
+  const totalViews = posts.reduce((n2, pp) => n2 + (pp.views || 0), 0);
+  const totalInter = posts.reduce((n2, pp) => n2 + (pp.interactions || 0), 0);
+  const best = posts[0];
+
+  const tiles = '<div class="kpis grid g3">'
+    + kpi(words.posts + ' published', String(posts.length), { deltaLabel: 'last ' + SO.range + ' days', color: 'var(--s1)' })
+    + kpi('Views across them', compact(totalViews), { deltaLabel: posts.length ? compact(Math.round(totalViews / posts.length)) + ' median-ish per post' : '—', color: 'var(--s3)' })
+    + kpi('Interactions', compact(totalInter), { deltaLabel: 'likes, comments, shares', color: 'var(--s4)' })
+    + '</div>';
+
+  const acctName = id => (d.accounts || []).find(a => a.id === id)?.label || '';
+
+  const table = posts.length
+    ? '<div class="vwrap viz"><div class="vhead2"><h3>' + escS(words.postTitle) + '</h3>'
+      + '<span class="sub">ranked by ' + rank + '</span><span class="grow"></span></div>'
+      + '<div class="vscroll"><table class="vtable"><thead><tr><th>' + escS(words.posts.replace(/s$/, '')) + '</th>'
+      + '<th>When</th>' + (key !== 'youtube' && key !== 'x' ? '<th>Reach</th>' : '')
+      + '<th>Views</th><th>Interactions</th><th>Shares</th></tr></thead><tbody>'
+      + posts.map(pp => '<tr><td style="max-width:380px;white-space:normal">'
+          + (pp.permalink
+              ? '<a href="' + escS(pp.permalink) + '" target="_blank" rel="noopener" style="color:var(--text);text-decoration:none">' + escS(pp.title) + '</a>'
+              : escS(pp.title))
+          + (SO.acct === 'all' && acctName(pp.account) ? '<span class="sm" style="display:block;color:var(--dimmer)">' + escS(acctName(pp.account)) + '</span>' : '')
+          + '</td><td>' + escS(pp.when) + '</td>'
+          + (key !== 'youtube' && key !== 'x' ? '<td>' + escS(compact(pp.reach)) + '</td>' : '')
+          + '<td>' + escS(compact(pp.views)) + '</td><td>' + escS(compact(pp.interactions)) + '</td>'
+          + '<td>' + escS(compact(pp.shares)) + '</td></tr>').join('')
+      + '</tbody></table></div></div>'
+    : '<div class="vwrap viz"><div class="vempty"><b>Nothing here</b>'
+      + (q ? 'No ' + escS(words.posts.toLowerCase()) + ' match “' + escS(SO.q) + '”.' : 'No ' + escS(words.posts.toLowerCase()) + ' in this window.') + '</div></div>';
+
+  const topChart = posts.length > 1 && !SO.table
+    ? vizChart({
+        axis: posts.slice(0, 10).map(pp => pp.title),
+        series: [{ id: 'post', label: rank === 'views' ? 'Views' : 'Interactions', color: hueFor(key), kind: 'bar',
+          values: posts.slice(0, 10).map(pp => pp[rank] || 0) }],
+        title: 'Top ' + words.posts.toLowerCase() + ' by ' + rank, sub: 'best 10', height: 170 })
+    : '';
+
+  return filterBar(d, key, { showSplit: false, showSearch: true })
+    + tiles + topChart + table + accountsFooter(d);
+}
+
+function audienceSection(d, key){
+  const words = SO_WORDS[key] || SO_WORDS.facebook;
+  const accounts = acctsOf(d);
+  const rows = rowsFor(d, key);
+  const axis = axisOf(rows);
+
+  if (!rows.some(r => r.followers != null)) {
+    return filterBar(d, key, { showSplit: false })
+      + '<div class="vwrap viz"><div class="vempty"><b>No follower history yet</b>'
+      + 'A follower count is recorded once per pull, so a trend needs at least two. Come back after the next scheduled pull.</div></div>'
+      + accountsFooter(d);
+  }
+
+  /* Always split here: this section exists to compare accounts. */
+  const series = accounts.length > 1
+    ? seriesByAccount(rows, axis, 'followers', accounts, 'line')
+    : [{ id: key, label: words.followers, color: hueFor(key), kind: 'area', values: seriesTotal(rows, axis, 'followers') }];
+
+  const perAcct = accounts.map(a => {
+    const mine = rows.filter(r => r.account === a.id && r.followers != null).sort((x, y) => x.day < y.day ? -1 : 1);
+    const now = mine.length ? mine[mine.length - 1].followers : null;
+    const then = mine.length ? mine[0].followers : null;
+    const pctv = (now != null && then) ? ((now - then) / then) * 100 : null;
+    return kpi(a.label, now == null ? '—' : compact(now), {
+      delta: pctv, deltaLabel: mine.length > 1 ? 'over ' + SO.range + 'd' : 'single reading',
+      spark: mine.map(r => r.followers).slice(-12), color: hueFor(a.id), na: now == null });
+  }).join('');
+
+  return filterBar(d, key, { showSplit: false })
+    + '<div class="kpis grid ' + (accounts.length > 2 ? 'g3' : 'g2') + '">' + perAcct + '</div>'
+    + (SO.table
+        ? frame(words.followers + ' by account', SO.range + ' days', vizTable(axis, series), series, '')
+        : vizChart({ axis, series, title: words.followers + (accounts.length > 1 ? ' by account' : ''),
+            sub: SO.range + ' days', height: 210,
+            note: 'A follower count is a level, not a daily total — these are readings, and a gap is a day with no pull.' }))
     + accountsFooter(d);
 }
 
@@ -3751,13 +4383,10 @@ function metaView(){
   if (!anyLoaded) return '<div class="card flush"><div class="empty"><b>Loading Meta…</b></div></div>';
   if (!anyConnected) return connectCard('facebook', PLAT.facebook || PLAT.instagram || PLAT.meta_ads);
 
-  const tabs = [['facebook', 'FB Page'], ['instagram', 'Instagram'], ['meta_ads', 'Meta Ads']];
-  const bar = '<div class="ldtabs" style="border-bottom:1px solid var(--edge);margin-bottom:16px">'
-    + tabs.map(([k, l]) => '<button class="ldtab' + (SO.metaTab === k ? ' on' : '') + '" data-metatab="' + k + '">' + l
-        + (PLAT[k] && !PLAT[k].connected ? ' <span class="chip" style="font-size:8px;margin-left:6px">not granted</span>' : '')
-        + '</button>').join('')
-    + '</div>';
-  return bar + (SO.metaTab === 'meta_ads' ? adsView() : platformView(SO.metaTab));
+  /* No tab bar here any more — FB Page, Instagram and Meta Ads are rows in the
+     left rail, alongside every other section. Two places to switch the same
+     thing is one too many. */
+  return SO.metaTab === 'meta_ads' ? adsView() : platformView(SO.metaTab);
 }
 
 /* Recovered. The Meta Ads rewrite replaced a span that ran from adsView to the
@@ -3886,15 +4515,17 @@ function adsView(){
   const dailyRows = (ads.daily || []).filter(inScope);
   const totals = addUp(campaigns);
 
-  /* ---------- account picker ---------- */
-  const picker = (ads.byAccount || []).length > 1
-    ? '<div class="acctpick">'
-      + '<button class="' + (SO.adsAcct === 'all' ? 'on' : '') + '" data-adsacct="all">All accounts'
-      + '<span class="amt">' + money((ads.totals || {}).spend) + '</span></button>'
-      + ads.byAccount.map(a => '<button class="' + (SO.adsAcct === a.id ? 'on' : '') + '" data-adsacct="' + escS(a.id) + '">'
-          + escS(a.label) + '<span class="amt">' + money(a.spend) + '</span></button>').join('')
-      + '</div>'
-    : '';
+  /* Built here rather than beside the chart, because the stat tiles read it for
+     their sparklines and a const cannot be used above its declaration. */
+  const axis = ads.axis || [];
+  const byDay = new Map();
+  for (const r of dailyRows) {
+    if (!byDay.has(r.day)) byDay.set(r.day, BLANK());
+    const a = byDay.get(r.day);
+    a.spend += r.spend||0; a.reach += r.reach||0; a.results += r.results||0;
+    a.impressions += r.impressions||0; a.clicks += r.clicks||0;
+  }
+  const series = axis.map(day => ({ day, ...derive(byDay.get(day) || BLANK(), true) }));
 
   /* ---------- what needs attention ----------
      The research on paid dashboards is consistent on this: the table tells you
@@ -3946,60 +4577,57 @@ function adsView(){
     const better = goodDown ? p < 0 : p > 0;
     return { m:(p > 0 ? '▲ ' : '▼ ') + Math.abs(p) + '% on prior ' + SO.range + 'd', t: better ? 'up' : 'down' };
   };
-  const stat = (k, v, m, tone, extra) => '<div class="stat"><div class="eyebrow">' + k + '</div>'
-    + '<div class="v num">' + v + '</div><div class="m ' + (tone || 'flat') + '">' + m + '</div>'
-    + (extra ? '<div class="bench">' + extra + '</div>' : '') + '</div>';
+  const pctMove = (now, before) => (before == null || !before || now == null) ? null : ((now - before) / before) * 100;
+  const vs = 'vs prior ' + SO.range + 'd';
+  const spark = k => series.map(r => r[k]).filter(v => v != null).slice(-12);
 
-  const mSpend = move(totals.spend, prev?.spend, false);
-  const mRes = move(totals.results, prev?.results, false);
-  const mCpa = move(totals.cpa, prev?.cpa, true);
-  const mCtr = move(totals.ctr, prev?.ctr, false);
-
-  const tiles = '<div class="grid g3" style="margin-bottom:14px">'
-    + stat('Spend', money(totals.spend), mSpend.m, mSpend.t)
-    + stat('Results', String(totals.results), mRes.m, mRes.t)
-    + stat('Cost per result', money(totals.cpa), totals.cpa == null ? 'nothing has converted' : mCpa.m, totals.cpa == null ? 'flat' : mCpa.t)
+  const tiles = '<div class="kpis grid g3">'
+    + kpi('Spend', money(totals.spend), { delta: pctMove(totals.spend, prev?.spend), deltaLabel: vs, spark: spark('spend'), color:'var(--s1)' })
+    + kpi('Results', String(totals.results), { delta: pctMove(totals.results, prev?.results), deltaLabel: vs, spark: spark('results'), color:'var(--s3)' })
+    /* Down is better here, so the arrow direction and the colour disagree on
+       purpose — a falling cost is a green ▼. */
+    + kpi('Cost per result', money(totals.cpa), { delta: pctMove(totals.cpa, prev?.cpa), goodDown: true,
+        deltaLabel: totals.cpa == null ? 'nothing has converted' : vs, color:'var(--s4)', na: totals.cpa == null })
     + '</div>'
-    + '<div class="grid g3" style="margin-bottom:14px">'
-    + stat('Click-through rate', pct(totals.ctr), totals.ctr == null ? 'no impressions recorded' : mCtr.m, totals.ctr == null ? 'flat' : mCtr.t,
-        'avg ' + ADS_BENCH.ctr + '%')
-    + stat('Impressions', num(totals.impressions), totals.cpm != null ? money(totals.cpm) + ' CPM' : 'no impressions recorded', 'flat',
-        'cpm avg ' + money(ADS_BENCH.cpm))
-    /* Peak single day, not the window. Unique reach cannot be summed across
-       days, so a window frequency cannot be derived from these rows at all —
-       and the highest day is the one that would show fatigue anyway. */
-    + stat('Peak frequency', ratio(totals.peakFrequency), totals.peakFrequency == null ? 'no reach recorded' : 'highest single day',
-        totals.peakFrequency != null && totals.peakFrequency > ADS_BENCH.frequency ? 'down' : 'flat',
-        'fatigue above ' + ADS_BENCH.frequency.toFixed(1))
+    + '<div class="kpis grid g3">'
+    + kpi('Click-through rate', pct(totals.ctr), { delta: pctMove(totals.ctr, prev?.ctr), deltaLabel: vs,
+        bench: 'avg ' + ADS_BENCH.ctr + '%', color:'var(--s5)', na: totals.ctr == null })
+    + kpi('Impressions', compact(totals.impressions), { deltaLabel: totals.cpm != null ? money(totals.cpm) + ' CPM' : 'none recorded',
+        bench: 'cpm avg ' + money(ADS_BENCH.cpm), spark: spark('impressions'), color:'var(--s7)' })
+    + kpi('Peak frequency', ratio(totals.peakFrequency), {
+        deltaLabel: totals.peakFrequency == null ? 'no reach recorded' : 'highest single day',
+        bench: 'fatigue above ' + ADS_BENCH.frequency.toFixed(1), color:'var(--s2)', na: totals.peakFrequency == null })
     + '</div>';
 
   /* ---------- combo chart ----------
      Spend as bars, one efficiency metric as a line over it. Spend alone says
      nothing about whether the money worked, and the line is the half that does;
      reading them apart is what the single-bar chart made impossible. */
-  const axis = ads.axis || [];
-  const byDay = new Map();
-  for (const r of dailyRows) {
-    if (!byDay.has(r.day)) byDay.set(r.day, BLANK());
-    const a = byDay.get(r.day);
-    a.spend += r.spend||0; a.reach += r.reach||0; a.results += r.results||0;
-    a.impressions += r.impressions||0; a.clicks += r.clicks||0;
-  }
-  const series = axis.map(day => ({ day, ...derive(byDay.get(day) || BLANK(), true) }));
-
   const LINES = { cpa:['Cost per result', money], ctr:['CTR', pct], cpm:['CPM', money], frequency:['Frequency', ratio] };
-  const lineKey = SO.adsLine;
-  const [lineLabel, lineFmt] = LINES[lineKey] || LINES.cpa;
+  const lineKey = LINES[SO.adsLine] ? SO.adsLine : 'cpa';
+  const [lineLabel, lineFmt] = LINES[lineKey];
   const lineToggle = Object.entries(LINES).map(([k, v]) =>
-    '<button class="sometric' + (k === lineKey ? ' on' : '') + '" data-adsline="' + k + '">' + v[0] + '</button>').join('');
+    '<button class="' + (k === lineKey ? 'on' : '') + '" data-adsline="' + k + '">' + v[0] + '</button>').join('');
 
-  const chart = series.length
-    ? comboChart(series, lineKey, lineFmt, money)
-      + '<div class="adslegend"><span><i style="background:#5B8DEF"></i>Spend per day</span>'
-      + '<span><i class="ln" style="background:var(--brass)"></i>' + lineLabel + '</span>'
-      + '<span style="margin-left:auto;color:var(--dimmer)">' + series.length + ' days · hover a bar for that day</span></div>'
-    : '<div class="empty" style="padding:30px"><b>No daily data yet</b>'
-      + '<small>Use <b>Fetch now</b> above. Each pull asks Meta for a per-day breakdown, so one pull fills the whole window.</small></div>';
+  /* Spend and an efficiency ratio are unlike scales — dollars against a
+     percentage. They used to share one plot with two y-axes, which lets the
+     chart invent a correlation by where the scales happen to line up. Two
+     plots, one shared day axis, one scale each. */
+  const axis2 = series.map(r => r.day);
+  const spendSeries = [{ id:'ads-spend', label:'Spend', color:'var(--s1)', kind:'bar',
+    values: series.map(r => r.spend || 0) }];
+  const effSeries = [{ id:'ads-' + lineKey, label:lineLabel, color:'var(--s4)', kind:'line',
+    values: series.map(r => r[lineKey] == null || !isFinite(r[lineKey]) ? null : r[lineKey]) }];
+
+  const chart = !series.length
+    ? '<div class="vwrap viz"><div class="vempty"><b>No daily data yet</b>'
+      + 'Use <b>Fetch now</b> above. Each pull asks Meta for a per-day breakdown, so one pull fills the whole window.</div></div>'
+    : SO.table
+      ? frame('Daily spend and ' + lineLabel.toLowerCase(), SO.range + ' days',
+          vizTable(axis2, spendSeries.concat(effSeries), v => money(v)), [], '')
+      : vizChart({ axis: axis2, series: spendSeries, fmt: money, title: 'Spend per day', sub: SO.range + ' days', height: 170 })
+        + vizChart({ axis: axis2, series: effSeries, fmt: lineFmt, title: lineLabel + ' per day', sub: 'own scale — never shared with spend', height: 150,
+            note: 'A break in the line is a day with no delivery, not a cost of nothing.' });
 
   /* ---------- campaign table ---------- */
   const SORTS = {
@@ -4057,73 +4685,26 @@ function adsView(){
         : '<div class="empty"><small>No campaigns delivered in this window.</small></div>')
     + '</div>';
 
-  return picker + flagHtml + tiles
-    + '<div class="card" style="margin-bottom:14px">'
-    + '<div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px">'
-    + '<h3>Daily spend and ' + lineLabel.toLowerCase() + '</h3><div class="sometrics">' + lineToggle + '</div></div>'
-    + chart + '</div>'
-    + table
-    + accountsFooter(d);
+  /* One filter row, above everything it scopes. */
+  const bar2 = '<div class="fbar">'
+    + '<span class="flabel">Range</span><div class="seg">'
+    + ['7', '28', '90'].map(r => '<button class="' + (SO.range === r ? 'on' : '') + '" data-sorange="' + r + '">' + r + 'd</button>').join('')
+    + '</div>'
+    + ((ads.byAccount || []).length > 1
+        ? '<span class="sep"></span><span class="flabel">Account</span><div class="seg">'
+          + '<button class="' + (SO.adsAcct === 'all' ? 'on' : '') + '" data-adsacct="all">All ' + ads.byAccount.length + '</button>'
+          + ads.byAccount.map(a => '<button class="' + (SO.adsAcct === a.id ? 'on' : '') + '" data-adsacct="' + escS(a.id) + '">'
+              + escS(a.label) + '</button>').join('') + '</div>'
+        : '')
+    + '<span class="sep"></span><span class="flabel">Efficiency</span><div class="seg">' + lineToggle + '</div>'
+    + '<span class="grow"></span>'
+    + '<button class="tgl' + (SO.table ? ' on' : '') + '" data-sotable="1"><span class="box">' + (SO.table ? '✓' : '') + '</span>Table</button>'
+    + '</div>';
+
+  return bar2 + flagHtml + tiles + chart + table + accountsFooter(d);
 }
 
 const shortAcct = (id, ads) => (ads.byAccount || []).find(a => a.id === id)?.label || id.replace(/^meta_ads:/, '');
-
-/* Spend bars with an efficiency line over them, on two independent scales.
-
-   Two scales because the units are unrelated — dollars against a percentage —
-   and forcing them onto one axis would flatten whichever is smaller into the
-   floor. Each is labelled with its own maximum so nobody reads the crossing
-   point as meaningful. A day with no value in the line series breaks it rather
-   than dropping to zero: no delivery is not a cost of nothing. */
-function comboChart(series, lineKey, lineFmt, money){
-  const W = 760, H = 200, PAD_L = 4, PAD_R = 4, TOP = 14, BOT = 18;
-  const n = series.length;
-  const maxSpend = Math.max(1, ...series.map(d => d.spend || 0));
-  const lineVals = series.map(d => d[lineKey]).filter(v => v != null && isFinite(v));
-  const maxLine = lineVals.length ? Math.max(...lineVals) : 0;
-  const bw = (W - PAD_L - PAD_R) / Math.max(1, n);
-  const plotH = H - TOP - BOT;
-
-  const bars = series.map((d, i) => {
-    const h = Math.max(1, Math.round(((d.spend || 0) / maxSpend) * plotH));
-    const x = PAD_L + i * bw;
-    return '<rect x="' + (x + 0.6).toFixed(1) + '" y="' + (TOP + plotH - h) + '" width="' + Math.max(1, bw - 1.2).toFixed(1)
-      + '" height="' + h + '" rx="1.5" fill="#5B8DEF" opacity=".62"><title>' + escS(d.day) + '\n'
-      + 'Spend ' + escS(money(d.spend || 0)) + '\n' + 'Results ' + (d.results || 0)
-      + (d[lineKey] != null ? '\n' + escS(lineFmt(d[lineKey])) : '') + '</title></rect>';
-  }).join('');
-
-  let path = '';
-  if (maxLine > 0) {
-    let open = false;
-    series.forEach((d, i) => {
-      const v = d[lineKey];
-      const x = PAD_L + i * bw + bw / 2;
-      if (v == null || !isFinite(v)) { open = false; return; }
-      const y = TOP + plotH - (v / maxLine) * plotH;
-      path += (open ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1) + ' ';
-      open = true;
-    });
-  }
-
-  const dots = maxLine > 0 ? series.map((d, i) => {
-    const v = d[lineKey];
-    if (v == null || !isFinite(v)) return '';
-    const x = PAD_L + i * bw + bw / 2;
-    const y = TOP + plotH - (v / maxLine) * plotH;
-    return '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="2" fill="var(--brass)"><title>'
-      + escS(d.day) + ': ' + escS(lineFmt(v)) + '</title></circle>';
-  }).join('') : '';
-
-  return '<svg class="adscombo" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" role="img">'
-    + '<line x1="0" y1="' + (TOP + plotH) + '" x2="' + W + '" y2="' + (TOP + plotH) + '" stroke="var(--edge)" stroke-width="1"/>'
-    + bars
-    + (path ? '<path d="' + path.trim() + '" fill="none" stroke="var(--brass)" stroke-width="1.6" stroke-linejoin="round"/>' : '')
-    + dots
-    + '</svg>'
-    + '<div class="soaxis"><span>' + escS(series[0].day) + ' · peak spend ' + escS(money(maxSpend)) + '</span>'
-    + '<span>' + (maxLine > 0 ? 'peak ' + escS(lineFmt(maxLine)) + ' · ' : '') + escS(series[series.length - 1].day) + '</span></div>';
-}
 
 /* A row-height spend trend. Deliberately unlabelled: it is there to show shape
    — still running, tailing off, never started — not to be read for values. */
