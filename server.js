@@ -66,11 +66,16 @@ if (missing.length) {
       /* Say whether a .env was even found. "Set them in .env" is unhelpful
          advice when the file is missing, and misleading when it exists but the
          variable is blank. */
-      fromFile.length
-        ? `Loaded ${fromFile.length} variable(s) from .env, but not this one — check for a typo or a blank value.`
-        : fs.existsSync(path.join(ROOT, '.env'))
-          ? 'A .env exists but set nothing; every variable in it was already present or blank.'
-          : `No .env found at ${path.join(ROOT, '.env')}. Copy .env.example to .env, or set the variables in Railway under Variables.`,
+      !fromFile.found
+        ? `No .env found at ${path.join(ROOT, '.env')}. Copy .env.example to .env, or set the variables in Railway under Variables.`
+        : missing.every(name => fromFile.blank.includes(name))
+          /* The usual case for a fresh install: .env is the copied example and
+             these keys are present but empty. Say that, precisely. */
+          ? `Your .env has ${missing.length === 1 ? 'this key' : 'these keys'} but left `
+            + `${missing.length === 1 ? 'it' : 'them'} blank. Fill in ${path.join(ROOT, '.env')} `
+            + `(${fromFile.length} other variable(s) in it did load).`
+          : `Loaded ${fromFile.length} variable(s) from .env; ${fromFile.blank.length} key(s) in it are blank. `
+            + 'Check that spelling and give it a value.',
       'See .env.example for what each one is for.');
 }
 
