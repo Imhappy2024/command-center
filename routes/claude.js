@@ -729,10 +729,40 @@ export function claudeRoutes({ env, auth }){
     const child = spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
     running = child;
 
-    child.stdin.write(JSON.stringify({
-      type: 'user',
-      message: { role: 'user', content: [{ type: 'text', text: prompt }] }
-    }) + '\n');
+    const writePrompt = () => {
+      if (promptSent) return;
+      promptSent = true;
+      try {
+        child.stdin.write(JSON.stringify({
+          type: 'user',
+          message: { role: 'user', content: [{ type: 'text', text: prompt }] }
+        }) + '\n');
+      } catch { /* the child went away */ }
+    };
+
+    let promptSent = false;
+    let mcpTimer = null;
+
+    /* Send immediately unless connectors are wanted.
+
+       MCP servers attach asynchronously, and a turn that starts before they are
+       ready simply does not see them -- the model answers "no Front connector is
+       available" while Front is three seconds from connecting. So when connectors
+       matter, hold the prompt until every server has stopped saying "pending".
+       Ones that need re-authenticating never will, so they do not count.
+
+       Nothing waits when useMcp is false, which is the common case and must stay
+       as fast as it was. */
+    if (mcpAllow.length) {
+      send('status', { phase: 'connectors', text: 'attaching connectors…' });
+      /* A ceiling, because one wedged server must not hold the turn forever. */
+      mcpTimer = setTimeout(() => {
+        send('status', { phase: 'connectors', text: 'proceeding without all connectors' });
+        writePrompt();
+      }, 45_000);
+    } else {
+      writePrompt();
+    }
 
     let buf = '';
     let finished = false;
@@ -746,10 +776,29 @@ export function claudeRoutes({ env, auth }){
         let frame = null;
         try { frame = JSON.parse(line); } catch { send('raw', { text: line }); continue; }
         send('msg', frame);
+
+        /* Server states arrive on `system` frames after init. Once none are
+           pending, the session is as connected as it is going to get. */
+        if (!promptSent && frame.type === 'system' && Array.isArray(frame.mcp_servers)) {
+          const pending = frame.mcp_servers.filter(sv => sv.status === 'pending');
+          send('status', {
+            phase: 'connectors',
+            text: pending.length
+              ? 'attaching connectors… ' + (frame.mcp_servers.length - pending.length)
+                + '/' + frame.mcp_servers.length
+              : 'connectors ready',
+            servers: frame.mcp_servers.map(sv => ({ name: sv.name, status: sv.status }))
+          });
+          if (!pending.length) {
+            if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
+            writePrompt();
+          }
+        }
         /* A `result` frame ends the turn. Nothing more is coming, and the session
            would otherwise wait for another message forever. */
         if (frame.type === 'result' && !finished) {
           finished = true;
+          if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
           try { child.stdin.end(); } catch { /* already gone */ }
           setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* exited */ } }, 1500);
         }
@@ -767,7 +816,10 @@ export function claudeRoutes({ env, auth }){
        read — which with a JSON body parser is immediately — and killing the
        child there ended every turn before it produced a token. The response
        closing is what actually means the client went away. */
-    res.on('close', () => { if (running === child) { child.kill('SIGTERM'); running = null; } });
+    res.on('close', () => {
+      if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
+      if (running === child) { child.kill('SIGTERM'); running = null; }
+    });
   });
 
   return r;
