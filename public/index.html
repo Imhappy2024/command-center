@@ -769,17 +769,23 @@ main{min-width:0;display:flex;flex-direction:column}
 .fsearch::placeholder{color:var(--dimmer)}
 
 /* ---- KPI tile ---- */
-.kpis{display:grid;gap:10px;margin-bottom:14px}
-.kpi{position:relative;background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);
-  padding:14px 15px 12px;overflow:hidden;transition:border-color .15s}
-.kpi:hover{border-color:var(--edge2)}
-.kpi .klab{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.13em;
-  text-transform:uppercase;color:var(--dimmer);display:block;margin-bottom:7px}
-.kpi .kval{font-size:27px;line-height:1.05;color:var(--cream);
-  font-variation-settings:'wdth' 112,'wght' 650;letter-spacing:-.015em}
-.kpi .kval.na{color:var(--dimmer);font-variation-settings:'wdth' 100,'wght' 400;font-size:22px}
-.kpi .kfoot{display:flex;align-items:center;gap:7px;margin-top:8px;font-size:11.5px;color:var(--dim);flex-wrap:wrap}
-.kpi .kspark{position:absolute;right:0;bottom:0;width:58%;height:38px;opacity:.5;pointer-events:none}
+.kpis{display:grid;gap:12px;margin-bottom:16px}
+.kpi{position:relative;display:flex;flex-direction:column;background:var(--panel);
+  border:1px solid var(--edge);border-radius:14px;padding:17px 18px 14px;overflow:hidden;
+  min-height:158px;transition:border-color .16s,transform .16s}
+.kpi:hover{border-color:var(--edge2);transform:translateY(-2px)}
+.kpi .klab{font-size:12px;color:var(--dim);display:block;margin-bottom:10px;
+  font-variation-settings:'wght' 500;letter-spacing:0;text-transform:none;font-family:inherit}
+.kpi .kval{font-size:33px;line-height:1;color:var(--cream);
+  font-variation-settings:'wdth' 108,'wght' 600;letter-spacing:-.032em}
+.kpi .kval.na{color:var(--dimmer);font-variation-settings:'wdth' 100,'wght' 400;font-size:24px}
+.kpi .kfoot{display:flex;align-items:center;gap:8px;margin-top:11px;font-size:11.5px;
+  color:var(--dim);flex-wrap:wrap}
+.kpi .kprev{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer)}
+/* Full width, along the floor of the card — the trend belongs to the whole
+   tile, not tucked in a corner where it reads as decoration. */
+.kpi .kspark{display:block;width:calc(100% + 36px);height:42px;margin:auto -18px -14px;
+  pointer-events:none}
 .chip2{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 8px;
   font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.03em;border:1px solid transparent}
 .chip2.up{background:rgba(12,163,12,.13);color:#0ca30c;border-color:rgba(12,163,12,.28)}
@@ -788,13 +794,13 @@ main{min-width:0;display:flex;flex-direction:column}
 .kbench{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--dimmer)}
 
 /* ---- chart frame ---- */
-.vwrap{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);margin-bottom:14px}
-.vhead2{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:13px 15px 0}
-.vhead2 h3{font-size:13.5px;color:var(--cream);font-variation-settings:'wght' 600}
+.vwrap{background:var(--panel);border:1px solid var(--edge);border-radius:14px;margin-bottom:14px}
+.vhead2{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 18px 0}
+.vhead2 h3{font-size:15px;color:var(--cream);font-variation-settings:'wght' 600;letter-spacing:-.015em}
 .vhead2 .sub{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.11em;
   text-transform:uppercase;color:var(--dimmer)}
 .vhead2 .grow{flex:1}
-.vbody{padding:12px 15px 15px}
+.vbody{padding:15px 18px 18px}
 .vplot{position:relative;padding-left:46px}
 .vplot svg{display:block;width:100%;height:var(--vh,190px)}
 .vyaxis{position:absolute;left:0;top:0;width:44px;height:var(--vh,190px);pointer-events:none}
@@ -843,8 +849,8 @@ main{min-width:0;display:flex;flex-direction:column}
 
 /* ---- platform strip ---- */
 .pstrip{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-.ptab{display:inline-flex;align-items:center;gap:9px;padding:7px 13px 7px 10px;border-radius:999px;
-  border:1px solid var(--edge);background:var(--panel);font-size:12.5px;color:var(--dim);
+.ptab{display:inline-flex;align-items:center;gap:9px;padding:9px 16px 9px 12px;border-radius:999px;
+  border:1px solid var(--edge);background:var(--panel);font-size:13px;color:var(--dim);
   cursor:pointer;transition:.16s}
 .ptab:hover{border-color:var(--edge2);color:var(--text)}
 .ptab .sw{width:9px;height:9px;border-radius:3px;background:var(--c);flex:none}
@@ -852,12 +858,20 @@ main{min-width:0;display:flex;flex-direction:column}
 .ptab.on{color:var(--cream);background:var(--panel2);border-color:var(--c)}
 
 /* ---- signal ---- */
-.sigcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r);
+/* Signal beside its context, the way a control room reads: the series on the
+   left, what it means on the right. Collapses to one column when there is not
+   room for both. */
+.siggrid{display:grid;grid-template-columns:minmax(0,1fr) 330px;gap:14px;align-items:start;margin-bottom:14px}
+@media(max-width:1240px){.siggrid{grid-template-columns:minmax(0,1fr)}}
+.siggrid>.col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.siggrid .vwrap,.siggrid .sigcard{margin-bottom:0}
+
+.sigcard{background:var(--panel);border:1px solid var(--edge);border-radius:14px;
   margin-bottom:14px;overflow:hidden}
-.sigtop{display:flex;align-items:flex-start;gap:12px;padding:14px 16px 0;flex-wrap:wrap}
-.sigtop h3{font-size:13.5px;color:var(--cream);font-variation-settings:'wght' 600}
+.sigtop{display:flex;align-items:flex-start;gap:12px;padding:17px 18px 0;flex-wrap:wrap}
+.sigtop h3{font-size:15px;color:var(--cream);font-variation-settings:'wght' 600;letter-spacing:-.015em}
 .sigtop p{font-size:11.5px;color:var(--dimmer);margin-top:3px;max-width:56ch}
-.chiprow{display:flex;gap:6px;flex-wrap:wrap;padding:12px 16px 0}
+.chiprow{display:flex;gap:7px;flex-wrap:wrap;padding:14px 18px 0}
 .mchip{display:inline-flex;align-items:center;gap:7px;padding:5px 10px;border-radius:8px;
   border:1px solid var(--edge);background:var(--ink2);color:var(--dimmer);cursor:pointer;
   font:inherit;font-size:11.5px;transition:.14s}
@@ -865,11 +879,11 @@ main{min-width:0;display:flex;flex-direction:column}
 .mchip .sw{width:15px;height:2.5px;border-radius:2px;background:currentColor;opacity:.4}
 .mchip.on{color:var(--cream);border-color:var(--edge2)}
 .mchip.on .sw{opacity:1;background:var(--c)}
-.readout{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-end;padding:12px 16px 8px}
+.readout{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-end;padding:15px 18px 14px}
 .ro .k{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.14em;
   text-transform:uppercase;color:var(--dimmer)}
-.ro .v{font-size:19px;color:var(--cream);font-variation-settings:'wdth' 112,'wght' 600;
-  letter-spacing:-.025em;display:flex;align-items:center;gap:8px}
+.ro .v{font-size:23px;color:var(--cream);font-variation-settings:'wdth' 108,'wght' 600;
+  letter-spacing:-.03em;display:flex;align-items:center;gap:8px;margin-top:3px}
 .rospan{margin-left:auto;font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--dimmer);
   border:1px solid var(--edge);border-radius:6px;padding:3px 8px;background:var(--ink2)}
 .brush{display:block;width:100%;height:46px;cursor:crosshair;touch-action:none}
@@ -4274,12 +4288,25 @@ function vizChart({ axis, series, ghosts = [], fmt = compact, height = 190, titl
   }
 
   const W = 1000, H = height;
-  const allVals = live.flatMap(s2 => s2.values).concat(ghosts.flatMap(s2 => s2.values))
-    .filter(v => v != null && isFinite(v));
-  const max = Math.max(0, ...allVals);
+  const curVals = live.flatMap(s2 => s2.values).filter(v => v != null && isFinite(v));
+  const ghostVals = ghosts.flatMap(s2 => s2.values).filter(v => v != null && isFinite(v));
+  const curMax = Math.max(0, ...curVals);
+  const ghostMax = Math.max(0, ...ghostVals);
+
+  /* The scale belongs to the period being read.
+
+     Sharing it with the comparison sounds right until one outlier in the prior
+     window owns the axis: a single 400-view day behind a month averaging 18
+     flattened every real bar onto the baseline and made the chart useless. So
+     the axis fits the current period, and a comparison that runs off the top is
+     clipped at the ceiling and SAID so underneath — the number is still in the
+     tooltip and the table, and the reader is told the line leaves the frame
+     rather than being shown a squashed chart with no explanation. */
+  const clipped = ghostMax > curMax * 1.35 && curMax > 0;
+  const max = clipped ? curMax : Math.max(curMax, ghostMax);
   const ticks = niceTicks(max, 4);
   const top = ticks[ticks.length - 1] || 1;
-  const y = v => H - (v / top) * H;
+  const y = v => H - (Math.min(v, top) / top) * H;
 
   /* Bars share each x band; 2px of surface between neighbours does the
      separating, and the cap is rounded while the baseline stays square. */
@@ -4333,8 +4360,14 @@ function vizChart({ axis, series, ghosts = [], fmt = compact, height = 190, titl
       lastX = x; open = true;
     });
     if (s2.kind === 'area' && d) {
-      area = '<path d="' + d.trim() + ' L' + lastX.toFixed(2) + ' ' + H + ' L' + firstX.toFixed(2) + ' ' + H
-        + ' Z" fill="' + s2.color + '" opacity=".10"/>';
+      /* A wash that fades out, not a slab. The fill is context for the line, so
+         it has to stay well under the mark's own weight. */
+      const gid = 'ag' + String(s2.id).replace(/\W/g, '') ;
+      area = '<defs><linearGradient id="' + gid + '" x1="0" y1="0" x2="0" y2="1">'
+        + '<stop offset="0" stop-color="' + s2.color + '" stop-opacity=".26"/>'
+        + '<stop offset="1" stop-color="' + s2.color + '" stop-opacity="0"/></linearGradient></defs>'
+        + '<path d="' + d.trim() + ' L' + lastX.toFixed(2) + ' ' + H + ' L' + firstX.toFixed(2) + ' ' + H
+        + ' Z" fill="url(#' + gid + ')"/>';
     }
     marks += area + (d ? '<path d="' + d.trim() + '" fill="none" stroke="' + s2.color
       + '" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>' : '');
@@ -4361,7 +4394,13 @@ function vizChart({ axis, series, ghosts = [], fmt = compact, height = 190, titl
     + '<div class="vxaxis"><span>' + escS(dayLabel(axis[0])) + '</span>'
     + (n > 2 ? '<span>' + escS(dayLabel(axis[Math.floor(n / 2)])) + '</span>' : '')
     + '<span>' + escS(dayLabel(axis[n - 1])) + '</span></div>'
-    + (note ? '<div class="vlegend" style="padding-left:0;color:var(--dimmer);font-size:11px">' + note + '</div>' : '');
+    + ((note || clipped)
+        ? '<div class="vlegend" style="padding-left:0;color:var(--dimmer);font-size:11px">'
+          + (clipped ? 'The prior period peaked at ' + escS(fmt(ghostMax))
+              + ', above this scale — its line is clipped at the top so the current period stays readable. '
+            : '')
+          + (note || '') + '</div>'
+        : '');
 
   return frame(title, sub, plot, series, extra);
 }
@@ -4408,35 +4447,46 @@ function vizPair(a, b){
 function kpiSpark(values, color){
   const pts = (values || []).filter(v => v != null && isFinite(v));
   if (pts.length < 2) return '';
-  const W = 120, H = 38, max = Math.max(...pts), min = Math.min(...pts);
+  const W = 240, H = 42, max = Math.max(...pts), min = Math.min(...pts);
   const span = (max - min) || 1;
   const step = W / (pts.length - 1);
-  const d = pts.map((v, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' ' + (H - 2 - ((v - min) / span) * (H - 6)).toFixed(1)).join(' ');
+  /* Baselined a little above the floor so a flat series still reads as a line
+     rather than as the card's bottom edge. */
+  const d = pts.map((v, i) => (i ? 'L' : 'M') + (i * step).toFixed(1) + ' '
+    + (H - 5 - ((v - min) / span) * (H - 16)).toFixed(1)).join(' ');
+  const id = 'sp' + Math.abs(pts.length * 7 + Math.round(max)).toString(36) + color.replace(/\W/g, '');
   return '<svg class="kspark" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="none" aria-hidden="true">'
-    + '<path d="' + d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z" fill="' + color + '" opacity=".12"/>'
-    + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.6" vector-effect="non-scaling-stroke"/></svg>';
+    + '<defs><linearGradient id="' + id + '" x1="0" y1="0" x2="0" y2="1">'
+    + '<stop offset="0" stop-color="' + color + '" stop-opacity=".30"/>'
+    + '<stop offset="1" stop-color="' + color + '" stop-opacity="0"/></linearGradient></defs>'
+    + '<path d="' + d + ' L' + W + ' ' + H + ' L0 ' + H + ' Z" fill="url(#' + id + ')"/>'
+    + '<path d="' + d + '" fill="none" stroke="' + color + '" stroke-width="1.8" '
+    + 'stroke-linecap="round" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>';
 }
 
 /* Stat tile: label, value, optional delta against a named period, optional
    trend. Values use proportional figures — tabular is for columns. */
-function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, spark = null, color = 'var(--s1)', bench = '', na = false } = {}){
+function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, spark = null, color = 'var(--s1)', bench = '', na = false, prev = '' } = {}){
   let chip = '';
   if (delta != null && isFinite(delta)) {
     const better = goodDown ? delta < 0 : delta > 0;
-    const cls = delta === 0 ? 'flat' : better ? 'up' : 'down';
-    const mark = delta === 0 ? '=' : delta > 0 ? '▲' : '▼';
-    chip = '<span class="chip2 ' + cls + '">' + mark + ' ' + Math.abs(Math.round(delta)) + '%</span>';
+    const cls = Math.abs(delta) < 0.5 ? 'flat' : better ? 'up' : 'down';
+    const mark = Math.abs(delta) < 0.5 ? '=' : delta > 0 ? '▲' : '▼';
+    chip = '<span class="chip2 ' + cls + '">' + mark + ' ' + Math.abs(delta).toFixed(1) + '%</span>';
   } else if (deltaLabel) {
     chip = '<span class="chip2 flat">' + escS(deltaLabel) + '</span>';
   }
   return '<div class="kpi">'
-    + (spark ? kpiSpark(spark, color) : '')
     + '<span class="klab">' + escS(label) + '</span>'
     + '<div class="kval' + (na ? ' na' : '') + '">' + escS(value) + '</div>'
     + '<div class="kfoot">' + chip
     + (deltaLabel && delta != null ? '<span>' + escS(deltaLabel) + '</span>' : '')
     + (bench ? '<span class="kbench">' + escS(bench) + '</span>' : '')
-    + '</div></div>';
+    + (prev ? '<span class="kprev">' + escS(prev) + '</span>' : '')
+    + '</div>'
+    + '<span style="flex:1"></span>'
+    + (spark ? kpiSpark(spark, color) : '')
+    + '</div>';
 }
 
 /* ---------- charts ----------
@@ -4684,9 +4734,9 @@ function mixPanel(d, rows, accounts){
 
   return '<div class="vwrap viz"><div class="vhead2"><h3>Share of views</h3>'
     + '<span class="sub">' + RANGE_N() + ' days</span></div><div class="vbody">'
-    + '<div style="display:flex;gap:16px;align-items:center">'
-    + '<svg width="104" height="104" viewBox="0 0 118 118" style="flex:none" role="img" aria-label="Share of views by account">' + g + '</svg>'
-    + '<div style="flex:1">' + vals.map(x => '<div class="mixrow"><i class="sw" style="background:' + hueFor(x.a.id) + '"></i>'
+    + '<div style="display:flex;gap:15px;align-items:center;flex-wrap:wrap">'
+    + '<svg width="96" height="96" viewBox="0 0 118 118" style="flex:none" role="img" aria-label="Share of views by account">' + g + '</svg>'
+    + '<div style="flex:1;min-width:150px">' + vals.map(x => '<div class="mixrow"><i class="sw" style="background:' + hueFor(x.a.id) + '"></i>'
         + '<span class="l">' + escS(x.a.label) + '</span><span class="v">' + escS(compact(x.v)) + '</span>'
         + '<span class="p">' + Math.round((x.v / tot) * 100) + '%</span></div>').join('') + '</div>'
     + '</div></div></div>';
@@ -4751,24 +4801,56 @@ function performanceSection(d, key){
     return axis.map(dd => by.get(dd)).filter(v => v != null).slice(-14);
   };
 
+  /* Eight tiles, every one derived from data actually returned. Where a
+     platform publishes nothing for a slot the tile says which platform and why,
+     rather than being dropped — a missing tile reads as an oversight, a stated
+     absence reads as a fact. */
+  const inWin = new Set(axis);
+  const posts = (d.posts || []).filter(pp =>
+    (SO.acct === 'all' || pp.account === SO.acct) &&
+    inWin.has(String(pp.publishedAt || '').slice(0, 10)));
+  const postViews = posts.reduce((n, pp) => n + (pp.views || 0), 0);
+
+  const dayTotals = axis.map(dd =>
+    zRows.filter(r => String(r.day).slice(0,10) === dd).reduce((n, r) => n + (r.views || 0), 0));
+  const bestIdx = dayTotals.reduce((b, v, i) => v > dayTotals[b] ? i : b, 0);
+  const activeDays = dayTotals.filter(v => v > 0).length;
+  const perDay = activeDays ? (views || 0) / activeDays : null;
+
+  const vsPrior = 'vs prior ' + RANGE_N() + 'd';
+  const prevTxt = m => { const v = prevVal(m); return (SO.compare && v != null) ? 'prev ' + compact(v) : ''; };
+
   const band = '<div class="kpis grid g4">'
+    + tile('views', 'Views', views == null ? '—' : compact(views), {
+        delta: SO.compare ? pctMove(views, prevVal('views')) : null,
+        deltaLabel: views == null ? 'not published' : vsPrior,
+        prev: prevTxt('views'), spark: sparkOf('views'), color:'var(--s1)', na: views == null })
+    + tile('reach', 'Reach', reach == null ? '—' : compact(reach), {
+        delta: SO.compare ? pctMove(reach, prevVal('reach')) : null,
+        deltaLabel: reach == null ? 'not published by ' + (SO_VIEW_LABEL[SO.view] || key) : vsPrior,
+        prev: prevTxt('reach'), spark: sparkOf('reach'), color:'var(--s5)', na: reach == null })
+    + tile('interactions', 'Interactions', inter == null ? '—' : compact(inter), {
+        delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
+        deltaLabel: inter == null ? 'not published' : vsPrior,
+        prev: prevTxt('interactions'), spark: sparkOf('interactions'), color:'var(--s4)', na: inter == null })
     + tile('followers', words.followers, fNow == null ? '—' : compact(fNow), {
         delta: (fNow != null && fThen) ? ((fNow - fThen) / fThen) * 100 : null,
         deltaLabel: levels.length > 1 ? 'across ' + RANGE_N() + 'd' : 'single reading',
         spark: levels.map(r => r.followers).slice(-14), color:'var(--s3)', na: fNow == null })
-    + tile('reach', 'Reach', reach == null ? '—' : compact(reach), {
-        delta: SO.compare ? pctMove(reach, prevVal('reach')) : null,
-        deltaLabel: reach == null ? 'not published by ' + (SO_VIEW_LABEL[SO.view] || key) : (SO.compare ? 'vs prior ' + RANGE_N() + 'd' : 'unique accounts'),
-        spark: sparkOf('reach'), color:'var(--s1)', na: reach == null })
-    + tile('views', 'Views', views == null ? '—' : compact(views), {
-        delta: SO.compare ? pctMove(views, prevVal('views')) : null,
-        deltaLabel: views == null ? 'not published' : (SO.compare ? 'vs prior ' + RANGE_N() + 'd' : 'every appearance'),
-        spark: sparkOf('views'), color:'var(--s1)', na: views == null })
-    + tile('interactions', eng == null ? 'Interactions' : 'Engagement',
-        eng == null ? (inter == null ? '—' : compact(inter)) : eng.toFixed(2) + '%', {
-        delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
-        deltaLabel: eng == null ? 'reach not published, so no rate' : 'interactions ÷ reach',
-        spark: sparkOf('interactions'), color:'var(--s4)', na: eng == null && inter == null })
+    + '</div>'
+    + '<div class="kpis grid g4">'
+    + tile('interactions', 'Engagement rate', eng == null ? '—' : eng.toFixed(2) + '%', {
+        deltaLabel: eng == null ? 'needs reach, which ' + (SO_VIEW_LABEL[SO.view] || key) + ' does not publish' : 'interactions ÷ reach',
+        color:'var(--s7)', na: eng == null })
+    + tile('views', words.posts + ' published', String(posts.length), {
+        deltaLabel: posts.length ? compact(Math.round(postViews / posts.length)) + ' views each on average' : 'none in this window',
+        color:'var(--s2)', na: !posts.length })
+    + tile('views', 'Busiest day', dayTotals[bestIdx] ? compact(dayTotals[bestIdx]) : '—', {
+        deltaLabel: dayTotals[bestIdx] ? dayLabel(axis[bestIdx]) : 'no activity recorded',
+        color:'var(--s1)', na: !dayTotals[bestIdx] })
+    + tile('views', 'Views per active day', perDay == null ? '—' : compact(Math.round(perDay)), {
+        deltaLabel: activeDays ? activeDays + ' of ' + axis.length + ' days had activity' : 'no activity recorded',
+        color:'var(--s6)', na: perDay == null })
     + '</div>';
 
   /* ---- metric chips. More than one becomes small multiples: views and
@@ -4805,13 +4887,29 @@ function performanceSection(d, key){
     + '<button class="' + (SO.chartKind === 'area' ? 'on' : '') + '" data-sokind="area">Area</button></div>';
 
   /* Readout: the total for each charted metric with its own movement. */
-  const readout = '<div class="readout">' + picked.map((m, i) => {
-    const t = sum(zRows, m), pv = prevVal(m), mv = SO.compare ? pctMove(t, pv) : null;
-    const chipCls = mv == null ? 'flat' : mv > 0.4 ? 'up' : mv < -0.4 ? 'down' : 'flat';
-    return '<div class="ro"><div class="k" style="color:' + VIZ_SLOTS[i % VIZ_SLOTS.length] + '">'
-      + escS((available.find(a => a.k === m) || {}).label || m) + '</div>'
-      + '<div class="v">' + escS(compact(t))
-      + (mv == null ? '' : '<span class="chip2 ' + chipCls + '">' + (mv > 0 ? '▲' : mv < 0 ? '▼' : '=') + ' ' + Math.abs(mv).toFixed(1) + '%</span>')
+  /* Split by account, the readout answers "which account" — that is the whole
+     point of splitting. Otherwise it answers "which metric". */
+  const roItems = (SO.split && accounts.length > 1)
+    ? accounts.map(a => {
+        const mine = zRows.filter(r => r.account === a.id);
+        const t = mine.reduce((n, r) => n + (r[picked[0]] || 0), 0);
+        const pv = SO.compare ? prevRows.filter(r => r.account === a.id).reduce((n, r) => n + (r[picked[0]] || 0), 0) : null;
+        return { label: a.label, color: hueFor(a.id), total: t, move: (pv ? ((t - pv) / pv) * 100 : null) };
+      })
+    : picked.map((m, i) => ({
+        label: (available.find(a => a.k === m) || {}).label || m,
+        color: VIZ_SLOTS[i % VIZ_SLOTS.length],
+        total: sum(zRows, m),
+        move: SO.compare ? pctMove(sum(zRows, m), prevVal(m)) : null
+      }));
+
+  const readout = '<div class="readout">' + roItems.map(it => {
+    const mv = it.move;
+    const chipCls = mv == null ? 'flat' : Math.abs(mv) < 0.5 ? 'flat' : mv > 0 ? 'up' : 'down';
+    return '<div class="ro"><div class="k" style="color:' + it.color + '">' + escS(it.label) + '</div>'
+      + '<div class="v">' + escS(compact(it.total))
+      + (mv == null ? '' : '<span class="chip2 ' + chipCls + '">'
+          + (Math.abs(mv) < 0.5 ? '=' : mv > 0 ? '▲' : '▼') + ' ' + Math.abs(mv).toFixed(1) + '%</span>')
       + '</div></div>';
   }).join('')
   + '<span class="rospan">' + axis.length + ' days · ' + escS(dayLabel(axis[0] || '')) + ' → ' + escS(dayLabel(axis[axis.length-1] || '')) + '</span>'
@@ -4835,7 +4933,7 @@ function performanceSection(d, key){
       axis, series: mkSeries(picked[0], 0), ghosts: SO.compare ? mkSeries(picked[0], 1) : [],
       title: (available.find(a => a.k === picked[0]) || {}).label || picked[0],
       sub: RANGE_N() + ' days' + (SO.compare ? ' · dashed is the prior period' : ''),
-      height: 230, extra: kindSeg,
+      height: 268, extra: kindSeg,
       note: SO.split ? 'One line per account. A gap is a day that account published nothing — not a zero.' : '' });
   }
 
@@ -4848,14 +4946,14 @@ function performanceSection(d, key){
     + '<div class="chiprow">' + chips + '</div>'
     + readout + '</div>';
 
+  /* Series on the left, what it means on the right. */
   return platformStrip()
     + filterBar(d, key, { metrics: [] })
     + band
-    + signal
-    + charts
-    + brush
-    + (accounts.length > 1 ? '<div class="grid g2">' + mixPanel(d, zRows, accounts) + insights(d, key, zRows, prevRows) + '</div>'
-                           : insights(d, key, zRows, prevRows))
+    + '<div class="siggrid">'
+    +   '<div class="col">' + signal + charts + brush + '</div>'
+    +   '<div class="col">' + mixPanel(d, zRows, accounts) + insights(d, key, zRows, prevRows) + '</div>'
+    + '</div>'
     + accountsFooter(d);
 }
 
