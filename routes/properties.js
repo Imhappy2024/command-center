@@ -28,6 +28,42 @@ const num = v => {
   return Number.isFinite(n) ? n : 0;
 };
 
+/* Two rate columns, and they disagree in type: interest_rate_pct is numeric,
+   interest_rate is free text like "3.75%" or "SOFR + 2.5". Prefer the numeric
+   one; parse the text only when it is a plain percentage, because guessing at a
+   spread over an index would be inventing a number. */
+function loanRate(l){
+  if (l.interest_rate_pct !== null && l.interest_rate_pct !== undefined && l.interest_rate_pct !== '') {
+    const n = Number(l.interest_rate_pct);
+    if (Number.isFinite(n)) return n > 1 ? n / 100 : n;
+  }
+  const m = /^\s*(\d+(?:\.\d+)?)\s*%\s*$/.exec(String(l.interest_rate || ''));
+  return m ? Number(m[1]) / 100 : null;
+}
+
+/* Occupancy lives in three places and they are not equally trustworthy: a dated
+   financial snapshot beats a column on the property, which beats averaging the
+   buildings. The building average is weighted by unit count, because an
+   unweighted mean lets an 8-unit outbuilding count as much as a 200-unit tower. */
+function occupancyOf(p, fin, buildings){
+  if (fin && fin.occupancy !== null && fin.occupancy !== undefined && fin.occupancy !== '') {
+    const n = Number(fin.occupancy);
+    if (Number.isFinite(n)) return n > 1 ? n / 100 : n;
+  }
+  if (p.current_occupancy !== null && p.current_occupancy !== undefined && p.current_occupancy !== '') {
+    const n = Number(p.current_occupancy);
+    if (Number.isFinite(n)) return n > 1 ? n / 100 : n;
+  }
+  let units = 0, sum = 0;
+  for (const b of buildings) {
+    const u = num(b.current_total_units);
+    const o = b.occupancy === null || b.occupancy === undefined || b.occupancy === '' ? null : Number(b.occupancy);
+    if (!u || o === null || !Number.isFinite(o)) continue;
+    units += u; sum += (o > 1 ? o / 100 : o) * u;
+  }
+  return units ? sum / units : null;
+}
+
 export function propertyRoutes({ env, auth }){
   const r = express.Router();
   const configured = Boolean(env.SUPABASE_DB_URL);
@@ -37,34 +73,53 @@ export function propertyRoutes({ env, auth }){
   const STALE_MS = 5 * 60 * 1000;
 
   async function build(){
-    const q = (sql, params) => ghlQuery(sql, params).then(r2 => r2.rows).catch(err => {
-      /* A missing optional table should not empty the whole portfolio. */
-      if (/does not exist/i.test(err.message)) return [];
+    /* A MISSING TABLE is tolerable; a missing COLUMN is a bug in this file, and
+       the two must not be treated alike.
+
+       They were. `select ... name ... from public.loan` fails because loan has no
+       name column, the catch matched /does not exist/, and the endpoint reported
+       zero loans against a database holding seventy-five. The Debt view was empty
+       and nothing anywhere said why. Every swallowed error is now recorded and
+       returned, so an empty view can always be told apart from an empty table. */
+    const problems = [];
+    const q = (label, sql, params) => ghlQuery(sql, params).then(r2 => r2.rows).catch(err => {
+      if (/relation .* does not exist/i.test(err.message)) {
+        problems.push({ query: label, kind: 'missing-table', message: err.message });
+        return [];
+      }
+      problems.push({ query: label, kind: 'failed', message: err.message });
+      /* Rethrow anything that is not simply an absent table: a column typo must
+         surface as a 502, not as a portfolio that looks debt-free. */
       throw err;
     });
 
     const [entities, properties, units, loans, collateral, balances, financials, parcels, ownership] =
       await Promise.all([
-        q('select id, name, parent_entity_id from public.entity order by name'),
-        q(`select id, entity_id, dba_name, trade_name, street, city, state, zip,
+        q('entity', 'select id, name, parent_entity_id from public.entity order by name'),
+        q('property', `select id, entity_id, dba_name, trade_name, street, city, state, zip,
                   current_market_value, current_market_value_asof, purchase_price, purchase_date,
                   management_company, asset_type, status, ownership_status, disposition_date,
-                  unit_count_reported, unit_count_verified, num_buildings, year_built
+                  unit_count_reported, unit_count_verified, num_buildings, year_built,
+                  current_occupancy
              from public.property`),
-        q(`select id, property_id, unit_identifier, structure_type, current_total_units,
-                  square_feet, year_built
+        q('unit', `select id, property_id, unit_identifier, structure_type, current_total_units,
+                  square_feet, year_built, occupancy
              from public.unit`),
-        q(`select id, name, loan_number, lender, status, position, maturity_date,
-                  interest_rate_pct, origination_amount, borrower_entity_id
+        /* No `name` column on loan. The display name is built from what is there:
+           loan_number, then the lender, then the type. */
+        q('loan', `select id, loan_number, lender, lender_id, status, position, purpose, loan_type,
+                  maturity_date, interest_rate, interest_rate_pct, origination_amount,
+                  origination_date, borrower_entity_id, dscr
              from public.loan`),
-        q('select loan_id, property_id, unit_id from public.loan_collateral'),
-        q(`select distinct on (loan_id) loan_id, balance, as_of_date
+        q('loan_collateral', 'select loan_id, property_id, unit_id from public.loan_collateral'),
+        q('loan_balance', `select distinct on (loan_id) loan_id, balance, as_of_date
              from public.loan_balance order by loan_id, as_of_date desc`),
-        q(`select distinct on (property_id) property_id, as_of_date, current_market_value, noi, occupancy
+        q('property_financials', `select distinct on (property_id) property_id, as_of_date,
+                  current_market_value, noi, occupancy, cap_rate, total_ltv
              from public.property_financials
             where property_id is not null order by property_id, as_of_date desc nulls last`),
-        q('select property_id, parcel_number, county, is_primary from public.property_parcel'),
-        q('select entity_id, property_id, unit_id, is_primary from public.ownership')
+        q('property_parcel', 'select property_id, parcel_number, county, is_primary from public.property_parcel'),
+        q('ownership', 'select entity_id, property_id, unit_id, is_primary from public.ownership')
       ]);
 
     /* ---- indexes ---- */
@@ -144,12 +199,20 @@ export function propertyRoutes({ env, auth }){
         purchaseDate: p.purchase_date,
         debt,
         noi: fin ? num(fin.noi) : 0,
-        occupancy: fin?.occupancy ?? null,
+        occupancy: occupancyOf(p, fin, bl),
+        capRate: fin && fin.cap_rate !== null ? Number(fin.cap_rate) : null,
         loanStatus,
         loans: propLoans.map(l => ({
-          id: l.id, name: l.name || l.loan_number || 'loan', lender: l.lender,
-          status: l.status, position: l.position, maturity: l.maturity_date,
-          ratePct: l.interest_rate_pct === null ? null : Number(l.interest_rate_pct),
+          id: l.id,
+          /* Whatever identifies it to a human. Falling back to the lender beats
+             a column of rows all reading "loan". */
+          name: l.loan_number || [l.lender, l.loan_type].filter(Boolean).join(' ') || l.purpose || 'Loan',
+          lender: l.lender,
+          status: l.status, position: l.position, purpose: l.purpose,
+          maturity: l.maturity_date,
+          ratePct: loanRate(l),
+          dscr: l.dscr === null ? null : Number(l.dscr),
+          originationAmount: num(l.origination_amount),
           balance: balanceByLoan.get(l.id) || 0
         })),
         buildings: bl.length,
@@ -223,6 +286,9 @@ export function propertyRoutes({ env, auth }){
       tree,
       properties: shaped,
       orphans,
+      /* Empty because there is nothing, or empty because a query broke? The UI
+         cannot tell the difference on its own, so it is told. */
+      problems,
       totals: {
         properties: shaped.length,
         entities: entities.length,
