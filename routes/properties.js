@@ -181,16 +181,27 @@ export function propertyRoutes({ env, auth }){
     /* Roll debt and value up through descendants, so a holding company shows what
        its sub-entities carry. */
     const propById = new Map(shaped.map(p => [p.id, p]));
+    /* Sum over a SET of property ids, not over the tree.
+
+       Co-ownership is real here: four TIC entities holding one building each get
+       placed under all four, so adding subtree totals counted the same property
+       four times -- one holding company read $124M of debt against a real $31M.
+       Deduplicating by property id is the difference between a figure and a
+       coincidence. */
+    const subtreeProps = id => {
+      const out = new Set(byEntity.get(id).properties);
+      for (const c of childrenOf.get(id) || []) for (const pid of subtreeProps(c)) out.add(pid);
+      return out;
+    };
     const rollup = id => {
-      const node = byEntity.get(id);
-      let count = node.properties.length;
-      let debt = node.properties.reduce((a, pid) => a + propById.get(pid).debt, 0);
-      let mv = node.properties.reduce((a, pid) => a + propById.get(pid).marketValue, 0);
-      for (const c of childrenOf.get(id) || []) {
-        const sub = rollup(c);
-        count += sub.count; debt += sub.debt; mv += sub.mv;
+      const ids = subtreeProps(id);
+      let debt = 0, mv = 0;
+      for (const pid of ids) {
+        const p = propById.get(pid);
+        if (!p) continue;
+        debt += p.debt; mv += p.marketValue;
       }
-      return { count, debt, mv };
+      return { count: ids.size, debt, mv };
     };
 
     const tree = entities

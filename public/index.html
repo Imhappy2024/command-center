@@ -1445,24 +1445,27 @@ main{min-width:0;display:flex;flex-direction:column}
    one column definition -- with a table they drift the moment a cell wraps. */
 /* Properties tree. The header and the entity rows share one grid so the figures
    line up down the page. */
-.prhead,.prrow{display:grid;grid-template-columns:18px minmax(0,1fr) 74px 118px 132px;
-  gap:10px;align-items:center;padding:8px 15px;text-align:left}
+.prhead,.prrow{display:grid;grid-template-columns:16px minmax(0,1fr) 62px 96px 104px;
+  gap:12px;align-items:center;padding:6px 15px;text-align:left}
 .prhead{font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
   color:var(--dimmer);background:var(--panel2);border-bottom:1px solid var(--edge)}
 .prhead span:nth-child(4),.prhead span:nth-child(5){text-align:right}
 .prent{border-bottom:1px solid var(--edge)}
+.prent .prent{border-bottom:0}
 .prrow{width:100%;background:none;border:0;cursor:pointer;font:inherit}
 .prrow:hover{background:var(--panel2)}
 .prent.open>.prrow{background:var(--panel2);box-shadow:inset 2px 0 0 var(--brass)}
 .prrow .cv{color:var(--dimmer);font-size:10px}
-.prrow .nm{font-size:13px;font-weight:600;color:var(--cream);overflow:hidden;
+.prrow .nm{font-size:12.5px;font-weight:600;color:var(--cream);overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
+/* Depth is already carried by the indent; make it carry weight too, so a
+   sub-entity does not read as another top-level holding. */
+.prent .prent .prrow .nm{font-weight:500;color:var(--text);font-size:12px}
+.prent .prent .prent .prrow .nm{color:var(--dim)}
 .prrow .ct{font-family:var(--ff-mono);font-size:10px;color:var(--brass);
   background:rgba(124,108,255,.14);border-radius:999px;padding:2px 7px;text-align:center}
-.prrow .fig{text-align:right;display:block}
-.prrow .fig em{display:block;font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.08em;
-  text-transform:uppercase;color:var(--dimmer);font-style:normal}
-.prrow .fig b{font-size:12.5px;color:var(--text);font-variant-numeric:tabular-nums}
+.prrow .fig{text-align:right;font-size:12.5px;color:var(--text);
+  font-variant-numeric:tabular-nums;font-family:var(--ff-mono)}
 .prkids{border-left:2px solid var(--brass);margin:0 12px 8px 24px;
   background:rgba(124,108,255,.05);border-radius:0 8px 8px 0}
 .prprop{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;
@@ -7056,8 +7059,10 @@ function prTree(){
       +   '<span class="cv">' + (isOpen ? '▾' : '▸') + '</span>'
       +   '<span class="nm">' + escS(node.name) + '</span>'
       +   '<span class="ct">' + node.count + '</span>'
-      +   '<span class="fig"><em>Debt</em><b>' + prMoney(node.debt) + '</b></span>'
-      +   '<span class="fig"><em>Market value</em><b>' + prMoney(node.mv) + '</b></span>'
+      /* No per-row label: the header carries it. Repeating "DEBT" on every one
+         of 110 rows is 110 words that say nothing. */
+      +   '<span class="fig" title="' + prFull(node.debt) + '">' + prMoney(node.debt) + '</span>'
+      +   '<span class="fig" title="' + prFull(node.mv) + '">' + prMoney(node.mv) + '</span>'
       + '</button>'
       + (isOpen
           ? '<div class="prkids">'
