@@ -64,11 +64,21 @@ function occupancyOf(p, fin, buildings){
   return units ? sum / units : null;
 }
 
+/* Set by propertyRoutes so the detail routes can drop the list's cache after a
+   write. A module-level handle rather than a shared module: there is exactly one
+   properties router, and passing a setter through lib/app.js keeps the coupling
+   visible at the mount point instead of hiding it in an import. */
+export let invalidateProperties = () => {};
+
 export function propertyRoutes({ env, auth }){
   const r = express.Router();
   const configured = Boolean(env.SUPABASE_DB_URL);
 
   let cache = null;      // { payload, at }
+  /* An edit in the drawer has just made this stale in a way age cannot detect.
+     Dropping it costs one rebuild; keeping it means the edit looks like it did
+     nothing, which is the worst possible outcome of a successful write. */
+  invalidateProperties = () => { cache = null; };
   let inFlight = null;
   const STALE_MS = 5 * 60 * 1000;
 

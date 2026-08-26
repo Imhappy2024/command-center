@@ -70,6 +70,14 @@ export const query = (text, params) => poolFor(ownDbUrl()).query(text, params);
    the webhook processor and the send path, and nothing else. */
 export const ghlQuery = (text, params) => poolFor(ghlDbUrl()).query(text, params);
 
+/* A dedicated client from the same pool, for the rare portal write that has to
+   be a transaction. ghlQuery hands out whichever connection happens to be free,
+   so a BEGIN and its COMMIT sent through it can land on different ones -- the
+   transaction is then a fiction, and a half-applied ownership change is exactly
+   the kind of thing that leaves the tree and the record disagreeing. Callers
+   must release(). */
+export const ghlClient = () => poolFor(ghlDbUrl()).connect();
+
 /* Schema is applied on every boot, not versioned. Every statement in
    schema.sql is IF NOT EXISTS, so re-running it is a no-op once settled.
    Own tables only, so it runs against DATABASE_URL and never against Supabase. */

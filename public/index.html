@@ -1709,6 +1709,129 @@ main{min-width:0;display:flex;flex-direction:column}
 .kv b .hint{color:var(--dimmer);font-weight:400;font-size:11px}
 .prsech{margin:20px 0 8px}
 
+/* ---------- the property record drawer ---------- */
+.prdcrumb{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);margin-bottom:5px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* The facts worth seeing before anything is opened. Each one is a real field, so
+   each one is a button that edits it. */
+.prdfacts{display:grid;grid-template-columns:repeat(auto-fit,minmax(132px,1fr));gap:1px;
+  background:var(--edge);border:1px solid var(--edge);border-radius:var(--r-md);
+  overflow:hidden;margin-bottom:12px}
+.prdfact{background:var(--ink2);border:0;padding:9px 11px;text-align:left;cursor:pointer;
+  display:flex;flex-direction:column;gap:3px;min-width:0;transition:background .12s}
+.prdfact:hover{background:var(--panel2)}
+.prdfact .l{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dimmer)}
+.prdfact .v{font-size:12.5px;color:var(--cream);font-weight:500;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.prdgap{color:var(--edge2)}
+.prdparcels{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:14px}
+
+.prdsec{margin-bottom:16px}
+.prdsec h4{font-family:var(--ff-display);font-size:12.5px;font-weight:600;color:var(--brass);
+  margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.prdsec h4 .n{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);font-weight:400;
+  border:1px solid var(--edge2);border-radius:99px;padding:1px 7px}
+
+.prdown{display:grid;grid-template-columns:minmax(96px,32%) 1fr;gap:10px;align-items:start;
+  padding:7px 0}
+.prdown .l{font-family:var(--ff-mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--dimmer);padding-top:7px}
+.prdsel{background:var(--ink2);border:1px solid var(--edge);border-radius:8px;color:var(--text);
+  font:inherit;font-size:12.5px;padding:7px 9px;max-width:100%;cursor:pointer}
+.prdsel:hover{border-color:var(--edge2)}
+.prdsel:focus{outline:none;border-color:var(--brass)}
+.prdchips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.prdchip{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--edge2);
+  border-radius:99px;padding:4px 6px 4px 11px;font-size:11.5px;color:var(--text);
+  background:var(--panel2)}
+.prdchip button{background:none;border:0;color:var(--dimmer);cursor:pointer;font:inherit;
+  font-size:13px;line-height:1;padding:0 3px}
+.prdchip button:hover{color:var(--rust)}
+
+.prdtasks{display:flex;flex-direction:column;gap:1px}
+.prdtask{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:9px;align-items:center;
+  background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:8px 11px;
+  text-align:left;cursor:pointer;font:inherit;transition:.12s}
+.prdtask:hover{border-color:var(--edge2);background:var(--panel2)}
+.prdtask .nm{color:var(--cream);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;min-width:0}
+.prdtask .st{font-family:var(--ff-mono);font-size:9.5px;text-transform:uppercase;
+  letter-spacing:.06em;white-space:nowrap}
+.prdtask .dt{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);white-space:nowrap}
+.prdtask .dt.over{color:var(--rust)}
+
+.prdmsgs{display:flex;flex-direction:column;gap:7px;margin-bottom:9px}
+.prdmsg{background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:9px 11px}
+.prdmsg .who{font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer);
+  display:flex;gap:8px;margin-bottom:4px}
+.prdmsg .who span{color:var(--edge2)}
+.prdmsg .body{font-size:12.5px;color:var(--text);white-space:pre-wrap;line-height:1.5}
+.prdpost{display:flex;gap:7px;align-items:flex-end}
+.prdpost textarea{flex:1;min-width:0;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:9px;color:var(--text);font:inherit;font-size:12.5px;padding:8px 10px;
+  resize:vertical;line-height:1.5}
+.prdpost textarea:focus{outline:none;border-color:var(--brass)}
+.prdpost textarea::placeholder{color:var(--dimmer)}
+.prdpost button{background:var(--brass);border:0;border-radius:8px;color:#fff;font:inherit;
+  font-size:12px;font-weight:600;padding:8px 15px;cursor:pointer;flex:none}
+.prdpost button:hover{filter:brightness(1.08)}
+.prdpost button:disabled{opacity:.5;cursor:default;filter:none}
+
+/* Collapsed groups. Sixty property columns plus every loan, building and
+   snapshot expanded at once is not a record, it is a dump. */
+.prdgroups{display:flex;flex-direction:column;gap:8px;margin-top:18px}
+.prdgroup{border:1px solid var(--edge);border-radius:var(--r-md);overflow:hidden;
+  background:var(--ink2)}
+.prdgh{display:flex;align-items:center;gap:9px;width:100%;background:var(--panel2);border:0;
+  padding:11px 13px;cursor:pointer;font:inherit;text-align:left;transition:background .12s}
+.prdgh:hover{background:var(--panel3)}
+.prdgh .t{flex:1;font-family:var(--ff-display);font-size:12.5px;font-weight:600;color:var(--cream)}
+.prdgh .n{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);
+  border:1px solid var(--edge2);border-radius:99px;padding:1px 7px}
+.prdgh .cv{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--brass)}
+.prdgh.open{background:var(--panel3)}
+.prdgbody{border-top:1px solid var(--edge)}
+.prdsub{border-bottom:1px solid var(--edge)}
+.prdsub:last-child{border-bottom:0}
+.prdsubh{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--brass);padding:9px 13px 5px;background:rgba(124,108,255,.06)}
+
+/* A field is a row until you click it, and then it is a control. Same geometry
+   either way, so the panel does not jump as you move down it. */
+.prdrow{display:grid;grid-template-columns:minmax(110px,40%) 1fr;gap:10px;align-items:start;
+  padding:7px 13px;border-bottom:1px solid rgba(38,44,70,.55);cursor:pointer;
+  transition:background .12s}
+.prdrow:last-child{border-bottom:0}
+.prdrow:hover{background:var(--panel)}
+.prdrow.busy{opacity:.6;cursor:default}
+.prdrow.editing{background:var(--panel);cursor:default}
+.prdrow .k{font-size:11.5px;color:var(--dimmer);padding-top:2px;min-width:0;word-break:break-word}
+.prdrow .v{font-size:12.5px;color:var(--cream);min-width:0;word-break:break-word}
+.prdrow .v a{color:var(--brass);text-decoration:none}
+.prdrow .v a:hover{text-decoration:underline}
+.prdedit{display:flex;flex-direction:column;gap:7px}
+.prdin{width:100%;background:var(--ink2);border:1px solid var(--brass);border-radius:8px;
+  color:var(--cream);font:inherit;font-size:12.5px;padding:7px 9px;resize:vertical}
+.prdin:focus{outline:none}
+.prdbtns{display:flex;gap:6px}
+.prdsave{background:var(--brass);border:0;border-radius:7px;color:#fff;font:inherit;font-size:11.5px;
+  font-weight:600;padding:6px 14px;cursor:pointer}
+.prdsave:hover{filter:brightness(1.08)}
+.prdcancel{background:none;border:1px solid var(--edge2);border-radius:7px;color:var(--dim);
+  font:inherit;font-size:11.5px;padding:6px 12px;cursor:pointer}
+.prdcancel:hover{color:var(--cream)}
+
+/* Empty columns are still editable, just folded away. A record you cannot fill
+   in is a report. */
+.prdempty{border-top:1px solid var(--edge)}
+.prdempty>summary{padding:8px 13px;cursor:pointer;font-family:var(--ff-mono);font-size:10px;
+  letter-spacing:.08em;color:var(--dimmer);list-style:none}
+.prdempty>summary::-webkit-details-marker{display:none}
+.prdempty>summary:hover{color:var(--cream)}
+
 
 
 /* Two independent columns. `siggrid` stretches its children to the tallest,
@@ -8370,7 +8493,11 @@ function prToolbar(){
   h += '<div class="prseg" id="pr-seg">'
     + [['portfolio', 'Portfolio'], ['debt', 'Debt']].map(([m, l]) =>
         '<button data-prmode="' + m + '"' + (PR.mode === m ? ' class="on"' : '') + '>' + l + '</button>').join('')
-    + '</div></div>';
+    + '</div>'
+    + '<button class="tgl" id="pr-export" title="Download what is on screen, columns and all">Export</button>'
+    + '<button class="tgl" id="pr-addentity">+ Entity</button>'
+    + '<button class="tgl" id="pr-addprop">+ Property</button>'
+    + '</div>';
   return h;
 }
 
@@ -8722,79 +8849,645 @@ function prDebtView(){
     + '</div>';
 }
 
-/* ---------- drawer ---------- */
+/* ---------- toolbar actions ----------
+
+   Export writes what is on screen: the same rows the filters left, the same
+   columns the sparse-column rule kept. An export that quietly hands back all
+   168 rows and every column is not an export of this view, it is a different
+   document that happens to have been triggered from here. */
+
+function prExport(){
+  const list = prShown();
+  if (!list.length) { toast('Nothing to export'); return; }
+  const cols = prLiveCols(list);
+  /* Everything a spreadsheet needs and the table does not show: the address, and
+     the entity id so a lookup is possible. */
+  const head = ['Property', 'Owner entity', 'Address', 'City', 'State', ...cols
+    .filter(c => c.k !== 'name' && c.k !== 'entity' && c.k !== 'city').map(c => c.l)];
+
+  const cell = v => {
+    if (v === null || v === undefined) return '';
+    const t = String(v);
+    /* A leading =, +, - or @ in a CSV cell is a formula to Excel. Property names
+       are typed by people and one starting with a dash would execute. */
+    const safe = /^[=+\-@]/.test(t) ? "'" + t : t;
+    return /[",\n]/.test(safe) ? '"' + safe.replace(/"/g, '""') + '"' : safe;
+  };
+
+  const rows = list.slice().sort((a, b) => b.marketValue - a.marketValue).map(p => [
+    p.name, prEntName(prOwner(p)), p.street || '', p.city || '', p.state || '',
+    ...cols.filter(c => c.k !== 'name' && c.k !== 'entity' && c.k !== 'city')
+      .map(c => {
+        const v = c.get(p);
+        if (c.k === 'ltv' || c.k === 'cap' || c.k === 'occupancy') {
+          return v == null ? '' : (v * 100).toFixed(2) + '%';
+        }
+        return v == null ? '' : v;
+      })
+  ]);
+
+  const csv = [head, ...rows].map(r => r.map(cell).join(',')).join('\r\n');
+  /* A BOM, because Excel reads a UTF-8 CSV as Latin-1 without one and every
+     entity name with an accent or a curly apostrophe comes out mangled. */
+  const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'properties-' + new Date().toISOString().slice(0, 10) + '.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  toast(list.length + ' properties exported');
+}
+
+/* A small modal for the two create forms. Fields are [key, label, kind, options]
+   and onSubmit gets an object; returning a string from it means "not valid",
+   and the form stays open saying so. */
+function prForm({ title, note, fields, submit, onSubmit }){
+  const host = document.createElement('div');
+  host.className = 'tkmodal on';
+  const close = () => host.remove();
+
+  const draw = (err) => {
+    host.innerHTML = '<div class="tkmpanel" role="dialog" aria-modal="true" style="max-width:460px">'
+      + '<div class="tkmhead"><div style="flex:1;min-width:0"><h3>' + escS(title) + '</h3>'
+      +   (note ? '<p>' + escS(note) + '</p>' : '') + '</div>'
+      +   '<button class="tgl" data-prfclose="1">Close</button></div>'
+      + '<div class="tkmbody">'
+      +   (err ? '<div class="err" style="padding:0 0 12px">' + escS(err) + '</div>' : '')
+      +   fields.map(f => '<label class="fld" style="margin-bottom:12px">'
+          + '<span class="eyebrow">' + escS(f[1]) + '</span>'
+          + (f[2] === 'select'
+              ? '<select class="prdsel" style="width:100%" data-prf="' + escS(f[0]) + '">'
+                + (f[3] || []).map(o => '<option value="' + escS(o[0]) + '">' + escS(o[1]) + '</option>').join('')
+                + '</select>'
+              : '<input data-prf="' + escS(f[0]) + '" placeholder="' + escS(f[4] || '') + '">')
+          + '</label>').join('')
+      +   '<div class="sheetfoot" style="padding:6px 0 0;border:0">'
+      +     '<button class="tgl" data-prfclose="1">Cancel</button>'
+      +     '<button class="btn primary" data-prfgo="1">' + escS(submit) + '</button>'
+      +   '</div>'
+      + '</div></div>';
+
+    host.querySelectorAll('[data-prfclose]').forEach(b => b.onclick = close);
+    host.querySelector('[data-prfgo]').onclick = async () => {
+      const values = {};
+      host.querySelectorAll('[data-prf]').forEach(el => { values[el.dataset.prf] = el.value.trim(); });
+      const go = host.querySelector('[data-prfgo]');
+      go.disabled = true;
+      const problem = await onSubmit(values);
+      if (problem) { draw(problem); return; }
+      close();
+    };
+    const first = host.querySelector('[data-prf]');
+    if (first) first.focus();
+  };
+
+  draw(null);
+  /* Clicking the backdrop closes; clicking the panel must not. */
+  host.onclick = e => { if (e.target === host) close(); };
+  document.body.appendChild(host);
+}
+
+function prAddEntity(){
+  const entities = (PR.data?.entities || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  prForm({
+    title: 'New entity',
+    note: 'A holding company or an LLC. Leave the parent empty for a top-level one.',
+    fields: [
+      ['name', 'Name', 'text', null, 'Ridgmar Partners, LLC'],
+      ['parentEntityId', 'Parent entity', 'select',
+        [['', '— none, this is top level —'], ...entities.map(e => [e.id, e.name])]]
+    ],
+    submit: 'Create entity',
+    onSubmit: async v => {
+      if (!v.name) return 'An entity needs a name.';
+      try {
+        const r = await fetch('/api/properties/entity', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: v.name, parentEntityId: v.parentEntityId || null })
+        });
+        const j = await r.json();
+        if (!r.ok) return j.error || ('create failed (' + r.status + ')');
+        toast('Created ' + v.name);
+        await prLoad(true);
+        return null;
+      } catch (err) { return err.message; }
+    }
+  });
+}
+
+function prAddProperty(){
+  const entities = (PR.data?.entities || []).slice().sort((a, b) => a.name.localeCompare(b.name));
+  if (!entities.length) { toast('Create an entity first — a property has to belong to one'); return; }
+  prForm({
+    title: 'New property',
+    note: 'It is created as held, owned by the entity you pick.',
+    fields: [
+      ['name', 'Name', 'text', null, 'BG Flats'],
+      ['entityId', 'Owner entity', 'select', entities.map(e => [e.id, e.name])],
+      ['street', 'Street', 'text', null, '3200 Jaffa Garden Way'],
+      ['city', 'City', 'text', null, 'Rapid City'],
+      ['state', 'State', 'text', null, 'SD'],
+      ['zip', 'ZIP', 'text', null, '57703']
+    ],
+    submit: 'Create property',
+    onSubmit: async v => {
+      if (!v.name) return 'A property needs a name.';
+      if (!v.entityId) return 'Pick the entity that owns it.';
+      try {
+        const r = await fetch('/api/properties/property', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(v)
+        });
+        const j = await r.json();
+        if (!r.ok) return j.error || ('create failed (' + r.status + ')');
+        toast('Created ' + v.name);
+        await prLoad(true);
+        /* Straight into the record: a property created with a name and an
+           address is not finished, and the next thing anyone wants is the rest
+           of its fields. */
+        const made = (PR.data?.properties || []).find(p => p.id === j.id);
+        if (made) prDetail(made);
+        return null;
+      } catch (err) { return err.message; }
+    }
+  });
+}
+
+/* ---------- the property record ----------
+
+   The list answers "what do we own". This answers "what do we know about this
+   one", and every line of it is editable in place.
+
+   Fields are not declared here. The server sends the column list out of
+   information_schema with a label and a kind per column, and this renders
+   whatever it is given -- so a column added to Supabase shows up without anyone
+   touching this file. The kinds are the whole contract: money, number, date,
+   datetime, bool, url, text, list, string. */
+
+const PRD = {
+  id: null, data: null, loading: false, error: null,
+  /* Collapsed by default. Sixty property columns, every loan, every building and
+     every financial snapshot expanded at once is not a record, it is a dump. */
+  open: {},
+  editing: null,        // the field id currently open for editing
+  draft: '',
+  busy: null,           // the field id being written
+  comment: '',
+  posting: false
+};
 
 function prDetail(p){
-  const h = document.getElementById('so-drawerh');
-  const b = document.getElementById('so-drawerb');
-  if (!h || !b) return;
-  const r = prLtv(p);
-  const owners = p.owners.length ? p.owners : [prOwner(p)].filter(Boolean);
-
-  h.innerHTML = '<div style="flex:1;min-width:0"><h3>' + escS(p.name) + '</h3>'
-    + '<p class="hint">' + escS(prPathTo(prOwner(p)).map(prEntName).join(' › ') || 'Unassigned')
-    + '</p></div><button class="tgl" onclick="closePost()">Close</button>';
-
-  const kv = (k, v) => (v == null || v === '' || v === 0) ? ''
-    : '<div class="kv"><span>' + k + '</span><b>' + v + '</b></div>';
-  /* An absent figure in the hero says so in words. Rendering it as a dash next to
-     three real numbers reads as a value. */
-  const hero = (l, v, absent, style) => '<div><div class="l">' + l + '</div>'
-    + '<div class="v' + (absent ? ' absent' : '') + '"' + (style || '') + '>' + v + '</div></div>';
-
-  b.innerHTML = '<div class="prhero">'
-    + hero('Market value', p.marketValue ? prMoney(p.marketValue) : 'Not recorded', !p.marketValue)
-    + hero('Leverage', p.debt ? (r * 100).toFixed(0) + '%' : 'Unlevered', !p.debt,
-        p.debt ? ' style="color:' + prLtvColour(r) + '"' : '')
-    + hero('NOI', p.noi ? prMoney(p.noi) : 'Not reported', !p.noi)
-    + hero('Occupancy', p.occupancy == null ? 'Not reported' : prPct(p.occupancy), p.occupancy == null,
-        p.occupancy != null && p.occupancy < 0.85 ? ' style="color:var(--amber)"' : '')
-    + '</div>'
-    + '<div class="kvs">'
-    + kv('Address', escS([p.street, p.city, p.state, p.zip].filter(Boolean).join(', '))
-        || '<span class="hint">Not recorded</span>')
-    + kv('Owner' + (owners.length > 1 ? 's' : ''),
-        owners.map(id => escS(prEntName(id))).join('<br>') || '<span class="hint">Unassigned</span>')
-    + kv('Ownership', escS(PR_OWN_LABEL[p.ownershipStatus] || p.ownershipStatus))
-    + kv('Operational', escS(p.status || ''))
-    + kv('Asset type', escS(p.assetType || ''))
-    + kv('Manager', escS(p.manager || ''))
-    + kv('Buildings', p.buildings)
-    + kv('Apartments', p.apartments ? p.apartments.toLocaleString() : '')
-    + (p.unitsVerified != null && p.unitsVerified !== p.apartments
-        ? kv('Units (verified)', p.unitsVerified) : '')
-    + kv('Cap rate', prCap(p) ? (prCap(p) * 100).toFixed(2) + '%' : '')
-    + kv('Value as of', p.marketValueAsOf
-        ? '<span class="hint">' + escS(String(p.marketValueAsOf).slice(0, 10)) + '</span>' : '')
-    + kv('Purchase', p.purchasePrice ? prFull(p.purchasePrice)
-        + (p.purchaseDate ? ' <span class="hint">' + escS(String(p.purchaseDate).slice(0, 10)) + '</span>' : '') : '')
-    /* Gain is only meaningful when both ends exist; a missing purchase price
-       would otherwise read as a 100% gain. */
-    + kv('Gain since purchase', p.purchasePrice && p.marketValue
-        ? '<span style="color:' + (p.marketValue >= p.purchasePrice ? 'var(--jade)' : 'var(--rust)') + '">'
-          + (p.marketValue >= p.purchasePrice ? '+' : '') + prMoney(p.marketValue - p.purchasePrice)
-          + ' <span class="hint">(' + ((p.marketValue / p.purchasePrice - 1) * 100).toFixed(0) + '%)</span></span>'
-        : '')
-    + kv('Debt', p.debt ? prFull(p.debt) : '')
-    + kv('Equity', p.marketValue ? prFull(p.marketValue - p.debt) : '')
-    + kv('Year built', p.yearBuilt)
-    + kv('Parcels', p.parcels.length
-        ? p.parcels.map(x => '<span class="chip2 mono">' + escS(x.number || '?') + '</span>').join(' ') : '')
-    + '</div>'
-    + '<div class="eyebrow prsech">Loans</div>'
-    + (p.loans.length
-        ? p.loans.map(l => '<div class="insrow"><b>' + escS(l.name) + '</b>'
-            + '<span class="hint">' + escS(l.lender || 'no lender') + ' · ' + prFull(l.balance)
-            + (l.ratePct ? ' · ' + (l.ratePct * 100).toFixed(2) + '%' : '')
-            + '<br>' + (l.maturity ? 'matures ' + escS(String(l.maturity).slice(0, 10)) : 'no maturity date')
-            + (l.status ? ' · ' + escS(l.status) : '') + '</span></div>').join('')
-        : '<div class="hint">Nothing is secured against this property.</div>');
-
+  PRD.id = p.id;
+  PRD.data = null;
+  PRD.error = null;
+  PRD.editing = null;
+  PRD.comment = '';
+  /* Enough of the list row to draw a header immediately. The fetch takes a
+     moment and an empty drawer reads as a broken one. */
+  PRD.stub = p;
   document.getElementById('so-drawer').classList.add('on');
   document.getElementById('so-drawer').setAttribute('aria-hidden', 'false');
   document.getElementById('so-scrim').classList.add('on');
+  prdDraw();
+  prdLoad();
 }
 
+async function prdLoad(){
+  const id = PRD.id;
+  PRD.loading = true;
+  prdDraw();
+  try {
+    const r = await fetch('/api/properties/' + encodeURIComponent(id) + '/detail');
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('detail ' + r.status));
+    /* The drawer may have moved on while this was in flight. */
+    if (PRD.id !== id) return;
+    PRD.data = j;
+  } catch (err) {
+    if (PRD.id === id) PRD.error = err.message;
+  }
+  PRD.loading = false;
+  prdDraw();
+}
+
+/* ---------- formatting ---------- */
+
+function prdShow(kind, v){
+  if (v === null || v === undefined || v === '') return null;
+  switch (kind) {
+    case 'money': return prFull(v);
+    case 'number': {
+      const n = Number(v);
+      return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : String(v);
+    }
+    case 'date': return String(v).slice(0, 10);
+    case 'datetime': {
+      const t = Date.parse(v);
+      return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 16).replace('T', ' ') : String(v);
+    }
+    case 'bool': return v === true || v === 'true' ? 'Yes' : 'No';
+    case 'list': return Array.isArray(v) ? v.join(', ') : String(v);
+    case 'json': return typeof v === 'string' ? v : JSON.stringify(v);
+    default: return String(v);
+  }
+}
+
+/* What goes into the input when editing starts. A money field that displays
+   "$7,982,500" has to edit as 7982500 or the first save fails on its own
+   formatting. */
+function prdRaw(kind, v){
+  if (v === null || v === undefined) return '';
+  if (kind === 'date') return String(v).slice(0, 10);
+  if (kind === 'datetime') { const t = Date.parse(v); return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 16) : ''; }
+  if (kind === 'bool') return v === true || v === 'true' ? 'true' : 'false';
+  if (kind === 'list') return Array.isArray(v) ? v.join(', ') : String(v);
+  if (kind === 'json') return typeof v === 'string' ? v : JSON.stringify(v);
+  return String(v);
+}
+
+/* ---------- one editable row ---------- */
+
+function prdRow(fieldId, label, kind, value){
+  const editing = PRD.editing === fieldId;
+  const busy = PRD.busy === fieldId;
+  const shown = prdShow(kind, value);
+
+  if (!editing) {
+    const body = busy ? '<span class="hint">saving…</span>'
+      : shown === null ? '<span class="prdgap">Not recorded</span>'
+      : kind === 'url' ? '<a href="' + escS(shown) + '" target="_blank" rel="noopener">' + escS(shown) + '</a>'
+      : escS(shown);
+    return '<div class="prdrow' + (busy ? ' busy' : '') + '" data-prdedit="' + escS(fieldId) + '">'
+      + '<span class="k">' + escS(label) + '</span>'
+      + '<span class="v">' + body + '</span></div>';
+  }
+
+  /* The control matches the kind rather than being a text box for everything: a
+     date picker for a date and a yes/no for a boolean are the difference between
+     editing a record and retyping it. */
+  const raw = escS(PRD.draft);
+  const input = kind === 'bool'
+    ? '<select class="prdin" data-prdinput="1">'
+      + '<option value="true"' + (PRD.draft === 'true' ? ' selected' : '') + '>Yes</option>'
+      + '<option value="false"' + (PRD.draft !== 'true' ? ' selected' : '') + '>No</option></select>'
+    : kind === 'text' || kind === 'json'
+    ? '<textarea class="prdin" data-prdinput="1" rows="3">' + raw + '</textarea>'
+    : '<input class="prdin" data-prdinput="1" type="'
+      + (kind === 'date' ? 'date' : kind === 'datetime' ? 'datetime-local'
+        : kind === 'money' || kind === 'number' ? 'number' : 'text')
+      + '" value="' + raw + '"'
+      + (kind === 'money' || kind === 'number' ? ' step="any"' : '') + '>';
+
+  return '<div class="prdrow editing">'
+    + '<span class="k">' + escS(label) + '</span>'
+    + '<span class="v"><div class="prdedit">' + input
+    +   '<div class="prdbtns">'
+    +     '<button class="prdsave" data-prdsave="' + escS(fieldId) + '">Save</button>'
+    +     '<button class="prdcancel" data-prdcancel="1">Cancel</button>'
+    +   '</div></div></span></div>';
+}
+
+/* ---------- writing ---------- */
+
+async function prdSave(fieldId, value){
+  PRD.busy = fieldId;
+  PRD.editing = null;
+  prdDraw();
+  try {
+    const r = await fetch('/api/properties/' + encodeURIComponent(PRD.id) + '/field', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ field: fieldId, value })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('save ' + r.status));
+    /* Re-read rather than patch in place: a write can change more than the
+       column written -- occupancy moves the roll-up, a market value moves the
+       LTV -- and guessing which is how a drawer drifts from the database. */
+    await prdLoad();
+    /* And the list behind it, whose cache the server has just dropped. */
+    prLoad(true);
+    toast('Saved');
+  } catch (err) {
+    toast(err.message);
+  }
+  PRD.busy = null;
+  prdDraw();
+}
+
+async function prdOwnerAction(method, path, body){
+  try {
+    const r = await fetch('/api/properties/' + encodeURIComponent(PRD.id) + path, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : {},
+      body: body ? JSON.stringify(body) : undefined
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || (method + ' ' + r.status));
+    await prdLoad();
+    prLoad(true);
+  } catch (err) { toast(err.message); }
+}
+
+async function prdPostComment(){
+  const body = PRD.comment.trim();
+  if (!body || PRD.posting) return;
+  PRD.posting = true;
+  prdDraw();
+  try {
+    const r = await fetch('/api/properties/' + encodeURIComponent(PRD.id) + '/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('post ' + r.status));
+    PRD.data.comments = [...(PRD.data.comments || []), j.comment];
+    PRD.comment = '';
+  } catch (err) { toast(err.message); }
+  PRD.posting = false;
+  prdDraw();
+}
+
+/* ---------- sections ---------- */
+
+/* The facts worth seeing before anything is expanded. Each is a real field, so
+   each edits like any other. */
+const PRD_FACTS = [
+  ['ownership_status', 'Ownership'],
+  ['status', 'Operational'],
+  ['asset_type', 'Asset type'],
+  ['unit_count_reported', 'Units'],
+  ['current_market_value', 'Market value'],
+  ['purchase_price', 'Purchase'],
+  ['management_company', 'Manager'],
+  ['year_built', 'Year built']
+];
+
+function prdFacts(){
+  const d = PRD.data;
+  const meta = col => (d.groups.property.fields.find(f => f.col === col) || { kind: 'string', label: col });
+  return '<div class="prdfacts">' + PRD_FACTS.map(([col, label]) => {
+    const m = meta(col);
+    const shown = prdShow(m.kind, d.property[col]);
+    return '<button class="prdfact" data-prdedit="p:' + col + '">'
+      + '<span class="l">' + escS(label) + '</span>'
+      + '<span class="v">' + (shown === null ? '<span class="prdgap">—</span>' : escS(shown)) + '</span>'
+      + '</button>';
+  }).join('') + '</div>';
+}
+
+function prdOwnership(){
+  const d = PRD.data;
+  const primary = d.owners.find(o => o.primary);
+  const co = d.owners.filter(o => !o.primary);
+  const taken = new Set(d.owners.map(o => o.entityId));
+  const options = d.entities.filter(e => !taken.has(e.id));
+
+  return '<div class="prdsec"><h4>Ownership</h4>'
+    + '<div class="prdown">'
+    +   '<span class="l">Primary owner</span>'
+    +   '<select class="prdsel" id="prd-primary">'
+    +     d.entities.map(e => '<option value="' + escS(e.id) + '"'
+        + (e.id === (primary?.entityId || d.primaryOwnerId) ? ' selected' : '') + '>'
+        + escS(e.name) + '</option>').join('')
+    +   '</select>'
+    + '</div>'
+    + '<div class="prdown">'
+    +   '<span class="l">Co-owners</span>'
+    +   '<div class="prdchips">'
+    +     (co.length ? co.map(o => '<span class="prdchip">' + escS(o.name)
+          + '<button data-prdrmowner="' + escS(o.entityId) + '" title="Remove">×</button></span>').join('')
+          : '<span class="prdgap">None</span>')
+    +     (options.length
+            ? '<select class="prdsel" id="prd-addowner"><option value="">+ Add co-owner…</option>'
+              + options.map(e => '<option value="' + escS(e.id) + '">' + escS(e.name) + '</option>').join('')
+              + '</select>'
+            : '')
+    +   '</div>'
+    + '</div></div>';
+}
+
+/* Open tasks come from the ClickUp walk, not from Supabase: the `task` table
+   holds four rows and ClickUp holds seven hundred. If Tasks has not been opened
+   yet there is nothing to show, and saying so beats an empty list that looks
+   like "no work here". */
+function prdTasks(){
+  if (!TK.loaded) {
+    return '<div class="prdsec"><h4>Open tasks</h4>'
+      + '<p class="hint">Open the Tasks section once and they appear here — they come from '
+      + 'ClickUp, and the workspace has to be read first.</p></div>';
+  }
+  const groups = tkPropGroups().filter(g => g.property && g.property.id === PRD.id);
+  const tasks = groups.flatMap(g => g.tasks).filter(tkOpen);
+  return '<div class="prdsec"><h4>Open tasks<span class="n">' + tasks.length + '</span></h4>'
+    + (tasks.length
+        ? '<div class="prdtasks">' + tkSort(tasks).slice(0, 25).map(t =>
+            '<button class="prdtask" data-prdtask="' + escS(t.id) + '">'
+            + '<span class="nm">' + escS(t.name) + '</span>'
+            + '<span class="st" style="color:' + escS(t.statusColor || 'var(--dim)') + '">'
+            +   escS(t.status || '') + '</span>'
+            + '<span class="dt' + (tkOverdue(t) ? ' over' : '') + '">'
+            +   (t.due ? tkShortDate(t.due) : '') + '</span></button>').join('')
+          + '</div>'
+        : '<p class="hint">Nothing open against this property.</p>')
+    /* Closing .prdsec. Every other section closes its own; this one did not, and
+       the sections below it were swallowed into it rather than sitting after it. */
+    + '</div>';
+}
+
+function prdMessages(){
+  const list = PRD.data.comments || [];
+  return '<div class="prdsec"><h4>Messages<span class="n">' + list.length + '</span></h4>'
+    + (list.length
+        ? '<div class="prdmsgs">' + list.map(c =>
+            '<div class="prdmsg"><div class="who">' + escS(c.author)
+            + '<span>' + (c.at ? tkRel(c.at) : '') + '</span></div>'
+            + '<div class="body">' + escS(c.body) + '</div></div>').join('') + '</div>'
+        : '<p class="hint">No messages yet.</p>')
+    + '<div class="prdpost">'
+    +   '<textarea id="prd-comment" rows="2" placeholder="Add a message / comment…">'
+    +     escS(PRD.comment) + '</textarea>'
+    +   '<button id="prd-post"' + (PRD.posting ? ' disabled' : '') + '>'
+    +     (PRD.posting ? 'Posting…' : 'Post') + '</button>'
+    + '</div></div>';
+}
+
+/* A collapsible group of rows. `group` is what the server sent: a table name,
+   its column metadata, and one entry per row. */
+function prdGroup(key, title, group, nameOf){
+  const open = Boolean(PRD.open[key]);
+  const rows = group.rows || [];
+  const head = '<button class="prdgh' + (open ? ' open' : '') + '" data-prdsec="' + key + '">'
+    + '<span class="t">' + escS(title) + '</span>'
+    + '<span class="n">' + rows.length + '</span>'
+    + '<span class="cv">' + (open ? 'Hide' : 'Show') + ' ›</span></button>';
+  if (!open) return '<div class="prdgroup">' + head + '</div>';
+
+  const body = rows.length
+    ? rows.map(row => {
+        /* Only columns this row actually has a value for, plus the ones worth
+           filling in. Sixty empty rows per building is not a record either. */
+        const filled = group.fields.filter(f => {
+          const v = row.values[f.col];
+          return v !== null && v !== undefined && v !== '';
+        });
+        const empty = group.fields.filter(f => !filled.includes(f));
+        const label = nameOf ? nameOf(row.values) : '';
+        return '<div class="prdsub">'
+          + (label ? '<div class="prdsubh">' + escS(label) + '</div>' : '')
+          + filled.map(f => prdRow(row.id + ':' + f.col, f.label, f.kind, row.values[f.col])).join('')
+          + (empty.length
+              ? '<details class="prdempty"><summary>' + empty.length + ' empty field'
+                + (empty.length > 1 ? 's' : '') + '</summary>'
+                + empty.map(f => prdRow(row.id + ':' + f.col, f.label, f.kind, null)).join('')
+                + '</details>'
+              : '')
+          + '</div>';
+      }).join('')
+    : '<p class="hint" style="padding:10px 14px">Nothing recorded.</p>';
+
+  return '<div class="prdgroup">' + head + '<div class="prdgbody">' + body + '</div></div>';
+}
+
+/* ---------- drawing ---------- */
+
+function prdDraw(){
+  const h = document.getElementById('so-drawerh');
+  const b = document.getElementById('so-drawerb');
+  if (!h || !b) return;
+
+  const d = PRD.data;
+  const stub = PRD.stub || {};
+  const name = d ? (d.property.dba_name || d.property.trade_name || d.property.street || stub.name) : stub.name;
+  const addr = d
+    ? [d.property.street, d.property.city, d.property.state, d.property.zip].filter(Boolean).join(', ')
+    : [stub.street, stub.city, stub.state].filter(Boolean).join(', ');
+  const crumb = d && d.path.length ? d.path.map(x => x.name).join(' › ') : '';
+
+  h.innerHTML = '<div style="flex:1;min-width:0">'
+    + (crumb ? '<div class="prdcrumb">' + escS(crumb) + '</div>' : '')
+    + '<h3>' + escS(name || 'Property') + '</h3>'
+    + '<p class="hint">' + (addr ? escS(addr) : 'No address recorded') + '</p>'
+    + '</div><button class="tgl" onclick="closePost()">Close</button>';
+
+  if (PRD.error) {
+    b.innerHTML = '<div class="empty"><b>Could not read this property</b>'
+      + '<small>' + escS(PRD.error) + '</small></div>';
+    return;
+  }
+  if (!d) {
+    b.innerHTML = '<div class="empty"><b>Reading the record…</b>'
+      + '<small>Fields, loans, buildings, financials and messages.</small></div>';
+    return;
+  }
+
+  const parcels = (d.parcels || []).map(p => p.parcel_number).filter(Boolean);
+
+  b.innerHTML = prdFacts()
+    + (parcels.length
+        ? '<div class="prdparcels">' + parcels.map(x =>
+            '<span class="chip2 mono">' + escS(x) + '</span>').join('') + '</div>'
+        : '')
+    + prdOwnership()
+    + prdTasks()
+    + prdMessages()
+    + '<div class="prdgroups">'
+    +   prdGroup('fields', 'All fields', d.groups.property)
+    +   prdGroup('loans', 'Loan data', d.groups.loans,
+          v => v.loan_number || [v.lender, v.loan_type].filter(Boolean).join(' ') || 'Loan')
+    +   prdGroup('financials', 'Financials', d.groups.financials,
+          v => v.as_of_date ? 'As of ' + String(v.as_of_date).slice(0, 10) : 'Snapshot')
+    +   prdGroup('buildings', 'Buildings', d.groups.buildings,
+          v => v.unit_identifier || v.dba_name || v.location_street || 'Building')
+    +   prdGroup('insurance', 'Insurance', d.groups.insurance,
+          v => v.carrier || 'Policy')
+    + '</div>';
+
+  wirePrd(b);
+}
+
+function wirePrd(root){
+  root.querySelectorAll('[data-prdsec]').forEach(btn => btn.onclick = () => {
+    const k = btn.dataset.prdsec;
+    PRD.open[k] = !PRD.open[k];
+    prdDraw();
+  });
+
+  root.querySelectorAll('[data-prdedit]').forEach(el => el.onclick = () => {
+    const id = el.dataset.prdedit;
+    if (PRD.busy) return;
+    const parts = id.split(':');
+    const table = parts[0] === 'p' ? 'property' : parts[0] === 'l' ? 'loans'
+      : parts[0] === 'f' ? 'financials' : parts[0] === 'u' ? 'buildings' : 'insurance';
+    const col = parts[0] === 'p' ? parts[1] : parts[2];
+    const grp = PRD.data.groups[table];
+    const meta = grp.fields.find(f => f.col === col);
+    const row = parts[0] === 'p' ? grp.rows[0] : grp.rows.find(r2 => r2.id === parts[0] + ':' + parts[1]);
+    if (!meta || !row) return;
+    PRD.editing = id;
+    PRD.draft = prdRaw(meta.kind, row.values[col]);
+    prdDraw();
+    const input = document.querySelector('[data-prdinput]');
+    if (input) { input.focus(); if (input.select) input.select(); }
+  });
+
+  const input = root.querySelector('[data-prdinput]');
+  if (input) {
+    input.oninput = () => { PRD.draft = input.value; };
+    input.onkeydown = e => {
+      if (e.key === 'Escape') { PRD.editing = null; prdDraw(); }
+      /* Enter saves on a single-line control. A textarea keeps Enter for what it
+         is for, and saves on the button. */
+      if (e.key === 'Enter' && input.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        prdSave(PRD.editing, input.value);
+      }
+    };
+  }
+  root.querySelectorAll('[data-prdsave]').forEach(btn => btn.onclick = () => {
+    const box = document.querySelector('[data-prdinput]');
+    prdSave(btn.dataset.prdsave, box ? box.value : PRD.draft);
+  });
+  root.querySelectorAll('[data-prdcancel]').forEach(btn => btn.onclick = () => {
+    PRD.editing = null; prdDraw();
+  });
+
+  const primary = root.querySelector('#prd-primary');
+  if (primary) primary.onchange = () =>
+    prdOwnerAction('PUT', '/owner', { entityId: primary.value });
+
+  const add = root.querySelector('#prd-addowner');
+  if (add) add.onchange = () => {
+    if (!add.value) return;
+    prdOwnerAction('POST', '/owners', { entityId: add.value });
+  };
+
+  root.querySelectorAll('[data-prdrmowner]').forEach(btn => btn.onclick = () =>
+    prdOwnerAction('DELETE', '/owners/' + encodeURIComponent(btn.dataset.prdrmowner)));
+
+  const box = root.querySelector('#prd-comment');
+  if (box) {
+    box.oninput = () => { PRD.comment = box.value; };
+    box.onkeydown = e => {
+      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) { e.preventDefault(); prdPostComment(); }
+    };
+  }
+  const post = root.querySelector('#prd-post');
+  if (post) post.onclick = prdPostComment;
+
+  /* Jumping to the task opens the Tasks section the same way a click on the
+     rail does, rather than reaching into whatever the section switcher happens
+     to be called this month. */
+  root.querySelectorAll('[data-prdtask]').forEach(btn => btn.onclick = () => {
+    closePost();
+    document.querySelector('.navitem[data-target="tasks"]')?.click();
+    tkOpenDetail(btn.dataset.prdtask);
+  });
+}
 /* ---------- wiring ---------- */
 
 function wirePr(root){
@@ -8823,6 +9516,13 @@ function wirePr(root){
   root.querySelectorAll('[data-prmode]').forEach(b => b.onclick = () => {
     PR.mode = b.dataset.prmode; drawProperties();
   });
+
+  const exp = root.querySelector('#pr-export');
+  if (exp) exp.onclick = prExport;
+  const addE = root.querySelector('#pr-addentity');
+  if (addE) addE.onclick = prAddEntity;
+  const addP = root.querySelector('#pr-addprop');
+  if (addP) addP.onclick = prAddProperty;
 
   root.querySelectorAll('[data-prclear]').forEach(b => b.onclick = () => {
     const k = b.dataset.prclear;
