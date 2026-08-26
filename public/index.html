@@ -1385,8 +1385,12 @@ main{min-width:0;display:flex;flex-direction:column}
 .whenbtn:hover{border-color:var(--edge2)}
 .whenbtn .cue{margin-left:auto;color:var(--dimmer);font-size:11px}
 .whenwrap{position:relative}
-.cal{position:absolute;left:0;right:0;top:calc(100% + 6px);z-index:5;background:var(--panel2);
-  border:1px solid var(--edge2);border-radius:var(--r-md);padding:13px;
+/* Fixed width, not left:0;right:0. Stretched to the container it inherited the
+   dialog's width, and with aspect-ratio:1 cells that made every day a large
+   square -- a date picker the size of a wall calendar. */
+.cal{position:absolute;left:0;right:auto;top:calc(100% + 6px);z-index:5;width:262px;
+  max-width:calc(100vw - 40px);background:var(--panel2);
+  border:1px solid var(--edge2);border-radius:var(--r-md);padding:11px;
   box-shadow:0 24px 50px -24px rgba(0,0,0,.8);display:none}
 .cal.on{display:block}
 .calhead{display:flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -1394,19 +1398,21 @@ main{min-width:0;display:flex;flex-direction:column}
 .calnav{background:none;border:1px solid var(--edge);border-radius:7px;color:var(--dim);
   cursor:pointer;font:inherit;width:26px;height:26px;line-height:1}
 .calnav:hover{border-color:var(--edge2);color:var(--cream)}
-.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.calgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
 .calgrid .dow{font-family:var(--ff-mono);font-size:9px;letter-spacing:.06em;color:var(--dimmer);
   text-align:center;padding-bottom:4px;text-transform:uppercase}
-.calday{aspect-ratio:1;display:grid;place-items:center;border:0;border-radius:7px;background:none;
+/* A fixed row height rather than aspect-ratio, so the grid cannot grow with the
+   container. */
+.calday{height:29px;display:grid;place-items:center;border:0;border-radius:7px;background:none;
   color:var(--text);cursor:pointer;font:inherit;font-size:12px;font-feature-settings:'tnum'}
 .calday:hover:not(:disabled){background:var(--panel3)}
 .calday:disabled{color:var(--dimmer);opacity:.4;cursor:not-allowed}
 .calday.on{background:var(--brass);color:#fff;font-variation-settings:'wght' 600}
 .calday.today:not(.on){box-shadow:inset 0 0 0 1px var(--edge2)}
-.caltime{display:flex;align-items:center;gap:6px;margin-top:12px;padding-top:12px;
-  border-top:1px solid var(--edge)}
+.caltime{display:flex;align-items:center;gap:5px;margin-top:10px;padding-top:10px;
+  border-top:1px solid var(--edge);flex-wrap:wrap}
 .caltime select{background:var(--ink2);border:1px solid var(--edge);border-radius:7px;
-  color:var(--cream);font:inherit;font-size:12.5px;padding:6px 7px;cursor:pointer}
+  color:var(--cream);font:inherit;font-size:12px;padding:5px 6px;cursor:pointer;min-width:0}
 .caltime .tzn{margin-left:auto;font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
 .calfoot{display:flex;gap:6px;margin-top:11px}
 .calfoot button{flex:1;border-radius:8px;border:1px solid var(--edge);background:var(--ink2);
