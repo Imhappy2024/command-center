@@ -14726,6 +14726,11 @@ const HM = {
   parts: new Map(),
   hush: null,            // the silence timer that commits it
   asked: [],             // questions waiting behind the one being answered
+  /* Whether the turn in flight is doing work or just talking. A question asked
+     during a two-second reply needs no comment; one asked while a tool is out
+     does. */
+  turnTools: 0,
+  turnStart: 0,
   lastAskAt: 0,          // when, so a follow-up can be joined to it
   interrupted: false,    // a turn was cut off and the CLI needs a beat
   dropped: null,         // heard but not acted on, and why -- shown, not hidden
@@ -14979,30 +14984,26 @@ const HM_STOP = /^(stop|wait|hold on|never ?mind|forget it|cancel|scrap that|lea
    Seven of them in a row. */
 const HM_POKE = /^(hello|hi|hey|you there|are you there|can you hear me|did you hear me|still there|anything|you ok|hommie|homie|homey)[\s.,!?]*$/i;
 
-const HM_HOLD = [
-  'Still on it.',
-  'Yeah, working on it.',
-  'One sec, nearly there.',
-  'Still going.'
-];
+/* THE BROWSER NEVER WRITES DIALOGUE.
 
-/* Said the instant an utterance is committed, from here rather than from the
-   model.
+   Everything spoken out loud comes from the model. Not one word of it is
+   composed here.
 
-   The model takes six seconds to produce its first word, and six seconds of
-   silence after you finish a sentence is long enough that anyone reasonable
-   assumes they were not heard and says it again. That repeat then interrupts the
-   answer, and the whole thing deadlocks. Four words from the browser costs
-   nothing and closes the gap. */
-const HM_ACK = [
-  'One sec.',
-  'Let me check.',
-  'Hang on.',
-  'Checking now.',
-  'Give me a moment.',
-  'On it.'
-];
-const hmPick = list => list[Math.floor(Math.random() * list.length)];
+   There used to be two lists -- "One sec / Let me check / Hang on" before every
+   answer, and "Still on it / Nearly there" when interrupted -- and rotating six
+   phrases is not variety, it is a tell. A person does not say "let me check"
+   before answering "are you there", and hearing the same six strings all day is
+   precisely what makes a thing sound half machine.
+
+   So the rule is a rule rather than a list: if it is words, the model said it.
+   Everything this file needs to communicate on its own is either visual -- the
+   orb, the transcript, the queue -- or a tone, which is not language and does
+   not pretend to be.
+
+   The greeting is the same. It is not a template with the hour substituted in;
+   the model is told the mic has come on and what time it is, and greets in
+   whatever words it likes. */
+const hmTone = down => hmBeep(down);
 
 /* Stop everything and listen.
 
@@ -15072,9 +15073,15 @@ function hmFinal(text){
      particular, so both lists contain them. Filler first meant a "hello" while
      working was dropped in silence, which is what caused the silence that caused
      the "hello". Seven of them in a row, in the transcript, with no reply to
-     any. */
-  if ((HM.busy || HM.jobs.length) && HM_POKE.test(said.trim())) {
-    hmSpeak(hmPick(HM_HOLD));
+     any.
+
+     Only when there is actually something to be patient about. A "hello" during
+     a two-second turn should reach the model and get a real answer, not a stock
+     line about still working. */
+  const reallyBusy = (HM.busy && HM.turnTools > 0 && Date.now() - (HM.turnStart || 0) > 4000)
+    || HM.jobs.length > 0;
+  if (reallyBusy && HM_POKE.test(said.trim())) {
+    hmTone(true);
     HM.dropped = { text: raw, why: 'still working on the last one' };
     hmPatch();
     return;
@@ -15092,7 +15099,7 @@ function hmFinal(text){
     const wasDoing = HM.busy || HM.asked.length;
     HM.asked = [];
     hmInterrupt();
-    if (wasDoing) hmSpeak('Stopped.');
+    if (wasDoing) { hmTone(true); HM.dropped = { text: raw, why: 'stopped' }; }
     hmPatch();
     return;
   }
@@ -15112,13 +15119,24 @@ function hmFinal(text){
 
   /* A second question while the first is still being answered. Queued, not
      substituted: killing the first means its answer never arrives, and you asked
-     for both. */
+     for both.
+
+     Quietly, though. Most turns are now a second or two -- a question asked
+     during one is answered a moment later and nothing needs to be said about it.
+     Saying "noted, right after this" every time is how a queue that exists to be
+     invisible becomes the most noticeable thing in the conversation.
+
+     It speaks only when the wait is genuinely long: the turn in flight has
+     already called a tool and has been going a while. That is a real wait and
+     worth a word. */
   if (wasBusy) {
     HM.asked.push(said);
-    HM.dropped = { text: said, why: 'queued, answering the last one first' };
-    hmSpeak(HM.asked.length > 1
-      ? 'Noted, that is ' + HM.asked.length + ' waiting.'
-      : 'Noted, right after this.');
+    HM.dropped = { text: said, why: 'waiting its turn' };
+    /* A tone, not a sentence. It means "heard you, one moment" without being a
+       phrase you will have heard forty times by lunch. And only when the wait is
+       real -- a question asked during a two-second reply is answered a moment
+       later and needs no comment at all. */
+    if (HM.turnTools > 0 && Date.now() - (HM.turnStart || 0) > 5000) hmTone(true);
     hmPatch();
     return;
   }
@@ -15340,7 +15358,9 @@ async function hmSay(text, opts){
      next turn collides with it and comes back 409. */
   if (HM.interrupted) { HM.interrupted = false; await new Promise(r => setTimeout(r, 350)); }
 
-  HM.messages.push({ role: 'user', text: said });
+  /* A trigger is machinery, not something anyone said. It goes to the model and
+     nowhere else. */
+  if (!o.trigger) HM.messages.push({ role: 'user', text: said });
   const reply = { role: 'assistant', text: '', steps: [], tools: [], panelIds: [] };
   HM.messages.push(reply);
   HM.busy = true;
@@ -15353,9 +15373,11 @@ async function hmSay(text, opts){
   HM.lastAsk = o.retryOf || said;
   HM.lastAskAt = Date.now();
   HM.dropped = null;
-  /* Before anything else, so the answer is not the first thing heard. Skipped on
-     the connector retry, where the user has already been told to hold on. */
-  if (!o.silent) hmSpeak(hmPick(HM_ACK));
+  /* Nothing is said here. See the note above HM_HOLD: a fixed phrase in front of
+     every answer is the single most robotic thing this could do, and the wait it
+     was covering no longer exists. */
+  HM.turnTools = 0;
+  HM.turnStart = Date.now();
   hmPaint();
 
   const ctrl = new AbortController();
@@ -15451,6 +15473,11 @@ async function hmSay(text, opts){
           if (!HM.open) { HM.open = true; }
         }
 
+        /* Cheap, and it is what tells a conversational turn from a working one
+           without asking the model. */
+        if (ev === 'msg' && d.type === 'assistant') {
+          for (const c of d.message?.content || []) if (c.type === 'tool_use') HM.turnTools++;
+        }
         if (ccConsume(ev, d, reply, HM)) dirty = true;
       }
     }
@@ -15493,7 +15520,6 @@ async function hmSay(text, opts){
     hmFault('Tool servers did not attach in time', 'hommie', '');
     reply.text = '_(tools were slow, trying again)_';
     hmPatch();
-    if (!HM.muted) hmQueue('Tools were slow. Trying that again.');
     await new Promise(r => setTimeout(r, 1200));
     HM.busy = false;
     return hmSay(said, { ...o, retried: true, silent: true });
@@ -15588,12 +15614,12 @@ async function hmWithConnectors(need){
     return want && (flat.includes(want) || want.includes(flat.replace(/^claudeai/, '')));
   });
   if (!hit.length) {
-    HM.messages.push({ role: 'assistant',
-      text: 'I could not find a connector called "' + need.which + '". '
-        + (HM.servers.length ? 'What I have is ' + HM.servers.slice(0, 8).join(', ') + '.'
-          : 'None are set up.') });
-    hmSpeak(HM.messages[HM.messages.length - 1].text);
-    hmPaint();
+    /* Handed back to the model rather than announced, so what the user hears is
+       its sentence about the problem instead of mine. */
+    hmSay('That connector is not set up here. What is available: '
+      + (HM.servers.length ? HM.servers.slice(0, 10).join(', ') : 'none')
+      + '. Tell the user in one line and offer what you can do instead.',
+      { silent: true });
     return;
   }
   /* Silent: the user was already told to hold on, and a second tone in the
@@ -15647,8 +15673,9 @@ async function hmOn(){
   hmStartEar();
   hmSave();
   hmPaint();
-  /* Proof the speaker works, before anyone has to trust it mid-task. */
-  hmSpeak(hmGreeting());
+  /* Not spoken from here. The model greets, which is both less mechanical and
+     the thing that gets the session warm before the first real question. */
+  hmSay(hmGreetTrigger(), { silent: true, trigger: true });
 }
 
 function hmOff(){
@@ -15668,33 +15695,21 @@ function hmOff(){
   hmPaint();
 }
 
-/* What it says when the microphone comes on.
+/* The greeting is a trigger, not a template.
 
-   Time of day and then an opening, varied rather than fixed: the same eleven
-   words every single time is the thing that makes a voice assistant feel like a
-   recording of a person rather than a person. */
-const HM_OPENERS = [
-  'What can I do for you?',
-  'Anything I can do?',
-  'What do you need?',
-  'Got something for me?',
-  'How can I help?',
-  'What are we doing?',
-  "What's first?"
-];
+   A template with the hour substituted into it is still a canned response --
+   seven openers on rotation is six more than one and no less mechanical. So the
+   model is simply told the microphone has come on and what time it is, and
+   greets in whatever words it likes. The rule for how lives in the brief, where
+   every other rule about how it talks already lives.
 
-function hmGreeting(){
-  const h = new Date().getHours();
-  const part = h < 12 ? 'Good morning'
-    : h < 17 ? 'Good afternoon'
-    : h < 22 ? 'Good evening'
-    : 'Evening';
-  const opener = HM_OPENERS[Math.floor(Math.random() * HM_OPENERS.length)];
-  /* Mid-conversation it is a return, not an introduction. Saying good morning
-     again after being switched off for a minute is how you notice something is
-     reading from a card. */
-  if (HM.messages.length) return 'Back. ' + opener;
-  return part + ', sir. ' + opener;
+   It also warms the session, which is the other reason to do it here: the first
+   real question then costs nothing to start. */
+function hmGreetTrigger(){
+  const now = new Date();
+  return '<mic-on time="' + now.toTimeString().slice(0, 5) + '" '
+    + 'hour="' + now.getHours() + '" '
+    + 'returning="' + (HM.messages.length ? 'yes' : 'no') + '"/>';
 }
 
 function hmToggle(){ HM.on ? hmOff() : hmOn(); }
@@ -15981,7 +15996,9 @@ function hmWire(root){
     e.stopPropagation();
     const was = HM.voice;
     HM.voice = b.dataset.hmhear;
-    hmSpeak(hmGreeting());
+    /* A sample, not a conversation -- this one is allowed to be a fixed string,
+       because nobody is being talked to. */
+    hmSpeak('Hommie here. This is how I sound.');
     /* Auditioning is not choosing. Put it back once the sample is queued. */
     HM.voice = was;
   });
@@ -16111,12 +16128,13 @@ function hmFault(message, where, stack){
   HM_SEEN_FAULTS.add(key);
 
   if (!HM.on || HM.busy || HM.state === 'thinking') return;
-  /* Said, not asked: a question would block on an answer the user may not give,
-     and the fault is already recorded either way. */
+  /* On screen and in the record, not read out. Interrupting a conversation to
+     recite an error is the machine talking about itself, and the words would be
+     mine rather than its. If they ask, recent_errors has it. */
   const what = section ? 'the ' + section + ' view' : 'the page';
-  hmSpeak('Something just threw in ' + what + '. Say the word and I\'ll take a look.');
   HM.messages.push({ role: 'assistant',
-    text: 'Something threw in ' + what + ': ' + msg + '. Ask me to look at it and I will.' });
+    text: 'Something threw in ' + what + ': ' + msg });
+  hmTone(true);
   hmPatch();
 }
 
