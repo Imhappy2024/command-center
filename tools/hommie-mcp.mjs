@@ -237,6 +237,36 @@ const TOOLS = [
     }
   },
 
+  {
+    name: 'use_connectors',
+    description: [
+      'Say that this question needs one of the account connectors -- Dropbox,',
+      'Notion, Gmail, GitHub, Supabase, ClickUp, Google Drive, Front and the rest',
+      '-- rather than something inside this dashboard.',
+      '',
+      'You do not have those attached. Turns run without them because attaching',
+      'them costs about eight seconds before you can think at all, and almost',
+      'everything you get asked needs nothing but this dashboard.',
+      '',
+      'Call this and STOP. Say one short line telling the user to hold on. The',
+      'page will re-ask your question with that connector attached, and you will',
+      'get it again with the tools you need. Do not apologise and do not explain',
+      'the mechanism -- "give me a few seconds, I need to get into Dropbox" is the',
+      'whole thing.',
+      '',
+      'Only for things genuinely outside this dashboard. Tasks, leads, properties,',
+      'social, mail, calendar, clips and Drive file search all have their own',
+      'tools here and are much faster.'
+    ].join(' '),
+    inputSchema: {
+      type: 'object', additionalProperties: false, required: ['which'],
+      properties: {
+        which: { type: 'string', description: 'The connector, by name: dropbox, notion, github, supabase, clickup, gmail, front, google drive, n8n, microsoft 365, railway, ghl.' },
+        reason: { type: 'string', description: 'What you need it for. One short clause.' }
+      }
+    }
+  },
+
   /* ---- showing ---- */
   {
     name: 'show_table',
@@ -406,6 +436,17 @@ async function run(name, args){
       return { shown: true, rows: rows.length,
         note: 'On screen. Refer to it; do not read the rows out.' };
     }
+    case 'use_connectors': {
+      await call('/api/claude/hommie/act', {
+        action: 'connectors', which: String(args.which || ''),
+        reason: args.reason ? String(args.reason) : ''
+      });
+      return { asked: true, which: args.which,
+        note: 'The page has been told. Say one short line asking the user to hold on, '
+          + 'then end your turn. The question comes back to you with the connector '
+          + 'attached -- do not try to answer it now.' };
+    }
+
     case 'show_note':
       await call('/api/claude/hommie/act', { action: 'panel', panel: { kind: 'note', ...args } });
       return { shown: true };

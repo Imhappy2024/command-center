@@ -401,6 +401,9 @@ export function claudeRoutes({ env, auth }){
           panel: { id: crypto.randomUUID(), at: Date.now(), ...(b.panel || {}) } });
       } else if (b.action === 'analyze') {
         ask.send('hommie', { kind: 'analyze', platform: String(b.platform || '') });
+      } else if (b.action === 'connectors') {
+        ask.send('hommie', { kind: 'connectors', which: String(b.which || ''),
+          reason: String(b.reason || '') });
       } else {
         return res.status(400).json({ error: 'unknown action' });
       }
@@ -1571,7 +1574,12 @@ export function claudeRoutes({ env, auth }){
     const args = ['--input-format', 'stream-json', '--output-format', 'stream-json',
                   '--include-partial-messages', '--verbose'];
     if (b.sessionId) args.push('--resume', String(b.sessionId));
+    /* Spoken answers are short and the questions are mostly lookups, so the
+       slowest model is the wrong default here -- the thinking time is the wait,
+       and it is a wait someone is standing in silence for. Overridable from the
+       Hommie settings, and every other surface keeps whatever it had. */
     if (b.model) args.push('--model', String(b.model));
+    else if (hommie) args.push('--model', 'sonnet');
     if (b.effort) args.push('--effort', String(b.effort));
 
     const bad = msg => { res.write(`event: fatal\ndata: ${JSON.stringify({ error: msg })}\n\n`); res.end(); running = null; };
@@ -1617,7 +1625,35 @@ export function claudeRoutes({ env, auth }){
           CC_HOMMIE_REPAIR: repair ? '1' : '0' }
       };
     }
-    let strictMcp = false;
+    /* Hommie throws the account connectors away.
+
+       Measured: they cost 8.1 seconds of session startup before the first token
+       can be thought about, and they put 397 tools in the session -- past the
+       point where the CLI defers them, so every single turn began with a
+       ToolSearch round trip to find a tool Hommie was always going to use.
+       Neither buys anything: Hommie's own server already reaches everything in
+       this dashboard.
+
+       A spoken assistant is the one surface where that is unarguable. Eight
+       seconds of silence after you say someone's name is the difference between
+       talking to something and waiting for it. */
+    /* Hommie throws the account connectors away UNLESS this turn asked for one.
+
+       Measured: attaching all of them costs 8.1 seconds of session startup
+       before the first token can be thought about, and puts 397 tools in the
+       session -- past the point where the CLI defers them, so every turn began
+       with a ToolSearch round trip to find a tool Hommie was always going to
+       use. Without them: 2.6 seconds and 37 tools.
+
+       So the fast path is the default and the slow one is asked for by name.
+       Hommie has a tool that says "this needs Dropbox", the page hears it, tells
+       the user to hold on, and runs the question again with that one server
+       attached. Eight seconds of silence after saying someone's name is the
+       difference between talking to something and waiting for it; eight seconds
+       after being told to hold on is just how long it takes. */
+    const hommieWantsConnectors = hommie && b.useMcp === true
+      && Array.isArray(b.mcpServers) && b.mcpServers.length > 0;
+    let strictMcp = hommie && !hommieWantsConnectors;
     if (b.mcp && String(b.mcp).trim()) {
       try {
         const parsed = JSON.parse(String(b.mcp));
@@ -1770,7 +1806,10 @@ export function claudeRoutes({ env, auth }){
     mcpTimer = setTimeout(() => {
       if (!onlyAsk) send('status', { phase: 'connectors', text: 'proceeding without all connectors' });
       writePrompt();
-    }, onlyAsk ? 8_000 : 45_000);
+    /* The ceiling exists for account connectors, which are remote and slow. The
+       two local stdio servers attach in well under a second, so waiting eight
+       for them is eight seconds of silence bought for nothing. */
+    }, !onlyAsk ? 45_000 : hommie ? 2_500 : 8_000);
 
     let buf = '';
     let finished = false;
