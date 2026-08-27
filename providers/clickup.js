@@ -219,9 +219,13 @@ export function createClickUp({ token, teamId }){
        it is rate-bound, not connection-bound. What does change is whether the
        wait is legible, which is why it reports progress. */
     async workspace({ onProgress } = {}){
-      const tick = (phase, done, total) => {
+      /* The walk is three minutes long, so it hands back what it has as it goes
+         rather than only at the end. Waiting for all 212 lists to show any of
+         them is three minutes of a progress bar when the first list was ready
+         in two seconds. */
+      const tick = (phase, done, total, payload) => {
         if (typeof onProgress === 'function') {
-          try { onProgress({ phase, done, total }); } catch { /* never break the walk */ }
+          try { onProgress({ phase, done, total, ...payload }); } catch { /* never break the walk */ }
         }
       };
       tick('teams', 0, 0);
@@ -231,7 +235,12 @@ export function createClickUp({ token, teamId }){
 
       tick('lists', 0, 0);
       const { lists, spaces, problems } = await discoverLists(call, team.id);
-      tick('tasks', 0, lists.length);
+      /* Spaces, lists and members are known now and the filters need them, so
+         they go out before a single task has been read. */
+      tick('tasks', 0, lists.length, {
+        teamId: team.id, teamName: team.name, members: team.members, spaces,
+        lists: lists.map(l => ({ id: l.id, name: l.name, spaceId: l.space.id, folderId: l.folder?.id || null }))
+      });
 
       /* Three, not five: the rate limit is per token, and the walk finishing
          two minutes later beats it failing halfway. */
@@ -239,9 +248,12 @@ export function createClickUp({ token, teamId }){
       const perList = await mapLimit(lists, 3, async l => {
         const { tasks, error, status } = await listTasks(call, l.id);
         if (error) problems.push({ where: 'tasks in list "' + l.name + '"', status, message: error });
-        tick('tasks', ++walked, lists.length);
         /* Stamp the walk metadata on: the task payload does not carry names. */
-        return tasks.map(t => ({ ...t, space: l.space, folder: l.folder, list: { id: l.id, name: l.name } }));
+        const stamped = tasks.map(t => ({ ...t, space: l.space, folder: l.folder, list: { id: l.id, name: l.name } }));
+        /* Shaped here as well as at the end. Shaping twice costs a map over one
+           list's tasks; not shaping means the caller cannot show them. */
+        tick('tasks', ++walked, lists.length, { batch: stamped.map(shapeTask) });
+        return stamped;
       });
 
       const byId = new Map();

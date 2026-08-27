@@ -1903,6 +1903,12 @@ main{min-width:0;display:flex;flex-direction:column}
 /* First-load progress. Three minutes of nothing looks exactly like a hang, and
    the only difference a reader can see is whether a number moves. */
 .tkwarm{margin:16px auto 0;max-width:380px;display:flex;flex-direction:column;gap:8px}
+/* The same bar, inline above a table that is already usable. */
+.tkwarm.inline{margin:0;max-width:220px;flex-direction:row;align-items:center;gap:10px}
+.tkwarm.inline .bar{flex:1;min-width:80px}
+.tkwarming{display:flex;align-items:center;gap:12px;padding:8px 13px;margin-bottom:12px;
+  border:1px solid rgba(124,108,255,.28);background:rgba(124,108,255,.06);
+  border-radius:10px;font-size:12px;color:var(--dim);flex-wrap:wrap}
 .tkwarm .bar{height:5px;border-radius:99px;background:var(--ink2);border:1px solid var(--edge);
   overflow:hidden}
 .tkwarm .bar i{display:block;height:100%;background:linear-gradient(90deg,#4a3fb5,var(--brass));
@@ -2640,6 +2646,58 @@ const MENU = [
    it, including half the rail and all the bottom-of-file wiring. */
 let tkSubEl = null;
 
+/* ---------- where you were ----------
+
+   A reload used to land on Overview. That loses whatever you were in the middle
+   of, and on Tasks it is worse than an inconvenience: the ClickUp walk is three
+   minutes, and being sent back to Overview means the section unmounts and you
+   start it again.
+
+   The hash is the source of truth, so the back button works and a link is
+   shareable. localStorage is the fallback for a reload of a bare URL. Sections
+   register how to read and write their own sub-view; nothing here knows what a
+   Tasks view or a Meta tab is. */
+const ROUTE = {
+  subs: {},
+  booting: true,
+  ids: () => MENU.map(m => m[0]),
+  current: () => document.querySelector('.navitem.on')?.dataset.target || 'overview'
+};
+
+function routeRegister(section, get, set){ ROUTE.subs[section] = { get, set }; }
+
+function routeWrite(){
+  if (ROUTE.booting) return;
+  const id = ROUTE.current();
+  let sub = '';
+  try { sub = ROUTE.subs[id]?.get?.() || ''; } catch { /* a section mid-load */ }
+  const spec = id + (sub ? '/' + sub : '');
+  if (location.hash.slice(1) !== spec) history.replaceState(null, '', '#' + spec);
+  try { localStorage.setItem('cc.route', spec); } catch { /* private window */ }
+}
+
+/* Only the section on screen owns the URL. drawTasks runs from a poll while you
+   are three sections away, and it must not rewrite where you are. */
+function routeSync(section){
+  if (ROUTE.current() === section) routeWrite();
+}
+
+function routeApply(spec){
+  const parts = String(spec || '').split('/');
+  const id = parts[0];
+  /* Checked against the menu rather than selector-escaped: the hash is
+     user-supplied and this is the only thing it is allowed to be. */
+  if (!ROUTE.ids().includes(id)) return false;
+  const item = document.querySelector('.navitem[data-target="' + id + '"]');
+  if (!item) return false;
+  item.click();
+  const rest = parts.slice(1).join('/');
+  if (rest && ROUTE.subs[id]?.set) {
+    try { ROUTE.subs[id].set(rest); } catch { /* a stale sub-view is not fatal */ }
+  }
+  return true;
+}
+
 const nav = document.getElementById('nav');
 MENU.forEach(([id,label,src,badge],i)=>{
   const b=document.createElement('button');
@@ -2656,6 +2714,7 @@ MENU.forEach(([id,label,src,badge],i)=>{
     /* Sub-navs belong to their section, so only the open one is shown. */
     document.querySelectorAll('.subnav').forEach(n => { n.hidden = n.dataset.owner !== id; });
     window.scrollTo({top:0,behavior:'smooth'});
+    routeWrite();
   };
   nav.appendChild(b);
   /* Tasks and Properties get their own sub-nav under the rail item, the way
@@ -5056,6 +5115,7 @@ function drawSocial(){
   const connectBtn = document.getElementById('so-connect');
 
   drawSocialSubnav();
+  routeSync('social');
   title.textContent = SO.view === 'overview' ? 'Social' : SO_VIEW_LABEL[SO.view];
 
   if (SO.view === 'overview') {
@@ -6918,7 +6978,11 @@ async function tkLoad(force){
     if (j.warming) {
       TK.warming = true;
       TK.progress = j.progress || null;
-      TK.loaded = false;
+      /* The walk hands back what it has read so far, so the real views render
+         against a growing table rather than a progress bar standing in for one.
+         TK.loaded turns true the moment there is anything to draw. */
+      TK.data = j;
+      TK.loaded = (j.tasks || []).length > 0;
       tkPoll();
     } else {
       TK.data = j;
@@ -6942,12 +7006,24 @@ function tkPoll(){
       const r = await fetch('/api/tasks/status');
       const st = await r.json();
       TK.progress = st.progress || null;
-      if (st.cached) { TK.warming = false; return tkLoad(); }
+      if (st.cached) { TK.warming = false; TK.loading = false; return tkLoad(); }
       if (!st.refreshing && st.lastError) {
         TK.warming = false;
         TK.error = st.lastError.message;
         drawTasks();
         return;
+      }
+      /* Pull the rows read since the last tick, not just the counter. Skipped
+         while a popover or the detail modal is open: replacing the data under a
+         menu someone is using is worse than a slightly stale count. */
+      const busy = TKE.pop || TKE.detail || document.querySelector('.tkmodal.on');
+      if (!busy && (st.partialTasks || 0) > (TK.data?.tasks || []).length) {
+        const rr = await fetch('/api/tasks');
+        const j = await rr.json();
+        if (j.warming) {
+          TK.data = j;
+          TK.loaded = (j.tasks || []).length > 0;
+        }
       }
       drawTasks();
       tkPoll();
@@ -7062,6 +7138,10 @@ function drawTasks(){
     const d = TK.data;
     sub.textContent = d?.configured === false
       ? 'ClickUp is not configured.'
+      /* "4,842 tasks" while still reading would be a number that keeps changing
+         and never said it would. */
+      : d && TK.warming ? d.tasks.length.toLocaleString() + ' tasks so far · '
+          + d.lists.length + ' lists · ' + d.spaces.length + ' spaces'
       : d ? d.tasks.length.toLocaleString() + ' tasks · ' + d.lists.length + ' lists · ' + d.spaces.length + ' spaces'
       : 'Reading your ClickUp workspace…';
   }
@@ -7078,26 +7158,26 @@ function drawTasks(){
       + '<small>' + escS(TK.error) + '</small></div></div>';
     return;
   }
+  /* Tabs stay up during the walk: three minutes with no way to move is a
+     section that looks broken rather than busy. */
   if (!TK.loaded) {
-    const p = TK.progress;
-    /* Tabs stay up during the walk: three minutes with no way to move is a
-       section that looks broken rather than busy. */
-    const pct = p && p.total ? Math.min(100, Math.round(p.done / p.total * 100)) : 0;
-    const where = !p ? 'starting…'
-      : p.phase === 'teams' ? 'reading the workspace…'
-      : p.phase === 'lists' ? 'finding the lists…'
-      : p.total ? p.done + ' of ' + p.total + ' lists read'
-      : 'reading lists…';
     body.innerHTML = '<div class="card flush"><div class="empty"><b>Walking the workspace</b>'
       + '<small>ClickUp has no endpoint that returns a whole workspace, so the first load reads '
-      + 'every list one at a time. About three minutes. It is cached after that.</small>'
-      + '<div class="tkwarm"><div class="bar"><i style="width:' + pct + '%"></i></div>'
-      +   '<span>' + escS(where) + '</span></div>'
-      + '</div></div>';
+      + 'every list one at a time. About three minutes, and rows appear as they arrive.</small>'
+      + tkWarmBar() + '</div></div>';
     return;
   }
 
+  /* Once there is anything to draw, the real view draws -- with a line above it
+     saying the numbers are still moving. A partial table you can already filter
+     and open beats a progress bar standing in for one, and the honest thing is
+     to say it is partial rather than to let it look finished. */
+  routeSync('tasks');
   body.innerHTML = tkTabs()
+    + (TK.warming
+        ? '<div class="tkwarming">' + tkWarmBar(true)
+          + '<span>Still reading. Totals below will move.</span></div>'
+        : '')
     + (TK.view === 'all' ? tkAllView()
       : TK.view === 'property' ? tkPropertyView()
       : tkOverview());
@@ -7119,6 +7199,21 @@ function tkTabs(){
     ['all', 'All tasks', count('all')],
     ['property', 'Property tasks', count('property')]
   ], TK.view, 'data-tkview');
+}
+
+/* The progress bar, on its own so the full-screen state and the inline banner
+   cannot drift apart. */
+function tkWarmBar(inline){
+  const p = TK.progress;
+  const pct = p && p.total ? Math.min(100, Math.round(p.done / p.total * 100)) : 0;
+  const where = !p ? 'starting…'
+    : p.phase === 'teams' ? 'reading the workspace…'
+    : p.phase === 'lists' ? 'finding the lists…'
+    : p.total ? p.done + ' of ' + p.total + ' lists read'
+    : 'reading lists…';
+  return '<div class="tkwarm' + (inline ? ' inline' : '') + '">'
+    + '<div class="bar"><i style="width:' + pct + '%"></i></div>'
+    + '<span>' + escS(where) + '</span></div>';
 }
 
 function drawTaskSubnav(){
@@ -12190,6 +12285,7 @@ function drawSystems(){
       : '<span class="d" style="background:var(--rust)"></span>OpusClip not configured';
   } else state.innerHTML = '';
 
+  routeSync('systems');
   body.innerHTML = SY.open === 'clip' ? clipSystem() : automationGrid();
   wireSystems(body);
 }
@@ -12927,6 +13023,39 @@ function openAddAccount(){
 }
 
 /* ---------- boot ---------- */
+
+/* ---------- route registrations ----------
+   At the bottom because every state object these close over has to exist first. */
+routeRegister('tasks', () => TK.view, v => { TK.view = v; drawTasks(); });
+routeRegister('systems', () => SY.open || '', v => { SY.open = v; drawSystems(); });
+routeRegister('social',
+  () => SO.view === 'overview' ? 'overview'
+    : SO.view + '/' + (SO.view === 'meta' ? SO.metaTab : SO.section),
+  v => {
+    const [view, section] = v.split('/');
+    SO.view = view;
+    if (section) { if (view === 'meta') SO.metaTab = section; else SO.section = section; }
+    drawSocial();
+    loadSocialView();
+  });
+routeRegister('inbox', () => IB.folder, v => {
+  IB.folder = v; IB.open = null;
+  /* Each folder is its own fetch, so this reloads rather than filters -- the
+     same pair the folder buttons call. */
+  drawAll(); load();
+});
+
+/* Restore, once. The hash wins over the remembered route so a pasted link goes
+   where it says. */
+(function bootRoute(){
+  let spec = location.hash.slice(1);
+  if (!spec) { try { spec = localStorage.getItem('cc.route') || ''; } catch { /* private window */ } }
+  ROUTE.booting = false;
+  if (!spec || !routeApply(spec)) routeWrite();
+})();
+window.addEventListener('hashchange', () => {
+  if (!ROUTE.booting) routeApply(location.hash.slice(1));
+});
 
 document.getElementById('sy-back').onclick = () => {
   clearInterval(SY.poll); SY.poll = null;

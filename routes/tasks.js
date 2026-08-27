@@ -40,11 +40,31 @@ export function taskRoutes({ env, auth }){
   /* Where the current walk has got to, so a first load can show something
      moving instead of a spinner that looks identical to a hang. */
   let progress = null;
+  /* And what it has read so far. A three-minute wait for the first row is a
+     three-minute wait; the same three minutes with the table filling in is just
+     a table still loading. Deduped by id because a task can sit in two lists. */
+  let partial = null;
 
   function refresh(){
     if (inFlight) return inFlight;
     progress = { phase: 'teams', done: 0, total: 0, startedAt: Date.now() };
-    inFlight = cu.workspace({ onProgress: p => { progress = { ...progress, ...p }; } })
+    partial = { tasks: [], byId: new Set(), spaces: [], lists: [], members: [],
+      teamId: null, teamName: null };
+    inFlight = cu.workspace({ onProgress: p => {
+      const { batch, spaces, lists, members, teamId, teamName, ...rest } = p;
+      progress = { ...progress, ...rest };
+      if (spaces) partial.spaces = spaces;
+      if (lists) partial.lists = lists;
+      if (members) partial.members = members;
+      if (teamId) { partial.teamId = teamId; partial.teamName = teamName; }
+      if (batch) {
+        for (const t of batch) {
+          if (partial.byId.has(t.id)) continue;
+          partial.byId.add(t.id);
+          partial.tasks.push(t);
+        }
+      }
+    } })
       .then(payload => {
         cache = { payload, at: Date.now() };
         lastError = null;
@@ -55,7 +75,7 @@ export function taskRoutes({ env, auth }){
         lastError = { message: err.message, at: new Date().toISOString() };
         throw err;
       })
-      .finally(() => { inFlight = null; progress = null; });
+      .finally(() => { inFlight = null; progress = null; partial = null; });
     return inFlight;
   }
 
@@ -88,10 +108,15 @@ export function taskRoutes({ env, auth }){
        let the UI poll for progress. */
     if (!cache) {
       if (!inFlight) refresh().catch(() => { /* lastError already has it */ });
+      /* Whatever has been read so far goes out with it. The view is the real
+         view, filters and all -- it just says at the top that more is coming. */
+      const p = partial || {};
       return res.json({
         configured: true, canonical: CANONICAL, warming: true,
         progress, lastError,
-        tasks: [], spaces: [], lists: [], members: []
+        teamId: p.teamId || null, teamName: p.teamName || null,
+        tasks: p.tasks || [], spaces: p.spaces || [],
+        lists: p.lists || [], members: p.members || []
       });
     }
 
@@ -120,6 +145,7 @@ export function taskRoutes({ env, auth }){
       } : null,
       refreshing: Boolean(inFlight),
       progress,
+      partialTasks: partial ? partial.tasks.length : null,
       problems: cache ? (cache.payload.problems || []).length : null,
       lastError
     });

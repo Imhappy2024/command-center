@@ -179,6 +179,7 @@ await new Promise(resolve => {
 
   const ctx = {
     console: { log(){}, warn(){}, error(){}, info(){} },
+    addEventListener(){}, removeEventListener(){}, dispatchEvent: () => true,
     setTimeout, setInterval: () => 0, clearInterval(){}, clearTimeout(){},
     fetch: async () => ({ ok: false, status: 0, json: async () => ({}), text: async () => '' }),
     location: { hash: '', pathname: '/', origin: 'http://localhost', search: '', href: '/' },
