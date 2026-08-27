@@ -19,8 +19,9 @@ import { guarded } from './guard.js';
 export const AUTOMATIONS = [
   { id:'clip',      name:'Create a Clip',            built:true,
     blurb:'Turn a long video into short vertical clips with OpusClip, preview them, then schedule.' },
-  { id:'metrics',   name:'Pull and Analyze Metrics', built:false,
-    blurb:'Force a pull from every connected platform and summarise what moved.' },
+  { id:'metrics',   name:'Pull and Analyze Metrics', built:true, agent:true,
+    blurb:'Four analyst agents — YouTube, Facebook, Instagram, X. They read the numbers, '
+      + 'show the working, and say what to change.' },
   { id:'today',     name:'Plan Today',               built:false,
     blurb:'Calendar, unread mail and open leads folded into one running order.' },
   { id:'tomorrow',  name:'Plan Tomorrow',            built:false,

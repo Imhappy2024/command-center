@@ -2160,6 +2160,114 @@ main{min-width:0;display:flex;flex-direction:column}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}.drawer{transition:none}}
 
+/* ---------- analyst agents ----------
+   A conversation and a workspace. The workspace is empty until the agent draws
+   in it, because an analyst decides what is worth showing per question -- that
+   is the difference between this and a dashboard. */
+.agstart{display:flex;flex-direction:column;min-height:min(64vh,560px)}
+.agstartin{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;gap:11px;padding:40px 24px}
+.agdot{width:9px;height:9px;border-radius:50%;display:block}
+.agstartin h3{font-family:var(--ff-display);font-size:19px;color:var(--cream);letter-spacing:-.02em}
+.agstartin p{font-size:13px;color:var(--dim);max-width:440px;line-height:1.55}
+.agstartin small{font-size:11.5px;color:var(--dimmer);max-width:420px;line-height:1.6}
+.agbig{background:var(--brass);border:0;border-radius:12px;color:#fff;font:inherit;font-size:15px;
+  font-weight:600;padding:13px 44px;cursor:pointer;margin:6px 0 2px;
+  box-shadow:0 12px 30px -12px rgba(124,108,255,.7);transition:.16s var(--ease)}
+.agbig:hover{filter:brightness(1.08);transform:translateY(-1px)}
+.agbig:active{transform:none}
+
+.agsplit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:13px;
+  align-items:stretch;height:min(72vh,720px)}
+@media(max-width:1200px){.agsplit{grid-template-columns:1fr;height:auto}}
+.agchat{display:flex;flex-direction:column;min-width:0;background:var(--panel);
+  border:1px solid var(--edge);border-radius:var(--r-lg);overflow:hidden}
+.agfeed{flex:1;min-height:0;overflow-y:auto;padding:16px 16px 8px;display:flex;
+  flex-direction:column;gap:14px}
+@media(max-width:1200px){.agfeed{max-height:60vh}}
+.agpanel{overflow-y:auto;min-width:0;display:flex;flex-direction:column;gap:11px;padding-right:2px}
+@media(max-width:1200px){.agpanel{max-height:none}}
+
+.agturn{display:flex;flex-direction:column;gap:6px;min-width:0}
+.agturn.me{align-items:flex-end}
+.agturn.me .bd{background:var(--panel2);border:1px solid var(--edge2);border-radius:13px 13px 4px 13px;
+  padding:9px 13px;max-width:82%;font-size:13.5px;color:var(--cream)}
+.agturn.ai .bd{min-width:0;width:100%}
+.agrole{display:flex;align-items:center;gap:8px;font-size:11.5px;color:var(--dimmer)}
+.agrole .av{width:19px;height:19px;border-radius:6px;background:var(--brass);color:#fff;
+  display:grid;place-items:center;font-size:10.5px;font-weight:700}
+.agthinking{display:flex;gap:5px;padding:4px 2px}
+.agthinking span{width:6px;height:6px;border-radius:50%;background:var(--edge2);
+  animation:agbounce 1.2s infinite}
+.agthinking span:nth-child(2){animation-delay:.15s}
+.agthinking span:nth-child(3){animation-delay:.3s}
+@keyframes agbounce{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
+
+.agcomposer{border-top:1px solid var(--edge);padding:11px 14px 12px;background:var(--panel);flex:none}
+.agbox{background:var(--ink2);border:1px solid var(--edge2);border-radius:var(--r-md);
+  padding:9px 11px 8px;transition:border-color .12s}
+.agbox:focus-within{border-color:var(--brass)}
+.agbox textarea{width:100%;background:none;border:0;color:var(--text);font:inherit;font-size:13.5px;
+  line-height:1.6;resize:none;min-height:22px;max-height:180px;display:block}
+.agbox textarea:focus{outline:none}
+.agbox textarea::placeholder{color:var(--dimmer)}
+.agbar{display:flex;align-items:center;gap:7px;margin-top:7px}
+.agsend{width:30px;height:30px;border-radius:9px;border:0;background:var(--brass);color:#fff;
+  font-size:15px;cursor:pointer;flex:none;display:grid;place-items:center}
+.agsend:hover{filter:brightness(1.08)}
+.agsend.stop{width:auto;padding:0 13px;font-size:12px;background:var(--rust)}
+
+/* ---- what the agent draws ---- */
+.agcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
+  overflow:hidden;flex:none}
+.agcard.bad{border-color:rgba(255,90,69,.35)}
+.agcard.warn{border-color:rgba(255,176,32,.35)}
+.agcard.good{border-color:rgba(53,208,165,.32)}
+.agcardh{display:flex;align-items:baseline;gap:10px;padding:10px 13px;
+  border-bottom:1px solid var(--edge);background:var(--panel2);flex-wrap:wrap}
+.agcardh b{font-family:var(--ff-display);font-size:12.5px;color:var(--cream);font-weight:600}
+.agcardh small{font-size:11px;color:var(--dimmer);flex:1;min-width:0}
+.agat{font-family:var(--ff-mono);font-size:9.5px;color:var(--brass);
+  border:1px solid rgba(124,108,255,.4);border-radius:99px;padding:1px 7px}
+.agcopy{background:none;border:1px solid var(--edge2);border-radius:6px;color:var(--dimmer);
+  font:inherit;font-size:10.5px;padding:2px 8px;cursor:pointer;flex:none}
+.agcopy:hover{color:var(--cream);border-color:var(--brass)}
+
+/* A spreadsheet. Numbers monospaced and right-aligned so a column can be read
+   down rather than across, which is the only reason to draw it instead of
+   describing it. */
+.agtwrap{overflow-x:auto}
+.agt{display:grid;min-width:100%;font-size:12px}
+.agt>span{padding:6px 10px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  border-bottom:1px solid rgba(38,44,70,.6);display:flex;align-items:center}
+.agt>span.n{justify-content:flex-end;font-family:var(--ff-mono);font-size:11.5px;
+  font-variant-numeric:tabular-nums}
+.agt>span.h{background:var(--ink2);color:var(--dimmer);font-family:var(--ff-mono);font-size:9px;
+  letter-spacing:.1em;text-transform:uppercase;position:sticky;top:0;z-index:2;
+  border-bottom:1px solid var(--edge)}
+.agt>span.t{background:var(--panel3);color:var(--cream);font-weight:600;border-bottom:0;
+  border-top:1px solid var(--edge2)}
+.agt>span.t.n{font-family:var(--ff-mono)}
+/* A tone marks the whole row without a colour-only signal: the left edge picks
+   up a bar, and the agent names the reason in its reply. */
+.agt .rowline{display:none}
+.agt .rowline.bad~span,.agt .rowline.warn~span,.agt .rowline.good~span{}
+.agt>span:not(.h):not(.t){color:var(--text)}
+
+.agvid{background:#000;aspect-ratio:16/9;display:block}
+.agvid iframe,.agvid video{width:100%;height:100%;border:0;display:block;background:#000}
+.agnote{padding:12px 14px;font-size:12.5px;color:var(--text);line-height:1.65}
+.agnote p{margin:0 0 8px}
+.agnote p:last-child{margin:0}
+.agnote ul,.agnote ol{margin:0 0 8px 18px}
+.agnote code{font-family:var(--ff-mono);font-size:11.5px;background:var(--ink2);
+  border:1px solid var(--edge);border-radius:5px;padding:1px 5px}
+
+.agempty{border:1px dashed var(--edge2);border-radius:var(--r-lg);padding:38px 22px;
+  text-align:center;color:var(--dimmer)}
+.agempty b{display:block;color:var(--dim);font-size:13px;margin-bottom:6px}
+.agempty small{font-size:11.5px;line-height:1.6;display:block;max-width:320px;margin:0 auto}
+
 /* ---------- ads dashboard ---------- */
 .adsflags{display:flex;flex-direction:column;gap:1px;margin-bottom:14px}
 .adsflag{display:flex;align-items:flex-start;gap:10px;padding:11px 15px;background:var(--panel);
@@ -2629,7 +2737,7 @@ const ICON = {
 };
 const MENU = [
   ['overview','Overview','All',''],
-  ['inbox','Inbox','Gmail',''],
+  ['inbox','Instantly','Gmail',''],
   ['calendar','Calendar','GCal',''],
   ['tasks','Tasks','ClickUp',''],
   ['notes','Notes','Vault',''],
@@ -11689,21 +11797,26 @@ function ccRuns(steps){
   return out;
 }
 
-function ccSteps(m){
+/* A surface is whatever holds a conversation: its messages, which runs are
+   unfolded, and whether a turn is in flight. The Claude section is one; each
+   analyst agent is another. Everything below draws for whichever it is handed,
+   so there is one chat implementation rather than two that drift. */
+function ccSteps(m, surface){
+  const S = surface || CC;
   const steps = ccMergeSteps(m.steps || m.tools || []);
   if (!steps.length) return '';
   /* Open state is keyed by message and position rather than held in the markup,
      because the feed is rebuilt every 90ms while a turn streams and anything in
      the DOM is wiped between frames. */
-  const mi = CC.messages.indexOf(m);
+  const mi = S.messages.indexOf(m);
 
   return ccRuns(steps).map((seg, si) => {
     if (seg.ask) return ccAskWidget(seg.ask);
     const key = mi + ':' + si;
-    const open = Boolean(CC.openRuns[key]);
+    const open = Boolean(S.openRuns[key]);
     const failed = seg.run.filter(t => /(^|\W)failed(\W|$)/.test(t.detail || '')).length;
     /* A run still being added to is a run still happening. */
-    const live = CC.busy && m === CC.messages[CC.messages.length - 1]
+    const live = S.busy && m === S.messages[S.messages.length - 1]
       && si === ccRuns(steps).length - 1;
 
     const head = '<button class="ccrunh" data-ccrun="' + key + '">'
@@ -11717,7 +11830,7 @@ function ccSteps(m){
 
     const rows = seg.run.map((t, ti) => {
       const rk = key + ':' + ti;
-      const shown = Boolean(CC.openRuns[rk]);
+      const shown = Boolean(S.openRuns[rk]);
       const mcp = ccMcpParts(t.name);
       const bad = /(^|\W)failed(\W|$)/.test(t.detail || '');
       const body = t.kind === 'thinking' ? (t.body || '') : (t.body || '');
@@ -11773,16 +11886,24 @@ function wireClaudeSetup(root){
 /* Find the widget by id across the whole conversation. The click may land many
    repaints after the question arrived, and the step object is the only thing
    that survives them. */
+/* Every conversation on the page, so a click on a question widget finds its
+   step whichever surface drew it. */
+function ccSurfaces(){
+  return [CC, ...Object.values((typeof AG === 'undefined' ? {} : AG.by) || {})];
+}
+
 function ccAskFind(id){
-  for (const m of CC.messages) {
-    for (const step of m.steps || []) {
-      if (step.kind === 'ask' && step.id === id) return { m, step };
+  for (const S of ccSurfaces()) {
+    for (const m of S.messages || []) {
+      for (const step of m.steps || []) {
+        if (step.kind === 'ask' && step.id === id) return { m, step, surface: S };
+      }
     }
   }
   return null;
 }
 
-async function ccAskSend(step){
+async function ccAskSend(step, surface){
   const answers = {};
   (step.questions || []).forEach((q, i) => {
     const v = step.picked[i];
@@ -11796,7 +11917,7 @@ async function ccAskSend(step){
   if (!Object.keys(answers).length) { toast('Pick an option or type an answer'); return; }
 
   step.state = 'sending';
-  ccAskRepaint();
+  ccAskRepaint(surface);
   try {
     const r = await fetch(CC.base + '/ask/answer', {
       method: 'POST',
@@ -11814,12 +11935,14 @@ async function ccAskSend(step){
     step.state = 'open';
     toast('Could not send that answer: ' + err.message);
   }
-  ccAskRepaint();
+  ccAskRepaint(surface);
 }
 
 /* A turn is usually mid-stream when this happens, so patch the last bubble the
    way the token loop does rather than rebuilding the feed under the reader. */
-function ccAskRepaint(){
+function ccAskRepaint(surface){
+  const S = surface || CC;
+  if (S !== CC && typeof agDraw === 'function') { agDraw(); return; }
   const last = CC.messages[CC.messages.length - 1];
   if (last && last.role === 'assistant') ccPatch(last);
   else drawClaude();
@@ -11837,7 +11960,7 @@ function wireClaudeChat(root){
       if (opt) {
         const found = ccAskFind(opt.dataset.askid);
         if (!found || found.step.state !== 'open') return;
-        const { step } = found;
+        const { step, surface } = found;
         const qi = Number(opt.dataset.askq);
         const q = step.questions[qi];
         const label = q.options[Number(opt.dataset.asko)].label;
@@ -11847,19 +11970,19 @@ function wireClaudeChat(root){
         } else {
           step.picked[qi] = step.picked[qi] === label ? undefined : label;
         }
-        ccAskRepaint();
+        ccAskRepaint(surface);
         /* Every single-select question answered and nothing multi-select left to
            add to: the reader has said everything the widget can ask for, and
            making them press Send as well is a click that carries no information. */
         const complete = step.questions.every((qq, i) =>
           !qq.multiSelect && typeof step.picked[i] === 'string' && step.picked[i]);
-        if (complete) ccAskSend(step);
+        if (complete) ccAskSend(step, surface);
         return;
       }
       const send = ev.target.closest('[data-asksend]');
       if (send) {
         const found = ccAskFind(send.dataset.asksend);
-        if (found && found.step.state === 'open') ccAskSend(found.step);
+        if (found && found.step.state === 'open') ccAskSend(found.step, found.surface);
       }
     });
     feed.addEventListener('click', ev => {
@@ -11893,7 +12016,7 @@ function wireClaudeChat(root){
       const found = ccAskFind(box.dataset.askfree);
       if (found && found.step.state === 'open') {
         found.step.free = box.value;
-        ccAskSend(found.step);
+        ccAskSend(found.step, found.surface);
       }
     });
   }
@@ -12116,8 +12239,16 @@ async function ccSend(text){
 
 /* Translates Claude Code's stream-json into what the feed shows. Returns true
    when something changed. */
-function ccConsume(ev, d, reply){
+function ccConsume(ev, d, reply, surface){
+  const S = surface || CC;
   if (ev === 'fatal') { reply.text += (reply.text ? '\n\n' : '') + d.error; return true; }
+
+  /* The agent drawing in its panel. Only agent surfaces have one; the Claude
+     section ignores it. */
+  if (ev === 'panel') {
+    if (S.panels) { S.panels.unshift(d); return true; }
+    return false;
+  }
 
   /* Claude is asking something. This is not a tool step to be collapsed with the
      rest; the turn is blocked on it until an answer goes back. */
@@ -12133,14 +12264,14 @@ function ccConsume(ev, d, reply){
 
   /* The init frame carries the session id, which is what makes the next turn a
      continuation rather than a fresh conversation. */
-  if (d.type === 'system' && d.session_id) { CC.sessionId = d.session_id; return false; }
-  if (d.session_id && !CC.sessionId) CC.sessionId = d.session_id;
+  if (d.type === 'system' && d.session_id) { S.sessionId = d.session_id; return false; }
+  if (d.session_id && !S.sessionId) S.sessionId = d.session_id;
 
   if (d.type === 'stream_event') {
     const e = d.event;
     if (e?.type === 'content_block_delta' && e.delta?.type === 'text_delta') {
       reply.text += e.delta.text;
-      CC.streaming = true;          // the dots give way to real text
+      S.streaming = true;           // the dots give way to real text
       return true;
     }
     /* Extended thinking arrives as its own delta type. Kept in a collapsed
@@ -12150,7 +12281,7 @@ function ccConsume(ev, d, reply){
       const last = steps[steps.length - 1];
       if (last && last.kind === 'thinking' && last.live) last.body += e.delta.thinking || '';
       else steps.push({ kind:'thinking', name:'Thinking', detail:'', body: e.delta.thinking || '', live:true });
-      CC.streaming = true;
+      S.streaming = true;
       return true;
     }
     if (e?.type === 'content_block_stop') {
@@ -12261,6 +12392,7 @@ document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', (
 
 const SY = {
   open: null, cfg: null, automations: [], projects: [],
+  agents: null, agentError: null,
   project: null, clips: [], schedules: [],
   templates: [], destinations: [], destError: null, usage: null,
   source: { kind:null, name:'', bytes:0, uploadId:null, url:'' },
@@ -12334,17 +12466,29 @@ function drawSystems(){
   sub.textContent = auto ? auto.blurb : 'Automations you run by hand.';
   back.hidden = !SY.open;
 
+  /* Fetched on first open of the metrics automation, not at boot: it is a
+     Claude-only endpoint and most visits to Systems are for something else. */
+  if (SY.open === 'metrics' && !SY.agents && !SY.agentError) agLoad();
+
   if (SY.open === 'clip' && SY.cfg) {
     const u = SY.usage;
     state.innerHTML = SY.cfg.configured
       ? '<span class="d" style="background:var(--jade)"></span>OpusClip connected'
         + (u?.monthly ? ' · ' + u.monthly.remaining + ' of ' + u.monthly.limit + ' credits left' : '')
       : '<span class="d" style="background:var(--rust)"></span>OpusClip not configured';
+  } else if (SY.open === 'metrics') {
+    const S = AG.agent ? AG.by[AG.agent] : null;
+    state.innerHTML = S && S.busy
+      ? '<span class="d" style="background:var(--brass)"></span>Analysing…'
+      : '<span class="d" style="background:var(--jade)"></span>Runs on your Claude subscription';
   } else state.innerHTML = '';
 
   routeSync('systems');
-  body.innerHTML = SY.open === 'clip' ? clipSystem() : automationGrid();
+  body.innerHTML = SY.open === 'clip' ? clipSystem()
+    : SY.open === 'metrics' ? metricsSystem()
+    : automationGrid();
   wireSystems(body);
+  if (SY.open === 'metrics') wireAgents(body);
 }
 
 function automationGrid(){
@@ -13060,6 +13204,396 @@ async function doSchedule(){
   if (SY.project) {
     const out = await api('/api/systems/clip/projects/' + encodeURIComponent(SY.project.id));
     SY.schedules = out.schedules || []; SY.picked.clear(); drawSystems();
+  }
+}
+
+/* ---------- Pull and Analyze Metrics ----------
+
+   Four analyst agents, one per platform. Each is a Claude turn with an expert
+   brief (lib/agent-briefs.js) and two extra tools: one that reads this
+   dashboard's own metrics, one that draws in the panel beside the chat.
+
+   The layout is a conversation and a workspace, not a dashboard. A dashboard
+   decides in advance what is worth showing; an analyst decides that per
+   question, so the panel is empty until the agent puts something in it. What it
+   can put there is deliberately small -- a table, a video, a note -- because
+   those are the three things an analysis of video metrics needs, and a wider
+   vocabulary would mean the agent spending its attention on presentation.
+
+   The chat rendering, the tool-run collapsing and the question widget are the
+   same code the Claude section uses, handed a different surface. */
+
+const AG = {
+  agent: null,        // the open agent id
+  by: {}              // agentId -> surface
+};
+
+function agSurface(id){
+  if (!AG.by[id]) {
+    AG.by[id] = {
+      id,
+      messages: [], panels: [], openRuns: {},
+      sessionId: null, busy: false, streaming: false, abort: null,
+      input: '', panelOpen: null
+    };
+  }
+  return AG.by[id];
+}
+
+const agNow = () => (AG.agent ? agSurface(AG.agent) : null);
+
+async function agLoad(){
+  if (SY.agents) return;
+  try {
+    const out = await api('/api/claude/agents');
+    SY.agents = out.agents || [];
+  } catch (err) {
+    SY.agents = [];
+    SY.agentError = err.message;
+  }
+  drawSystems();
+}
+
+/* ---------- the view ---------- */
+
+function metricsSystem(){
+  if (SY.agentError) {
+    return '<div class="vwrap viz"><div class="vbody"><div class="insrow">'
+      + '<span class="sev bad">!</span><span class="tx"><b>Could not reach the agents.</b> '
+      + escS(SY.agentError) + '</span></div></div></div>';
+  }
+  if (!SY.agents) return '<div class="vwrap viz"><div class="vempty"><b>Loading…</b></div></div>';
+  if (!SY.agents.length) {
+    return '<div class="vwrap viz"><div class="vbody"><div class="insrow">'
+      + '<span class="sev bad">!</span><span class="tx"><b>Claude is not available here.</b> '
+      + 'These agents run on your Claude subscription through the local Claude Code CLI, which is '
+      + 'only mounted when the dashboard is running on your own machine.</span></div></div></div>';
+  }
+  if (!AG.agent) AG.agent = SY.agents[0].id;
+  const meta = SY.agents.find(a => a.id === AG.agent) || SY.agents[0];
+  const S = agSurface(AG.agent);
+
+  const tabs = viewTabs(SY.agents.map(a => [a.id, a.short,
+    (AG.by[a.id]?.messages.length ? Math.floor(AG.by[a.id].messages.length / 2) || '' : '')]),
+    AG.agent, 'data-agent');
+
+  /* Nothing said yet: one button, and what it is going to do. The chat is
+     underneath it rather than instead of it, because the first thing anyone
+     wants is the analysis, not a blank prompt. */
+  if (!S.messages.length) {
+    return tabs + '<div class="agstart">'
+      + '<div class="agstartin">'
+      +   '<span class="agdot" style="background:' + escS(meta.accent) + '"></span>'
+      +   '<h3>' + escS(meta.label) + '</h3>'
+      +   '<p>' + escS(meta.blurb) + '</p>'
+      +   '<button class="agbig" data-agrun="1">Analyze</button>'
+      +   '<small>Pulls the last 28 days from the dashboard, then reads them: what is working, '
+      +     'what is not, why, and what to change. Ask follow-ups in the box below.</small>'
+      + '</div>'
+      + agComposer(S, meta) + '</div>';
+  }
+
+  return tabs + '<div class="agsplit">'
+    + '<div class="agchat">' + agFeed(S) + agComposer(S, meta) + '</div>'
+    + '<div class="agpanel">' + agPanels(S) + '</div>'
+    + '</div>';
+}
+
+function agFeed(S){
+  return '<div class="agfeed" id="ag-feed">'
+    + S.messages.map((m, i) => agBubble(m, i, S)).join('')
+    + (S.busy && !S.streaming ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '')
+    + '</div>';
+}
+
+function agBubble(m, idx, S){
+  const mine = m.role === 'user';
+  return '<div class="agturn ' + (mine ? 'me' : 'ai') + '">'
+    + (mine ? '' : '<div class="agrole"><span class="av">C</span><span>Analyst</span></div>')
+    + '<div class="bd">' + (mine ? '' : ccSteps(m, S))
+    + '<div class="ccprose">' + mdRender(m.text || '')
+    + (S.busy && idx === S.messages.length - 1 && !mine ? '<span class="cccaret"></span>' : '')
+    + '</div></div></div>';
+}
+
+function agComposer(S, meta){
+  return '<div class="agcomposer">'
+    + '<div class="agbox">'
+    +   '<textarea id="ag-input" rows="1" placeholder="Ask ' + escS(meta.short)
+    +     ' anything about the numbers…">' + escS(S.input) + '</textarea>'
+    +   '<div class="agbar">'
+    +     (S.messages.length ? '<button class="tgl" data-agrun="1">Re-analyze</button>' : '')
+    +     '<button class="tgl" data-agclear="1"' + (S.messages.length ? '' : ' hidden') + '>Clear</button>'
+    +     '<span style="flex:1"></span>'
+    +     (S.busy
+          ? '<button class="agsend stop" data-agstop="1">Stop</button>'
+          : '<button class="agsend" data-agsend="1">↑</button>')
+    +   '</div>'
+    + '</div></div>';
+}
+
+/* ---------- the panel ----------
+   Newest first: the thing the agent just drew is the thing being talked about. */
+
+function agPanels(S){
+  if (!S.panels.length) {
+    return '<div class="agempty"><b>Nothing drawn yet</b>'
+      + '<small>Tables, videos and notes the agent puts here stay on screen while the '
+      + 'conversation moves on.</small></div>';
+  }
+  return S.panels.map(p =>
+    p.kind === 'table' ? agTable(p)
+    : p.kind === 'video' ? agVideo(p)
+    : agNote(p)).join('');
+}
+
+/* A spreadsheet, not a chart. Numbers right-aligned and monospaced so columns
+   line up down the page, which is the whole reason to render a table rather
+   than describe it. */
+function agTable(p){
+  const cols = p.columns || [];
+  const rows = p.rows || [];
+  const tones = p.tones || [];
+  const numeric = cols.map((_, i) => rows.length
+    && rows.every(r => r[i] === null || r[i] === '' || typeof r[i] === 'number'
+      || (typeof r[i] === 'string' && /^[-+$£€]?[\d,]+(\.\d+)?%?$/.test(r[i].trim()))));
+
+  const cell = (v, i) => {
+    const t = v === null || v === undefined || v === '' ? '—'
+      : typeof v === 'number'
+        ? (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString()
+          : Math.round(v * 100) / 100).toString()
+        : String(v);
+    return '<span class="' + (numeric[i] ? 'n' : '') + '">' + escS(t) + '</span>';
+  };
+  const grid = cols.map((_, i) => numeric[i] ? 'minmax(64px,auto)' : 'minmax(90px,1fr)').join(' ');
+
+  return '<div class="agcard">'
+    + '<div class="agcardh"><b>' + escS(p.title || 'Table') + '</b>'
+    +   (p.note ? '<small>' + escS(p.note) + '</small>' : '')
+    +   '<button class="agcopy" data-agcopy="' + escS(p.id) + '">Copy</button></div>'
+    + '<div class="agtwrap"><div class="agt" style="grid-template-columns:' + grid + '">'
+    +   cols.map((c, i) => '<span class="h' + (numeric[i] ? ' n' : '') + '">' + escS(c) + '</span>').join('')
+    +   rows.map((r, ri) => '<span class="rowline ' + escS(tones[ri] || '') + '"></span>'
+        + r.map((v, i) => cell(v, i)).join('')).join('')
+    +   (p.total ? p.total.map((v, i) => '<span class="t' + (numeric[i] ? ' n' : '') + '">'
+        + escS(v === null || v === undefined ? '' : String(v)) + '</span>').join('') : '')
+    + '</div></div></div>';
+}
+
+/* YouTube goes in an iframe because that is the only way to play it; anything
+   else is a <video> tag. A start time is the point of showing it at all -- the
+   drop in the curve, the hook that needs rewriting -- so it is honoured by
+   both. */
+function agVideo(p){
+  const url = String(p.url || '');
+  const yt = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/.exec(url)
+    || (/^[A-Za-z0-9_-]{11}$/.test(url) ? [null, url] : null);
+  const start = Number(p.startAt) > 0 ? Math.floor(Number(p.startAt)) : 0;
+
+  const player = yt
+    ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(yt[1])
+      + (start ? '?start=' + start : '')
+      + '" title="' + escS(p.title || 'Video') + '" allowfullscreen '
+      + 'allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture" '
+      + 'referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe>'
+    /* Only http(s). A javascript: or data: url in a src is the obvious way to
+       turn "the agent showed me a video" into something else. */
+    : /^https?:\/\//i.test(url)
+      ? '<video controls preload="metadata" src="' + escS(url) + (start ? '#t=' + start : '') + '"></video>'
+      : '<div class="agempty" style="padding:24px"><b>That is not a playable link</b>'
+        + '<small>' + escS(url.slice(0, 120)) + '</small></div>';
+
+  return '<div class="agcard">'
+    + '<div class="agcardh"><b>' + escS(p.title || 'Video') + '</b>'
+    +   (p.note ? '<small>' + escS(p.note) + '</small>' : '')
+    +   (start ? '<span class="agat">from ' + Math.floor(start / 60) + ':'
+        + String(start % 60).padStart(2, '0') + '</span>' : '')
+    + '</div>'
+    + '<div class="agvid">' + player + '</div></div>';
+}
+
+function agNote(p){
+  return '<div class="agcard' + (p.tone ? ' ' + escS(p.tone) : '') + '">'
+    + '<div class="agcardh"><b>' + escS(p.title || 'Note') + '</b></div>'
+    + '<div class="agnote">' + mdRender(p.body || '') + '</div></div>';
+}
+
+/* ---------- running a turn ---------- */
+
+const AG_ANALYZE = 'Analyze the last 28 days. Pull the metrics first, then give me the full '
+  + 'read: what is working, what is not, why, and what to change. Show the working in tables '
+  + 'rather than describing rows to me, and rank everything by how much money or reach sits '
+  + 'behind it.';
+
+async function agRun(text){
+  const S = agNow();
+  if (!S || S.busy) return;
+  const prompt = String(text || '').trim();
+  if (!prompt) return;
+
+  S.messages.push({ role: 'user', text: prompt });
+  const reply = { role: 'assistant', text: '', steps: [], tools: [] };
+  S.messages.push(reply);
+  S.busy = true;
+  S.streaming = false;
+  S.input = '';
+  drawSystems();
+
+  const ctrl = new AbortController();
+  S.abort = ctrl;
+
+  try {
+    const res = await fetch('/api/claude/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt,
+        agent: S.id,
+        sessionId: S.sessionId,
+        /* Connectors stay off. These agents read this dashboard, and attaching
+           twenty-five account connectors would add forty seconds to every turn
+           for tools the brief never mentions. */
+        useMcp: false
+      }),
+      signal: ctrl.signal
+    });
+
+    if (!res.ok || !res.body) {
+      let msg = 'The chat endpoint returned ' + res.status;
+      try { msg = (await res.json()).error || msg; } catch { /* keep the status */ }
+      reply.text = msg;
+      S.busy = false; S.abort = null; drawSystems();
+      return;
+    }
+
+    const rd = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    /* Repaint on a timer rather than per token: a 60-token-a-second stream
+       would otherwise rebuild the panel sixty times a second. */
+    let dirty = false;
+    const paint = setInterval(() => { if (dirty) { dirty = false; agPatch(S); } }, 90);
+
+    for (;;) {
+      const { done, value } = await rd.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const frame = buf.slice(0, i); buf = buf.slice(i + 2);
+        const ev = /^event: (.+)$/m.exec(frame)?.[1];
+        const dl = /^data: (.+)$/m.exec(frame)?.[1];
+        if (!ev || !dl) continue;
+        let d; try { d = JSON.parse(dl); } catch { continue; }
+        if (ccConsume(ev, d, reply, S)) dirty = true;
+      }
+    }
+    clearInterval(paint);
+  } catch (err) {
+    if (err.name !== 'AbortError') {
+      reply.text += (reply.text ? '\n\n' : '') + 'Lost the connection: ' + err.message;
+    }
+  }
+
+  S.busy = false; S.abort = null; S.streaming = false;
+  /* The server cancels any pending question when the turn closes, so a widget
+     still showing buttons would be offering a choice nothing is listening for. */
+  for (const step of reply.steps || []) {
+    if (step.kind === 'ask' && step.state === 'open') step.state = 'closed';
+  }
+  if (!reply.text && !(reply.steps || []).length) reply.text = '_(no output)_';
+  drawSystems();
+}
+
+/* Patch the feed and the panel in place. A full drawSystems() mid-stream would
+   rebuild the composer and take the caret out of it. */
+function agPatch(S){
+  const feed = document.getElementById('ag-feed');
+  if (!feed) { drawSystems(); return; }
+  const stuck = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 90;
+  feed.innerHTML = S.messages.map((m, i) => agBubble(m, i, S)).join('')
+    + (S.busy && !S.streaming ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '');
+  if (stuck) feed.scrollTop = feed.scrollHeight;
+
+  const panel = document.querySelector('.agpanel');
+  if (panel) {
+    /* Only when the count changed. Rewriting it every frame would restart any
+       video playing in it. */
+    const drawn = Number(panel.dataset.n || 0);
+    if (drawn !== S.panels.length) {
+      panel.dataset.n = String(S.panels.length);
+      panel.innerHTML = agPanels(S);
+    }
+  } else if (S.panels.length) {
+    /* The first panel arrives while the layout is still the one-column start
+       state, which has nowhere to put it. */
+    drawSystems();
+  }
+}
+
+function agStop(){
+  const S = agNow();
+  if (!S) return;
+  S.abort?.abort();
+  fetch('/api/claude/stop', { method: 'POST' }).catch(() => {});
+  S.busy = false; S.abort = null;
+  drawSystems();
+}
+
+function agDraw(){ drawSystems(); }
+
+/* ---------- wiring ---------- */
+
+function wireAgents(root){
+  root.querySelectorAll('[data-agent]').forEach(b => b.onclick = () => {
+    AG.agent = b.dataset.agent;
+    drawSystems();
+  });
+  root.querySelectorAll('[data-agrun]').forEach(b => b.onclick = () => agRun(AG_ANALYZE));
+  root.querySelectorAll('[data-agstop]').forEach(b => b.onclick = agStop);
+  root.querySelectorAll('[data-agclear]').forEach(b => b.onclick = () => {
+    const S = agNow();
+    if (!S) return;
+    /* A new session id as well as an empty feed: leaving the old one means the
+       next turn silently continues a conversation that is no longer on screen. */
+    S.messages = []; S.panels = []; S.openRuns = {}; S.sessionId = null; S.input = '';
+    drawSystems();
+  });
+
+  const ta = root.querySelector('#ag-input');
+  if (ta) {
+    const fit = () => { ta.style.height = 'auto'; ta.style.height = Math.min(180, ta.scrollHeight) + 'px'; };
+    fit();
+    ta.oninput = () => { const S = agNow(); if (S) S.input = ta.value; fit(); };
+    ta.onkeydown = e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); agRun(ta.value); }
+    };
+  }
+  const send = root.querySelector('[data-agsend]');
+  if (send) send.onclick = () => {
+    const box = document.getElementById('ag-input');
+    agRun(box ? box.value : '');
+  };
+
+  root.querySelectorAll('[data-agcopy]').forEach(b => b.onclick = () => {
+    const S = agNow();
+    const p = S && S.panels.find(x => x.id === b.dataset.agcopy);
+    if (!p) return;
+    /* Tab-separated, which is what a spreadsheet expects from the clipboard. */
+    const lines = [(p.columns || []).join('\t')]
+      .concat((p.rows || []).map(r => r.map(v => v == null ? '' : String(v)).join('\t')));
+    if (p.total) lines.push(p.total.map(v => v == null ? '' : String(v)).join('\t'));
+    navigator.clipboard.writeText(lines.join('\n')).then(
+      () => toast('Copied as rows'), () => toast('Could not copy'));
+  });
+
+  /* The panel scrolls independently of the page, and the feed keeps its own
+     position, so neither fights the other. */
+  const feed = root.querySelector('#ag-feed');
+  if (feed && !feed.dataset.scrolled) {
+    feed.dataset.scrolled = '1';
+    feed.scrollTop = feed.scrollHeight;
   }
 }
 

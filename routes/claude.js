@@ -26,6 +26,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { AGENTS } from '../lib/agent-briefs.js';
 import { pipeline } from 'node:stream/promises';
 
 /* Hosted platforms all announce themselves. If any of these is set we are not
@@ -67,6 +68,13 @@ const IMPOSSIBLE_HERE = ['AskUserQuestion'];
 const ASK_SERVER = 'command_center';
 const ASK_TOOL = 'mcp__' + ASK_SERVER + '__ask_user';
 const ASK_SCRIPT = fileURLToPath(new URL('../tools/ask-mcp.mjs', import.meta.url));
+
+/* The analyst agents get a second tool server: the one that reads this app's
+   metrics and draws tables and video into the panel beside the chat. It is
+   attached only on an agent turn, so an ordinary Claude conversation is not
+   handed six tools it has no use for. */
+const AGENT_SERVER = 'command_center_agent';
+const AGENT_SCRIPT = fileURLToPath(new URL('../tools/agent-mcp.mjs', import.meta.url));
 
 const SURFACE_NOTE = [
   'You are running inside the Command Center dashboard, in a chat panel in a web page,',
@@ -125,7 +133,12 @@ export function claudeRoutes({ env, auth }){
     if (!ask) return false;
     const ip = String(req.socket.remoteAddress || '');
     if (!/^(::1|::ffff:127\.0\.0\.1|127\.0\.0\.1)$/.test(ip)) return false;
-    const given = String(req.get('x-ask-token') || '');
+    /* Either header. Both tool servers are spawned by this turn and carry the
+       same token; they just name it after themselves, and reading only one of
+       the two names cost an agent turn that failed four tool calls with "not
+       this turn" and then apologised to the user for a connection problem that
+       did not exist. */
+    const given = String(req.get('x-ask-token') || req.get('x-agent-token') || '');
     if (given.length !== ask.token.length) return false;
     return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ask.token));
   };
@@ -174,6 +187,85 @@ export function claudeRoutes({ env, auth }){
     const timer = setTimeout(() => { if (!done) { done = true; res.json({ state: 'pending' }); } }, wait);
     q.waiters.push(finish);
     res.on('close', () => { done = true; clearTimeout(timer); });
+  });
+
+  /* ---- the agent surface ------------------------------------------------
+
+     Same token and the same loopback rule as the ask channel: these are called
+     by a tool server this process spawned for the turn in flight, and by
+     nothing else. */
+
+  /* Draw something in the panel beside the conversation. Fire and forget -- the
+     agent does not wait for a human here, it just puts a table on screen. */
+  r.post('/api/claude/agent/show', express.json({ limit: '1mb' }), (req, res) => {
+    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    const panel = req.body?.panel;
+    if (!panel || typeof panel !== 'object') return res.status(400).json({ error: 'no panel' });
+    try {
+      ask.send('panel', { id: crypto.randomUUID(), at: Date.now(), ...panel });
+    } catch { /* the page went away mid-turn */ }
+    res.json({ ok: true });
+  });
+
+  /* Read something. The kinds are enumerated rather than proxying an arbitrary
+     path: a tool server that can fetch any URL on this origin is a tool server
+     that can read the whole app. */
+  r.post('/api/claude/agent/data', express.json({ limit: '64kb' }), async (req, res) => {
+    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    const b = req.body || {};
+    const base = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
+    const inner = async (method, path, body) => {
+      const r2 = await fetch(base + path, {
+        method,
+        headers: {
+          /* The user's own session. Nothing here elevates anything. */
+          ...(ask.cookie ? { cookie: ask.cookie } : {}),
+          ...(body ? { 'Content-Type': 'application/json' } : {})
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const t = await r2.text();
+      let j = null; try { j = JSON.parse(t); } catch { /* raw */ }
+      if (!r2.ok) throw Object.assign(new Error((j && j.error) || ('inner ' + r2.status)), { status: r2.status });
+      return j || {};
+    };
+
+    try {
+      if (b.kind === 'platform') {
+        const key = String(b.platform || '');
+        if (!['youtube', 'facebook', 'instagram', 'x', 'meta_ads'].includes(key)) {
+          return res.status(400).json({ error: 'unknown platform: ' + key });
+        }
+        const range = [7, 28, 90].includes(Number(b.range)) ? Number(b.range) : 28;
+        return res.json(await inner('GET', '/api/social/platform/' + key + '?range=' + range));
+      }
+      if (b.kind === 'clips') {
+        return res.json(await inner('GET', '/api/systems'));
+      }
+      if (b.kind === 'create_clip') {
+        /* The clip route takes videoUrl and a prefs object; the tool takes a
+           flat shape because that is easier for a model to get right. The
+           mapping belongs here, next to the route it has to match. */
+        return res.json(await inner('POST', '/api/systems/clip/projects', {
+          videoUrl: String(b.url || ''),
+          title: b.title || null,
+          prefs: {
+            model: 'ClipBasic',
+            durations: [[0, 30], [30, 60], [60, 90]],
+            genre: 'Auto',
+            keywords: b.keywords || '',
+            prompt: b.prompt || '',
+            rangeStart: b.rangeStart == null ? '' : String(b.rangeStart),
+            rangeEnd: b.rangeEnd == null ? '' : String(b.rangeEnd),
+            sourceLang: 'auto', aspect: 'portrait',
+            removeFiller: false, skipCurate: false, templateId: ''
+          }
+        }));
+      }
+      res.status(400).json({ error: 'unknown kind: ' + b.kind });
+    } catch (err) {
+      res.status(err.status && err.status < 500 ? err.status : 502).json({ error: err.message });
+    }
   });
 
   /* The browser, once the user has tapped. */
@@ -775,6 +867,13 @@ export function claudeRoutes({ env, auth }){
     res.sendFile(full);
   });
 
+  r.get('/api/claude/agents', auth.require, (req, res) => {
+    res.json({ ok: true, agents: Object.values(AGENTS).map(a => ({
+      id: a.id, platform: a.platform, label: a.label, short: a.short,
+      accent: a.accent, blurb: a.blurb
+    })) });
+  });
+
   r.post('/api/claude/stop', auth.require, (req, res) => {
     /* Before the kill, not after: the ask server is polling, and a question left
        pending would keep it polling against a turn that no longer exists. */
@@ -788,6 +887,11 @@ export function claudeRoutes({ env, auth }){
     const b = req.body || {};
     const prompt = String(b.prompt || '').trim();
     if (!prompt) return res.status(400).json({ error: 'empty prompt' });
+
+    /* An agent turn is an ordinary turn with a brief and an extra tool server.
+       Everything else -- streaming, connectors, the ask widget -- is unchanged,
+       which is the point: there is one chat implementation, not two. */
+    const agent = b.agent && AGENTS[String(b.agent)] ? AGENTS[String(b.agent)] : null;
 
     /* Streaming input, not one-shot -p.
 
@@ -824,16 +928,21 @@ export function claudeRoutes({ env, auth }){
        you get a widget that silently never appears on a machine running two
        copies. */
     const askToken = crypto.randomBytes(24).toString('hex');
+    const selfUrl = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
     let servers = {
       [ASK_SERVER]: {
         command: process.execPath,
         args: [ASK_SCRIPT],
-        env: {
-          CC_ASK_URL: 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000),
-          CC_ASK_TOKEN: askToken
-        }
+        env: { CC_ASK_URL: selfUrl, CC_ASK_TOKEN: askToken }
       }
     };
+    if (agent) {
+      servers[AGENT_SERVER] = {
+        command: process.execPath,
+        args: [AGENT_SCRIPT],
+        env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: askToken, CC_AGENT_PLATFORM: agent.platform }
+      };
+    }
     let strictMcp = false;
     if (b.mcp && String(b.mcp).trim()) {
       try {
@@ -849,7 +958,10 @@ export function claudeRoutes({ env, auth }){
        only when the user supplied a config that means to replace them. */
     if (strictMcp) args.push('--strict-mcp-config');
 
-    ask = { token: askToken, send: (ev, d) => send(ev, d), pending: new Map() };
+    ask = { token: askToken, send: (ev, d) => send(ev, d), pending: new Map(),
+      /* Kept for the duration of the turn only, and used solely to call this
+         same server back as the person who started it. */
+      cookie: req.headers.cookie || '' };
     for (const d of (b.pluginDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--plugin-dir', String(d).trim());
     for (const d of (b.addDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--add-dir', String(d).trim());
     if (b.agents && String(b.agents).trim()) {
@@ -863,7 +975,7 @@ export function claudeRoutes({ env, auth }){
     /* One flag, not two: a second --append-system-prompt replaces the first
        rather than adding to it, and the surface note is the half that must not
        be the one dropped. */
-    const extraSystem = [SURFACE_NOTE,
+    const extraSystem = [SURFACE_NOTE, agent && agent.brief,
       b.appendSystem && String(b.appendSystem).trim()].filter(Boolean).join('\n\n');
     args.push('--append-system-prompt', extraSystem);
     args.push('--disallowed-tools', ...IMPOSSIBLE_HERE);
@@ -897,11 +1009,15 @@ export function claudeRoutes({ env, auth }){
        the one MCP call that cannot do any harm, and it must work on a turn where
        connectors are switched off. */
     const askAllow = 'mcp__' + ASK_SERVER;
+    /* The agent's own tools read this dashboard and draw in its panel. Neither
+       can reach outside the app, so they are allowed for the whole turn rather
+       than being gated behind the connector switch. */
+    const always = agent ? [askAllow, 'mcp__' + AGENT_SERVER] : [askAllow];
     if (PERMITTED) {
       const use = asked && asked.length ? asked.filter(t => PERMITTED.includes(t)) : PERMITTED;
-      args.push('--allowed-tools', ...(use.length ? use : PERMITTED), ...mcpAllow, askAllow);
+      args.push('--allowed-tools', ...(use.length ? use : PERMITTED), ...mcpAllow, ...always);
     } else if (asked && asked.length) {
-      args.push('--allowed-tools', ...asked, ...mcpAllow, askAllow);
+      args.push('--allowed-tools', ...asked, ...mcpAllow, ...always);
     } else {
       args.push('--dangerously-skip-permissions');
     }
@@ -941,7 +1057,8 @@ export function claudeRoutes({ env, auth }){
     /* The ask server counts here too. A turn that starts before it attaches has
        no way to ask a question, which is the whole bug this fixes -- and it is a
        local stdio process, so waiting for it costs a fraction of a second. */
-    const waitFor = [...mcpAllow, 'mcp__' + ASK_SERVER];
+    const waitFor = [...mcpAllow, 'mcp__' + ASK_SERVER,
+      ...(agent ? ['mcp__' + AGENT_SERVER] : [])];
     const onlyAsk = !mcpAllow.length;
     send('status', { phase: 'connectors', text: onlyAsk ? 'starting…' : 'attaching connectors…' });
     /* A ceiling, because one wedged server must not hold the turn forever. */
