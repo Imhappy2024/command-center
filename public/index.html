@@ -12041,7 +12041,15 @@ function ccSteps(m, surface){
     if (seg.ask) return ccAskWidget(seg.ask);
     const key = mi + ':' + si;
     const open = Boolean(S.openRuns[key]);
-    const failed = seg.run.filter(t => /(^|\W)failed(\W|$)/.test(t.detail || '')).length;
+    /* Named, not counted. "1 failed" over a collapsed row tells the reader
+       something went wrong and nothing about what, which leaves opening the fold
+       as the only way to find out -- and for a while on the agent surface the
+       fold did not open. One failure names its tool. */
+    const failedSteps = seg.run.filter(t => /(^|\W)failed(\W|$)/.test(t.detail || ''));
+    const failed = failedSteps.length;
+    const failedLabel = failed === 1
+      ? (ccMcpParts(failedSteps[0].name)?.tool || failedSteps[0].name || 'a tool') + ' failed'
+      : failed + ' failed';
     /* A run still being added to is a run still happening. */
     const live = S.busy && m === S.messages[S.messages.length - 1]
       && si === ccRuns(steps).length - 1;
@@ -12050,7 +12058,7 @@ function ccSteps(m, surface){
       + '<span class="cv">▸</span>'
       + (live ? '<span class="spin"></span>' : '')
       + '<span class="txt">' + escS(ccRunSummary(seg.run)) + '</span>'
-      + (failed ? '<span class="bad">· ' + failed + ' failed</span>' : '')
+      + (failed ? '<span class="bad">· ' + escS(failedLabel) + '</span>' : '')
       + '</button>';
 
     if (!open) return '<div class="ccrun">' + head + '</div>';
@@ -12169,84 +12177,101 @@ async function ccAskSend(step, surface){
    way the token loop does rather than rebuilding the feed under the reader. */
 function ccAskRepaint(surface){
   const S = surface || CC;
-  if (S !== CC && typeof agDraw === 'function') { agDraw(); return; }
+  /* An agent surface repaints its own feed. agPatch rather than drawSystems:
+     a full redraw rebuilds the composer and takes the caret out of it. */
+  if (S !== CC) { if (typeof agPatch === 'function') agPatch(S); return; }
   const last = CC.messages[CC.messages.length - 1];
   if (last && last.role === 'assistant') ccPatch(last);
   else drawClaude();
 }
 
-function wireClaudeChat(root){
-  /* Delegated on the feed rather than bound per button: ccPatch replaces the
-     bubble's innerHTML every 90ms while a turn streams, and anything bound to
-     the old nodes goes with them. The feed element itself survives. */
-  const feed = root.querySelector('#cc-feed');
-  if (feed && !feed.dataset.askwired) {
-    feed.dataset.askwired = '1';
-    feed.addEventListener('click', ev => {
-      const opt = ev.target.closest('[data-asko]');
-      if (opt) {
-        const found = ccAskFind(opt.dataset.askid);
-        if (!found || found.step.state !== 'open') return;
-        const { step, surface } = found;
-        const qi = Number(opt.dataset.askq);
-        const q = step.questions[qi];
-        const label = q.options[Number(opt.dataset.asko)].label;
-        if (q.multiSelect) {
-          const cur = Array.isArray(step.picked[qi]) ? step.picked[qi] : [];
-          step.picked[qi] = cur.includes(label) ? cur.filter(x => x !== label) : [...cur, label];
-        } else {
-          step.picked[qi] = step.picked[qi] === label ? undefined : label;
-        }
-        ccAskRepaint(surface);
-        /* Every single-select question answered and nothing multi-select left to
-           add to: the reader has said everything the widget can ask for, and
-           making them press Send as well is a click that carries no information. */
-        const complete = step.questions.every((qq, i) =>
-          !qq.multiSelect && typeof step.picked[i] === 'string' && step.picked[i]);
-        if (complete) ccAskSend(step, surface);
-        return;
-      }
-      const send = ev.target.closest('[data-asksend]');
-      if (send) {
-        const found = ccAskFind(send.dataset.asksend);
-        if (found && found.step.state === 'open') ccAskSend(found.step, found.surface);
-      }
-    });
-    feed.addEventListener('click', ev => {
-      const row = ev.target.closest('[data-ccrun]');
-      if (!row) return;
-      const k = row.dataset.ccrun;
-      CC.openRuns[k] = !CC.openRuns[k];
-      /* Folding a run away should not leave its steps remembering they were
-         open, or reopening it dumps the whole transcript back on screen. */
-      if (!CC.openRuns[k]) {
-        for (const other of Object.keys(CC.openRuns)) {
-          if (other.startsWith(k + ':')) delete CC.openRuns[other];
-        }
-      }
-      const last = CC.messages[CC.messages.length - 1];
-      if (last && last.role === 'assistant') ccPatch(last); else drawClaude();
-    });
+/* The question widget and the tool-run folds, delegated on a feed element.
 
-    feed.addEventListener('input', ev => {
-      const box = ev.target.closest('[data-askfree]');
-      if (!box) return;
-      const found = ccAskFind(box.dataset.askfree);
-      /* Stored, not repainted: repainting on every keystroke would take the
-         caret out of the box the reader is typing in. */
-      if (found) found.step.free = box.value;
-    });
-    feed.addEventListener('keydown', ev => {
-      const box = ev.target.closest('[data-askfree]');
-      if (!box || ev.key !== 'Enter') return;
-      ev.preventDefault();
-      const found = ccAskFind(box.dataset.askfree);
-      if (found && found.step.state === 'open') {
-        found.step.free = box.value;
-        ccAskSend(found.step, found.surface);
+   Delegated rather than bound per button: the token loop replaces the bubble's
+   innerHTML every 90ms while a turn streams, and anything bound to the old nodes
+   goes with them. The feed element itself survives.
+
+   Both chats call this. It used to live inside wireClaudeChat and be bound to
+   #cc-feed alone, which is why an analyst agent could put a question on screen
+   with tappable options and none of them did anything -- the widget rendered
+   from shared code and the clicks did not.
+
+   getSurface() rather than a captured surface: the agent feed is one element
+   that four agents take turns owning, and which one is on screen changes without
+   the element being replaced. */
+function ccWireFeed(feed, getSurface){
+  if (!feed || feed.dataset.askwired) return;
+  feed.dataset.askwired = '1';
+
+  feed.addEventListener('click', ev => {
+    const opt = ev.target.closest('[data-asko]');
+    if (opt) {
+      const found = ccAskFind(opt.dataset.askid);
+      if (!found || found.step.state !== 'open') return;
+      const { step, surface } = found;
+      const qi = Number(opt.dataset.askq);
+      const q = step.questions[qi];
+      const label = q.options[Number(opt.dataset.asko)].label;
+      if (q.multiSelect) {
+        const cur = Array.isArray(step.picked[qi]) ? step.picked[qi] : [];
+        step.picked[qi] = cur.includes(label) ? cur.filter(x => x !== label) : [...cur, label];
+      } else {
+        step.picked[qi] = step.picked[qi] === label ? undefined : label;
       }
-    });
-  }
+      ccAskRepaint(surface);
+      /* Every single-select question answered and nothing multi-select left to
+         add to: the reader has said everything the widget can ask for, and
+         making them press Send as well is a click that carries no information. */
+      const complete = step.questions.every((qq, i) =>
+        !qq.multiSelect && typeof step.picked[i] === 'string' && step.picked[i]);
+      if (complete) ccAskSend(step, surface);
+      return;
+    }
+    const send = ev.target.closest('[data-asksend]');
+    if (send) {
+      const found = ccAskFind(send.dataset.asksend);
+      if (found && found.step.state === 'open') ccAskSend(found.step, found.surface);
+    }
+  });
+
+  feed.addEventListener('click', ev => {
+    const row = ev.target.closest('[data-ccrun]');
+    if (!row) return;
+    const S = getSurface() || CC;
+    const k = row.dataset.ccrun;
+    S.openRuns[k] = !S.openRuns[k];
+    /* Folding a run away should not leave its steps remembering they were
+       open, or reopening it dumps the whole transcript back on screen. */
+    if (!S.openRuns[k]) {
+      for (const other of Object.keys(S.openRuns)) {
+        if (other.startsWith(k + ':')) delete S.openRuns[other];
+      }
+    }
+    ccAskRepaint(S);
+  });
+
+  feed.addEventListener('input', ev => {
+    const box = ev.target.closest('[data-askfree]');
+    if (!box) return;
+    const found = ccAskFind(box.dataset.askfree);
+    /* Stored, not repainted: repainting on every keystroke would take the caret
+       out of the box the reader is typing in. */
+    if (found) found.step.free = box.value;
+  });
+  feed.addEventListener('keydown', ev => {
+    const box = ev.target.closest('[data-askfree]');
+    if (!box || ev.key !== 'Enter') return;
+    ev.preventDefault();
+    const found = ccAskFind(box.dataset.askfree);
+    if (found && found.step.state === 'open') {
+      found.step.free = box.value;
+      ccAskSend(found.step, found.surface);
+    }
+  });
+}
+
+function wireClaudeChat(root){
+  ccWireFeed(root.querySelector('#cc-feed'), () => CC);
 
   const ta = root.querySelector('#cc-input');
   if (ta) {
@@ -14240,8 +14265,13 @@ function wireAgents(root){
     agRun(box ? box.value : '');
   };
 
-  /* The feed keeps its own scroll position rather than the page's. */
+  /* The question widget and the tool-run folds, same code the Claude section
+     uses. Without this the agent could put a question on screen with tappable
+     options and none of them did anything. */
   const feed = root.querySelector('#ag-feed');
+  ccWireFeed(feed, agNow);
+
+  /* The feed keeps its own scroll position rather than the page's. */
   if (feed && !feed.dataset.scrolled) {
     feed.dataset.scrolled = '1';
     feed.scrollTop = feed.scrollHeight;
