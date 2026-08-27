@@ -214,6 +214,34 @@ export function claudeRoutes({ env, auth }){
      and people take longer than that. */
   let ask = null;
 
+  /* Which CLI sessions belong to something other than the Claude chat.
+
+     Every turn this app runs -- a Hommie question, an analyst pulling metrics, a
+     subagent working through a list -- creates a session file in the same
+     directory the Claude section lists. So the chat history filled up with
+     "hello", "are you there", and a dozen copies of the metrics payload, none of
+     which anyone opened the Claude section to read.
+
+     Kept as a file rather than in memory, because the noise outlives a restart
+     and so must the filter. Ids only: the transcripts stay exactly where they
+     are and are still openable by id, they are simply not in the list. */
+  const HIDDEN_FILE = path.join(dirFor('state', env), 'non-chat-sessions.json');
+  let hidden = new Set();
+  try {
+    const raw = JSON.parse(fs.readFileSync(HIDDEN_FILE, 'utf8'));
+    if (Array.isArray(raw)) hidden = new Set(raw.filter(x => typeof x === 'string'));
+  } catch { /* nothing recorded yet */ }
+
+  const hide = (id, why) => {
+    if (!id || hidden.has(id)) return;
+    hidden.add(id);
+    /* Bounded. A thousand ids is about 40KB and far more history than the CLI
+       keeps anyway. */
+    if (hidden.size > 1000) hidden = new Set([...hidden].slice(-1000));
+    try { fs.writeFileSync(HIDDEN_FILE, JSON.stringify([...hidden])); }
+    catch (err) { console.error('[claude] could not record a ' + why + ' session:', err.message); }
+  };
+
   /* What has gone wrong lately, so "something's broken" is a thing Hommie can
      look at rather than a thing it has to ask about.
 
@@ -1776,14 +1804,29 @@ export function claudeRoutes({ env, auth }){
     catch { return res.json({ ok: true, sessions: [], dir, note: 'no history yet' }); }
 
     const sessions = [];
+    let hiddenCount = 0;
     for (const f of files) {
       const full = path.join(dir, f);
       let st;
       try { st = fs.statSync(full); } catch { continue; }
+      const id = path.basename(f, '.jsonl');
+      /* Hommie, the analysts and the subagents all leave session files here.
+         They are conversations, but not the ones this list is for. */
+      if (hidden.has(id)) { hiddenCount++; continue; }
       const info = summarise(full);
       /* A transcript with no real prompt in it is a session that never got off
          the ground -- showing it would just be noise in the list. */
       if (!info.prompts) continue;
+      /* Belt and braces for anything recorded before the register existed: a
+         metrics payload is unmistakable and nobody typed one. */
+      /* Two shapes, both unmistakable and neither ever typed by a person: the
+         metrics payload the Analyze button sends now, and the canned instruction
+         it used to send before that. Anything older than the register is
+         identified this way once and then remembered. */
+      if (/^<metrics-pull>/.test(info.title || '')
+          || /^Analyze the last 28 days. Pull the metrics first/.test(info.title || '')) {
+        hide(id, 'agent'); hiddenCount++; continue;
+      }
       sessions.push({
         id: path.basename(f, '.jsonl'),
         title: info.title || 'Untitled',
@@ -1794,7 +1837,9 @@ export function claudeRoutes({ env, auth }){
       });
     }
     sessions.sort((a, b) => String(b.updated).localeCompare(String(a.updated)));
-    res.json({ ok: true, sessions, dir, cwd: CWD });
+    /* Reported rather than silently dropped, so a missing chat is explainable
+       instead of a mystery. */
+    res.json({ ok: true, sessions, dir, cwd: CWD, hidden: hiddenCount });
   });
 
   /* The transcript itself, so opening a past chat shows what was said rather
@@ -2244,6 +2289,13 @@ export function claudeRoutes({ env, auth }){
         let frame = null;
         try { frame = JSON.parse(line); } catch { send('raw', { text: line }); continue; }
         send('msg', frame);
+
+        /* Hommie, an analyst and a subagent all leave a session file in the same
+           directory the Claude section lists. Recording the id here is what keeps
+           the chat history a list of chats. */
+        if ((hommie || agent) && frame.session_id) {
+          hide(frame.session_id, hommie ? 'hommie' : 'agent');
+        }
 
         /* Server states arrive on `system` frames after init. Once none are
            pending, the session is as connected as it is going to get. */

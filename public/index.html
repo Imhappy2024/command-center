@@ -14445,7 +14445,13 @@ async function agRun(text, opts){
   for (const step of reply.steps || []) {
     if (step.kind === 'ask' && step.state === 'open') step.state = 'closed';
   }
-  if (!reply.text && !(reply.steps || []).length) reply.text = '_(no output)_';
+  if (!reply.text && !(reply.steps || []).length) {
+    /* Two different silences. One is a turn that produced nothing, which is a
+       fault; the other is a turn stopped on purpose, which is not, and labelling
+       both "(no output)" makes the transcript unreadable when someone has been
+       interrupting. */
+    reply.text = HM.interrupted ? '_(interrupted)_' : '_(no output)_';
+  }
   drawSystems();
   agSaveThread(S);
 }
@@ -14701,7 +14707,14 @@ const HM = {
   saidAt: 0,             // when it last stopped
   said: '',              // what it last said, so the microphone hearing it back
                          // is recognised as an echo rather than a new question
-  interim: '',           // the utterance being assembled
+  interim: '',           // the utterance being assembled, for the screen
+  /* Keyed by the recogniser's own result index.
+
+     Chrome sends the same result twice -- interim, then final -- and the final
+     is the whole utterance again, not the remainder. Appending both is why every
+     sentence came out doubled: "umm do you have access to my uh youtube metrics
+     Umm, do you have access to my, uh, Youtube metrics?" */
+  parts: new Map(),
   hush: null,            // the silence timer that commits it
   lastAskAt: 0,          // when, so a follow-up can be joined to it
   interrupted: false,    // a turn was cut off and the CLI needs a beat
@@ -14759,8 +14772,18 @@ const HM_FILLER = /^(uh|um|erm|hmm+|mm+|ah|oh|eh|yeah|yep|yes|no|nope|ok|okay|ri
 const HM_WAKE = [
   'hommie', 'homie', 'homey', 'holmes', 'homme', 'hommy', 'homi', 'hommi',
   'home e', 'hom e', 'ohmie', 'omie', 'ommie', 'hoagie', 'homely', 'commie',
-  'hommie', 'howmie', 'hoemie', 'hom ie'
+  'howmie', 'howmi', 'how me', 'how mi', 'hoemie', 'hoe mi', 'hoe me',
+  'ho me', 'ho mi', 'hommee', 'homee', 'hom ie'
 ];
+
+/* The written name and the spoken name are not the same string.
+
+   It is pronounced "Home-ee", with a long o. A synthesiser handed "Hommie"
+   says "HOM-ee" -- short o, wrong word -- so everything on its way to the
+   speaker gets the phonetic spelling instead, while the screen keeps the real
+   one. */
+const hmSayable = t => String(t || '').replace(/homm?ie/gi,
+  m => (m[0] === m[0].toUpperCase() ? 'Homey' : 'homey'));
 
 const hmNorm = t => String(t || '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ')
   .replace(/\s+/g, ' ').trim();
@@ -14815,36 +14838,32 @@ function hmStartEar(){
     for (let i = ev.resultIndex; i < ev.results.length; i++) {
       const res = ev.results[i];
       const text = res[0]?.transcript || '';
-      if (!res.isFinal) {
-        HM.heard = text;
-        HM.interim = text;
-        /* Chrome decides an utterance has ended when it feels like it, and on a
-           quiet microphone that is often seconds after the person stopped. That
-           delay is most of "it didn't answer". So the silence is timed here as
-           well, and whichever notices first commits the utterance. */
-        clearTimeout(HM.hush);
-        HM.hush = setTimeout(() => {
-          const pending = HM.interim;
-          HM.interim = ''; HM.heard = ''; HM.hush = null;
-          if (pending) { hmFinal(pending); hmPatch(); }
-        }, hmWaitFor(text));
-        hmPatch();
-        continue;
-      }
-      /* A final result is Chrome's opinion that the sentence ended, and Chrome
-         is often wrong about that -- a pause in the middle of a thought produces
-         one. So it is held for the same window as an interim: if more arrives,
-         the two are joined; if nothing does, it goes.
+      /* Stored against the recogniser's own result index, interim and final
+         alike, so a final REPLACES its own interim instead of being appended to
+         it. Appending both is why every sentence came out twice:
 
-         This is the fix for "I paused for a second and it cut me off". */
-      HM.heard = '';
-      HM.interim = (HM.interim ? HM.interim + ' ' : '') + text;
+           "umm do you have access to my uh youtube metrics Umm, do you have
+            access to my, uh, Youtube metrics?"
+
+         Two different indexes are two different pieces of one sentence and those
+         do get joined, which is what lets "check youtube" ... "and facebook"
+         arrive as a single utterance. */
+      HM.parts.set(i, text);
+      const whole = [...HM.parts.entries()].sort((a, b) => a[0] - b[0])
+        .map(([, t]) => t.trim()).filter(Boolean).join(' ');
+      HM.heard = res.isFinal ? '' : whole;
+      HM.interim = whole;
+
+      /* Held either way. A final result is only Chrome's opinion that the
+         sentence ended, and a pause mid-thought produces one, so it waits out
+         the same silence an interim would and anything more joins it. */
       clearTimeout(HM.hush);
       HM.hush = setTimeout(() => {
         const pending = HM.interim;
+        HM.parts.clear();
         HM.interim = ''; HM.heard = ''; HM.hush = null;
         if (pending) { hmFinal(pending); hmPatch(); }
-      }, hmWaitFor(HM.interim));
+      }, hmWaitFor(whole));
       hmPatch();
     }
   };
@@ -14929,6 +14948,38 @@ function hmWaitFor(text){
    a new one, and answering it on its own gets an answer to half a thought. */
 const HM_MORE = /^(and|also|plus|but|or|actually|wait|no|sorry|i mean|as well|oh|then|instead|make (it|that)|add|include|except|not the|rather)\b/i;
 
+/* "Are you there." Said while it is working, that is not a new question and
+   killing the turn to answer it is the worst possible response -- which is
+   exactly what happened: every "hello" aborted the answer being written, so it
+   never finished, so there was more silence, so there was another "hello".
+   Seven of them in a row. */
+const HM_POKE = /^(hello|hi|hey|you there|are you there|can you hear me|did you hear me|still there|anything|you ok|hommie|homie|homey)[\s.,!?]*$/i;
+
+const HM_HOLD = [
+  'Still on it.',
+  'Yeah, working on it.',
+  'One sec, nearly there.',
+  'Still going.'
+];
+
+/* Said the instant an utterance is committed, from here rather than from the
+   model.
+
+   The model takes six seconds to produce its first word, and six seconds of
+   silence after you finish a sentence is long enough that anyone reasonable
+   assumes they were not heard and says it again. That repeat then interrupts the
+   answer, and the whole thing deadlocks. Four words from the browser costs
+   nothing and closes the gap. */
+const HM_ACK = [
+  'One sec.',
+  'Let me check.',
+  'Hang on.',
+  'Checking now.',
+  'Give me a moment.',
+  'On it.'
+];
+const hmPick = list => list[Math.floor(Math.random() * list.length)];
+
 /* Stop everything and listen.
 
    "It should pause what it's doing and listen to me" -- so it does. A turn in
@@ -14985,6 +15036,21 @@ function hmFinal(text){
     said = after;
   } else if (!HM.always && HM.state !== 'armed') {
     return;                                    // wake-word mode, not addressed
+  }
+
+  /* Being poked while working, checked BEFORE the filler test and not after.
+
+     Every phrase someone uses to check whether they were heard -- "hello", "are
+     you there", "can you hear me" -- is also a phrase people say to nobody in
+     particular, so both lists contain them. Filler first meant a "hello" while
+     working was dropped in silence, which is what caused the silence that caused
+     the "hello". Seven of them in a row, in the transcript, with no reply to
+     any. */
+  if ((HM.busy || HM.jobs.length) && HM_POKE.test(said.trim())) {
+    hmSpeak(hmPick(HM_HOLD));
+    HM.dropped = { text: raw, why: 'still working on the last one' };
+    hmPatch();
+    return;
   }
 
   const norm = hmNorm(said);
@@ -15110,7 +15176,7 @@ function hmShutUp(){
    barge-in land inside a sentence rather than at the end of a paragraph, and it
    is what lets the answer start being spoken while it is still arriving. */
 function hmClean(text){
-  return String(text || '')
+  return hmSayable(text)
     /* Markdown that survived the brief. Asterisks get read out as "asterisk" by
        some voices and silently by others, and neither is what was meant. */
     .replace(/```[\s\S]*?```/g, ' ')
@@ -15200,6 +15266,17 @@ function hmSpeak(text){
 /* ---------- a turn ---------- */
 
 async function hmSay(text, opts){
+  /* Declared here, and this line is load-bearing.
+
+     It was missing, and three later edits added o.connectors, o.retryOf and
+     o.silent without noticing -- so every spoken question threw a ReferenceError
+     before it reached the network. Nothing on the server saw anything wrong,
+     because nothing on the server was ever asked; the transcript just filled up
+     with questions and no answers.
+
+     The end-to-end tests all posted to /api/claude/chat directly and passed
+     throughout. The browser harness is what caught it. */
+  const o = opts || {};
   const said = String(text || '').trim();
   if (!said) return;
   /* Anything still running is stopped rather than refused. hmFinal has usually
@@ -15223,7 +15300,9 @@ async function hmSay(text, opts){
   HM.lastAsk = o.retryOf || said;
   HM.lastAskAt = Date.now();
   HM.dropped = null;
-  if (!o.silent) hmBeep(true);
+  /* Before anything else, so the answer is not the first thing heard. Skipped on
+     the connector retry, where the user has already been told to hold on. */
+  if (!o.silent) hmSpeak(hmPick(HM_ACK));
   hmPaint();
 
   const ctrl = new AbortController();
