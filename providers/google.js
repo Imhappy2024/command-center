@@ -245,3 +245,110 @@ export async function listEvents({ token, cal, from, to }){
     }))
     .filter(e => e.start && e.end);
 }
+
+/* ---------------------------------------------------------------------------
+   Drive, read only.
+
+   One job: turn a name someone said out loud into a file with a URL. The search
+   is deliberately loose -- "day 1" has to find "Day 1 - Raw.mp4" -- and the
+   results carry enough to tell two candidates apart out loud: folder, size, when
+   it was last modified.
+
+   `linkShared` is the field that matters for the OpusClip path. OpusClip fetches
+   a Drive URL as an anonymous client, so a file that is private to the account
+   fails on their side with nothing useful in the message. Knowing beforehand is
+   the difference between "set link sharing on that file" and "the clip job
+   failed".
+
+   Read only on purpose. Finding a file is the whole job here, and a write scope
+   would also let a misheard sentence move or delete one. */
+
+const DRIVE = 'https://www.googleapis.com/drive/v3';
+
+/* Drive's query language takes a single-quoted string, and an unescaped
+   apostrophe in a filename ends that string early and turns the rest of the
+   name into syntax. */
+const dq = s => String(s).split('\\').join('\\\\').split("'").join("\\'");
+
+async function driveCall(token, url){
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    const reason = j.error?.errors?.[0]?.reason || '';
+    const msg = j.error?.message || res.statusText;
+    if (res.status === 403 && /insufficient|accessNotConfigured|scope/i.test(reason + ' ' + msg)) {
+      throw Object.assign(new Error(
+        'This Google connection was granted before Drive access existed. '
+        + 'Reconnect Google in Connections and the search will work.'), { reauth: true });
+    }
+    throw new Error(`Drive ${res.status}${reason ? ` (${reason})` : ''}: ${msg}`);
+  }
+  return res.json();
+}
+
+/* Folders whose name contains the given text, so "in Raw videos" means
+   something rather than being dropped. */
+export async function findFolders(token, name){
+  const q = "mimeType = 'application/vnd.google-apps.folder' and trashed = false"
+    + (name ? ` and name contains '${dq(name)}'` : '');
+  const j = await driveCall(token,
+    `${DRIVE}/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=20`
+    + '&supportsAllDrives=true&includeItemsFromAllDrives=true');
+  return (j.files || []).map(f => ({ id: f.id, name: f.name }));
+}
+
+export async function findFiles(token, { name, folder = null, video = true, limit = 12 } = {}){
+  let parents = [];
+  if (folder) {
+    parents = await findFolders(token, folder);
+    /* A folder that does not exist is worth saying. Without this the search
+       silently widens to the whole Drive and returns the wrong file with
+       complete confidence. */
+    if (!parents.length) {
+      return { files: [], folderSearched: folder, folderFound: false,
+        note: `No folder matching "${folder}". Nothing was searched; ask which folder they meant.` };
+    }
+  }
+
+  const bits = ['trashed = false'];
+  if (name) bits.push(`name contains '${dq(name)}'`);
+  if (video) bits.push("mimeType contains 'video/'");
+  if (parents.length) {
+    bits.push('(' + parents.map(p => `'${dq(p.id)}' in parents`).join(' or ') + ')');
+  }
+
+  const j = await driveCall(token,
+    `${DRIVE}/files?q=${encodeURIComponent(bits.join(' and '))}`
+    + '&fields=' + encodeURIComponent(
+      'files(id,name,mimeType,size,modifiedTime,webViewLink,shared,owners(displayName))')
+    + `&pageSize=${Math.min(50, Number(limit) || 12)}&orderBy=modifiedTime desc`
+    + '&supportsAllDrives=true&includeItemsFromAllDrives=true');
+
+  const files = (j.files || []).map(f => ({
+    id: f.id,
+    name: f.name,
+    mimeType: f.mimeType,
+    /* Drive returns size as a string, and omits it for Google-native files.
+       Absent, not zero. */
+    sizeMB: f.size ? Math.round(Number(f.size) / 1048576) : null,
+    modified: f.modifiedTime || null,
+    url: f.webViewLink || `https://drive.google.com/file/d/${f.id}/view`,
+    linkShared: Boolean(f.shared),
+    owner: f.owners?.[0]?.displayName || null
+  }));
+
+  const unshared = files.filter(f => !f.linkShared).length;
+  return {
+    files,
+    count: files.length,
+    folderSearched: folder || null,
+    folderFound: folder ? true : null,
+    folders: parents.map(p => p.name),
+    note: !files.length
+      ? 'Nothing matched. Try fewer words from the name.'
+      : unshared
+        ? 'Some of these are not link-shared. OpusClip fetches a Drive URL anonymously, so a '
+          + 'private file has to be set to "anyone with the link" before it can be used.'
+        : undefined
+  };
+}

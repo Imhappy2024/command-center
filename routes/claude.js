@@ -35,6 +35,8 @@ import { runNow, providerFamily, pollerStatus } from '../lib/social-sync.js';
    module import silently. The pull stored session-title fields as its metrics
    summary for a whole run before a comparison test noticed. */
 import { compact, summarise as summariseMetrics, compare, agoLabel } from '../lib/agent-metrics.js';
+import { HOMMIE, HOMMIE_META } from '../lib/hommie-brief.js';
+import { execFile } from 'node:child_process';
 
 /* Hosted platforms all announce themselves. If any of these is set we are not
    on someone's laptop, and this router does not exist. */
@@ -83,6 +85,19 @@ const ASK_SCRIPT = fileURLToPath(new URL('../tools/ask-mcp.mjs', import.meta.url
 const AGENT_SERVER = 'command_center_agent';
 const AGENT_SCRIPT = fileURLToPath(new URL('../tools/agent-mcp.mjs', import.meta.url));
 
+/* Hommie gets its own server rather than a bigger version of the analysts'.
+   The analysts are locked to one platform each and that lock is the point of
+   them; Hommie reads everything and can act, so mixing the two would mean the
+   YouTube analyst inheriting a tool that can push to GitHub. */
+const HOMMIE_SERVER = 'hommie';
+const HOMMIE_SCRIPT = fileURLToPath(new URL('../tools/hommie-mcp.mjs', import.meta.url));
+
+/* Repair mode needs a shell and an editor. They are added to the permitted set
+   only for a turn the user has armed from the browser, and never otherwise --
+   a voice assistant that can run bash on a misheard sentence is not something
+   to leave switched on. */
+const REPAIR_TOOLS = ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash', 'TodoWrite'];
+
 const SURFACE_NOTE = [
   'You are running inside the Command Center dashboard, in a chat panel in a web page,',
   'not a terminal. The built-in AskUserQuestion tool does not work here and has been',
@@ -95,6 +110,43 @@ const SURFACE_NOTE = [
   'is genuinely unavailable, write the question and numbered options as plain text and',
   'end your turn.'
 ].join(' ');
+
+/* Only appended on a turn the user has armed. It is written as a procedure
+   rather than a permission, because the failure mode of a self-healing agent is
+   not refusing to act -- it is acting confidently on a diagnosis it never
+   checked, and shipping that. */
+const REPAIR_NOTE = [
+  '# Repair mode is on',
+  '',
+  'You can read and change the code of this dashboard, run its tests, commit and',
+  'push. Pushing deploys. Work in this order and do not skip a step:',
+  '',
+  '1. **Reproduce before you diagnose.** Call repair_check first, every time. If',
+  '   it passes, the thing the user is describing is not a parse or boot error and',
+  '   guessing at a file will waste both your time and theirs. Ask what they saw.',
+  '2. **Look before you touch.** repair_status says what is already changed. Some',
+  '   of it may not be yours, and sweeping someone else\'s work into your commit is',
+  '   worse than the bug.',
+  '3. **Read the actual code.** Read the file. Do not infer what it says from the',
+  '   error and edit blind.',
+  '4. **The smallest change that fixes it.** Not a refactor, not a tidy-up. One',
+  '   cause, one fix.',
+  '5. **repair_check again.** A change that has not been preflighted has not been',
+  '   tested. If it fails, read the output and fix it; do not ship and hope.',
+  '6. **Say what you are shipping and get a yes** before repair_ship. Name the',
+  '   files and the one-line reason. repair_ship runs the preflight again itself',
+  '   and refuses on a failure, so it cannot be talked past.',
+  '7. **Wait, then verify.** Give the deploy about two minutes, then repair_live',
+  '   with the SHA. If it is still on the old commit, wait and check again --',
+  '   do not push anything else at it.',
+  '',
+  'If you cannot find the cause, say so. "I could not work out what is wrong, here',
+  'is what I ruled out" is a real answer and a wrong fix shipped confidently is not.',
+  'Never change a file to make a test pass when the test is right.',
+  '',
+  'Out loud, this is all one or two sentences at a time: what you are checking,',
+  'what you found, what you want to do. Not a running commentary.'
+].join('\n');
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'TodoWrite'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash'];
@@ -324,6 +376,352 @@ export function claudeRoutes({ env, auth }){
       res.status(400).json({ error: 'unknown kind: ' + b.kind });
     } catch (err) {
       res.status(err.status && err.status < 500 ? err.status : 502).json({ error: err.message });
+    }
+  });
+
+  /* ---- Hommie ------------------------------------------------------------
+
+     One assistant across the whole dashboard, driven by voice. Everything it can
+     do is an enumerated kind here that maps to one of this app's own routes,
+     carrying the browser's session -- there is no pass-through, because a tool
+     that can reach an arbitrary URL on this origin is one misheard sentence away
+     from a DELETE. */
+
+  /* Things Hommie makes the page do: change section, draw a panel, or queue an
+     analyst run. Pushed down the same SSE stream the turn is already using. */
+  r.post('/api/claude/hommie/act', express.json({ limit: '1mb' }), (req, res) => {
+    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    const b = req.body || {};
+    try {
+      if (b.action === 'navigate') {
+        ask.send('hommie', { kind: 'navigate', section: String(b.section || ''),
+          view: b.view ? String(b.view) : null });
+      } else if (b.action === 'panel') {
+        ask.send('hommie', { kind: 'panel',
+          panel: { id: crypto.randomUUID(), at: Date.now(), ...(b.panel || {}) } });
+      } else if (b.action === 'analyze') {
+        ask.send('hommie', { kind: 'analyze', platform: String(b.platform || '') });
+      } else {
+        return res.status(400).json({ error: 'unknown action' });
+      }
+    } catch { /* the page went away mid-turn */ }
+    res.json({ ok: true });
+  });
+
+  /* Preflight, git and the deployed copy. Kept here rather than let loose as
+     shell strings: the model picks the verb, never the command line. */
+  const sh = (cmd, args, opts) => new Promise(done => {
+    execFile(cmd, args, { cwd: CWD, maxBuffer: 8 * 1024 * 1024, timeout: 240_000, ...opts },
+      (error, stdout, stderr) => done({
+        ok: !error,
+        code: error?.code ?? 0,
+        out: String(stdout || '').slice(-6000),
+        err: String(stderr || '').slice(-4000)
+      }));
+  });
+
+  const preflight = async () => {
+    const r2 = await sh(process.execPath, ['tools/preflight.mjs']);
+    return { passed: r2.ok, output: (r2.out + (r2.err ? '\n' + r2.err : '')).slice(-4000) };
+  };
+
+  r.post('/api/claude/hommie/data', express.json({ limit: '256kb' }), async (req, res) => {
+    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    const b = req.body || {};
+    const base = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
+    const inner = async (method, pathname, body) => {
+      const r2 = await fetch(base + pathname, {
+        method,
+        headers: {
+          ...(ask.cookie ? { cookie: ask.cookie } : {}),
+          ...(body ? { 'Content-Type': 'application/json' } : {})
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const t = await r2.text();
+      let j = null; try { j = JSON.parse(t); } catch { /* raw */ }
+      if (!r2.ok) throw Object.assign(new Error((j && j.error) || ('inner ' + r2.status)), { status: r2.status });
+      return j || {};
+    };
+    /* Everything heard out loud is approximate, so every name match here is
+       loose and case-insensitive rather than exact. */
+    const has = (hay, needle) => !needle
+      || String(hay || '').toLowerCase().includes(String(needle).toLowerCase());
+    const cap = (n, d, max) => Math.min(max, Math.max(1, Number(n) || d));
+
+    try {
+      switch (b.kind) {
+        case 'tasks': {
+          const j = await inner('GET', '/api/tasks');
+          if (!j.configured) return res.json({ connected: false, reason: j.reason });
+          const now = Date.now();
+          const closed = t => t.canonical === 'done' || t.canonical === 'closed' || Boolean(t.closed);
+          const all = j.tasks || [];
+          const day = 86_400_000;
+          const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
+          const f = String(b.filter || 'overdue');
+          let rows = all.filter(t => {
+            if (f === 'all') return true;
+            if (f === 'closed') return closed(t);
+            if (f === 'open') return !closed(t);
+            if (f === 'unassigned') return !closed(t) && !(t.assignees || []).length;
+            if (closed(t) || !t.due) return false;
+            if (f === 'overdue') return t.due < now;
+            if (f === 'today') return t.due <= endOfToday.getTime();
+            if (f === 'week') return t.due <= endOfToday.getTime() + 7 * day;
+            return true;
+          });
+          if (b.assignee) {
+            rows = rows.filter(t => (t.assignees || []).some(a =>
+              has(a.username, b.assignee) || has(a.email, b.assignee)));
+          }
+          if (b.list) rows = rows.filter(t => has(t.list?.name, b.list) || has(t.space?.name, b.list));
+          if (b.search) rows = rows.filter(t => has(t.name, b.search));
+          rows.sort((x, y) => (x.due || Infinity) - (y.due || Infinity));
+
+          /* Who owns the pile, so "fourteen overdue and eleven of them are Ben's"
+             is one call rather than fourteen. */
+          const byPerson = {};
+          for (const t of rows) {
+            for (const a of (t.assignees || [])) {
+              byPerson[a.username] = (byPerson[a.username] || 0) + 1;
+            }
+            if (!(t.assignees || []).length) byPerson['(unassigned)'] = (byPerson['(unassigned)'] || 0) + 1;
+          }
+          const limit = cap(b.limit, 25, 100);
+          return res.json({
+            filter: f, count: rows.length, warming: Boolean(j.warming),
+            progress: j.warming ? j.progress : undefined,
+            byAssignee: Object.entries(byPerson).sort((x, y) => y[1] - x[1])
+              .slice(0, 8).map(([who, n]) => ({ who, n })),
+            tasks: rows.slice(0, limit).map(t => ({
+              name: t.name, url: t.url, status: t.status,
+              due: t.due ? new Date(t.due).toISOString().slice(0, 10) : null,
+              daysLate: t.due && t.due < now ? Math.floor((now - t.due) / day) : null,
+              assignees: (t.assignees || []).map(a => a.username),
+              list: t.list?.name || null, space: t.space?.name || null,
+              priority: t.priority || null
+            })),
+            truncated: Math.max(0, rows.length - limit)
+          });
+        }
+
+        case 'social': {
+          const key = String(b.platform || '');
+          if (!['youtube', 'facebook', 'instagram', 'x', 'meta_ads'].includes(key)) {
+            return res.status(400).json({ error: 'unknown platform: ' + key });
+          }
+          const range = [7, 28, 90].includes(Number(b.range)) ? Number(b.range) : 28;
+          const raw = await inner('GET', '/api/social/platform/' + key + '?range=' + range);
+          const c = compact(key, raw);
+          return res.json({ ...c, summary: summariseMetrics(key, c) });
+        }
+
+        case 'leads': {
+          const q = b.search ? '?q=' + encodeURIComponent(String(b.search)) : '';
+          const j = await inner('GET', '/api/ghl/leads' + q);
+          let rows = j.leads || [];
+          if (b.stage) rows = rows.filter(l => has(l.stageName, b.stage));
+          const limit = cap(b.limit, 15, 50);
+          return res.json({
+            count: rows.length, searched: j.search || null,
+            leads: rows.slice(0, limit).map(l => ({
+              name: l.name, email: l.email || null, phone: l.phone || null,
+              stage: l.stageName, status: l.status, value: l.value,
+              tags: l.tags, owner: l.owner || null, last: l.last
+            })),
+            truncated: Math.max(0, rows.length - limit)
+          });
+        }
+
+        case 'properties': {
+          const j = await inner('GET', '/api/properties');
+          let rows = j.properties || [];
+          if (b.search) {
+            rows = rows.filter(p => has(p.address, b.search) || has(p.name, b.search)
+              || has(p.entityName, b.search) || has(p.city, b.search));
+          }
+          const limit = cap(b.limit, 15, 50);
+          return res.json({
+            count: rows.length,
+            properties: rows.slice(0, limit),
+            truncated: Math.max(0, rows.length - limit)
+          });
+        }
+
+        case 'calendar': {
+          const j = await inner('GET', '/api/calendar');
+          const days = cap(b.days, 7, 60);
+          const until = Date.now() + days * 86_400_000;
+          const rows = (j.events || []).filter(e => {
+            const t = Date.parse(e.start || e.startsAt || '');
+            return Number.isFinite(t) && t <= until && t >= Date.now() - 3_600_000;
+          });
+          return res.json({ days, count: rows.length, events: rows.slice(0, 40) });
+        }
+
+        case 'mail': {
+          const folder = ['inbox', 'sent', 'archive', 'spam', 'trash']
+            .includes(String(b.folder)) ? String(b.folder) : 'inbox';
+          const j = await inner('GET', '/api/mail?folder=' + folder);
+          const limit = cap(b.limit, 15, 40);
+          const rows = (j.messages || j.mail || []);
+          return res.json({
+            folder, count: rows.length,
+            messages: rows.slice(0, limit).map(m => ({
+              from: m.from || m.sender || null, subject: m.subject || '(no subject)',
+              when: m.when || m.date || null, unread: Boolean(m.unread)
+            }))
+          });
+        }
+
+        case 'clips': return res.json(await inner('GET', '/api/systems'));
+
+        case 'drive_find':
+          return res.json(await inner('GET', '/api/drive/find?name='
+            + encodeURIComponent(String(b.name || ''))
+            + (b.folder ? '&folder=' + encodeURIComponent(String(b.folder)) : '')
+            + (b.video === false ? '' : '&video=1')));
+
+        case 'create_clip': {
+          const lengths = Array.isArray(b.lengths) && b.lengths.length
+            ? b.lengths.slice(0, 4).map(p => [Number(p[0]) || 0, Number(p[1]) || 60])
+            : [[0, 30], [30, 60], [60, 90]];
+          return res.json(await inner('POST', '/api/systems/clip/projects', {
+            videoUrl: String(b.url || ''),
+            title: b.title || null,
+            prefs: {
+              model: 'ClipBasic', durations: lengths, genre: 'Auto',
+              keywords: b.keywords || '', prompt: b.prompt || '',
+              rangeStart: b.rangeStart == null ? '' : String(b.rangeStart),
+              rangeEnd: b.rangeEnd == null ? '' : String(b.rangeEnd),
+              sourceLang: 'auto', aspect: 'portrait',
+              removeFiller: false, skipCurate: false, templateId: ''
+            }
+          }));
+        }
+
+        case 'analyze': {
+          const key = String(b.platform || '');
+          const agent = Object.values(AGENTS).find(a => a.platform === key);
+          if (!agent) return res.status(400).json({ error: 'no analyst for ' + key });
+          /* Queued in the browser rather than started here. One Claude turn runs
+             at a time and this IS that turn, so starting a second would 409
+             against Hommie itself. The page runs it the moment Hommie is done. */
+          ask.send('hommie', { kind: 'analyze', platform: key, agent: agent.id });
+          return res.json({ queued: true, agent: agent.id, platform: key,
+            note: 'It starts as soon as this turn ends and runs in Systems.' });
+        }
+
+        case 'read_video':
+        case 'update_video': {
+          const id = String(b.videoId || '').trim();
+          if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) {
+            return res.status(400).json({ error: 'that is not a YouTube video id' });
+          }
+          if (b.kind === 'read_video') {
+            return res.json(await inner('GET', '/api/social/youtube/video/' + id));
+          }
+          const body = {};
+          if (typeof b.title === 'string') body.title = b.title;
+          if (typeof b.description === 'string') body.description = b.description;
+          if (!Object.keys(body).length) return res.status(400).json({ error: 'nothing to change' });
+          return res.json(await inner('POST', '/api/social/youtube/video/' + id, body));
+        }
+
+        /* ---- repair. Only reachable on a turn the user armed. ---- */
+        case 'repair_check':
+        case 'repair_status':
+        case 'repair_ship':
+        case 'repair_live': {
+          if (!ask.repair) {
+            return res.status(403).json({
+              error: 'Repair mode is off. The user has to turn it on with the Repair switch '
+                + 'next to the microphone before anything can touch the code.' });
+          }
+          if (b.kind === 'repair_check') return res.json(await preflight());
+
+          if (b.kind === 'repair_status') {
+            const st = await sh('git', ['status', '--porcelain']);
+            const log = await sh('git', ['log', '--oneline', '-6']);
+            const branch = await sh('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
+            const files = st.out.split(/\r?\n/).filter(Boolean).map(l => l.trim());
+            return res.json({
+              branch: branch.out.trim(),
+              changed: files, changedCount: files.length,
+              recent: log.out.split(/\r?\n/).filter(Boolean),
+              note: files.length
+                ? 'Some of this may not be yours. Say what you are about to commit before you do.'
+                : 'Nothing is changed.'
+            });
+          }
+
+          if (b.kind === 'repair_ship') {
+            const msg = String(b.message || '').trim();
+            if (!msg) return res.status(400).json({ error: 'a commit needs a message' });
+            /* Preflight here, every time, rather than trusting a flag set
+               earlier in the turn. A commit that was not tested at the moment it
+               was made is an untested commit. */
+            const pre = await preflight();
+            if (!pre.passed) {
+              return res.json({ shipped: false, reason: 'preflight failed', output: pre.output,
+                note: 'Nothing was committed. Fix this first, then ship.' });
+            }
+            const st = await sh('git', ['status', '--porcelain']);
+            if (!st.out.trim()) return res.json({ shipped: false, reason: 'nothing to commit' });
+
+            const add = await sh('git', ['add', '-A']);
+            if (!add.ok) return res.json({ shipped: false, reason: 'git add failed', output: add.err });
+            const full = msg + (b.body ? '\n\n' + String(b.body) : '')
+              + '\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>';
+            const commit = await sh('git', ['commit', '-m', full]);
+            if (!commit.ok) return res.json({ shipped: false, reason: 'git commit failed', output: commit.err || commit.out });
+            const push = await sh('git', ['push']);
+            if (!push.ok) {
+              const sha0 = await sh('git', ['rev-parse', '--short', 'HEAD']);
+              return res.json({ shipped: false, committed: true, sha: sha0.out.trim(),
+                reason: 'the commit landed locally but the push failed', output: push.err,
+                note: 'Say so plainly. Do not commit again.' });
+            }
+            const sha = await sh('git', ['rev-parse', '--short', 'HEAD']);
+            console.log('[hommie] shipped ' + sha.out.trim() + ': ' + msg);
+            return res.json({ shipped: true, sha: sha.out.trim(), message: msg,
+              note: 'Pushed. Give the deploy about two minutes, then call repair_live.' });
+          }
+
+          /* repair_live */
+          const url = env.PUBLIC_URL || '';
+          if (!/^https?:\/\//.test(url)) {
+            return res.json({ checked: false, reason: 'PUBLIC_URL is not set, so there is no deployed copy to check.' });
+          }
+          const started = Date.now();
+          let health = null, version = null, error = null;
+          try {
+            const h = await fetch(url.replace(/\/+$/, '') + '/api/health',
+              { signal: AbortSignal.timeout(15_000) });
+            health = h.status;
+            const v = await fetch(url.replace(/\/+$/, '') + '/api/app/version',
+              { signal: AbortSignal.timeout(15_000) }).then(x => x.json()).catch(() => null);
+            version = v || null;
+          } catch (e) { error = e.message; }
+          const live = version?.commit || version?.sha || null;
+          const want = b.expectCommit ? String(b.expectCommit).slice(0, 12) : null;
+          return res.json({
+            checked: true, url, health, error,
+            liveCommit: live, expected: want,
+            match: want && live ? String(live).startsWith(want) || want.startsWith(String(live)) : null,
+            tookMs: Date.now() - started,
+            note: want && live && !(String(live).startsWith(want) || want.startsWith(String(live)))
+              ? 'Still on the old commit. Wait and check again rather than pushing anything else.'
+              : undefined
+          });
+        }
+
+        default:
+          return res.status(400).json({ error: 'unknown kind: ' + b.kind });
+      }
+    } catch (err2) {
+      res.status(err2.status && err2.status < 500 ? err2.status : 502).json({ error: err2.message });
     }
   });
 
@@ -1147,8 +1545,16 @@ export function claudeRoutes({ env, auth }){
 
     /* An agent turn is an ordinary turn with a brief and an extra tool server.
        Everything else -- streaming, connectors, the ask widget -- is unchanged,
-       which is the point: there is one chat implementation, not two. */
+       which is the point: there is one chat implementation, not two.
+
+       Hommie is the same trick again with a different brief and a different tool
+       server. It is deliberately NOT in AGENTS: those are platform analysts, each
+       locked to one platform, and letting Hommie join that list is how the
+       YouTube analyst would end up inheriting a tool that pushes to GitHub. */
     const agent = b.agent && AGENTS[String(b.agent)] ? AGENTS[String(b.agent)] : null;
+    const hommie = !agent && String(b.agent || '') === HOMMIE_META.id;
+    /* Armed from the browser, per turn. Never sticky and never a default. */
+    const repair = hommie && b.repair === true;
 
     /* Streaming input, not one-shot -p.
 
@@ -1200,6 +1606,17 @@ export function claudeRoutes({ env, auth }){
         env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: askToken, CC_AGENT_PLATFORM: agent.platform }
       };
     }
+    if (hommie) {
+      servers[HOMMIE_SERVER] = {
+        command: process.execPath,
+        args: [HOMMIE_SCRIPT],
+        env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: askToken,
+          /* The tool list itself is shorter when repair is off: an unarmed
+             Hommie is not told the repair tools exist, rather than being told
+             about them and asked not to reach for them. */
+          CC_HOMMIE_REPAIR: repair ? '1' : '0' }
+      };
+    }
     let strictMcp = false;
     if (b.mcp && String(b.mcp).trim()) {
       try {
@@ -1225,9 +1642,12 @@ export function claudeRoutes({ env, auth }){
       /* Which agent, which pull and which conversation this turn belongs to, so
          anything the agent records lands attached to them rather than floating
          free. */
-      agentId: agent ? agent.id : null,
+      agentId: agent ? agent.id : (hommie ? HOMMIE_META.id : null),
       pullId: b.pullId ? String(b.pullId).slice(0, 64) : null,
-      threadId: b.threadId ? String(b.threadId).slice(0, 64) : null };
+      threadId: b.threadId ? String(b.threadId).slice(0, 64) : null,
+      /* Checked by the repair kinds. Held here rather than read back off the
+         request, so a later call in the same turn cannot arm itself. */
+      repair };
     for (const d of (b.pluginDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--plugin-dir', String(d).trim());
     for (const d of (b.addDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--add-dir', String(d).trim());
     if (b.agents && String(b.agents).trim()) {
@@ -1241,10 +1661,22 @@ export function claudeRoutes({ env, auth }){
     /* One flag, not two: a second --append-system-prompt replaces the first
        rather than adding to it, and the surface note is the half that must not
        be the one dropped. */
-    const extraSystem = [SURFACE_NOTE, agent && agent.brief,
+    const extraSystem = [SURFACE_NOTE, agent && agent.brief, hommie && HOMMIE,
+      hommie && repair && REPAIR_NOTE,
       b.appendSystem && String(b.appendSystem).trim()].filter(Boolean).join('\n\n');
     args.push('--append-system-prompt', extraSystem);
-    args.push('--disallowed-tools', ...IMPOSSIBLE_HERE);
+    /* --allowed-tools AUTO-APPROVES; it does not remove. Every built-in stays in
+       the session's tool list whether or not it was named, so an unarmed Hommie
+       was still offered Bash -- and on this surface there is no permission
+       prompt to stop it being used. --disallowed-tools is the only flag that
+       takes a tool away, so that is what guards repair mode.
+
+       Hommie only. The Claude section is a full Claude Code session and gates
+       its own write tools on CLAUDE_WRITE; narrowing it here would quietly
+       change what that switch means. */
+    const strippedForHommie = hommie && !repair
+      ? ['Bash', 'Edit', 'Write', 'NotebookEdit'] : [];
+    args.push('--disallowed-tools', ...IMPOSSIBLE_HERE, ...strippedForHommie);
     if (b.noSkills) args.push('--disable-slash-commands');
 
     /* The browser may narrow the tool set but never widen it past what this
@@ -1278,10 +1710,16 @@ export function claudeRoutes({ env, auth }){
     /* The agent's own tools read this dashboard and draw in its panel. Neither
        can reach outside the app, so they are allowed for the whole turn rather
        than being gated behind the connector switch. */
-    const always = agent ? [askAllow, 'mcp__' + AGENT_SERVER] : [askAllow];
-    if (PERMITTED) {
-      const use = asked && asked.length ? asked.filter(t => PERMITTED.includes(t)) : PERMITTED;
-      args.push('--allowed-tools', ...(use.length ? use : PERMITTED), ...mcpAllow, ...always);
+    const always = agent ? [askAllow, 'mcp__' + AGENT_SERVER]
+      : hommie ? [askAllow, 'mcp__' + HOMMIE_SERVER]
+      : [askAllow];
+    /* Repair mode widens the built-in set for this turn only. Without it Hommie
+       has the dashboard tools and nothing that can touch a file, which is what
+       every other turn gets. */
+    const builtins = repair ? REPAIR_TOOLS : PERMITTED;
+    if (builtins) {
+      const use = asked && asked.length ? asked.filter(t => builtins.includes(t)) : builtins;
+      args.push('--allowed-tools', ...(use.length ? use : builtins), ...mcpAllow, ...always);
     } else if (asked && asked.length) {
       args.push('--allowed-tools', ...asked, ...mcpAllow, ...always);
     } else {
@@ -1324,7 +1762,8 @@ export function claudeRoutes({ env, auth }){
        no way to ask a question, which is the whole bug this fixes -- and it is a
        local stdio process, so waiting for it costs a fraction of a second. */
     const waitFor = [...mcpAllow, 'mcp__' + ASK_SERVER,
-      ...(agent ? ['mcp__' + AGENT_SERVER] : [])];
+      ...(agent ? ['mcp__' + AGENT_SERVER] : []),
+      ...(hommie ? ['mcp__' + HOMMIE_SERVER] : [])];
     const onlyAsk = !mcpAllow.length;
     send('status', { phase: 'connectors', text: onlyAsk ? 'starting…' : 'attaching connectors…' });
     /* A ceiling, because one wedged server must not hold the turn forever. */
