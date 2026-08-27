@@ -2248,6 +2248,13 @@ main{min-width:0;display:flex;flex-direction:column}
 .aghtog{background:none;border:1px solid var(--edge2);border-radius:7px;color:var(--dim);
   font:inherit;font-size:12px;line-height:1;padding:5px 8px;cursor:pointer;flex:none}
 .aghtog:hover{color:var(--cream);border-color:var(--brass)}
+/* Up a level, not back a step, so it says where it goes. */
+.agback{display:inline-flex;align-items:center;gap:6px;background:none;border:0;
+  color:var(--dim);font:inherit;font-size:12px;padding:5px 8px 5px 0;cursor:pointer;flex:none;
+  border-right:1px solid var(--edge2);margin-right:2px}
+.agback:hover{color:var(--cream)}
+.agback span{font-size:14px;line-height:1}
+@media(max-width:720px){.agback{font-size:0;padding-right:6px}.agback span{font-size:15px}}
 .agdot{width:9px;height:9px;border-radius:50%;display:block;flex:none}
 .agdot.big{width:11px;height:11px}
 
@@ -13583,7 +13590,13 @@ function metricsSystem(){
 
 function agHead(S, meta){
   const busy = S.busy || Boolean(S.pulling);
+  /* The way out lives here as well as in the section header. The chat is a
+     fixed-height pane inside a page that scrolls, so by the time anyone has read
+     an analysis the "All automations" button is somewhere above the top of the
+     window and there is no visible way back. */
   return '<div class="aghead">'
+    + '<button class="agback" data-agback="1" title="Back to all automations">'
+    +   '<span>&larr;</span> Automations</button>'
     + '<button class="aghtog" data-aghist="1" title="Conversations">'
     +   (AG.showHistory ? '⟨' : '☰') + '</button>'
     + '<span class="agdot" style="background:' + escS(meta.accent) + '"></span>'
@@ -14226,6 +14239,13 @@ function wireAgents(root){
     AG.histFor = null;
     drawSystems();
   });
+  root.querySelectorAll('[data-agback]').forEach(b => b.onclick = () => {
+    /* A turn left running would keep streaming into a surface nobody is looking
+       at, and the next Analyze would 409 against it. */
+    const S = agNow();
+    if (S && (S.busy || S.pulling)) agStop();
+    sysBack();
+  });
   root.querySelectorAll('[data-agrun]').forEach(b => b.onclick = agAnalyze);
   root.querySelectorAll('[data-agstop]').forEach(b => b.onclick = agStop);
   root.querySelectorAll('[data-agnew]').forEach(b => b.onclick = agNewThread);
@@ -14329,10 +14349,16 @@ window.addEventListener('hashchange', () => {
   if (!ROUTE.booting) routeApply(location.hash.slice(1));
 });
 
-document.getElementById('sy-back').onclick = () => {
+function sysBack(){
   clearInterval(SY.poll); SY.poll = null;
-  SY.open = null; SY.project = null; SY.clips = []; SY.picked.clear(); drawSystems();
-};
+  SY.open = null; SY.project = null; SY.clips = []; SY.picked.clear();
+  drawSystems();
+  /* The section header is above the fold once an automation has been open and
+     the page has been scrolled, so going back to a grid the reader cannot see
+     reads as nothing happening. */
+  document.getElementById('v-systems')?.scrollIntoView({ block: 'start' });
+}
+document.getElementById('sy-back').onclick = sysBack;
 document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
   if (b.dataset.target === 'systems') { if (!SY.automations.length) loadSystems(); }
   else { clearInterval(SY.poll); SY.poll = null; }
