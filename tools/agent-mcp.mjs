@@ -28,47 +28,48 @@ const VERSION = '1.0.0';
 
 const log = m => { try { process.stderr.write('[agent-mcp] ' + m + '\n'); } catch { /* nothing to do */ } };
 
-const PLATFORMS = ['youtube', 'facebook', 'instagram', 'x', 'meta_ads'];
+/* Each agent is a specialist and can read exactly one platform. Not a
+   convention -- the tool schema offers one value and the server rejects anything
+   else, because an agent told it can read four platforms will eventually read
+   four, and a YouTube analyst that has just looked at Instagram stops being a
+   YouTube analyst. */
+const LABEL = { youtube: 'YouTube', facebook: 'Facebook', instagram: 'Instagram',
+  x: 'X', meta_ads: 'the Meta ad account' };
+const MINE = LABEL[PLATFORM] ? PLATFORM : 'youtube';
+const MY_LABEL = LABEL[MINE];
+/* Ads have campaigns, not posts. */
+const ORGANIC = MINE !== 'meta_ads';
 
 const TOOLS = [
   {
     name: 'get_metrics',
-    description: [
-      'Read this dashboard\'s stored metrics for one platform over a window.',
-      'Returns daily series, per-campaign rows for meta_ads, account totals and',
-      'the previous window for comparison. Call it before answering anything',
-      'quantitative, and call it more than once with different ranges when you',
-      'need to tell a trend from a wobble.',
-      '',
-      'meta_ads is the Meta AD ACCOUNT (spend, impressions, clicks, results, by',
-      'campaign and day). facebook and instagram are the ORGANIC accounts. They',
-      'are different data; ask for the one the question is about.'
-    ].join(' '),
+    description: 'Read this dashboard\'s stored metrics for ' + MY_LABEL + ' over a window. '
+      + (ORGANIC
+          ? 'Returns the daily series, account totals and recent posts.'
+          : 'Returns per-campaign rows, account totals, the daily series and the previous '
+            + 'window for comparison.')
+      + ' Call it before answering anything quantitative, and call it more than once with '
+      + 'different ranges when you need to tell a trend from a wobble. This is the only '
+      + 'platform you can read.',
     inputSchema: {
-      type: 'object', additionalProperties: false, required: ['platform'],
-      properties: {
-        platform: { type: 'string', enum: PLATFORMS, description: 'Which platform to read.' },
+      type: 'object', additionalProperties: false, properties: {
         range: { type: 'integer', enum: [7, 28, 90], default: 28,
           description: 'Window in days. 7, 28 or 90.' }
       }
     }
   },
-  {
+  ...(ORGANIC ? [{
     name: 'get_posts',
-    description: [
-      'Recent posts or videos for a platform with their individual stats.',
-      'This is where outliers live: sort by views or engagement against the',
-      'median and the ones doing several times the median are the channel\'s',
-      'actual product.'
-    ].join(' '),
+    description: 'Recent ' + MY_LABEL + ' posts with their individual stats. This is where '
+      + 'outliers live: rank against the median and the ones doing several times it are what '
+      + 'this account is actually good at. Each carries its permalink, so you can put the '
+      + 'title in a table as a link and the reader can open it.',
     inputSchema: {
-      type: 'object', additionalProperties: false, required: ['platform'],
-      properties: {
-        platform: { type: 'string', enum: PLATFORMS },
+      type: 'object', additionalProperties: false, properties: {
         range: { type: 'integer', enum: [7, 28, 90], default: 90 }
       }
     }
-  },
+  }] : []),
   {
     name: 'show_table',
     description: [
@@ -92,10 +93,21 @@ const TOOLS = [
         },
         rows: {
           type: 'array', minItems: 1, maxItems: 200,
-          description: 'Each row is an array of cells, same length as columns. Numbers stay numbers.',
+          description: 'Each row is an array of cells, same length as columns. Numbers stay '
+            + 'numbers. A cell may also be {"text":"...","url":"..."} to make it a link -- use '
+            + 'that for a post or video title so the reader can open it, and a video link opens '
+            + 'in a player rather than a new tab.',
           items: {
             type: 'array',
-            items: { type: ['string', 'number', 'boolean', 'null'] }
+            items: {
+              anyOf: [
+                { type: ['string', 'number', 'boolean', 'null'] },
+                {
+                  type: 'object', additionalProperties: false, required: ['text', 'url'],
+                  properties: { text: { type: 'string' }, url: { type: 'string' } }
+                }
+              ]
+            }
           }
         },
         tones: {
@@ -250,7 +262,8 @@ function compact(platform, j){
 
 async function run(name, args){
   if (name === 'get_metrics' || name === 'get_posts') {
-    const platform = String(args?.platform || PLATFORM);
+    /* The agent's own platform, whatever it asked for. */
+    const platform = MINE;
     const range = [7, 28, 90].includes(args?.range) ? args.range : (name === 'get_posts' ? 90 : 28);
     const j = await call('/api/claude/agent/data', { kind: 'platform', platform, range });
     const out = compact(platform, j);
@@ -269,6 +282,13 @@ async function run(name, args){
        silently shifts every cell after the gap into the wrong column, which is
        worse than an error because it looks like data. */
     const wrong = rows.findIndex(r => r.length !== cols.length);
+    for (const r of rows) {
+      for (const c of r) {
+        if (c && typeof c === 'object' && !('text' in c && 'url' in c)) {
+          throw new Error('a cell object must have both text and url');
+        }
+      }
+    }
     if (wrong >= 0) {
       throw new Error('row ' + (wrong + 1) + ' has ' + rows[wrong].length + ' cells but there are '
         + cols.length + ' columns. Every row must match the header.');

@@ -236,6 +236,12 @@ export function claudeRoutes({ env, auth }){
         if (!['youtube', 'facebook', 'instagram', 'x', 'meta_ads'].includes(key)) {
           return res.status(400).json({ error: 'unknown platform: ' + key });
         }
+        if (ask.platform && key !== ask.platform) {
+          return res.status(403).json({
+            error: 'This agent reads ' + ask.platform + ' only. ' + key
+              + ' belongs to a different agent in the same menu.'
+          });
+        }
         const range = [7, 28, 90].includes(Number(b.range)) ? Number(b.range) : 28;
         return res.json(await inner('GET', '/api/social/platform/' + key + '?range=' + range));
       }
@@ -961,7 +967,10 @@ export function claudeRoutes({ env, auth }){
     ask = { token: askToken, send: (ev, d) => send(ev, d), pending: new Map(),
       /* Kept for the duration of the turn only, and used solely to call this
          same server back as the person who started it. */
-      cookie: req.headers.cookie || '' };
+      cookie: req.headers.cookie || '',
+      /* The one platform this turn's agent may read. Enforced here as well as in
+         the tool schema: the schema is a suggestion to a model, this is not. */
+      platform: agent ? agent.platform : null };
     for (const d of (b.pluginDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--plugin-dir', String(d).trim());
     for (const d of (b.addDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--add-dir', String(d).trim());
     if (b.agents && String(b.agents).trim()) {

@@ -2225,7 +2225,14 @@ main{min-width:0;display:flex;flex-direction:column}
 .agfeed{flex:1;min-height:0;overflow-y:auto;padding:16px 16px 8px;display:flex;
   flex-direction:column;gap:14px}
 @media(max-width:1200px){.agfeed{max-height:60vh}}
-.agpanel{overflow-y:auto;min-width:0;display:flex;flex-direction:column;gap:11px;padding-right:2px}
+/* The panel sits on its own ground, a shade below the chat and cooler than it.
+   Both surfaces were the same card colour, so a screen with three tables on it
+   read as six panels of equal weight and the conversation stopped being findable.
+   The data is the quieter half: you look at it when you want it, and it should
+   not compete with the sentence that is telling you what it means. */
+.agpanel{overflow-y:auto;min-width:0;display:flex;flex-direction:column;gap:10px;
+  background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-lg);
+  padding:11px}
 @media(max-width:1200px){.agpanel{max-height:none}}
 
 .agturn{display:flex;flex-direction:column;gap:6px;min-width:0}
@@ -2258,13 +2265,13 @@ main{min-width:0;display:flex;flex-direction:column}
 .agsend.stop{width:auto;padding:0 13px;font-size:12px;background:var(--rust)}
 
 /* ---- what the agent draws ---- */
-.agcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
+.agcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-md);
   overflow:hidden;flex:none}
 .agcard.bad{border-color:rgba(255,90,69,.35)}
 .agcard.warn{border-color:rgba(255,176,32,.35)}
 .agcard.good{border-color:rgba(53,208,165,.32)}
-.agcardh{display:flex;align-items:baseline;gap:10px;padding:10px 13px;
-  border-bottom:1px solid var(--edge);background:var(--panel2);flex-wrap:wrap}
+.agcardh{display:flex;align-items:baseline;gap:10px;padding:9px 12px;
+  border-bottom:1px solid var(--edge);background:rgba(124,108,255,.055);flex-wrap:wrap}
 .agcardh b{font-family:var(--ff-display);font-size:12.5px;color:var(--cream);font-weight:600}
 .agcardh small{font-size:11px;color:var(--dimmer);flex:1;min-width:0}
 .agat{font-family:var(--ff-mono);font-size:9.5px;color:var(--brass);
@@ -2282,7 +2289,7 @@ main{min-width:0;display:flex;flex-direction:column}
   border-bottom:1px solid rgba(38,44,70,.6);display:flex;align-items:center}
 .agt>span.n{justify-content:flex-end;font-family:var(--ff-mono);font-size:11.5px;
   font-variant-numeric:tabular-nums}
-.agt>span.h{background:var(--ink2);color:var(--dimmer);font-family:var(--ff-mono);font-size:9px;
+.agt>span.h{background:var(--panel2);color:var(--dimmer);font-family:var(--ff-mono);font-size:9px;
   letter-spacing:.1em;text-transform:uppercase;position:sticky;top:0;z-index:2;
   border-bottom:1px solid var(--edge)}
 .agt>span.t{background:var(--panel3);color:var(--cream);font-weight:600;border-bottom:0;
@@ -2293,6 +2300,28 @@ main{min-width:0;display:flex;flex-direction:column}
 .agt .rowline{display:none}
 .agt .rowline.bad~span,.agt .rowline.warn~span,.agt .rowline.good~span{}
 .agt>span:not(.h):not(.t){color:var(--text)}
+/* A title with a permalink behind it. A video opens in the player rather than a
+   tab, because the reason to click a video title in an analysis is to see the
+   thing being analysed, not to leave. */
+.agt a{color:var(--brass);text-decoration:none;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.agt a:hover{text-decoration:underline}
+.agt a.play::before{content:"▶";font-size:8px;margin-right:6px;color:var(--dimmer)}
+.agt a.play:hover::before{color:var(--brass)}
+
+/* The pop-up player. */
+.agplayer{position:fixed;inset:0;z-index:70;display:none;background:rgba(6,8,16,.78);
+  backdrop-filter:blur(4px);padding:6vh 24px;overflow-y:auto}
+.agplayer.on{display:block}
+.agplaybox{max-width:min(980px,94vw);margin:0 auto;background:var(--panel);
+  border:1px solid var(--edge2);border-radius:var(--r-lg);overflow:hidden;
+  box-shadow:0 40px 90px -30px #000}
+.agplayh{display:flex;align-items:center;gap:12px;padding:12px 15px;
+  border-bottom:1px solid var(--edge)}
+.agplayh b{flex:1;min-width:0;font-family:var(--ff-display);font-size:14px;color:var(--cream);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agplayh a{font-size:11.5px;color:var(--dimmer);text-decoration:none}
+.agplayh a:hover{color:var(--brass);text-decoration:underline}
 
 .agvid{background:#000;aspect-ratio:16/9;display:block}
 .agvid iframe,.agvid video{width:100%;height:100%;border:0;display:block;background:#000}
@@ -8640,6 +8669,10 @@ document.getElementById('tk-refresh')?.addEventListener('click', () => tkLoad(tr
 
 const PR = {
   loaded: false, loading: false, error: null,
+  /* Distinct from PR.loaded, which a refresh resets. This one says whether the
+     section has ever been open, and it is what stops a refresh or a return visit
+     re-expanding a band the reader closed. */
+  everLoaded: false,
   data: null,
   mode: 'portfolio',                // portfolio | debt
   q: '', own: 'held', manager: '', state: '', lender: '', loans: '',
@@ -8659,21 +8692,28 @@ async function prLoad(force){
     if (!r.ok) throw new Error(j.error || ('properties ' + r.status));
     PR.data = j;
     prIndex();
-    /* Open the largest root the current filter leaves standing. The default
-       filter is Held, and the biggest root by raw value can easily be a shell
-       whose properties were all sold, which would open onto nothing. */
-    const passing = new Set((PR.data.properties || []).filter(prPass).map(p => p.id));
-    let best = null;
-    for (const t of PR.data.tree || []) {
-      let mv = 0, n = 0;
-      for (const id of PR.data.subtree.get(t.id) || []) {
-        if (!passing.has(id)) continue;
-        const p = PR.data.byId.get(id);
-        if (p) { mv += prMv(p); n++; }
+    /* Open the largest root the current filter leaves standing -- on the FIRST
+       load only. The default filter is Held, and the biggest root by raw value
+       can easily be a shell whose properties were all sold, which would open
+       onto nothing.
+
+       Only the first, because leaving the section now closes everything and
+       re-expanding a band on the way back would undo that immediately. */
+    if (!PR.everLoaded) {
+      const passing = new Set((PR.data.properties || []).filter(prPass).map(p => p.id));
+      let best = null;
+      for (const t of PR.data.tree || []) {
+        let mv = 0, n = 0;
+        for (const id of PR.data.subtree.get(t.id) || []) {
+          if (!passing.has(id)) continue;
+          const p = PR.data.byId.get(id);
+          if (p) { mv += prMv(p); n++; }
+        }
+        if (n && (!best || mv > best.mv)) best = { id: t.id, mv };
       }
-      if (n && (!best || mv > best.mv)) best = { id: t.id, mv };
+      PR.open = best ? best.id : null;
+      PR.everLoaded = true;
     }
-    PR.open = best ? best.id : null;
     PR.loaded = true;
   } catch (err) { PR.error = err.message; }
   PR.loading = false;
@@ -10218,7 +10258,11 @@ function prAddBuilding(){
 
 document.getElementById('pr-scrim')?.addEventListener('click', prClosePanel);
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && PD.id && !PD.editing) prClosePanel();
+  if (e.key !== 'Escape') return;
+  /* The player is on top of everything, so it closes first. */
+  const player = document.getElementById('ag-player');
+  if (player && player.classList.contains('on')) { agClosePlayer(); return; }
+  if (PD.id && !PD.editing) prClosePanel();
 });
 
 /* ================= VERSION AND UPDATES =================
@@ -13472,11 +13516,31 @@ function agTable(p){
   const cols = p.columns || [];
   const rows = p.rows || [];
   const tones = p.tones || [];
+  /* A link cell is never a number, whatever its text looks like -- a column of
+     titles that happen to be dates should not right-align. */
   const numeric = cols.map((_, i) => rows.length
-    && rows.every(r => r[i] === null || r[i] === '' || typeof r[i] === 'number'
-      || (typeof r[i] === 'string' && /^[-+$£€]?[\d,]+(\.\d+)?%?$/.test(r[i].trim()))));
+    && rows.every(r => {
+      const v = r[i];
+      if (v && typeof v === 'object') return false;
+      return v === null || v === '' || typeof v === 'number'
+        || (typeof v === 'string' && /^[-+$£€]?[\d,]+(\.\d+)?%?$/.test(v.trim()));
+    }));
 
   const cell = (v, i) => {
+    /* A cell can be {text, url}: the agent puts a post title in with its
+       permalink behind it. A video link opens the player; anything else is an
+       ordinary link to a new tab. */
+    if (v && typeof v === 'object' && v.url) {
+      const url = String(v.url);
+      const safe = /^https?:\/\//i.test(url);
+      const label = escS(String(v.text || url));
+      if (!safe) return '<span>' + label + '</span>';
+      return '<span>' + (agPlayable(url)
+        ? '<a class="play" href="' + escS(url) + '" data-agplay="' + escS(url)
+          + '" data-agtitle="' + escS(String(v.text || '')) + '">' + label + '</a>'
+        : '<a href="' + escS(url) + '" target="_blank" rel="noopener">' + label + '</a>')
+        + '</span>';
+    }
     const t = v === null || v === undefined || v === '' ? '—'
       : typeof v === 'number'
         ? (Math.abs(v) >= 1000 ? Math.round(v).toLocaleString()
@@ -13499,36 +13563,76 @@ function agTable(p){
     + '</div></div></div>';
 }
 
-/* YouTube goes in an iframe because that is the only way to play it; anything
-   else is a <video> tag. A start time is the point of showing it at all -- the
-   drop in the curve, the hook that needs rewriting -- so it is honoured by
-   both. */
-function agVideo(p){
-  const url = String(p.url || '');
-  const yt = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/.exec(url)
-    || (/^[A-Za-z0-9_-]{11}$/.test(url) ? [null, url] : null);
-  const start = Number(p.startAt) > 0 ? Math.floor(Number(p.startAt)) : 0;
+/* One place that decides what a url is and how to play it, used by the panel
+   card and by the pop-up alike. */
+const AG_YT = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/;
+const AG_FILE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
-  const player = yt
-    ? '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(yt[1])
+/* Whether clicking this should open a player rather than a tab. Anything we can
+   embed; everything else is somebody else's page and belongs in a new tab. */
+function agPlayable(url){
+  const u = String(url || '');
+  if (!/^https?:\/\//i.test(u)) return false;
+  return AG_YT.test(u) || AG_FILE.test(u);
+}
+
+function agPlayerHtml(url, title, startAt){
+  const u = String(url || '');
+  const yt = AG_YT.exec(u) || (/^[A-Za-z0-9_-]{11}$/.test(u) ? [null, u] : null);
+  const start = Number(startAt) > 0 ? Math.floor(Number(startAt)) : 0;
+  if (yt) {
+    return '<iframe src="https://www.youtube-nocookie.com/embed/' + encodeURIComponent(yt[1])
       + (start ? '?start=' + start : '')
-      + '" title="' + escS(p.title || 'Video') + '" allowfullscreen '
+      + '" title="' + escS(title || 'Video') + '" allowfullscreen '
       + 'allow="accelerometer; clipboard-write; encrypted-media; picture-in-picture" '
-      + 'referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe>'
-    /* Only http(s). A javascript: or data: url in a src is the obvious way to
-       turn "the agent showed me a video" into something else. */
-    : /^https?:\/\//i.test(url)
-      ? '<video controls preload="metadata" src="' + escS(url) + (start ? '#t=' + start : '') + '"></video>'
-      : '<div class="agempty" style="padding:24px"><b>That is not a playable link</b>'
-        + '<small>' + escS(url.slice(0, 120)) + '</small></div>';
+      + 'referrerpolicy="strict-origin-when-cross-origin" loading="lazy"></iframe>';
+  }
+  /* Only http(s) reaches a src. A javascript: or data: url is the obvious way to
+     turn "the agent showed me a video" into something else. */
+  if (/^https?:\/\//i.test(u)) {
+    return '<video controls autoplay preload="metadata" src="' + escS(u)
+      + (start ? '#t=' + start : '') + '"></video>';
+  }
+  return '<div class="agempty" style="padding:24px"><b>That is not a playable link</b>'
+    + '<small>' + escS(u.slice(0, 120)) + '</small></div>';
+}
 
+function agVideo(p){
+  const start = Number(p.startAt) > 0 ? Math.floor(Number(p.startAt)) : 0;
   return '<div class="agcard">'
     + '<div class="agcardh"><b>' + escS(p.title || 'Video') + '</b>'
     +   (p.note ? '<small>' + escS(p.note) + '</small>' : '')
     +   (start ? '<span class="agat">from ' + Math.floor(start / 60) + ':'
         + String(start % 60).padStart(2, '0') + '</span>' : '')
     + '</div>'
-    + '<div class="agvid">' + player + '</div></div>';
+    + '<div class="agvid">' + agPlayerHtml(p.url, p.title, start) + '</div></div>';
+}
+
+/* The pop-up. Torn down rather than hidden on close: an iframe left in the DOM
+   keeps playing, and a hidden video you can still hear is worse than no player. */
+function agOpenPlayer(url, title){
+  let host = document.getElementById('ag-player');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'ag-player';
+    host.className = 'agplayer';
+    document.body.appendChild(host);
+    host.addEventListener('click', e => { if (e.target === host) agClosePlayer(); });
+  }
+  host.innerHTML = '<div class="agplaybox" role="dialog" aria-modal="true">'
+    + '<div class="agplayh"><b>' + escS(title || 'Video') + '</b>'
+    +   '<a href="' + escS(url) + '" target="_blank" rel="noopener">Open on the platform ↗</a>'
+    +   '<button class="tgl" data-agplayclose="1">Close</button></div>'
+    + '<div class="agvid">' + agPlayerHtml(url, title, 0) + '</div></div>';
+  host.classList.add('on');
+  host.querySelectorAll('[data-agplayclose]').forEach(b => b.onclick = agClosePlayer);
+}
+
+function agClosePlayer(){
+  const host = document.getElementById('ag-player');
+  if (!host) return;
+  host.classList.remove('on');
+  host.innerHTML = '';
 }
 
 function agNote(p){
@@ -13694,14 +13798,24 @@ function wireAgents(root){
     agRun(box ? box.value : '');
   };
 
+  root.querySelectorAll('[data-agplay]').forEach(a => a.onclick = e => {
+    /* A modifier click still opens the platform, the way a link should. */
+    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return true;
+    e.preventDefault();
+    agOpenPlayer(a.dataset.agplay, a.dataset.agtitle);
+    return false;
+  });
+
   root.querySelectorAll('[data-agcopy]').forEach(b => b.onclick = () => {
     const S = agNow();
     const p = S && S.panels.find(x => x.id === b.dataset.agcopy);
     if (!p) return;
     /* Tab-separated, which is what a spreadsheet expects from the clipboard. */
+    const flat = v => v == null ? ''
+      : (typeof v === 'object' ? String(v.text ?? '') : String(v));
     const lines = [(p.columns || []).join('\t')]
-      .concat((p.rows || []).map(r => r.map(v => v == null ? '' : String(v)).join('\t')));
-    if (p.total) lines.push(p.total.map(v => v == null ? '' : String(v)).join('\t'));
+      .concat((p.rows || []).map(r => r.map(flat).join('\t')));
+    if (p.total) lines.push(p.total.map(flat).join('\t'));
     navigator.clipboard.writeText(lines.join('\n')).then(
       () => toast('Copied as rows'), () => toast('Could not copy'));
   });
