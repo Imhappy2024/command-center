@@ -176,6 +176,56 @@ export function claudeRoutes({ env, auth }){
      and people take longer than that. */
   let ask = null;
 
+  /* What has gone wrong lately, so "something's broken" is a thing Hommie can
+     look at rather than a thing it has to ask about.
+
+     In memory and small on purpose: this is a breadcrumb trail for a repair
+     conversation happening now, not a log. Fifty is more than anyone will
+     discuss and it costs nothing to keep. */
+  const FAULTS = [];
+  const noteFault = f => {
+    /* The same error firing in a render loop is one fault with a count, not
+       fifty rows that push everything else out of the buffer. */
+    const same = FAULTS.find(x => x.message === f.message && x.where === f.where);
+    if (same) { same.count++; same.last = f.last; return; }
+    FAULTS.push({ ...f, count: 1 });
+    if (FAULTS.length > 50) FAULTS.shift();
+  };
+
+  /* The browser reporting its own. Authenticated but not token-gated: this is
+     the page telling the server it broke, which is not a privileged act, and
+     losing the report because a token expired defeats the point. */
+  r.post('/api/claude/fault', auth.require, express.json({ limit: '64kb' }), (req, res) => {
+    const b = req.body || {};
+    const msg = String(b.message || '').slice(0, 500);
+    if (!msg) return res.status(400).json({ error: 'no message' });
+    noteFault({
+      side: 'browser',
+      message: msg,
+      where: String(b.where || '').slice(0, 300),
+      stack: String(b.stack || '').slice(0, 2000),
+      section: String(b.section || '').slice(0, 60),
+      first: new Date().toISOString(),
+      last: new Date().toISOString()
+    });
+    res.json({ ok: true });
+  });
+
+  /* Anything this server logs to console.error lands here too, so a failed
+     query and a failed render are in one list. Wrapped rather than replaced:
+     the console output still happens. */
+  const realError = console.error;
+  console.error = (...args) => {
+    try {
+      const text = args.map(a => (a instanceof Error ? a.message : String(a))).join(' ').slice(0, 500);
+      if (text) {
+        noteFault({ side: 'server', message: text, where: '', stack: '',
+          first: new Date().toISOString(), last: new Date().toISOString() });
+      }
+    } catch { /* never let logging break logging */ }
+    realError(...args);
+  };
+
   const askCancelAll = why => {
     if (!ask) return;
     for (const q of ask.pending.values()) {
@@ -579,6 +629,28 @@ export function claudeRoutes({ env, auth }){
         }
 
         case 'clips': return res.json(await inner('GET', '/api/systems'));
+
+        case 'recent_errors': {
+          const since = Number(b.minutes) > 0 ? Number(b.minutes) : 60;
+          const cut = Date.now() - since * 60_000;
+          const rows = FAULTS.filter(f => new Date(f.last).getTime() >= cut)
+            .slice(-20).reverse();
+          return res.json({
+            minutes: since,
+            count: rows.length,
+            faults: rows.map(f => ({
+              side: f.side, message: f.message, where: f.where || undefined,
+              section: f.section || undefined, seen: f.count,
+              lastAt: f.last,
+              stack: f.stack ? String(f.stack).split('\n').slice(0, 6).join('\n') : undefined
+            })),
+            note: rows.length
+              ? 'Newest first. A high "seen" count is one fault repeating, not several.'
+              : 'Nothing has gone wrong in that window. If the user saw something, ask '
+                + 'them what they were doing and what it looked like -- not every failure '
+                + 'throws.'
+          });
+        }
 
         case 'drive_find':
           return res.json(await inner('GET', '/api/drive/find?name='

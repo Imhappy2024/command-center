@@ -164,6 +164,28 @@ const TOOLS = [
     }
   },
 
+  {
+    name: 'recent_errors',
+    description: [
+      'What has actually gone wrong recently -- errors thrown in the page and',
+      'errors logged by the server, newest first, with how many times each one',
+      'repeated.',
+      '',
+      'Call this FIRST whenever the user says something is broken, looks wrong, or',
+      'is not loading. It is the difference between diagnosing and guessing.',
+      '',
+      'An empty list is information too: it means whatever they saw did not throw,',
+      'so ask what they were doing and what it looked like rather than going',
+      'hunting through files.'
+    ].join(' '),
+    inputSchema: {
+      type: 'object', additionalProperties: false, properties: {
+        minutes: { type: 'integer', minimum: 1, maximum: 1440, default: 60,
+          description: 'How far back to look. Default an hour.' }
+      }
+    }
+  },
+
   /* ---- actions ---- */
   {
     name: 'create_clip',
@@ -398,6 +420,7 @@ async function run(name, args){
     case 'calendar':   return data({ kind: 'calendar', ...args });
     case 'mail':       return data({ kind: 'mail', ...args });
     case 'clips':      return data({ kind: 'clips' });
+    case 'recent_errors': return data({ kind: 'recent_errors', ...args });
     case 'drive_find': return data({ kind: 'drive_find', ...args });
 
     case 'create_clip': {

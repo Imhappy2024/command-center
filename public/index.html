@@ -2428,10 +2428,50 @@ main{min-width:0;display:flex;flex-direction:column}
 /* ---------- Hommie ----------
    A dock, not a section. It has to be reachable from every view, because the
    whole point is asking for something without going to find it first. */
-.hmdock{position:fixed;right:20px;bottom:20px;z-index:60;display:flex;flex-direction:column}
+.hmdock{position:fixed;right:20px;bottom:20px;z-index:60;display:none;flex-direction:column}
+.hmdock.open{display:flex}
 .hmdock.open{width:min(400px,calc(100vw - 32px));max-height:min(620px,calc(100vh - 48px));
   background:var(--panel);border:1px solid var(--edge2);border-radius:var(--r-lg);
   box-shadow:0 30px 70px -24px #000;overflow:hidden}
+
+/* The rail control. Silver at rest, green listening, red for a beat after being
+   switched off. Colour and motion together, never colour alone: the difference
+   between listening and thinking has to be readable at a glance. */
+.hmrail{display:flex;align-items:center;gap:11px;padding:10px 12px;margin:6px 0 0;
+  border-radius:var(--r-md);transition:background .18s var(--ease)}
+.hmrail:hover{background:var(--panel)}
+.hmrail.open{background:var(--panel2)}
+.hmrail .mic{width:34px;height:34px;flex:none;border-radius:50%;cursor:pointer;position:relative;
+  display:grid;place-items:center;color:#e9edf5;
+  /* Brushed silver: a light from the top left across a mid grey. */
+  background:linear-gradient(145deg,#c9d2e0 0%,#8e98a8 42%,#69727f 60%,#aab4c4 100%);
+  border:1px solid rgba(255,255,255,.22);
+  box-shadow:0 2px 6px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.35);
+  transition:.2s var(--ease)}
+.hmrail .mic:hover{filter:brightness(1.08)}
+.hmrail .mic svg{position:relative;z-index:1;color:#20242e}
+.hmrail .halo{position:absolute;inset:-4px;border-radius:50%;border:2px solid transparent;
+  pointer-events:none}
+.hmrail.on .mic{background:linear-gradient(145deg,#7ff0c6 0%,#35d0a5 45%,#1f9e7c 62%,#66e6bd 100%);
+  border-color:rgba(255,255,255,.3)}
+.hmrail.on .mic svg{color:#06281f}
+.hmrail.on .halo{border-color:rgba(53,208,165,.4);animation:hmpulse 2.4s ease-out infinite}
+.hmrail.off .mic{background:linear-gradient(145deg,#ffb0a2 0%,#ff5a45 45%,#c9331f 62%,#ff8b78 100%)}
+.hmrail.off .mic svg{color:#3a0b04}
+.hmrail .tx{flex:1;min-width:0;background:none;border:0;padding:0;cursor:pointer;
+  text-align:left;display:flex;flex-direction:column;gap:1px;color:inherit}
+.hmrail .nm{font-size:13px;color:var(--dim);letter-spacing:-.01em}
+.hmrail.on .nm,.hmrail.open .nm{color:var(--cream)}
+.hmrail .st{font-family:var(--ff-mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--dimmer)}
+.hmrail.on .st{color:var(--jade)}
+.hmrail.off .st{color:var(--rust)}
+.hmrail .work{width:6px;height:6px;border-radius:50%;background:var(--brass);flex:none;
+  animation:hmblink 1s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){
+  .hmrail .halo{animation:none}
+  .hmrail .work{animation:none}
+}
 
 /* The orb carries the state. Colour and motion together, never colour alone:
    the difference between listening and thinking has to be readable at a glance
@@ -2581,6 +2621,9 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
 <aside class="rail">
   <div class="brand"><span class="pulse"></span><b>Command</b></div>
   <nav id="nav"></nav>
+  <!-- Hommie sits with the menu rather than floating over the page. It is a
+       control, not a section: pressing it does not change what is on screen. -->
+  <div id="hm-rail"></div>
   <div class="railfoot">
     <div class="eyebrow" style="margin-bottom:3px">Connections</div>
     <div id="rail-conn"></div>
@@ -14580,7 +14623,15 @@ function openAddAccount(){
 
 const HM = {
   on: false,             // the switch
-  repair: false,         // the second switch: may it touch the code
+  /* On, and not offered as a control.
+
+     It is what makes "something's broken" a thing Hommie can act on rather than
+     describe. The guards that matter are not this flag: repair_ship runs the
+     preflight itself and refuses on a failure, and the brief will not let it
+     commit without saying what is going and getting a yes. */
+  repair: true,
+  justOff: false,        // the red moment after switching off
+  offTimer: null,
   open: false,           // the panel, as opposed to just the orb
   state: 'off',          // off | listening | armed | thinking | speaking | error
   heard: '',             // live transcript, for the "I am hearing you" line
@@ -15284,11 +15335,19 @@ async function hmOn(){
 }
 
 function hmOff(){
+  const wasOn = HM.on;
   HM.on = false;
   HM.state = 'off';
   hmStopEar();
   hmShutUp();
   hmSave();
+  /* Red for a moment, so switching it off is confirmed rather than merely
+     silent -- and then back to silver, because off is a resting state. */
+  if (wasOn) {
+    HM.justOff = true;
+    clearTimeout(HM.offTimer);
+    HM.offTimer = setTimeout(() => { HM.justOff = false; hmRail(); }, 2500);
+  }
   hmPaint();
 }
 
@@ -15327,18 +15386,49 @@ const HM_LABEL = {
 };
 
 function hmPaint(){
+  hmRail();
   const host = document.getElementById('hm-dock');
   if (!host) return;
-  host.className = 'hmdock' + (HM.open ? ' open' : '') + (HM.on ? ' live' : '');
-  host.innerHTML = HM.open ? hmPanel() : hmOrb();
-  hmWire(host);
+  /* The dock is the transcript and nothing else now. Closed, it renders nothing
+     at all -- the rail carries the state, and a floating orb on top of a control
+     that says the same thing is two of the same button. */
+  host.className = 'hmdock' + (HM.open ? ' open' : '');
+  host.innerHTML = HM.open ? hmPanel() : '';
+  if (HM.open) hmWire(host);
 }
 
-function hmOrb(){
-  return '<button class="hmorb ' + HM.state + '" data-hmopen="1" '
-    + 'title="Hommie — ' + escS(HM_LABEL[HM.state] || '') + '">'
-    + '<span class="ring"></span><span class="dot"></span>'
-    + '</button>';
+/* The rail control. Silver at rest, green while it is listening, red for a
+   moment after it is switched off.
+
+   The red settles back to silver after a couple of seconds rather than staying:
+   a permanently red control in a sidebar reads as a fault to be fixed, and "the
+   microphone is off" is a resting state, not a problem. */
+const HM_MIC_SVG = '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" '
+  + 'stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'
+  + '<rect x="9" y="2" width="6" height="11" rx="3"></rect>'
+  + '<path d="M5 10v1a7 7 0 0 0 14 0v-1"></path><path d="M12 18v4"></path></svg>';
+
+function hmRail(){
+  const host = document.getElementById('hm-rail');
+  if (!host) return;
+  const tone = HM.on ? 'on' : (HM.justOff ? 'off' : 'idle');
+  const sub = HM.error ? 'Needs the mic'
+    : HM.on ? (HM.state === 'thinking' ? 'Thinking'
+        : HM.state === 'speaking' ? 'Speaking'
+        : HM.state === 'armed' ? 'Go ahead' : 'Listening')
+    : 'Tap to talk';
+  host.innerHTML = '<div class="hmrail ' + tone + (HM.open ? ' open' : '') + '">'
+    + '<button class="mic" data-hmmic="1" aria-pressed="' + (HM.on ? 'true' : 'false') + '" '
+    +   'title="' + (HM.on ? 'Stop listening' : 'Start listening') + '">'
+    +   HM_MIC_SVG + '<span class="halo"></span></button>'
+    + '<button class="tx" data-hmopen="1" title="Open the transcript">'
+    +   '<span class="nm">Hommie</span><span class="st">' + escS(sub) + '</span></button>'
+    + (HM.busy ? '<span class="work"></span>' : '')
+    + '</div>';
+  host.querySelectorAll('[data-hmmic]').forEach(b => b.onclick = hmToggle);
+  host.querySelectorAll('[data-hmopen]').forEach(b => b.onclick = () => {
+    HM.open = !HM.open; hmSave(); hmPaint();
+  });
 }
 
 function hmPanel(){
@@ -15371,9 +15461,6 @@ function hmPanel(){
     +   (HM.on ? ' checked' : '') + '><span class="tr"></span>'
     +   '<b>' + (HM.on ? 'Mic on' : 'Mic off') + '</b></label>'
     + '<span style="flex:1"></span>'
-    + '<label class="hmsw small" title="Let Hommie read, change, commit and push this app\'s code">'
-    +   '<input type="checkbox" data-hmrepair="1"' + (HM.repair ? ' checked' : '') + '>'
-    +   '<span class="tr"></span><b>Repair</b></label>'
     + '<input class="hmtype" id="hm-type" placeholder="…or type it" autocomplete="off">'
     + '</div>';
 }
@@ -15471,11 +15558,7 @@ function hmWire(root){
   root.querySelectorAll('[data-hmcfg]').forEach(b => b.onclick = () => { HM.cfg = !HM.cfg; hmPaint(); });
   root.querySelectorAll('[data-hmstop]').forEach(b => b.onclick = hmStop);
   root.querySelectorAll('[data-hmswitch]').forEach(b => b.onchange = hmToggle);
-  root.querySelectorAll('[data-hmrepair]').forEach(b => b.onchange = e => {
-    HM.repair = e.target.checked;
-    hmPaint();
-    if (HM.repair) hmSpeak('Repair is on. I can change the code and push it.');
-  });
+
   root.querySelectorAll('[data-hmgender]').forEach(b => b.onclick = () => {
     HM.gender = b.dataset.hmgender;
     /* An explicit pick is cleared, or the preference would have nothing to do. */
@@ -15533,6 +15616,57 @@ function hmWire(root){
   ccWireFeed(root.querySelector('#hm-feed'), () => HM);
 }
 
+/* ---------- watching for things going wrong ----------
+
+   Two halves. Everything the page throws is reported to the server, so it is in
+   the list when anyone asks what broke. And if the microphone is on and Hommie
+   is idle, it offers once -- because being told "the Properties view just threw"
+   the moment it happens is worth far more than finding out an hour later, and
+   the person may not even be looking at the screen.
+
+   Once per distinct fault, and never while it is mid-answer. An assistant that
+   interrupts you about the same error every time a render loop fires it is worse
+   than one that says nothing. */
+const HM_SEEN_FAULTS = new Set();
+
+function hmFault(message, where, stack){
+  const msg = String(message || '').slice(0, 500);
+  if (!msg) return;
+  const section = (typeof ROUTE !== 'undefined' && ROUTE.current) ? ROUTE.current() : '';
+
+  fetch('/api/claude/fault', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message: msg, where: String(where || ''), section,
+      stack: String(stack || '').slice(0, 2000) })
+  }).catch(() => { /* reporting a failure must not become one */ });
+
+  const key = msg + '|' + where;
+  if (HM_SEEN_FAULTS.has(key)) return;
+  HM_SEEN_FAULTS.add(key);
+
+  if (!HM.on || HM.busy || HM.state === 'thinking') return;
+  /* Said, not asked: a question would block on an answer the user may not give,
+     and the fault is already recorded either way. */
+  const what = section ? 'the ' + section + ' view' : 'the page';
+  hmSpeak('Something just threw in ' + what + '. Say the word and I\'ll take a look.');
+  HM.messages.push({ role: 'assistant',
+    text: 'Something threw in ' + what + ': ' + msg + '. Ask me to look at it and I will.' });
+  hmPatch();
+}
+
+function hmWatch(){
+  window.addEventListener('error', e => {
+    /* Resource load failures fire here too with no message and are usually a
+       missing image, not a fault worth interrupting anyone about. */
+    if (!e || !e.message) return;
+    hmFault(e.message, (e.filename || '') + (e.lineno ? ':' + e.lineno : ''), e.error?.stack);
+  });
+  window.addEventListener('unhandledrejection', e => {
+    const r = e?.reason;
+    hmFault(r?.message || String(r || 'a promise rejected'), 'promise', r?.stack);
+  });
+}
+
 /* ---------- boot ---------- */
 
 function hmMount(){
@@ -15542,6 +15676,7 @@ function hmMount(){
   host.className = 'hmdock';
   document.body.appendChild(host);
   hmLoad();
+  hmWatch();
   /* Voices arrive asynchronously and the list is empty on the first tick. */
   try { window.speechSynthesis.onvoiceschanged = () => { if (HM.cfg) hmPaint(); }; }
   catch { /* no synthesis */ }
