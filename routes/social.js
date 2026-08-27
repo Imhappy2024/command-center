@@ -12,7 +12,8 @@
 
 import express from 'express';
 import { query } from '../db/index.js';
-import { accountsFor } from '../lib/accounts.js';
+import { accountsFor, getAccessToken } from '../lib/accounts.js';
+import * as youtube from '../providers/youtube.js';
 import { guarded } from './guard.js';
 import {
   parseSchedule, nextRunAfter, pollerStatus, runNow, providerFamily, lastRuns
@@ -592,6 +593,68 @@ export function socialRoutes({ env, auth }){
   r.get('/api/social/refresh/status', auth.require, async (req, res) => {
     res.json(await scheduleInfo());
   });
+
+  /* ---------------- writing a YouTube video back ----------------
+
+     The one place in this file that calls a platform API from a request handler,
+     and it is deliberate. Everything else here is a read of numbers a poller
+     already fetched; this is a change the user asked for, and deferring it to a
+     timer would mean a title edit landing at 6am tomorrow.
+
+     The channel is looked up rather than passed in. A video id is enough to
+     identify what to change, and letting a caller name the account it should be
+     changed through is an extra way to get it wrong. */
+  const ytAccount = async () => {
+    const accounts = (await accountsFor('social')).filter(a => a.provider === 'youtube');
+    if (!accounts.length) throw Object.assign(new Error('No YouTube channel is connected.'), { status: 409 });
+    const live = accounts.find(a => a.status === 'ok');
+    if (!live) {
+      throw Object.assign(
+        new Error('The YouTube connection needs reconnecting before it can read or write.'),
+        { status: 409 });
+    }
+    return live;
+  };
+
+  r.get('/api/social/youtube/video/:id', auth.require, async (req, res) => {
+    try {
+      const account = await ytAccount();
+      const token = await getAccessToken(account.id);
+      res.json({ ok: true, channel: account.label, video: await youtube.video(token, String(req.params.id)) });
+    } catch (err) {
+      res.status(err.status || 502).json({ error: err.message });
+    }
+  });
+
+  r.post('/api/social/youtube/video/:id', auth.require, express.json({ limit: '64kb' }),
+    async (req, res) => {
+      const b = req.body || {};
+      const changes = {};
+      if (typeof b.title === 'string') changes.title = b.title;
+      if (typeof b.description === 'string') changes.description = b.description;
+      if (Array.isArray(b.tags)) changes.tags = b.tags.map(String).slice(0, 60);
+      if (!Object.keys(changes).length) {
+        return res.status(400).json({ error: 'Nothing to change: send a title, a description or tags.' });
+      }
+      try {
+        const account = await ytAccount();
+        const token = await getAccessToken(account.id);
+        const out = await youtube.updateVideo(token, String(req.params.id), changes);
+        /* The stored copy is now behind the channel. Correcting the one field
+           that is visible in this dashboard is cheaper and less surprising than
+           leaving the old title on screen until the next poll. */
+        if (changes.title != null) {
+          await query(
+            'UPDATE social_posts SET title = $1 WHERE account_id = $2 AND permalink LIKE $3',
+            [out.after.title, account.id, '%' + String(req.params.id)]
+          ).catch(() => {});
+        }
+        console.log('[youtube] updated ' + req.params.id + ': ' + out.changed.join(', '));
+        res.json({ ok: true, channel: account.label, ...out });
+      } catch (err) {
+        res.status(err.status || 502).json({ error: err.message });
+      }
+    });
 
   /* Meta verifies a subscription by echoing hub.challenge back. Answering it
      correctly costs nothing and means the subscription can be set up before the

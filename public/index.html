@@ -2201,39 +2201,70 @@ main{min-width:0;display:flex;flex-direction:column}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}.drawer{transition:none}}
 
 /* ---------- analyst agents ----------
-   A conversation and a workspace. The workspace is empty until the agent draws
-   in it, because an analyst decides what is worth showing per question -- that
-   is the difference between this and a dashboard. */
-.agstart{display:flex;flex-direction:column;min-height:min(64vh,560px)}
+   One conversation column with a history rail beside it, and everything the
+   agent produces attached to the message that produced it as a file you open.
+
+   The first build had a second permanent panel for tables. It was the wrong
+   shape: three tables on screen at once, none of them next to the sentence
+   explaining them, and the conversation losing every fight for attention
+   against a wall of numbers. */
+.agwrap{display:grid;grid-template-columns:238px minmax(0,1fr);gap:12px;
+  align-items:stretch;height:min(74vh,760px)}
+.agwrap.nohist{grid-template-columns:minmax(0,1fr)}
+.agwrap.nohist .aghist{display:none}
+@media(max-width:900px){.agwrap{grid-template-columns:minmax(0,1fr);height:auto}
+  .aghist{display:none}}
+
+/* ---- history ---- */
+.aghist{display:flex;flex-direction:column;gap:8px;min-width:0;background:var(--ink2);
+  border:1px solid var(--edge);border-radius:var(--r-lg);padding:9px}
+.aghnew{background:none;border:1px dashed var(--edge2);border-radius:9px;color:var(--dim);
+  font:inherit;font-size:12px;padding:8px 10px;cursor:pointer;text-align:left;flex:none;
+  transition:.12s var(--ease)}
+.aghnew:hover{color:var(--cream);border-color:var(--brass);border-style:solid}
+.aghlist{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+.aghempty{font-size:11.5px;color:var(--dimmer);line-height:1.6;padding:10px 4px}
+.aghitem{display:flex;align-items:center;gap:6px;padding:7px 8px;border-radius:8px;
+  cursor:pointer;border:1px solid transparent;min-width:0}
+.aghitem:hover{background:var(--panel)}
+.aghitem.on{background:var(--panel2);border-color:var(--edge2)}
+.aghitem .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+.aghitem b{font-size:12px;color:var(--text);font-weight:500;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.aghitem.on b{color:var(--cream)}
+.aghitem small{font-size:10px;color:var(--dimmer)}
+.aghitem .del{background:none;border:0;color:var(--dimmer);font-size:15px;line-height:1;
+  cursor:pointer;padding:0 4px;opacity:0;flex:none}
+.aghitem:hover .del{opacity:1}
+.aghitem .del:hover{color:var(--rust)}
+
+/* ---- the conversation ---- */
+.agchat{display:flex;flex-direction:column;min-width:0;background:var(--panel);
+  border:1px solid var(--edge);border-radius:var(--r-lg);overflow:hidden}
+.aghead{display:flex;align-items:center;gap:9px;padding:9px 12px;flex:none;
+  border-bottom:1px solid var(--edge);background:var(--panel2)}
+.aghead b{font-family:var(--ff-display);font-size:13px;color:var(--cream);font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:46%}
+.aghtog{background:none;border:1px solid var(--edge2);border-radius:7px;color:var(--dim);
+  font:inherit;font-size:12px;line-height:1;padding:5px 8px;cursor:pointer;flex:none}
+.aghtog:hover{color:var(--cream);border-color:var(--brass)}
+.agdot{width:9px;height:9px;border-radius:50%;display:block;flex:none}
+.agdot.big{width:11px;height:11px}
+
+.agfeed{flex:1;min-height:0;overflow-y:auto;padding:16px 16px 8px;display:flex;
+  flex-direction:column;gap:14px}
+@media(max-width:900px){.agfeed{max-height:64vh}}
+
 .agstartin{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  text-align:center;gap:11px;padding:40px 24px}
-.agdot{width:9px;height:9px;border-radius:50%;display:block}
+  text-align:center;gap:11px;padding:36px 24px}
 .agstartin h3{font-family:var(--ff-display);font-size:19px;color:var(--cream);letter-spacing:-.02em}
 .agstartin p{font-size:13px;color:var(--dim);max-width:440px;line-height:1.55}
-.agstartin small{font-size:11.5px;color:var(--dimmer);max-width:420px;line-height:1.6}
+.agstartin small{font-size:11.5px;color:var(--dimmer);max-width:430px;line-height:1.6}
 .agbig{background:var(--brass);border:0;border-radius:12px;color:#fff;font:inherit;font-size:15px;
   font-weight:600;padding:13px 44px;cursor:pointer;margin:6px 0 2px;
   box-shadow:0 12px 30px -12px rgba(124,108,255,.7);transition:.16s var(--ease)}
 .agbig:hover{filter:brightness(1.08);transform:translateY(-1px)}
 .agbig:active{transform:none}
-
-.agsplit{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:13px;
-  align-items:stretch;height:min(72vh,720px)}
-@media(max-width:1200px){.agsplit{grid-template-columns:1fr;height:auto}}
-.agchat{display:flex;flex-direction:column;min-width:0;background:var(--panel);
-  border:1px solid var(--edge);border-radius:var(--r-lg);overflow:hidden}
-.agfeed{flex:1;min-height:0;overflow-y:auto;padding:16px 16px 8px;display:flex;
-  flex-direction:column;gap:14px}
-@media(max-width:1200px){.agfeed{max-height:60vh}}
-/* The panel sits on its own ground, a shade below the chat and cooler than it.
-   Both surfaces were the same card colour, so a screen with three tables on it
-   read as six panels of equal weight and the conversation stopped being findable.
-   The data is the quieter half: you look at it when you want it, and it should
-   not compete with the sentence that is telling you what it means. */
-.agpanel{overflow-y:auto;min-width:0;display:flex;flex-direction:column;gap:10px;
-  background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-lg);
-  padding:11px}
-@media(max-width:1200px){.agpanel{max-height:none}}
 
 .agturn{display:flex;flex-direction:column;gap:6px;min-width:0}
 .agturn.me{align-items:flex-end}
@@ -2250,6 +2281,47 @@ main{min-width:0;display:flex;flex-direction:column}
 .agthinking span:nth-child(3){animation-delay:.3s}
 @keyframes agbounce{0%,60%,100%{opacity:.3;transform:translateY(0)}30%{opacity:1;transform:translateY(-3px)}}
 
+/* The fetch, before Claude has been asked anything. Its own row because those
+   are two different waits and only one of them is worth being impatient at. */
+.agpull{display:flex;align-items:center;gap:9px;padding:9px 12px;border-radius:10px;
+  background:var(--ink2);border:1px solid var(--edge);font-size:12.5px;color:var(--dim);
+  align-self:flex-start}
+.agpull.bad{border-color:rgba(255,90,69,.4);color:var(--cream)}
+.agpull .ic{color:var(--rust);font-weight:700}
+.agpull .spin{width:12px;height:12px;border-radius:50%;flex:none;
+  border:2px solid var(--edge2);border-top-color:var(--brass);animation:agspin .8s linear infinite}
+@keyframes agspin{to{transform:rotate(360deg)}}
+
+/* ---- what the agent attaches ---- */
+
+/* A metrics pull, as a file rather than as a wall of JSON in the transcript. */
+.agfile{display:flex;align-items:center;gap:11px;padding:10px 12px;max-width:min(420px,88%);
+  background:var(--panel2);border:1px solid var(--edge2);border-radius:12px;cursor:pointer;
+  font:inherit;text-align:left;transition:.13s var(--ease)}
+.agfile:hover{border-color:var(--brass);transform:translateY(-1px)}
+.agfile .ic{width:32px;height:32px;flex:none;border-radius:8px;display:grid;place-items:center;
+  background:rgba(124,108,255,.14);color:var(--brass);font-size:15px}
+.agfile .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.agfile b{font-size:12.5px;color:var(--cream);font-weight:600;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.agfile small{font-size:10.5px;color:var(--dimmer);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.agfile .go{font-size:10.5px;color:var(--dimmer);border:1px solid var(--edge2);border-radius:6px;
+  padding:2px 8px;flex:none}
+.agfile:hover .go{color:var(--brass);border-color:var(--brass)}
+.agwarn{font-size:11px;color:var(--gold);max-width:min(420px,88%);line-height:1.5;
+  padding:2px 2px 0;text-align:right}
+
+/* Tables, notes and videos the agent drew, under the message that drew them. */
+.agchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:9px}
+.agchip{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:9px;
+  background:var(--ink2);border:1px solid var(--edge2);color:var(--text);font:inherit;
+  font-size:11.5px;cursor:pointer;max-width:100%;transition:.13s var(--ease)}
+.agchip:hover{border-color:var(--brass);background:var(--panel2)}
+.agchip .ic{color:var(--brass);font-size:11px;flex:none}
+.agchip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500}
+.agchip .kd{color:var(--dimmer);font-family:var(--ff-mono);font-size:9.5px;flex:none}
+
 .agcomposer{border-top:1px solid var(--edge);padding:11px 14px 12px;background:var(--panel);flex:none}
 .agbox{background:var(--ink2);border:1px solid var(--edge2);border-radius:var(--r-md);
   padding:9px 11px 8px;transition:border-color .12s}
@@ -2264,28 +2336,38 @@ main{min-width:0;display:flex;flex-direction:column}
 .agsend:hover{filter:brightness(1.08)}
 .agsend.stop{width:auto;padding:0 13px;font-size:12px;background:var(--rust)}
 
-/* ---- what the agent draws ---- */
-.agcard{background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-md);
-  overflow:hidden;flex:none}
-.agcard.bad{border-color:rgba(255,90,69,.35)}
-.agcard.warn{border-color:rgba(255,176,32,.35)}
-.agcard.good{border-color:rgba(53,208,165,.32)}
-.agcardh{display:flex;align-items:baseline;gap:10px;padding:9px 12px;
-  border-bottom:1px solid var(--edge);background:rgba(124,108,255,.055);flex-wrap:wrap}
-.agcardh b{font-family:var(--ff-display);font-size:12.5px;color:var(--cream);font-weight:600}
-.agcardh small{font-size:11px;color:var(--dimmer);flex:1;min-width:0}
-.agat{font-family:var(--ff-mono);font-size:9.5px;color:var(--brass);
-  border:1px solid rgba(124,108,255,.4);border-radius:99px;padding:1px 7px}
-.agcopy{background:none;border:1px solid var(--edge2);border-radius:6px;color:var(--dimmer);
-  font:inherit;font-size:10.5px;padding:2px 8px;cursor:pointer;flex:none}
-.agcopy:hover{color:var(--cream);border-color:var(--brass)}
+/* ---- the overlay: one box for a table, a note, a video or a whole pull ---- */
+.agplayer{position:fixed;inset:0;z-index:70;display:none;background:rgba(6,8,16,.78);
+  backdrop-filter:blur(4px);padding:5vh 24px;overflow-y:auto}
+.agplayer.on{display:block}
+.agplaybox{max-width:min(980px,94vw);margin:0 auto;background:var(--panel);
+  border:1px solid var(--edge2);border-radius:var(--r-lg);overflow:hidden;
+  box-shadow:0 40px 90px -30px #000;display:flex;flex-direction:column;max-height:90vh}
+.agplaybox.wide{max-width:min(1180px,96vw)}
+.agplayh{display:flex;align-items:center;gap:12px;padding:12px 15px;flex:none;
+  border-bottom:1px solid var(--edge);background:var(--panel2)}
+.agplayh b{flex:1;min-width:0;font-family:var(--ff-display);font-size:14px;color:var(--cream);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.agplayh a{font-size:11.5px;color:var(--dimmer);text-decoration:none}
+.agplayh a:hover{color:var(--brass);text-decoration:underline}
+.agplaybody{overflow-y:auto;min-height:0;padding:14px 15px}
+.agplaybody.flush{padding:0}
+.agsub{border-bottom:1px solid var(--edge)}
+.agsub:last-child{border-bottom:0}
+.agsubh{display:flex;align-items:baseline;gap:10px;padding:10px 15px 8px;
+  background:rgba(124,108,255,.05)}
+.agsubh b{font-family:var(--ff-display);font-size:12px;color:var(--cream);font-weight:600}
+.agsubh small{font-size:10.5px;color:var(--dimmer)}
+.agsubnote{padding:11px 15px;font-size:11.5px;color:var(--dim);line-height:1.6;
+  border-bottom:1px solid var(--edge);background:var(--ink2)}
+.agsubnote b{color:var(--gold)}
 
 /* A spreadsheet. Numbers monospaced and right-aligned so a column can be read
    down rather than across, which is the only reason to draw it instead of
    describing it. */
 .agtwrap{overflow-x:auto}
 .agt{display:grid;min-width:100%;font-size:12px}
-.agt>span{padding:6px 10px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+.agt>span{padding:6px 12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   border-bottom:1px solid rgba(38,44,70,.6);display:flex;align-items:center}
 .agt>span.n{justify-content:flex-end;font-family:var(--ff-mono);font-size:11.5px;
   font-variant-numeric:tabular-nums}
@@ -2295,10 +2377,7 @@ main{min-width:0;display:flex;flex-direction:column}
 .agt>span.t{background:var(--panel3);color:var(--cream);font-weight:600;border-bottom:0;
   border-top:1px solid var(--edge2)}
 .agt>span.t.n{font-family:var(--ff-mono)}
-/* A tone marks the whole row without a colour-only signal: the left edge picks
-   up a bar, and the agent names the reason in its reply. */
 .agt .rowline{display:none}
-.agt .rowline.bad~span,.agt .rowline.warn~span,.agt .rowline.good~span{}
 .agt>span:not(.h):not(.t){color:var(--text)}
 /* A title with a permalink behind it. A video opens in the player rather than a
    tab, because the reason to click a video title in an analysis is to see the
@@ -2309,23 +2388,9 @@ main{min-width:0;display:flex;flex-direction:column}
 .agt a.play::before{content:"▶";font-size:8px;margin-right:6px;color:var(--dimmer)}
 .agt a.play:hover::before{color:var(--brass)}
 
-/* The pop-up player. */
-.agplayer{position:fixed;inset:0;z-index:70;display:none;background:rgba(6,8,16,.78);
-  backdrop-filter:blur(4px);padding:6vh 24px;overflow-y:auto}
-.agplayer.on{display:block}
-.agplaybox{max-width:min(980px,94vw);margin:0 auto;background:var(--panel);
-  border:1px solid var(--edge2);border-radius:var(--r-lg);overflow:hidden;
-  box-shadow:0 40px 90px -30px #000}
-.agplayh{display:flex;align-items:center;gap:12px;padding:12px 15px;
-  border-bottom:1px solid var(--edge)}
-.agplayh b{flex:1;min-width:0;font-family:var(--ff-display);font-size:14px;color:var(--cream);
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.agplayh a{font-size:11.5px;color:var(--dimmer);text-decoration:none}
-.agplayh a:hover{color:var(--brass);text-decoration:underline}
-
 .agvid{background:#000;aspect-ratio:16/9;display:block}
 .agvid iframe,.agvid video{width:100%;height:100%;border:0;display:block;background:#000}
-.agnote{padding:12px 14px;font-size:12.5px;color:var(--text);line-height:1.65}
+.agnote{padding:14px 16px;font-size:12.5px;color:var(--text);line-height:1.65}
 .agnote p{margin:0 0 8px}
 .agnote p:last-child{margin:0}
 .agnote ul,.agnote ol{margin:0 0 8px 18px}
@@ -2333,7 +2398,7 @@ main{min-width:0;display:flex;flex-direction:column}
   border:1px solid var(--edge);border-radius:5px;padding:1px 5px}
 
 .agempty{border:1px dashed var(--edge2);border-radius:var(--r-lg);padding:38px 22px;
-  text-align:center;color:var(--dimmer)}
+  text-align:center;color:var(--dimmer);margin:14px}
 .agempty b{display:block;color:var(--dim);font-size:13px;margin-bottom:6px}
 .agempty small{font-size:11.5px;line-height:1.6;display:block;max-width:320px;margin:0 auto}
 
@@ -12408,7 +12473,14 @@ function ccConsume(ev, d, reply, surface){
   /* The agent drawing in its panel. Only agent surfaces have one; the Claude
      section ignores it. */
   if (ev === 'panel') {
-    if (S.panels) { S.panels.unshift(d); return true; }
+    if (S.panels) {
+      S.panels.unshift(d);
+      /* And which message produced it. A table is an artefact OF a turn -- it
+         hangs off that message as a file rather than sitting in a permanent
+         panel, so it still makes sense when the conversation is read back. */
+      (reply.panelIds ||= []).push(d.id);
+      return true;
+    }
     return false;
   }
 
@@ -13387,22 +13459,33 @@ async function doSchedule(){
 
 const AG = {
   agent: null,        // the open agent id
-  by: {}              // agentId -> surface
+  by: {},             // agentId -> surface
+  threads: {},        // agentId -> saved conversations, newest first
+  histFor: null,      // which agent's history has been fetched
+  showHistory: true,
+  viewer: null        // what the overlay is currently showing
 };
 
 function agSurface(id){
   if (!AG.by[id]) {
     AG.by[id] = {
       id,
+      threadId: null, title: '',
       messages: [], panels: [], openRuns: {},
       sessionId: null, busy: false, streaming: false, abort: null,
-      input: '', panelOpen: null
+      input: '',
+      /* The pull is a separate phase from the turn: the platform is being read
+         and Claude has not been asked anything yet. It needs its own line in the
+         feed, because forty seconds of nothing is indistinguishable from broken. */
+      pulling: null,
+      pullId: null
     };
   }
   return AG.by[id];
 }
 
 const agNow = () => (AG.agent ? agSurface(AG.agent) : null);
+const agMeta = () => (SY.agents || []).find(a => a.id === AG.agent) || (SY.agents || [])[0] || null;
 
 async function agLoad(){
   if (SY.agents) return;
@@ -13416,7 +13499,29 @@ async function agLoad(){
   drawSystems();
 }
 
-/* ---------- the view ---------- */
+/* Past conversations, per agent. Fetched once per agent per visit, because the
+   list changes only when this browser saves one. */
+async function agLoadThreads(id){
+  if (AG.histFor === id) return;
+  AG.histFor = id;
+  try {
+    const out = await api('/api/claude/agent/threads?agent=' + encodeURIComponent(id));
+    AG.threads[id] = out.threads || [];
+  } catch {
+    AG.threads[id] = [];
+  }
+  drawSystems();
+}
+
+/* ---------- the view ----------
+
+   One column, not two.
+
+   The first build put the data in a panel beside the chat and it was the wrong
+   shape: three tables on screen at once, all of them permanent, none of them
+   attached to the sentence that explained them. What the agent draws is an
+   artefact OF a message, so it now hangs off that message as a file you can open
+   -- which is also how it reads back six weeks later in the history. */
 
 function metricsSystem(){
   if (SY.agentError) {
@@ -13432,87 +13537,171 @@ function metricsSystem(){
       + 'only mounted when the dashboard is running on your own machine.</span></div></div></div>';
   }
   if (!AG.agent) AG.agent = SY.agents[0].id;
-  const meta = SY.agents.find(a => a.id === AG.agent) || SY.agents[0];
+  const meta = agMeta();
   const S = agSurface(AG.agent);
+  agLoadThreads(AG.agent);
 
   const tabs = viewTabs(SY.agents.map(a => [a.id, a.short,
     (AG.by[a.id]?.messages.length ? Math.floor(AG.by[a.id].messages.length / 2) || '' : '')]),
     AG.agent, 'data-agent');
 
-  /* Nothing said yet: one button, and what it is going to do. The chat is
-     underneath it rather than instead of it, because the first thing anyone
-     wants is the analysis, not a blank prompt. */
-  if (!S.messages.length) {
-    return tabs + '<div class="agstart">'
-      + '<div class="agstartin">'
-      +   '<span class="agdot" style="background:' + escS(meta.accent) + '"></span>'
-      +   '<h3>' + escS(meta.label) + '</h3>'
-      +   '<p>' + escS(meta.blurb) + '</p>'
-      +   '<button class="agbig" data-agrun="1">Analyze</button>'
-      +   '<small>Pulls the last 28 days from the dashboard, then reads them: what is working, '
-      +     'what is not, why, and what to change. Ask follow-ups in the box below.</small>'
-      + '</div>'
-      + agComposer(S, meta) + '</div>';
-  }
-
-  return tabs + '<div class="agsplit">'
-    + '<div class="agchat">' + agFeed(S) + agComposer(S, meta) + '</div>'
-    + '<div class="agpanel">' + agPanels(S) + '</div>'
+  return tabs
+    + '<div class="agwrap' + (AG.showHistory ? '' : ' nohist') + '">'
+    +   agHistory(S)
+    +   '<div class="agchat">'
+    +     agHead(S, meta)
+    +     agFeed(S, meta)
+    +     agComposer(S, meta)
+    +   '</div>'
     + '</div>';
 }
 
-function agFeed(S){
+function agHead(S, meta){
+  const busy = S.busy || Boolean(S.pulling);
+  return '<div class="aghead">'
+    + '<button class="aghtog" data-aghist="1" title="Conversations">'
+    +   (AG.showHistory ? '⟨' : '☰') + '</button>'
+    + '<span class="agdot" style="background:' + escS(meta.accent) + '"></span>'
+    + '<b>' + escS(S.title || meta.label) + '</b>'
+    + '<span style="flex:1"></span>'
+    + (S.messages.length
+        ? '<button class="tgl" data-agrun="1"' + (busy ? ' disabled' : '') + '>Analyze again</button>'
+        : '')
+    + '<button class="tgl" data-agnew="1">New</button>'
+    + '</div>';
+}
+
+function agHistory(S){
+  const list = AG.threads[AG.agent];
+  const items = !list
+    ? '<div class="aghempty">Loading…</div>'
+    : !list.length
+      ? '<div class="aghempty">Nothing yet. Analyses you run are kept here.</div>'
+      : list.map(t => '<div class="aghitem' + (t.id === S.threadId ? ' on' : '') + '" data-agthread="'
+          + escS(t.id) + '">'
+          + '<span class="tx"><b>' + escS(t.title || 'Untitled') + '</b>'
+          +   '<small>' + escS(agWhen(t.updatedAt)) + ' · ' + (t.count || 0) + ' messages</small></span>'
+          + '<button class="del" data-agdel="' + escS(t.id) + '" title="Delete">×</button>'
+        + '</div>').join('');
+
+  return '<div class="aghist">'
+    + '<button class="aghnew" data-agnew="1">＋ New analysis</button>'
+    + '<div class="aghlist">' + items + '</div></div>';
+}
+
+function agWhen(iso){
+  const d = new Date(iso);
+  if (isNaN(d)) return '';
+  const today = new Date();
+  const same = d.toDateString() === today.toDateString();
+  return same
+    ? d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+    : d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+}
+
+function agFeed(S, meta){
+  if (!S.messages.length && !S.pulling) {
+    return '<div class="agfeed" id="ag-feed"><div class="agstartin">'
+      + '<span class="agdot big" style="background:' + escS(meta.accent) + '"></span>'
+      + '<h3>' + escS(meta.label) + '</h3>'
+      + '<p>' + escS(meta.blurb) + '</p>'
+      + '<button class="agbig" data-agrun="1">Analyze</button>'
+      + '<small>Fetches the last 28 days from ' + escS(meta.short)
+      +   ' itself, not from what the dashboard last stored, and reads them as soon as they land. '
+      +   'Ask follow-ups in the box below.</small>'
+      + '</div></div>';
+  }
   return '<div class="agfeed" id="ag-feed">'
     + S.messages.map((m, i) => agBubble(m, i, S)).join('')
-    + (S.busy && !S.streaming ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '')
+    + (S.pulling ? agPullRow(S.pulling) : '')
+    + (S.busy && !S.streaming && !S.pulling
+        ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '')
     + '</div>';
+}
+
+/* The fetch itself, on screen. Not a spinner: it says which platform is being
+   read and that nothing has been asked of Claude yet, because those are two
+   different waits and only one of them is worth being impatient about. */
+function agPullRow(p){
+  return '<div class="agpull' + (p.failed ? ' bad' : '') + '">'
+    + (p.failed ? '<span class="ic">!</span>' : '<span class="spin"></span>')
+    + '<span>' + escS(p.text) + '</span></div>';
 }
 
 function agBubble(m, idx, S){
+  if (m.kind === 'data') return agDataCard(m, idx);
   const mine = m.role === 'user';
+  const chips = mine ? '' : agChips(m, S);
   return '<div class="agturn ' + (mine ? 'me' : 'ai') + '">'
     + (mine ? '' : '<div class="agrole"><span class="av">C</span><span>Analyst</span></div>')
     + '<div class="bd">' + (mine ? '' : ccSteps(m, S))
     + '<div class="ccprose">' + mdRender(m.text || '')
     + (S.busy && idx === S.messages.length - 1 && !mine ? '<span class="cccaret"></span>' : '')
-    + '</div></div></div>';
+    + '</div>' + chips + '</div></div>';
+}
+
+/* What the agent drew, as files under the message that drew them. */
+const AG_ICON = { table: '▦', video: '▶', note: '❝' };
+function agChips(m, S){
+  const ids = m.panelIds || [];
+  if (!ids.length) return '';
+  const chips = ids.map(id => {
+    const p = S.panels.find(x => x.id === id);
+    if (!p) return '';
+    return '<button class="agchip" data-agopen="' + escS(id) + '">'
+      + '<span class="ic">' + (AG_ICON[p.kind] || '▤') + '</span>'
+      + '<span class="nm">' + escS(p.title || p.kind) + '</span>'
+      + '<span class="kd">' + escS(p.kind === 'table'
+          ? (p.rows || []).length + ' rows' : p.kind) + '</span></button>';
+  }).join('');
+  return chips ? '<div class="agchips">' + chips + '</div>' : '';
+}
+
+/* A pull, as an attachment rather than as a wall of JSON in the transcript.
+   The agent was handed the numbers; the reader gets the same numbers behind one
+   click, which is the honest version of "here is what it was looking at". */
+function agDataCard(m, idx){
+  const d = m.meta || {};
+  const bits = [];
+  if (d.source === 'live') bits.push('Live from ' + (d.platformLabel || d.platform));
+  else bits.push('From stored data');
+  bits.push(d.range + ' days');
+  if (d.rows != null) bits.push(d.rows + ' days of numbers');
+  if (d.posts != null) bits.push(d.posts + (d.posts === 1 ? ' post' : ' posts'));
+  return '<div class="agturn me">'
+    + '<button class="agfile" data-agfile="' + idx + '">'
+    +   '<span class="ic">▤</span>'
+    +   '<span class="tx"><b>' + escS((d.platformLabel || d.platform || 'Metrics') + ' metrics')
+    +     '</b><small>' + escS(bits.join(' · ')) + '</small></span>'
+    +   '<span class="go">Open</span>'
+    + '</button>'
+    + (d.warning ? '<div class="agwarn">' + escS(d.warning) + '</div>' : '')
+    + '</div>';
 }
 
 function agComposer(S, meta){
+  const busy = S.busy || Boolean(S.pulling);
   return '<div class="agcomposer">'
     + '<div class="agbox">'
     +   '<textarea id="ag-input" rows="1" placeholder="Ask ' + escS(meta.short)
     +     ' anything about the numbers…">' + escS(S.input) + '</textarea>'
     +   '<div class="agbar">'
-    +     (S.messages.length ? '<button class="tgl" data-agrun="1">Re-analyze</button>' : '')
-    +     '<button class="tgl" data-agclear="1"' + (S.messages.length ? '' : ' hidden') + '>Clear</button>'
+    +     (S.messages.length
+          ? '<button class="tgl" data-agclear="1">Clear</button>' : '')
     +     '<span style="flex:1"></span>'
-    +     (S.busy
+    +     (busy
           ? '<button class="agsend stop" data-agstop="1">Stop</button>'
           : '<button class="agsend" data-agsend="1">↑</button>')
     +   '</div>'
     + '</div></div>';
 }
 
-/* ---------- the panel ----------
-   Newest first: the thing the agent just drew is the thing being talked about. */
-
-function agPanels(S){
-  if (!S.panels.length) {
-    return '<div class="agempty"><b>Nothing drawn yet</b>'
-      + '<small>Tables, videos and notes the agent puts here stay on screen while the '
-      + 'conversation moves on.</small></div>';
-  }
-  return S.panels.map(p =>
-    p.kind === 'table' ? agTable(p)
-    : p.kind === 'video' ? agVideo(p)
-    : agNote(p)).join('');
-}
+/* ---------- the table renderer, shared by the overlay and the data viewer ---------- */
 
 /* A spreadsheet, not a chart. Numbers right-aligned and monospaced so columns
    line up down the page, which is the whole reason to render a table rather
    than describe it. */
-function agTable(p){
+function agTable(p, bare){
   const cols = p.columns || [];
   const rows = p.rows || [];
   const tones = p.tones || [];
@@ -13550,26 +13739,25 @@ function agTable(p){
   };
   const grid = cols.map((_, i) => numeric[i] ? 'minmax(64px,auto)' : 'minmax(90px,1fr)').join(' ');
 
-  return '<div class="agcard">'
-    + '<div class="agcardh"><b>' + escS(p.title || 'Table') + '</b>'
-    +   (p.note ? '<small>' + escS(p.note) + '</small>' : '')
-    +   '<button class="agcopy" data-agcopy="' + escS(p.id) + '">Copy</button></div>'
-    + '<div class="agtwrap"><div class="agt" style="grid-template-columns:' + grid + '">'
-    +   cols.map((c, i) => '<span class="h' + (numeric[i] ? ' n' : '') + '">' + escS(c) + '</span>').join('')
-    +   rows.map((r, ri) => '<span class="rowline ' + escS(tones[ri] || '') + '"></span>'
-        + r.map((v, i) => cell(v, i)).join('')).join('')
-    +   (p.total ? p.total.map((v, i) => '<span class="t' + (numeric[i] ? ' n' : '') + '">'
-        + escS(v === null || v === undefined ? '' : String(v)) + '</span>').join('') : '')
-    + '</div></div></div>';
+  const body = '<div class="agtwrap"><div class="agt" style="grid-template-columns:' + grid + '">'
+    + cols.map((c, i) => '<span class="h' + (numeric[i] ? ' n' : '') + '">' + escS(c) + '</span>').join('')
+    + rows.map((r, ri) => '<span class="rowline ' + escS(tones[ri] || '') + '"></span>'
+      + r.map((v, i) => cell(v, i)).join('')).join('')
+    + (p.total ? p.total.map((v, i) => '<span class="t' + (numeric[i] ? ' n' : '') + '">'
+      + escS(v === null || v === undefined ? '' : String(v)) + '</span>').join('') : '')
+    + '</div></div>';
+
+  if (bare) {
+    return '<div class="agsub"><div class="agsubh"><b>' + escS(p.title || 'Table') + '</b>'
+      + (p.note ? '<small>' + escS(p.note) + '</small>' : '') + '</div>' + body + '</div>';
+  }
+  return body;
 }
 
-/* One place that decides what a url is and how to play it, used by the panel
-   card and by the pop-up alike. */
+/* One place that decides what a url is and how to play it. */
 const AG_YT = /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/|live\/)|youtu\.be\/)([A-Za-z0-9_-]{6,})/;
 const AG_FILE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
-/* Whether clicking this should open a player rather than a tab. Anything we can
-   embed; everything else is somebody else's page and belongs in a new tab. */
 function agPlayable(url){
   const u = String(url || '');
   if (!/^https?:\/\//i.test(u)) return false;
@@ -13597,69 +13785,225 @@ function agPlayerHtml(url, title, startAt){
     + '<small>' + escS(u.slice(0, 120)) + '</small></div>';
 }
 
-function agVideo(p){
-  const start = Number(p.startAt) > 0 ? Math.floor(Number(p.startAt)) : 0;
-  return '<div class="agcard">'
-    + '<div class="agcardh"><b>' + escS(p.title || 'Video') + '</b>'
-    +   (p.note ? '<small>' + escS(p.note) + '</small>' : '')
-    +   (start ? '<span class="agat">from ' + Math.floor(start / 60) + ':'
-        + String(start % 60).padStart(2, '0') + '</span>' : '')
-    + '</div>'
-    + '<div class="agvid">' + agPlayerHtml(p.url, p.title, start) + '</div></div>';
-}
+/* ---------- the overlay ----------
 
-/* The pop-up. Torn down rather than hidden on close: an iframe left in the DOM
-   keeps playing, and a hidden video you can still hear is worse than no player. */
-function agOpenPlayer(url, title){
+   One box for everything that opens over the conversation: a table, a note, a
+   video, a whole metrics pull. Torn down rather than hidden on close, because an
+   iframe left in the DOM keeps playing and a hidden video you can still hear is
+   worse than no player at all. */
+
+function agOverlay(title, bodyHtml, opts){
+  const o = opts || {};
   let host = document.getElementById('ag-player');
   if (!host) {
     host = document.createElement('div');
     host.id = 'ag-player';
     host.className = 'agplayer';
     document.body.appendChild(host);
-    host.addEventListener('click', e => { if (e.target === host) agClosePlayer(); });
+    host.addEventListener('click', e => { if (e.target === host) agCloseViewer(); });
   }
-  host.innerHTML = '<div class="agplaybox" role="dialog" aria-modal="true">'
-    + '<div class="agplayh"><b>' + escS(title || 'Video') + '</b>'
-    +   '<a href="' + escS(url) + '" target="_blank" rel="noopener">Open on the platform ↗</a>'
+  host.innerHTML = '<div class="agplaybox' + (o.wide ? ' wide' : '') + '" role="dialog" aria-modal="true">'
+    + '<div class="agplayh"><b>' + escS(title) + '</b>'
+    +   (o.link ? '<a href="' + escS(o.link) + '" target="_blank" rel="noopener">Open on the platform ↗</a>' : '')
+    +   (o.copy ? '<button class="tgl" data-agcopy="' + escS(o.copy) + '">Copy</button>' : '')
     +   '<button class="tgl" data-agplayclose="1">Close</button></div>'
-    + '<div class="agvid">' + agPlayerHtml(url, title, 0) + '</div></div>';
+    + '<div class="agplaybody' + (o.flush ? ' flush' : '') + '">' + bodyHtml + '</div></div>';
   host.classList.add('on');
-  host.querySelectorAll('[data-agplayclose]').forEach(b => b.onclick = agClosePlayer);
+  host.querySelectorAll('[data-agplayclose]').forEach(b => b.onclick = agCloseViewer);
 }
 
-function agClosePlayer(){
+function agCloseViewer(){
   const host = document.getElementById('ag-player');
   if (!host) return;
   host.classList.remove('on');
   host.innerHTML = '';
+  AG.viewer = null;
+}
+/* The Escape handler is wired further up the file and calls it by the old name.
+   A function declaration rather than a const alias, so it is hoisted the way the
+   thing it replaced was. */
+function agClosePlayer(){ agCloseViewer(); }
+
+function agOpenPlayer(url, title){
+  AG.viewer = 'video';
+  agOverlay(title || 'Video', '<div class="agvid">' + agPlayerHtml(url, title, 0) + '</div>',
+    { link: url, flush: true });
 }
 
-function agNote(p){
-  return '<div class="agcard' + (p.tone ? ' ' + escS(p.tone) : '') + '">'
-    + '<div class="agcardh"><b>' + escS(p.title || 'Note') + '</b></div>'
-    + '<div class="agnote">' + mdRender(p.body || '') + '</div></div>';
+function agOpenPanel(id){
+  const S = agNow();
+  const p = S && S.panels.find(x => x.id === id);
+  if (!p) return;
+  AG.viewer = id;
+  if (p.kind === 'video') {
+    const start = Number(p.startAt) > 0 ? Math.floor(Number(p.startAt)) : 0;
+    return agOverlay(p.title || 'Video',
+      '<div class="agvid">' + agPlayerHtml(p.url, p.title, start) + '</div>'
+      + (p.note ? '<div class="agnote">' + mdRender(p.note) + '</div>' : ''),
+      { link: p.url, flush: true });
+  }
+  if (p.kind === 'note') {
+    return agOverlay(p.title || 'Note', '<div class="agnote">' + mdRender(p.body || '') + '</div>');
+  }
+  agOverlay(p.title || 'Table',
+    (p.note ? '<div class="agsubnote">' + escS(p.note) + '</div>' : '') + agTable(p),
+    { wide: true, copy: p.id, flush: true });
+}
+
+/* A whole pull, opened out. The same numbers the agent was handed, rendered
+   with the same table code it draws with -- so "what was it looking at" has an
+   answer that is not a paragraph of trust. */
+function agOpenData(idx){
+  const S = agNow();
+  const m = S && S.messages[Number(idx)];
+  if (!m || m.kind !== 'data') return;
+  AG.viewer = 'data:' + idx;
+  const d = m.meta || {};
+  const c = m.data || {};
+  const parts = [];
+
+  parts.push('<div class="agsubnote">'
+    + escS((d.source === 'live' ? 'Fetched live from ' + (d.platformLabel || d.platform)
+        : 'Read from stored data') + ' · ' + d.range + '-day window · ' + agWhen(d.fetchedAt))
+    + (d.warning ? '<br><b>' + escS(d.warning) + '</b>' : '')
+    + '</div>');
+
+  if (d.previous && d.previous.change && d.previous.change.comparable) {
+    parts.push(agTable({
+      title: 'Since the last pull (' + escS(d.previous.pulledAgo) + ')',
+      columns: ['Metric', 'Then', 'Now', 'Change'],
+      rows: d.previous.change.rows.map(r => [r.metric, r.then, r.now,
+        r.pctChange == null ? '—' : (r.pctChange >= 0 ? '+' : '') + r.pctChange.toFixed(1) + '%'])
+    }, true));
+  }
+
+  if (c.campaigns && c.campaigns.length) {
+    parts.push(agTable({
+      title: 'Campaigns',
+      columns: ['Campaign', 'Spend', 'Results', 'Cost/result', 'Impressions', 'CTR %'],
+      rows: c.campaigns.map(x => [x.name, x.spend, x.results, x.costPerResult, x.impressions, x.ctr])
+    }, true));
+  }
+  if (c.posts && c.posts.length) {
+    parts.push(agTable({
+      title: 'Posts',
+      columns: ['Title', 'Published', 'Views', 'Interactions'],
+      rows: c.posts.map(p => [p.url ? { text: p.title, url: p.url } : p.title,
+        (p.published || '').slice(0, 10), p.views, p.interactions])
+    }, true));
+  }
+  if (c.daily && c.daily.length) {
+    const ads = Boolean(c.campaigns);
+    parts.push(agTable({
+      title: 'Day by day',
+      columns: ads ? ['Day', 'Spend', 'Impressions', 'Clicks', 'Results', 'Reach']
+        : ['Day', 'Views', 'Interactions', 'Reach', 'Followers'],
+      rows: c.daily.map(x => ads
+        ? [x.day, x.spend, x.impressions, x.clicks, x.results, x.reach]
+        : [x.day, x.views, x.interactions, x.reach, x.followers])
+    }, true));
+  }
+  if (!parts.length) parts.push('<div class="agempty"><b>Nothing came back</b></div>');
+
+  agOverlay((d.platformLabel || d.platform || 'Metrics') + ' metrics',
+    parts.join(''), { wide: true, flush: true });
 }
 
 /* ---------- running a turn ---------- */
 
-const AG_ANALYZE = 'Analyze the last 28 days. Pull the metrics first, then give me the full '
-  + 'read: what is working, what is not, why, and what to change. Show the working in tables '
-  + 'rather than describing rows to me, and rank everything by how much money or reach sits '
-  + 'behind it.';
-
-async function agRun(text){
+/* Pressing Analyze fetches the platform and then hands the numbers over. There
+   is no instruction: what to do with a metrics payload is in the agent's brief,
+   where it can be researched and versioned, rather than in a string here. */
+async function agAnalyze(){
   const S = agNow();
-  if (!S || S.busy) return;
-  const prompt = String(text || '').trim();
-  if (!prompt) return;
+  const meta = agMeta();
+  if (!S || S.busy || S.pulling || !meta) return;
 
-  S.messages.push({ role: 'user', text: prompt });
-  const reply = { role: 'assistant', text: '', steps: [], tools: [] };
+  /* Two channels on one grant took 73 seconds against the real API, so this is
+     abortable and says which platform it is waiting on. A bare spinner for over
+     a minute is indistinguishable from a hung page. */
+  const ctrl = new AbortController();
+  S.pulling = { text: 'Fetching the last 28 days from ' + meta.short + '…' };
+  S.abort = ctrl;
+  drawSystems();
+
+  let out;
+  try {
+    out = await api('/api/claude/agent/pull', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agent: S.id, range: 28 }),
+      signal: ctrl.signal
+    });
+  } catch (err) {
+    S.pulling = null; S.abort = null;
+    if (err.name !== 'AbortError') {
+      S.messages.push({ role: 'assistant',
+        text: 'Could not fetch the numbers: ' + err.message });
+    }
+    drawSystems();
+    return;
+  }
+  S.pulling = null; S.abort = null;
+  S.pullId = out.pullId;
+
+  const posts = (out.data && out.data.posts) ? out.data.posts.length : null;
+  const rows = (out.data && out.data.daily) ? out.data.daily.length : null;
+  /* Said plainly on the card rather than buried in the payload: an analysis of
+     six-hour-old numbers is a different thing from an analysis of live ones, and
+     the reader should not have to open the file to find out which they got. */
+  const warning = out.source === 'live' ? null
+    : 'The live fetch did not complete' + (out.live && out.live.error ? ': ' + out.live.error : '')
+      + '. These are the last numbers the dashboard stored.';
+
+  S.messages.push({
+    role: 'user', kind: 'data', text: '',
+    data: out.data,
+    meta: {
+      platform: out.platform, platformLabel: meta.short, range: out.range,
+      source: out.source, fetchedAt: out.fetchedAt, previous: out.previous,
+      rows, posts, warning
+    }
+  });
+  if (!S.title) S.title = meta.short + ' analysis · ' + agWhen(out.fetchedAt);
+
+  await agRun(null, { prompt: agEnvelope(out, meta) });
+}
+
+/* The turn input. A payload and nothing else -- deliberately not a sentence,
+   because the agent knowing what to do with its own platform's numbers is the
+   whole claim being made about it. */
+function agEnvelope(out, meta){
+  const body = {
+    platform: out.platform,
+    window: out.range + ' days',
+    fetchedAt: out.fetchedAt,
+    source: out.source,
+    liveFetch: out.live && out.live.error
+      ? { ok: Boolean(out.live.ok), problem: out.live.error }
+      : { ok: Boolean(out.live.ok) },
+    data: out.data
+  };
+  if (out.previous) body.previous = out.previous;
+  return '<metrics-pull>\n' + JSON.stringify(body, null, 1) + '\n</metrics-pull>';
+}
+
+async function agRun(text, opts){
+  const S = agNow();
+  /* pulling as well as busy: the fetch runs before the turn does, and a message
+     typed into that gap would start a second turn against a half-finished pull. */
+  if (!S || S.busy || S.pulling) return;
+  const o = opts || {};
+  const prompt = o.prompt != null ? o.prompt : String(text || '').trim();
+  if (!prompt) return;
+  if (o.prompt == null) S.messages.push({ role: 'user', text: prompt });
+
+  const reply = { role: 'assistant', text: '', steps: [], tools: [], panelIds: [] };
   S.messages.push(reply);
   S.busy = true;
   S.streaming = false;
   S.input = '';
+  if (!S.threadId) S.threadId = agUuid();
+  if (!S.title && o.prompt == null) S.title = prompt.slice(0, 70);
   drawSystems();
 
   const ctrl = new AbortController();
@@ -13673,6 +14017,8 @@ async function agRun(text){
         prompt,
         agent: S.id,
         sessionId: S.sessionId,
+        pullId: S.pullId,
+        threadId: S.threadId,
         /* Connectors stay off. These agents read this dashboard, and attaching
            twenty-five account connectors would add forty seconds to every turn
            for tools the brief never mentions. */
@@ -13693,7 +14039,7 @@ async function agRun(text){
     const dec = new TextDecoder();
     let buf = '';
     /* Repaint on a timer rather than per token: a 60-token-a-second stream
-       would otherwise rebuild the panel sixty times a second. */
+       would otherwise rebuild the feed sixty times a second. */
     let dirty = false;
     const paint = setInterval(() => { if (dirty) { dirty = false; agPatch(S); } }, 90);
 
@@ -13726,32 +14072,66 @@ async function agRun(text){
   }
   if (!reply.text && !(reply.steps || []).length) reply.text = '_(no output)_';
   drawSystems();
+  agSaveThread(S);
 }
 
-/* Patch the feed and the panel in place. A full drawSystems() mid-stream would
-   rebuild the composer and take the caret out of it. */
+const agUuid = () => (crypto.randomUUID ? crypto.randomUUID()
+  : 'ag-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10));
+
+/* Saved after every turn, whole. The agent reads its own past recommendations
+   back on the next pull, so this is not only a convenience for the reader. */
+async function agSaveThread(S){
+  if (!S.threadId || !S.messages.length) return;
+  try {
+    await api('/api/claude/agent/threads/' + encodeURIComponent(S.threadId), {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        agent: S.id, title: S.title, sessionId: S.sessionId, pullId: S.pullId,
+        messages: S.messages, panels: S.panels
+      })
+    });
+  } catch { /* a conversation that failed to save is not worth interrupting for */ }
+  AG.histFor = null;
+  agLoadThreads(S.id);
+}
+
+async function agOpenThread(id){
+  const S = agNow();
+  if (!S || S.busy) return;
+  try {
+    const out = await api('/api/claude/agent/threads/' + encodeURIComponent(id));
+    const t = out.thread || {};
+    S.threadId = t.id; S.title = t.title || '';
+    S.messages = t.messages || []; S.panels = t.panels || [];
+    S.sessionId = t.sessionId || null; S.pullId = t.pullId || null;
+    S.openRuns = {}; S.input = '';
+  } catch (err) {
+    toast('Could not open it: ' + err.message);
+  }
+  drawSystems();
+}
+
+function agNewThread(){
+  const S = agNow();
+  if (!S) return;
+  /* A new session id as well as an empty feed: keeping the old one means the
+     next turn silently continues a conversation that is no longer on screen. */
+  S.messages = []; S.panels = []; S.openRuns = {};
+  S.sessionId = null; S.threadId = null; S.title = ''; S.pullId = null; S.input = '';
+  drawSystems();
+}
+
+/* Patch the feed in place. A full drawSystems() mid-stream would rebuild the
+   composer and take the caret out of it. */
 function agPatch(S){
   const feed = document.getElementById('ag-feed');
   if (!feed) { drawSystems(); return; }
   const stuck = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 90;
   feed.innerHTML = S.messages.map((m, i) => agBubble(m, i, S)).join('')
-    + (S.busy && !S.streaming ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '');
+    + (S.pulling ? agPullRow(S.pulling) : '')
+    + (S.busy && !S.streaming && !S.pulling
+        ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '');
   if (stuck) feed.scrollTop = feed.scrollHeight;
-
-  const panel = document.querySelector('.agpanel');
-  if (panel) {
-    /* Only when the count changed. Rewriting it every frame would restart any
-       video playing in it. */
-    const drawn = Number(panel.dataset.n || 0);
-    if (drawn !== S.panels.length) {
-      panel.dataset.n = String(S.panels.length);
-      panel.innerHTML = agPanels(S);
-    }
-  } else if (S.panels.length) {
-    /* The first panel arrives while the layout is still the one-column start
-       state, which has nowhere to put it. */
-    drawSystems();
-  }
 }
 
 function agStop(){
@@ -13759,28 +14139,90 @@ function agStop(){
   if (!S) return;
   S.abort?.abort();
   fetch('/api/claude/stop', { method: 'POST' }).catch(() => {});
-  S.busy = false; S.abort = null;
+  S.busy = false; S.abort = null; S.pulling = null;
   drawSystems();
 }
 
 function agDraw(){ drawSystems(); }
 
-/* ---------- wiring ---------- */
+/* ---------- wiring ----------
+
+   Clicks on anything the agent drew go through one delegated listener on the
+   document, installed once.
+
+   Per-element handlers were the bug: agPatch replaces the feed's innerHTML on a
+   90ms timer, so every handler attached to a video title was thrown away within
+   a tenth of a second of being attached, and the anchor fell back to its href
+   and navigated to YouTube. A delegated listener cannot be destroyed by a
+   repaint. */
+let agDelegated = false;
+function agDelegate(){
+  if (agDelegated) return;
+  agDelegated = true;
+  document.addEventListener('click', e => {
+    const near = sel => (e.target.closest ? e.target.closest(sel) : null);
+
+    const play = near('[data-agplay]');
+    if (play) {
+      /* A modifier click still opens the platform, the way a link should. */
+      if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
+      e.preventDefault();
+      agOpenPlayer(play.dataset.agplay, play.dataset.agtitle);
+      return;
+    }
+    const open = near('[data-agopen]');
+    if (open) { e.preventDefault(); agOpenPanel(open.dataset.agopen); return; }
+
+    const file = near('[data-agfile]');
+    if (file) { e.preventDefault(); agOpenData(file.dataset.agfile); return; }
+
+    const copy = near('[data-agcopy]');
+    if (copy) {
+      const S = agNow();
+      const p = S && S.panels.find(x => x.id === copy.dataset.agcopy);
+      if (!p) return;
+      /* Tab-separated, which is what a spreadsheet expects from the clipboard. */
+      const flat = v => v == null ? ''
+        : (typeof v === 'object' ? String(v.text ?? '') : String(v));
+      const lines = [(p.columns || []).join('\t')]
+        .concat((p.rows || []).map(r => r.map(flat).join('\t')));
+      if (p.total) lines.push(p.total.map(flat).join('\t'));
+      navigator.clipboard.writeText(lines.join('\n')).then(
+        () => toast('Copied as rows'), () => toast('Could not copy'));
+    }
+  });
+}
 
 function wireAgents(root){
+  agDelegate();
+
   root.querySelectorAll('[data-agent]').forEach(b => b.onclick = () => {
     AG.agent = b.dataset.agent;
+    AG.histFor = null;
     drawSystems();
   });
-  root.querySelectorAll('[data-agrun]').forEach(b => b.onclick = () => agRun(AG_ANALYZE));
+  root.querySelectorAll('[data-agrun]').forEach(b => b.onclick = agAnalyze);
   root.querySelectorAll('[data-agstop]').forEach(b => b.onclick = agStop);
-  root.querySelectorAll('[data-agclear]').forEach(b => b.onclick = () => {
-    const S = agNow();
-    if (!S) return;
-    /* A new session id as well as an empty feed: leaving the old one means the
-       next turn silently continues a conversation that is no longer on screen. */
-    S.messages = []; S.panels = []; S.openRuns = {}; S.sessionId = null; S.input = '';
+  root.querySelectorAll('[data-agnew]').forEach(b => b.onclick = agNewThread);
+  root.querySelectorAll('[data-aghist]').forEach(b => b.onclick = () => {
+    AG.showHistory = !AG.showHistory;
     drawSystems();
+  });
+  root.querySelectorAll('[data-agclear]').forEach(b => b.onclick = agNewThread);
+
+  root.querySelectorAll('[data-agthread]').forEach(el => el.onclick = e => {
+    if (e.target.closest('[data-agdel]')) return;
+    agOpenThread(el.dataset.agthread);
+  });
+  root.querySelectorAll('[data-agdel]').forEach(b => b.onclick = async e => {
+    e.stopPropagation();
+    const id = b.dataset.agdel;
+    try { await api('/api/claude/agent/threads/' + encodeURIComponent(id), { method: 'DELETE' }); }
+    catch (err) { return toast('Could not delete it: ' + err.message); }
+    const S = agNow();
+    if (S && S.threadId === id) agNewThread();
+    AG.histFor = null;
+    agLoadThreads(AG.agent);
   });
 
   const ta = root.querySelector('#ag-input');
@@ -13798,30 +14240,7 @@ function wireAgents(root){
     agRun(box ? box.value : '');
   };
 
-  root.querySelectorAll('[data-agplay]').forEach(a => a.onclick = e => {
-    /* A modifier click still opens the platform, the way a link should. */
-    if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return true;
-    e.preventDefault();
-    agOpenPlayer(a.dataset.agplay, a.dataset.agtitle);
-    return false;
-  });
-
-  root.querySelectorAll('[data-agcopy]').forEach(b => b.onclick = () => {
-    const S = agNow();
-    const p = S && S.panels.find(x => x.id === b.dataset.agcopy);
-    if (!p) return;
-    /* Tab-separated, which is what a spreadsheet expects from the clipboard. */
-    const flat = v => v == null ? ''
-      : (typeof v === 'object' ? String(v.text ?? '') : String(v));
-    const lines = [(p.columns || []).join('\t')]
-      .concat((p.rows || []).map(r => r.map(flat).join('\t')));
-    if (p.total) lines.push(p.total.map(flat).join('\t'));
-    navigator.clipboard.writeText(lines.join('\n')).then(
-      () => toast('Copied as rows'), () => toast('Could not copy'));
-  });
-
-  /* The panel scrolls independently of the page, and the feed keeps its own
-     position, so neither fights the other. */
+  /* The feed keeps its own scroll position rather than the page's. */
   const feed = root.querySelector('#ag-feed');
   if (feed && !feed.dataset.scrolled) {
     feed.dataset.scrolled = '1';

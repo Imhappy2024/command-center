@@ -141,3 +141,97 @@ export async function recentPosts(token, { uploadsPlaylist, limit = 50 } = {}){
                 + (Number(v.statistics?.commentCount) || 0)
   }));
 }
+
+/* ---------------------------------------------------------------------------
+   Writing a video back.
+
+   videos.update is a REPLACE, not a patch: part=snippet swaps the whole snippet
+   object, title and categoryId are required, and anything you leave out is
+   cleared. Sending {title: 'new'} alone wipes the description, the tags and the
+   category in one call. So this is always read-modify-write, and the read is not
+   optional even when the caller thinks it knows the current values.
+
+   1 unit to read, 50 to write. The write is the expensive call on this API and
+   the daily quota is 10,000, so this is roughly 200 title changes a day -- far
+   more than anyone will do by hand and worth knowing before a loop is written
+   around it. */
+
+/* The current snippet, plus what the caller needs to show a diff. */
+export async function video(token, id){
+  const j = await call(token,
+    `${DATA}/videos?part=snippet,status,statistics&id=${encodeURIComponent(id)}`);
+  const v = j.items?.[0];
+  if (!v) throw new Error(`No video ${id} on this channel, or it is not yours to read.`);
+  return {
+    id: v.id,
+    title: v.snippet?.title || '',
+    description: v.snippet?.description || '',
+    tags: v.snippet?.tags || [],
+    categoryId: v.snippet?.categoryId || null,
+    defaultLanguage: v.snippet?.defaultLanguage || null,
+    publishedAt: v.snippet?.publishedAt || null,
+    privacyStatus: v.status?.privacyStatus || null,
+    views: Number(v.statistics?.viewCount) || 0,
+    permalink: `https://www.youtube.com/watch?v=${v.id}`
+  };
+}
+
+/* Change some of a video's packaging and leave the rest exactly as it was.
+
+   Returns before and after, because the point of a title test is being able to
+   put it back, and "what was it before" is the one thing YouTube's own UI will
+   not tell you an hour later. */
+export async function updateVideo(token, id, changes = {}){
+  const before = await video(token, id);
+
+  const snippet = {
+    title: changes.title == null ? before.title : String(changes.title),
+    categoryId: before.categoryId,
+    description: changes.description == null ? before.description : String(changes.description),
+    tags: changes.tags == null ? before.tags : changes.tags
+  };
+  if (before.defaultLanguage) snippet.defaultLanguage = before.defaultLanguage;
+
+  /* YouTube's own limits, checked here so the failure names the field rather
+     than coming back as a 400 with a generic invalidVideoMetadata. */
+  if (!snippet.title.trim()) throw new Error('A video title cannot be empty.');
+  if (snippet.title.length > 100) {
+    throw new Error(`That title is ${snippet.title.length} characters; YouTube's limit is 100.`);
+  }
+  if (snippet.description.length > 5000) {
+    throw new Error(`That description is ${snippet.description.length} characters; the limit is 5000.`);
+  }
+  if (!snippet.categoryId) {
+    throw new Error('This video has no category set, and videos.update requires one. '
+      + 'Set a category on the video once in YouTube Studio and it will work after that.');
+  }
+
+  const res = await fetch(`${DATA}/videos?part=snippet`, {
+    method: 'PUT',
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id, snippet })
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    const reason = j.error?.errors?.[0]?.reason;
+    /* The one failure worth translating. A read-only grant is the expected state
+       for anyone who connected YouTube before editing existed, and "insufficient
+       permissions" sends people looking for the wrong thing. */
+    if (res.status === 403 && /insufficient|forbidden/i.test(reason || '')) {
+      throw new Error('This YouTube connection was granted read-only access. '
+        + 'Reconnect YouTube in Connections to grant editing, then try again.');
+    }
+    throw new Error(`YouTube ${res.status}${reason ? ` (${reason})` : ''}: `
+      + (j.error?.message || res.statusText));
+  }
+
+  const after = await video(token, id);
+  return {
+    id,
+    permalink: after.permalink,
+    changed: ['title', 'description', 'tags'].filter(k =>
+      JSON.stringify(before[k]) !== JSON.stringify(after[k])),
+    before: { title: before.title, description: before.description, tags: before.tags },
+    after: { title: after.title, description: after.description, tags: after.tags }
+  };
+}

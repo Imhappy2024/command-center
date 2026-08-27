@@ -28,6 +28,13 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { AGENTS } from '../lib/agent-briefs.js';
 import { pipeline } from 'node:stream/promises';
+import { query } from '../db/index.js';
+import { runNow, providerFamily, pollerStatus } from '../lib/social-sync.js';
+/* summariseMetrics, not summarise: claudeRoutes() declares its own summarise()
+   for session titles, and a function declaration inside that closure shadows a
+   module import silently. The pull stored session-title fields as its metrics
+   summary for a whole run before a comparison test noticed. */
+import { compact, summarise as summariseMetrics, compare, agoLabel } from '../lib/agent-metrics.js';
 
 /* Hosted platforms all announce themselves. If any of these is set we are not
    on someone's laptop, and this router does not exist. */
@@ -248,6 +255,52 @@ export function claudeRoutes({ env, auth }){
       if (b.kind === 'clips') {
         return res.json(await inner('GET', '/api/systems'));
       }
+      /* What the agent said to do, in its own words, so the next pull can ask
+         whether it happened. Recorded by the agent rather than parsed out of its
+         prose: "was this followed" needs a claim with an edge on it, and prose
+         does not have one. */
+      if (b.kind === 'record_actions') {
+        const items = (Array.isArray(b.actions) ? b.actions : []).slice(0, 12)
+          .map(a => ({
+            headline: String(a?.headline || '').slice(0, 300),
+            detail: a?.detail ? String(a.detail).slice(0, 2000) : null,
+            metric: a?.metric ? String(a.metric).slice(0, 120) : null,
+            target: a?.target ? String(a.target).slice(0, 300) : null
+          })).filter(a => a.headline);
+        if (!items.length) return res.status(400).json({ error: 'no actions to record' });
+        for (const a of items) {
+          await query(
+            'INSERT INTO agent_actions (id, agent, pull_id, thread_id, headline, detail, metric, target)'
+            + ' VALUES ($1,$2,$3,$4,$5,$6,$7,$8)',
+            [crypto.randomUUID(), ask.agentId || 'unknown', ask.pullId || null,
+              ask.threadId || null, a.headline, a.detail, a.metric, a.target]);
+        }
+        return res.json({ recorded: items.length,
+          note: 'Stored. The next pull hands these back to you with the numbers that '
+            + 'moved since, so you can say whether they were acted on.' });
+      }
+      /* Writing a video's packaging back. YouTube only. The schema does not
+         offer this to any other agent, and the platform is checked here as well,
+         because a schema is a suggestion to a model and this is a change to a
+         live channel. */
+      if (b.kind === 'update_video' || b.kind === 'read_video') {
+        if (ask.platform !== 'youtube') {
+          return res.status(403).json({ error: 'Only the YouTube agent can touch a video.' });
+        }
+        const id = String(b.videoId || '').trim();
+        if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) {
+          return res.status(400).json({ error: 'that is not a YouTube video id' });
+        }
+        if (b.kind === 'read_video') {
+          return res.json(await inner('GET', '/api/social/youtube/video/' + id));
+        }
+        const body = {};
+        if (typeof b.title === 'string') body.title = b.title;
+        if (typeof b.description === 'string') body.description = b.description;
+        if (Array.isArray(b.tags)) body.tags = b.tags;
+        if (!Object.keys(body).length) return res.status(400).json({ error: 'nothing to change' });
+        return res.json(await inner('POST', '/api/social/youtube/video/' + id, body));
+      }
       if (b.kind === 'create_clip') {
         /* The clip route takes videoUrl and a prefs object; the tool takes a
            flat shape because that is easier for a model to get right. The
@@ -272,6 +325,204 @@ export function claudeRoutes({ env, auth }){
     } catch (err) {
       res.status(err.status && err.status < 500 ? err.status : 502).json({ error: err.message });
     }
+  });
+
+  /* ---- Analyze: fetch live, then hand the agent the data ------------------
+
+     Pressing Analyze is not a message. It is a trigger: go to the platform, get
+     today's numbers, and start reading them.
+
+     Two things follow from that. The turn does not begin with an instruction --
+     it begins with the data, and the brief is what tells the agent that a
+     metrics payload arriving on its own means "analyse this". Writing the
+     instruction into the prompt instead would put the agent's behaviour in a
+     string in the browser, where it cannot be researched, versioned, or kept
+     consistent between the button and a follow-up question.
+
+     And the data is FRESH. The dashboard's stored numbers are as of the last
+     poll, which can be six hours old, and an analyst reading yesterday's figures
+     while calling them today's is worse than one that made you wait. */
+
+  const FAMILY_OF = {
+    youtube: 'youtube', x: 'x',
+    facebook: 'meta', instagram: 'meta', meta_ads: 'meta'
+  };
+
+  /* The stored numbers for one platform, read through this app's own API with
+     the caller's session -- the same path the agent's tools take, so a pull and
+     a follow-up question cannot disagree about the same window. */
+  const readPlatform = async (req, key, range) => {
+    const base = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
+    const res = await fetch(base + '/api/social/platform/' + key + '?range=' + range,
+      { headers: req.headers.cookie ? { cookie: req.headers.cookie } : {} });
+    const t = await res.text();
+    let j = null; try { j = JSON.parse(t); } catch { /* not json */ }
+    if (!res.ok) throw new Error((j && j.error) || ('the platform read returned ' + res.status));
+    return j || {};
+  };
+
+  r.post('/api/claude/agent/pull', auth.require, express.json({ limit: '16kb' }), async (req, res) => {
+    const agent = AGENTS[String(req.body?.agent || '')];
+    if (!agent) return res.status(400).json({ error: 'unknown agent' });
+    const range = [7, 28, 90].includes(Number(req.body?.range)) ? Number(req.body.range) : 28;
+    const platform = agent.platform;
+
+    /* Live first. A failure here is reported and the pull continues against
+       stored data: half an analysis of this morning's numbers beats an error
+       message, as long as it says which of the two it is looking at. */
+    const live = { attempted: true, ok: false, polled: 0, failed: 0, error: null, waited: false };
+    try {
+      const family = providerFamily(FAMILY_OF[platform] || platform);
+      if (!family) { live.attempted = false; live.error = 'no fetcher for ' + platform; }
+      else if (pollerStatus().running) {
+        /* Someone else is already fetching. Waiting for their pass is right:
+           two concurrent polls of the same account is how you get rate-limited
+           on the one API whose quota cannot be bought. */
+        live.waited = true;
+        for (let i = 0; i < 90 && pollerStatus().running; i++) {
+          await new Promise(done => setTimeout(done, 1000));
+        }
+        live.ok = !pollerStatus().running;
+        if (!live.ok) live.error = 'A fetch was still running after 90 seconds.';
+      } else {
+        const out = await runNow({ env, providers: family });
+        live.polled = out.polled || 0;
+        live.failed = out.failed || 0;
+        /* polled > 0, not merely "no error".
+
+           pollOnce skips any account already flagged for reconnection, and it
+           reports that as a clean pass with nothing polled. Reading that as a
+           successful live fetch is how the card came to say "Live from YouTube"
+           over numbers that were six hours old and could not have been anything
+           else -- the worst failure this endpoint has, because it is the one the
+           reader has no way to notice. */
+        live.ok = Boolean(out.ok) && !out.failed && live.polled > 0;
+        if (out.failed) {
+          live.error = (out.results || []).filter(x => !x.ok)
+            .map(x => x.label + ': ' + x.error).join('; ');
+        } else if (!out.ok) {
+          live.error = 'A fetch was already running.';
+        } else if (!live.polled) {
+          live.error = out.accounts
+            ? 'Every connected account is flagged for reconnection, so nothing was fetched. '
+              + 'Reconnect it in Connections.'
+            : 'No account of this kind is connected, so there was nothing to fetch.';
+        }
+      }
+    } catch (err) {
+      live.error = err.message;
+    }
+
+    try {
+      const raw = await readPlatform(req, platform, range);
+      const data = compact(platform, raw);
+      const summary = summariseMetrics(platform, data);
+
+      /* What happened last time, and what was recommended then. Absent on a
+         first pull, and absent means absent -- the brief says not to narrate a
+         comparison that does not exist. */
+      const { rows: prevRows } = await query(
+        'SELECT id, fetched_at, summary FROM agent_pulls'
+        + ' WHERE agent = $1 ORDER BY fetched_at DESC LIMIT 1',
+        [agent.id]).catch(() => ({ rows: [] }));
+      const prev = prevRows[0] || null;
+      let previous = null;
+      if (prev) {
+        const { rows: acts } = await query(
+          'SELECT headline, detail, metric, target, created_at FROM agent_actions'
+          + ' WHERE agent = $1 AND created_at >= $2 ORDER BY created_at ASC LIMIT 20',
+          [agent.id, prev.fetched_at]).catch(() => ({ rows: [] }));
+        previous = {
+          pulledAt: prev.fetched_at,
+          pulledAgo: agoLabel(prev.fetched_at),
+          change: compare(prev.summary, summary),
+          youRecommended: acts.map(a => ({
+            headline: a.headline, detail: a.detail || undefined,
+            metric: a.metric || undefined, target: a.target || undefined
+          }))
+        };
+      }
+
+      const pullId = crypto.randomUUID();
+      await query(
+        'INSERT INTO agent_pulls (id, agent, platform, range_days, live, live_error, summary)'
+        + ' VALUES ($1,$2,$3,$4,$5,$6,$7)',
+        [pullId, agent.id, platform, range, live.ok, live.error, JSON.stringify(summary)]
+      ).catch(err => console.error('[agent] could not record the pull:', err.message));
+
+      res.json({
+        ok: true, pullId, agent: agent.id, platform, range,
+        fetchedAt: new Date().toISOString(),
+        live, summary, previous, data,
+        source: live.ok ? 'live' : 'stored'
+      });
+    } catch (err) {
+      res.status(502).json({ error: err.message, live });
+    }
+  });
+
+  /* ---- conversations ------------------------------------------------------
+
+     Server-side rather than in the browser, and not for convenience: the agent
+     has to be able to see what it said last time to check whether its own advice
+     was taken. History kept only in localStorage is history the agent cannot
+     read. */
+
+  const threadRow = (row, full) => ({
+    id: row.id, agent: row.agent, title: row.title || 'Untitled',
+    sessionId: row.session_id || null,
+    createdAt: row.created_at, updatedAt: row.updated_at, pullId: row.pull_id || null,
+    count: Array.isArray(row.messages) ? row.messages.length : 0,
+    ...(full ? { messages: row.messages || [], panels: row.panels || [] } : {})
+  });
+
+  r.get('/api/claude/agent/threads', auth.require, async (req, res) => {
+    try {
+      const agent = String(req.query.agent || '');
+      const { rows } = await query(
+        'SELECT id, agent, title, session_id, created_at, updated_at, pull_id, messages'
+        + ' FROM agent_threads'
+        + " WHERE ($1 = '' OR agent = $1)"
+        + ' ORDER BY updated_at DESC LIMIT 60', [agent]);
+      res.json({ ok: true, threads: rows.map(x => threadRow(x, false)) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  r.get('/api/claude/agent/threads/:id', auth.require, async (req, res) => {
+    try {
+      const { rows } = await query('SELECT * FROM agent_threads WHERE id = $1', [req.params.id]);
+      if (!rows.length) return res.status(404).json({ error: 'no such conversation' });
+      res.json({ ok: true, thread: threadRow(rows[0], true) });
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  /* Upsert. The browser owns the id and writes the whole thread after each turn,
+     which keeps this to one statement and means a dropped response never leaves
+     half a conversation behind. */
+  r.put('/api/claude/agent/threads/:id', auth.require, express.json({ limit: '8mb' }),
+    async (req, res) => {
+      const b = req.body || {};
+      if (!AGENTS[String(b.agent || '')]) return res.status(400).json({ error: 'unknown agent' });
+      try {
+        await query(
+          'INSERT INTO agent_threads (id, agent, title, session_id, pull_id, messages, panels, updated_at)'
+          + ' VALUES ($1,$2,$3,$4,$5,$6,$7, now())'
+          + ' ON CONFLICT (id) DO UPDATE SET'
+          + '   title = EXCLUDED.title, session_id = EXCLUDED.session_id,'
+          + '   pull_id = COALESCE(EXCLUDED.pull_id, agent_threads.pull_id),'
+          + '   messages = EXCLUDED.messages, panels = EXCLUDED.panels, updated_at = now()',
+          [String(req.params.id), b.agent, String(b.title || '').slice(0, 200) || null,
+            b.sessionId || null, b.pullId || null,
+            JSON.stringify(b.messages || []), JSON.stringify(b.panels || [])]);
+        res.json({ ok: true });
+      } catch (err) { res.status(500).json({ error: err.message }); }
+    });
+
+  r.delete('/api/claude/agent/threads/:id', auth.require, async (req, res) => {
+    try {
+      await query('DELETE FROM agent_threads WHERE id = $1', [req.params.id]);
+      res.json({ ok: true });
+    } catch (err) { res.status(500).json({ error: err.message }); }
   });
 
   /* The browser, once the user has tapped. */
@@ -970,7 +1221,13 @@ export function claudeRoutes({ env, auth }){
       cookie: req.headers.cookie || '',
       /* The one platform this turn's agent may read. Enforced here as well as in
          the tool schema: the schema is a suggestion to a model, this is not. */
-      platform: agent ? agent.platform : null };
+      platform: agent ? agent.platform : null,
+      /* Which agent, which pull and which conversation this turn belongs to, so
+         anything the agent records lands attached to them rather than floating
+         free. */
+      agentId: agent ? agent.id : null,
+      pullId: b.pullId ? String(b.pullId).slice(0, 64) : null,
+      threadId: b.threadId ? String(b.threadId).slice(0, 64) : null };
     for (const d of (b.pluginDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--plugin-dir', String(d).trim());
     for (const d of (b.addDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--add-dir', String(d).trim());
     if (b.agents && String(b.agents).trim()) {

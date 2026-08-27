@@ -259,3 +259,61 @@ ALTER TABLE clips ADD COLUMN IF NOT EXISTS hashtags    TEXT;
 ALTER TABLE clips ADD COLUMN IF NOT EXISTS export_url  TEXT;
 ALTER TABLE clips ADD COLUMN IF NOT EXISTS rank        INTEGER;
 ALTER TABLE clips ADD COLUMN IF NOT EXISTS hook_note   TEXT;
+
+/* ---------------------------------------------------------------------------
+   The analyst agents' memory.
+
+   Three tables, and they exist for one behaviour: when metrics arrive, the agent
+   should be able to say "you did the thing I suggested and here is what it did"
+   rather than reading every pull as if it were the first. That needs the last
+   pull's numbers, the recommendations made against them, and the conversation
+   they were made in -- none of which the platform APIs remember.
+
+   agent_pulls stores a SUMMARY, not the payload. The full window is re-readable
+   from social_metrics whenever it is wanted, and keeping a copy of it per pull
+   would grow without bound to hold data that is already on disk twice.
+   --------------------------------------------------------------------------- */
+
+CREATE TABLE IF NOT EXISTS agent_pulls (
+  id          TEXT PRIMARY KEY,
+  agent       TEXT NOT NULL,
+  platform    TEXT NOT NULL,
+  range_days  INTEGER NOT NULL,
+  fetched_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  live        BOOLEAN NOT NULL DEFAULT false,   -- did the live refresh actually succeed
+  live_error  TEXT,
+  summary     JSONB NOT NULL DEFAULT '{}'::jsonb
+);
+CREATE INDEX IF NOT EXISTS agent_pulls_agent ON agent_pulls (agent, fetched_at DESC);
+
+/* What the agent said to do, recorded by the agent itself at the end of an
+   analysis. Read back on the next pull so it can check its own work. */
+CREATE TABLE IF NOT EXISTS agent_actions (
+  id          TEXT PRIMARY KEY,
+  agent       TEXT NOT NULL,
+  pull_id     TEXT REFERENCES agent_pulls(id) ON DELETE SET NULL,
+  thread_id   TEXT,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  headline    TEXT NOT NULL,
+  detail      TEXT,
+  metric      TEXT,          -- the number this was meant to move
+  target      TEXT,          -- the video, campaign or post it applies to
+  outcome     TEXT           -- set on a later pull: followed / not-followed / unclear
+);
+CREATE INDEX IF NOT EXISTS agent_actions_agent ON agent_actions (agent, created_at DESC);
+
+/* Conversations. Stored whole as JSON rather than a row per message: a thread is
+   always written and read in one piece, and a messages table would buy joins
+   nothing here needs. */
+CREATE TABLE IF NOT EXISTS agent_threads (
+  id          TEXT PRIMARY KEY,
+  agent       TEXT NOT NULL,
+  title       TEXT,
+  session_id  TEXT,          -- the Claude CLI session, so a reopened thread resumes
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  pull_id     TEXT,
+  messages    JSONB NOT NULL DEFAULT '[]'::jsonb,
+  panels      JSONB NOT NULL DEFAULT '[]'::jsonb
+);
+CREATE INDEX IF NOT EXISTS agent_threads_agent ON agent_threads (agent, updated_at DESC);

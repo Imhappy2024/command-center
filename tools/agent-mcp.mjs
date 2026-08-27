@@ -19,6 +19,10 @@
    diagnostics go to stderr. */
 
 import process from 'node:process';
+/* Shared with routes/claude.js, which shapes the payload the Analyze button
+   hands over. Two copies would drift, and the drift would surface as an agent
+   whose opening analysis and follow-up answers disagree about one window. */
+import { compact } from '../lib/agent-metrics.js';
 
 const URL_BASE = process.env.CC_AGENT_URL || '';
 const TOKEN = process.env.CC_AGENT_TOKEN || '';
@@ -39,6 +43,9 @@ const MINE = LABEL[PLATFORM] ? PLATFORM : 'youtube';
 const MY_LABEL = LABEL[MINE];
 /* Ads have campaigns, not posts. */
 const ORGANIC = MINE !== 'meta_ads';
+/* Only one platform here has a write API wired up, and only one agent should
+   ever be able to change a live channel. */
+const CAN_EDIT = MINE === 'youtube';
 
 const TOOLS = [
   {
@@ -162,6 +169,72 @@ const TOOLS = [
     }
   },
   {
+    name: 'record_actions',
+    description: [
+      'Record what you are telling the user to do, as a short list. Call this',
+      'once at the end of an analysis, after you have said it in your reply.',
+      '',
+      'This is what lets you check your own work. The next time metrics are',
+      'pulled, these come back to you alongside the numbers that moved since,',
+      'so you can say whether each one was acted on and what it did. An analysis',
+      'that is not recorded is one you will re-derive from scratch next month.',
+      '',
+      'Record the real recommendations, not a summary of the conversation.'
+    ].join(' '),
+    inputSchema: {
+      type: 'object', additionalProperties: false, required: ['actions'],
+      properties: {
+        actions: {
+          type: 'array', minItems: 1, maxItems: 12,
+          items: {
+            type: 'object', additionalProperties: false, required: ['headline'],
+            properties: {
+              headline: { type: 'string', description: 'The action, imperative and specific. "Retitle the Nov 3 upload to lead with the outcome", not "improve titles".' },
+              detail: { type: 'string', description: 'The reasoning and the exact change, if there is one.' },
+              metric: { type: 'string', description: 'The number this should move, e.g. "browse CTR" or "cost per lead".' },
+              target: { type: 'string', description: 'The video, post or campaign it applies to.' }
+            }
+          }
+        }
+      }
+    }
+  },
+  ...(CAN_EDIT ? [{
+    name: 'read_video',
+    description: 'Read one video\'s current title, description, tags and category straight '
+      + 'from YouTube. Do this before proposing a rewrite, so you are editing what is '
+      + 'actually published rather than what the stored feed says.',
+    inputSchema: {
+      type: 'object', additionalProperties: false, required: ['videoId'],
+      properties: { videoId: { type: 'string', description: 'The 11-character YouTube video id.' } }
+    }
+  }, {
+    name: 'update_video',
+    description: [
+      'Change a published video\'s title, description or tags on YouTube.',
+      '',
+      'THIS IS LIVE. It changes what the public sees within seconds.',
+      '',
+      'Never call it on your own initiative. Propose the exact new text, ask with',
+      'ask_user, and only call this after the user has said yes to that specific',
+      'wording. If they asked you directly to change something, read it first with',
+      'read_video, show them the before and after, and confirm.',
+      '',
+      'Only the fields you send change; everything else is preserved. The result',
+      'carries the previous values, so say them back in your reply -- that is what',
+      'makes a title test reversible.'
+    ].join(' '),
+    inputSchema: {
+      type: 'object', additionalProperties: false, required: ['videoId'],
+      properties: {
+        videoId: { type: 'string' },
+        title: { type: 'string', description: 'Up to 100 characters. Omit to leave it alone.' },
+        description: { type: 'string', description: 'Up to 5000 characters. Omit to leave it alone. Sending this replaces the whole description.' },
+        tags: { type: 'array', items: { type: 'string' }, description: 'Replaces the tag list entirely. Omit to leave it alone.' }
+      }
+    }
+  }] : []),
+  {
     name: 'list_clips',
     description: 'Recent OpusClip projects and the clips in them, with their scores and durations.',
     inputSchema: { type: 'object', additionalProperties: false, properties: {} }
@@ -200,62 +273,6 @@ async function call(pathname, body){
   try { json = JSON.parse(text); } catch { /* fall through */ }
   if (!r.ok) throw new Error((json && json.error) || ('the dashboard returned ' + r.status));
   return json || {};
-}
-
-/* A metrics payload is far too big to hand a model whole -- 90 days of rows per
-   campaign per account. This keeps the parts an analysis needs and says what it
-   dropped, rather than silently truncating in the middle of an array. */
-function compact(platform, j){
-  if (!j || j.connected === false) {
-    return { platform, connected: false,
-      reason: j?.grantConnected === false
-        ? 'No account of this kind is connected in the dashboard.'
-        : 'Connected, but no account rows were found.' };
-  }
-  const out = {
-    platform, range: j.range,
-    accounts: (j.accounts || []).map(a => ({ id: a.id, label: a.label, status: a.status }))
-  };
-
-  if (j.ads) {
-    const a = j.ads;
-    out.currency = a.currency;
-    out.totals = a.totals;
-    out.previousWindow = a.previous;
-    out.campaigns = (a.campaigns || []).map(c => ({
-      name: c.name, account: c.account, objective: c.objective, status: c.status,
-      spend: c.spend, impressions: c.impressions, clicks: c.clicks, results: c.results,
-      ctr: c.ctr, cpc: c.cpc, cpm: c.cpm, costPerResult: c.cpa,
-      peakDailyFrequency: c.peakFrequency
-    }));
-    out.daily = (a.daily || []).map(d => ({
-      day: d.day, spend: d.spend, impressions: d.impressions, clicks: d.clicks,
-      results: d.results, reach: d.reach
-    }));
-    /* Stated rather than left for the model to work out, because getting it
-       wrong is the single most common error in reading this data. */
-    out.readMe = [
-      'reach is per-day only and counts unique people -- do NOT sum it across days.',
-      'Window-level frequency cannot be derived from summed reach; peakDailyFrequency is the real fatigue signal.',
-      'Every ratio here was derived from summed counts. Do not average the ratios again.'
-    ];
-  }
-
-  if (j.series) {
-    out.daily = j.series.map(s => ({
-      day: s.day, followers: s.followers, reach: s.reach, views: s.views,
-      interactions: s.interactions, posts: s.posts
-    }));
-  }
-  if (j.posts) {
-    out.postCount = j.posts.length;
-    out.posts = j.posts.slice(0, 60).map(p => ({
-      title: p.title, url: p.permalink, published: p.publishedAt,
-      views: p.views, reach: p.reach, interactions: p.interactions, shares: p.shares
-    }));
-    if (j.posts.length > 60) out.postsTruncated = j.posts.length - 60;
-  }
-  return out;
 }
 
 /* ---- the tools themselves ---- */
@@ -306,6 +323,28 @@ async function run(name, args){
   if (name === 'show_note') {
     await call('/api/claude/agent/show', { panel: { kind: 'note', ...args } });
     return { shown: true };
+  }
+
+  if (name === 'record_actions') {
+    return call('/api/claude/agent/data', { kind: 'record_actions', actions: args.actions });
+  }
+
+  if (name === 'read_video') {
+    return call('/api/claude/agent/data', { kind: 'read_video', videoId: args.videoId });
+  }
+
+  if (name === 'update_video') {
+    const body = { kind: 'update_video', videoId: args.videoId };
+    if (typeof args.title === 'string') body.title = args.title;
+    if (typeof args.description === 'string') body.description = args.description;
+    if (Array.isArray(args.tags)) body.tags = args.tags;
+    if (!('title' in body) && !('description' in body) && !('tags' in body)) {
+      throw new Error('Nothing to change. Send a title, a description or tags.');
+    }
+    const out = await call('/api/claude/agent/data', body);
+    return { ...out,
+      note: 'This is live on the channel now. Tell the user what it was before, '
+        + 'which is in the before block, so they can put it back.' };
   }
 
   if (name === 'list_clips') return call('/api/claude/agent/data', { kind: 'clips' });
