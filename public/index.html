@@ -6654,6 +6654,9 @@ function adsView(){
     return t;
   };
 
+  /* How many days produced nothing. Quoted in the chart note, because "the line
+     has gaps" is only useful with the size of the gap attached. */
+  let zeroDays = 0;
   const inScope = r => SO.adsAcct === 'all' || r.account === SO.adsAcct;
   const campaigns = (ads.campaigns || []).filter(inScope);
   const dailyRows = (ads.daily || []).filter(inScope);
@@ -6670,6 +6673,7 @@ function adsView(){
     a.impressions += r.impressions||0; a.clicks += r.clicks||0;
   }
   const series = axis.map(day => ({ day, ...derive(byDay.get(day) || BLANK(), true) }));
+  zeroDays = series.filter(r => !r.results).length;
 
   /* ---------- what needs attention ----------
      The research on paid dashboards is consistent on this: the table tells you
@@ -6725,22 +6729,47 @@ function adsView(){
   const vs = 'vs prior ' + SO.range + 'd';
   const spark = k => series.map(r => r[k]).filter(v => v != null).slice(-12);
 
+  /* A delta of null and a delta of zero are different answers, and the tile used
+     to give them the same chip: "vs prior 28d" with no number, which reads as
+     "flat". It is not flat, it is unknown. */
+  const vsOr = have => (have == null ? 'no prior period' : vs);
+
+  /* The number this account most needed and did not have. Spend on campaigns
+     that produced nothing in the window is not an average dragged upward, it is
+     money with a zero next to it, and it was buried in three alert rows. */
+  const dead = campaigns.filter(c => c.spend > 0 && !c.results);
+  const wasted = dead.reduce((a, c) => a + c.spend, 0);
+  const wastedPct = totals.spend ? wasted / totals.spend * 100 : 0;
+  /* And what the rest actually cost, which is the honest figure to steer by. */
+  const working = campaigns.filter(c => c.results);
+  const workingSpend = working.reduce((a, c) => a + c.spend, 0);
+  const workingCpa = totals.results ? workingSpend / totals.results : null;
+
   const tiles = '<div class="kpis grid g3">'
-    + kpi('Spend', money(totals.spend), { delta: pctMove(totals.spend, prev?.spend), deltaLabel: vs, spark: spark('spend'), color:'var(--s1)' })
-    + kpi('Results', String(totals.results), { delta: pctMove(totals.results, prev?.results), deltaLabel: vs, spark: spark('results'), color:'var(--s3)' })
+    + kpi('Spend', money(totals.spend), { delta: pctMove(totals.spend, prev?.spend),
+        deltaLabel: vsOr(prev?.spend), spark: spark('spend'), color:'var(--s1)' })
+    + kpi('Results', String(totals.results), { delta: pctMove(totals.results, prev?.results),
+        deltaLabel: vsOr(prev?.results), spark: spark('results'), color:'var(--s3)' })
     /* Down is better here, so the arrow direction and the colour disagree on
        purpose — a falling cost is a green ▼. */
     + kpi('Cost per result', money(totals.cpa), { delta: pctMove(totals.cpa, prev?.cpa), goodDown: true,
-        deltaLabel: totals.cpa == null ? 'nothing has converted' : vs, color:'var(--s4)', na: totals.cpa == null })
+        deltaLabel: totals.cpa == null ? 'nothing has converted' : vsOr(prev?.cpa),
+        bench: workingCpa != null && wasted ? money(workingCpa) + ' excluding the dead spend' : '',
+        color:'var(--s4)', na: totals.cpa == null })
     + '</div>'
     + '<div class="kpis grid g3">'
-    + kpi('Click-through rate', pct(totals.ctr), { delta: pctMove(totals.ctr, prev?.ctr), deltaLabel: vs,
-        bench: 'avg ' + ADS_BENCH.ctr + '%', color:'var(--s5)', na: totals.ctr == null })
-    + kpi('Impressions', compact(totals.impressions), { deltaLabel: totals.cpm != null ? money(totals.cpm) + ' CPM' : 'none recorded',
-        bench: 'cpm avg ' + money(ADS_BENCH.cpm), spark: spark('impressions'), color:'var(--s7)' })
+    + kpi('Spend with no result', money(wasted), {
+        deltaLabel: dead.length ? dead.length + ' campaign' + (dead.length > 1 ? 's' : '') + ' converted nothing'
+          : 'every campaign converted',
+        bench: wasted ? Math.round(wastedPct) + '% of the window' : '',
+        color:'var(--s6)', na: !wasted })
+    + kpi('Click-through rate', pct(totals.ctr), { delta: pctMove(totals.ctr, prev?.ctr),
+        deltaLabel: vsOr(prev?.ctr), bench: 'avg ' + ADS_BENCH.ctr + '%',
+        color:'var(--s5)', na: totals.ctr == null })
     + kpi('Peak frequency', ratio(totals.peakFrequency), {
         deltaLabel: totals.peakFrequency == null ? 'no reach recorded' : 'highest single day',
-        bench: 'fatigue above ' + ADS_BENCH.frequency.toFixed(1), color:'var(--s2)', na: totals.peakFrequency == null })
+        bench: 'fatigue above ' + ADS_BENCH.frequency.toFixed(1), color:'var(--s2)',
+        na: totals.peakFrequency == null })
     + '</div>';
 
   /* ---------- combo chart ----------
@@ -6760,8 +6789,30 @@ function adsView(){
   const axis2 = series.map(r => r.day);
   const spendSeries = [{ id:'ads-spend', label:'Spend', color:'var(--s1)', kind:'bar',
     values: series.map(r => r.spend || 0) }];
-  const effSeries = [{ id:'ads-' + lineKey, label:lineLabel, color:'var(--s4)', kind:'line',
-    values: series.map(r => r[lineKey] == null || !isFinite(r[lineKey]) ? null : r[lineKey]) }];
+
+  /* Cost per result, running rather than per-day.
+
+     Per-day was unreadable and misleading at once: on this account 13 of 20 days
+     had no conversion at all, so the line was seven disconnected fragments with
+     nothing joining them, and each fragment was one day's ratio -- the noisiest
+     possible version of the number. A single conversion on a $40 day drew a
+     point at $40 next to a gap.
+
+     Running spend over running results is defined from the first conversion
+     onward, moves the way the account is actually trending, and ends exactly on
+     the headline figure in the tile above it. */
+  const runCpa = (() => {
+    let s = 0, r2 = 0;
+    return series.map(row => {
+      s += row.spend || 0; r2 += row.results || 0;
+      return r2 ? s / r2 : null;
+    });
+  })();
+  const cumulative = lineKey === 'cpa';
+  const effSeries = [{ id:'ads-' + lineKey, label: cumulative ? 'Cost per result, running' : lineLabel,
+    color:'var(--s4)', kind:'line',
+    values: cumulative ? runCpa
+      : series.map(r => r[lineKey] == null || !isFinite(r[lineKey]) ? null : r[lineKey]) }];
 
   const chart = !series.length
     ? '<div class="vwrap viz"><div class="vempty"><b>No daily data yet</b>'
@@ -6770,8 +6821,14 @@ function adsView(){
       ? frame('Daily spend and ' + lineLabel.toLowerCase(), SO.range + ' days',
           vizTable(axis2, spendSeries.concat(effSeries), v => money(v)), [], '')
       : vizChart({ axis: axis2, series: spendSeries, fmt: money, title: 'Spend per day', sub: SO.range + ' days', height: 170 })
-        + vizChart({ axis: axis2, series: effSeries, fmt: lineFmt, title: lineLabel + ' per day', sub: 'own scale — never shared with spend', height: 150,
-            note: 'A break in the line is a day with no delivery, not a cost of nothing.' });
+        + vizChart({ axis: axis2, series: effSeries, fmt: lineFmt,
+            title: cumulative ? 'Cost per result, running' : lineLabel + ' per day',
+            sub: 'own scale — never shared with spend', height: 150,
+            note: cumulative
+              ? 'Running spend over running results, so it starts at the first conversion and '
+                + 'ends on the figure in the tile. A per-day version of this is mostly gaps: '
+                + zeroDays + ' of ' + series.length + ' days converted nothing.'
+              : 'A break in the line is a day with no delivery, not a value of nothing.' });
 
   /* ---------- campaign table ---------- */
   const SORTS = {

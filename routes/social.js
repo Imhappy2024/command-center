@@ -309,6 +309,22 @@ export function socialRoutes({ env, auth }){
     };
   };
 
+  /* Postgres hands back a DATE as a JS Date, and String(thatDate).slice(0,10)
+     is "Fri Aug 14" -- so the axis sorted by WEEKDAY NAME. Every ads chart came
+     out in the order Fri, Mon, Sat, Sun, Thu, Tue, Wed, reading left to right as
+     August, July, June, and every per-campaign sparkline was aligned to the same
+     scrambled axis.
+
+     Local parts rather than toISOString(): a DATE column comes back as midnight
+     local, and converting to UTC shifts it a day for anyone west of Greenwich. */
+  const dayKey = v => {
+    if (v instanceof Date) {
+      return v.getFullYear() + '-' + String(v.getMonth() + 1).padStart(2, '0')
+        + '-' + String(v.getDate()).padStart(2, '0');
+    }
+    return String(v).slice(0, 10);
+  };
+
   r.get('/api/social/platform/:key', auth.require, guarded('api/social/platform', async (req, res) => {
     const key = String(req.params.key);
     if (!PLATFORM_KEYS.includes(key)) return res.status(404).json({ error: 'unknown platform' });
@@ -394,7 +410,7 @@ export function socialRoutes({ env, auth }){
       const acctMap = new Map();
 
       for (const r of rows) {
-        const day = String(r.day).slice(0, 10);
+        const day = dayKey(r.day);
         /* Keyed by day AND account, and sent as raw counts. The account filter
            in the browser sums whichever rows it keeps and derives the ratios
            from that sum — deriving them here would mean re-averaging an average
@@ -495,7 +511,7 @@ export function socialRoutes({ env, auth }){
         [ids, days]);
       series = rows.map(r2 => ({
         account: r2.account_id,
-        day: r2.day,
+        day: dayKey(r2.day),
         followers: r2.followers == null ? null : Number(r2.followers),
         reach: r2.reach == null ? null : Number(r2.reach),
         views: r2.views == null ? null : Number(r2.views),
