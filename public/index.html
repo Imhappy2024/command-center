@@ -2477,6 +2477,24 @@ main{min-width:0;display:flex;flex-direction:column}
    how "it just ignores me" happens with nothing to look at. */
 .hmdrop{align-self:flex-end;max-width:88%;text-align:right;font-size:10.5px;
   color:var(--dimmer);line-height:1.45;font-style:italic}
+
+/* What the subagents are doing. Visible, because work happening somewhere you
+   cannot see is work you assume is not happening. */
+.hmrail .jobs{min-width:17px;height:17px;border-radius:99px;background:var(--brass);color:#fff;
+  font-family:var(--ff-mono);font-size:9.5px;display:grid;place-items:center;flex:none;
+  padding:0 4px}
+.hmjobs{border-bottom:1px solid var(--edge);background:var(--ink2)}
+.hmjob{display:flex;align-items:center;gap:8px;padding:7px 11px;font-size:11.5px;
+  color:var(--dim);border-bottom:1px solid rgba(38,44,70,.5)}
+.hmjob:last-child{border-bottom:0}
+.hmjob .sp{width:10px;height:10px;border-radius:50%;flex:none;
+  border:2px solid var(--edge2);border-top-color:var(--brass);animation:agspin .8s linear infinite}
+.hmjob .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hmjob .s{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
+.hmjob .x{background:none;border:0;color:var(--dimmer);font-size:15px;line-height:1;
+  cursor:pointer;padding:0 2px;flex:none}
+.hmjob .x:hover{color:var(--rust)}
+@media (prefers-reduced-motion:reduce){.hmjob .sp{animation:none}}
 @media (prefers-reduced-motion:reduce){
   .hmrail .halo{animation:none}
   .hmrail .work{animation:none}
@@ -14688,6 +14706,8 @@ const HM = {
   lastAskAt: 0,          // when, so a follow-up can be joined to it
   interrupted: false,    // a turn was cut off and the CLI needs a beat
   dropped: null,         // heard but not acted on, and why -- shown, not hidden
+  jobs: [],              // what the subagents are doing
+  jobTimer: null,        // the poll, which only runs while something is running
   voice: null,           // chosen voice name, if one was picked by hand
   gender: 'male',        // which to reach for when none has been
   rate: 1.02,
@@ -15329,6 +15349,11 @@ async function hmSay(text, opts){
   }
   hmPaint();
 
+  /* Anything the turn set going. Cheap to ask once; the poll stops on its own
+     when nothing is running. */
+  if ((reply.steps || []).some(x => x.kind === 'tool'
+      && /__(delegate|analyze)$/.test(x.name || ''))) hmJobsWatch();
+
   /* The question needed something that was not attached. Ask it again with that
      connector on: the user has already been told to hold on. */
   if (HM.needConn) {
@@ -15364,6 +15389,19 @@ function hmAct(d, reply){
     return;
   }
   if (d.kind === 'analyze') {
+    /* Started by a subagent now, not queued for the page to run. All this does
+       is put the section on screen so it is visible while it happens. */
+    if (d.jobId) {
+      hmJobsWatch();
+      const item = document.querySelector('.navitem[data-target="systems"]');
+      if (item) {
+        item.click();
+        SY.open = 'metrics';
+        if (d.agent) AG.agent = d.agent;
+        drawSystems();
+      }
+      return;
+    }
     HM.queued = { agent: d.agent, platform: d.platform };
     return;
   }
@@ -15572,7 +15610,10 @@ function hmRail(){
     +   HM_MIC_SVG + '<span class="halo"></span></button>'
     + '<button class="tx" data-hmopen="1" title="Open the transcript">'
     +   '<span class="nm">Hommie</span><span class="st">' + escS(sub) + '</span></button>'
-    + (HM.busy ? '<span class="work"></span>' : '')
+    + (HM.jobs.length
+        ? '<span class="jobs" title="' + escS(HM.jobs.map(j => j.title).join(', ')) + '">'
+          + HM.jobs.length + '</span>'
+        : HM.busy ? '<span class="work"></span>' : '')
     + '<button class="gear" data-hmgear="1" title="Voice and settings" aria-label="Hommie settings">'
     +   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" '
     +   'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'
@@ -15608,6 +15649,12 @@ function hmPanel(){
     + '</div>'
     + (HM.error ? '<div class="hmerr">' + escS(HM.error) + '</div>' : '')
     + (HM.cfg ? hmSettings() : '')
+    + (HM.jobs.length ? '<div class="hmjobs">' + HM.jobs.map(j =>
+        '<div class="hmjob"><span class="sp"></span>'
+        + '<span class="t">' + escS(j.title) + '</span>'
+        + '<span class="s">' + j.seconds + 's</span>'
+        + '<button class="x" data-hmjobstop="' + escS(j.id) + '" title="Stop it">×</button>'
+        + '</div>').join('') + '</div>' : '')
     + '<div class="hmfeed" id="hm-feed">' + feed
     + (HM.dropped ? '<div class="hmdrop">Heard &ldquo;' + escS(HM.dropped.text)
         + '&rdquo; &mdash; ' + escS(HM.dropped.why) + '</div>' : '')
@@ -15796,6 +15843,11 @@ function hmWire(root){
     HM.muted = e.target.checked; hmSave();
     if (HM.muted) hmShutUp();
   });
+  root.querySelectorAll('[data-hmjobstop]').forEach(b => b.onclick = async () => {
+    try { await api('/api/claude/hommie/jobs/' + encodeURIComponent(b.dataset.hmjobstop)
+      + '/stop', { method: 'POST' }); } catch { /* it may have just finished */ }
+    hmJobsPoll();
+  });
   root.querySelectorAll('[data-hmtest]').forEach(b => b.onclick = () =>
     hmSpeak('Hommie here. Fourteen overdue, and eleven of them are not assigned to anyone.'));
   root.querySelectorAll('[data-hmpanel]').forEach(b => b.onclick = () => {
@@ -15810,6 +15862,61 @@ function hmWire(root){
 
   /* The question widget, same delegation the other two chats use. */
   ccWireFeed(root.querySelector('#hm-feed'), () => HM);
+}
+
+/* ---------- the subagents ----------
+
+   Hommie hands anything slow to a subagent so it can keep talking. Which leaves
+   one thing for the page to do: notice when one finishes and say so.
+
+   Polled rather than streamed. The job outlives the turn that started it, so
+   there is no open connection to push down by then, and a four-second poll that
+   only runs while something is actually running costs nothing. */
+function hmJobsLater(){
+  clearTimeout(HM.jobTimer);
+  HM.jobTimer = setTimeout(hmJobsPoll, 4000);
+}
+
+async function hmJobsPoll(){
+  let out;
+  try { out = await api('/api/claude/hommie/jobs'); }
+  catch { HM.jobTimer = null; return; }
+
+  const done = (out.jobs || []).filter(j => j.status !== 'running' && !j.announced);
+  HM.jobs = (out.jobs || []).filter(j => j.status === 'running');
+
+  for (const j of done) {
+    const mins = j.seconds >= 90 ? Math.round(j.seconds / 60) + ' minutes'
+      : j.seconds + ' seconds';
+    if (j.status === 'done' && j.result) {
+      /* Two different things. The report goes in the transcript to be read with
+         the eyes; only the closing line is read out, because a four-minute job
+         produces four minutes of reading and nobody wants that spoken at them. */
+      HM.messages.push({ role: 'assistant',
+        text: '**' + j.title + '** — done in ' + mins + '\n\n'
+          + String(j.result).replace(/(^|\n)\s*SPOKEN:[\s\S]*$/i, ''),
+        panelIds: (j.panels || []).map(p => p.panel?.id).filter(Boolean) });
+      for (const p of (j.panels || [])) if (p.panel) HM.panels.unshift(p.panel);
+      hmQueue(j.spoken || j.result);
+    } else if (j.status === 'stopped') {
+      HM.messages.push({ role: 'assistant', text: j.title + ' was stopped.' });
+    } else {
+      HM.messages.push({ role: 'assistant',
+        text: j.title + ' failed: ' + (j.error || 'no reason given') });
+      hmQueue(j.title + ' failed. ' + (j.error || ''));
+    }
+  }
+  if (done.length) hmPatch();
+  hmPaint();
+
+  /* Stop polling when there is nothing to poll for. */
+  if (HM.jobs.length) hmJobsLater();
+  else HM.jobTimer = null;
+}
+
+/* Called when Hommie says it started something. */
+function hmJobsWatch(){
+  if (!HM.jobTimer) hmJobsLater();
 }
 
 /* ---------- watching for things going wrong ----------

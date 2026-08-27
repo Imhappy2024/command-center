@@ -217,6 +217,45 @@ const TOOLS = [
     }
   },
   {
+    name: 'delegate',
+    description: [
+      'Hand a long job to a subagent and get on with the conversation.',
+      '',
+      'Use this for ANYTHING that will take more than about ten seconds: a piece',
+      'of research, a multi-step lookup, a repair, reading through something.',
+      'It returns straight away with a job id; the work happens in its own',
+      'process and you are told when it finishes.',
+      '',
+      'This is the difference between a conversation and a wait. While a subagent',
+      'runs you can still be asked things, interrupted, and told to stop.',
+      '',
+      'Say what you set going in one short line -- "right, I have got someone',
+      'reading through the last month of leads, give me a minute" -- and then',
+      'carry on. Do not narrate it and do not keep checking on it.',
+      '',
+      'Write the task in FULL. The subagent cannot see this conversation and',
+      'cannot ask you anything, so everything it needs has to be in the sentence.',
+      'Settle any ambiguity with the user BEFORE delegating, not after.'
+    ].join(' '),
+    inputSchema: {
+      type: 'object', additionalProperties: false, required: ['task'],
+      properties: {
+        task: { type: 'string', description: 'The whole job, written so it stands alone. Include the specifics: which platform, which window, which file, what to look for.' },
+        title: { type: 'string', description: 'Four or five words for the list the user sees.' },
+        jobKind: { type: 'string', enum: ['research', 'repair', 'chore'],
+          description: 'research reads and reports. repair may change code and push. chore is everything else.' }
+      }
+    }
+  },
+  {
+    name: 'job_status',
+    description: 'What the subagents are doing, or one of them by id. Use it when the '
+      + 'user asks what is running -- not to poll: you are told when a job finishes.',
+    inputSchema: {
+      type: 'object', additionalProperties: false, properties: { jobId: { type: 'string' } }
+    }
+  },
+  {
     name: 'analyze',
     description: [
       'Hand a platform to its specialist analyst: it fetches live from the platform',
@@ -421,6 +460,8 @@ async function run(name, args){
     case 'mail':       return data({ kind: 'mail', ...args });
     case 'clips':      return data({ kind: 'clips' });
     case 'recent_errors': return data({ kind: 'recent_errors', ...args });
+    case 'delegate':      return data({ kind: 'delegate', ...args });
+    case 'job_status':    return data({ kind: 'job_status', ...args });
     case 'drive_find': return data({ kind: 'drive_find', ...args });
 
     case 'create_clip': {

@@ -148,6 +148,44 @@ const REPAIR_NOTE = [
   'what you found, what you want to do. Not a running commentary.'
 ].join('\n');
 
+/* What a subagent is told. Short, because it is not having a conversation.
+
+   The important half is the last paragraph. A subagent's output is read aloud by
+   something else, to someone who has been doing something else for four minutes
+   and has half-forgotten what they asked -- so it has to end with a sentence
+   that stands on its own. */
+const JOB_BRIEF = [
+  'You are a background worker for the Command Center dashboard. Somebody asked',
+  'Hommie, the assistant, for something that takes minutes rather than seconds,',
+  'and Hommie handed it to you so it could carry on talking to them.',
+  '',
+  'Nobody is watching you. There is no way to ask a question and nothing will',
+  'answer if you try -- anything ambiguous was supposed to be settled before you',
+  'were started, so make the most reasonable call, do the work, and say what you',
+  'assumed.',
+  '',
+  'Use the tools you have been given. Do not guess at a number you could read.',
+  'Draw anything worth looking at on screen with show_table or show_note; it will',
+  'still be there when they look.',
+  '',
+  'FINISH WITH A LINE THAT STARTS "SPOKEN:" AND NOTHING AFTER IT BUT TWO SHORT',
+  'SENTENCES, FORTY WORDS OR FEWER IN TOTAL. That line is read out loud by a',
+  'speech synthesiser, and forty words is already fifteen seconds of somebody',
+  'standing there listening to it. No markdown, no asterisks, no numbers with',
+  'commas in them. Not a summary of what you did -- the answer, and the one thing',
+  'worth doing about it. Everything you had to leave out is in the part above,',
+  'which they can read.',
+  '',
+  'The person hearing it has been doing something else for several minutes and',
+  'may not remember the exact question, so it has to stand on its own. "Your top',
+  'three are all interview clips, and all three lead with a claim rather than a',
+  'topic. The other twenty-three do not." is right. "The analysis is complete."',
+  'is not.',
+  '',
+  'Everything above that line can be as long as it needs to be; it goes on screen',
+  'and is read with the eyes.'
+].join('\n');
+
 const READ_TOOLS = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'TodoWrite'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash'];
 
@@ -429,6 +467,232 @@ export function claudeRoutes({ env, auth }){
     }
   });
 
+  /* ---- subagents ----------------------------------------------------------
+
+     Hommie talks; these do the work.
+
+     One Claude turn at a time is fine for a chat and wrong for a voice
+     assistant: "analyse YouTube" takes four minutes, and holding the
+     conversation hostage for four minutes so that one question can be answered
+     is the whole problem. So anything long is handed to a subagent that runs in
+     its own process with its own tool server, and Hommie is free again
+     immediately -- free to be interrupted, asked something else, or told to stop.
+
+     They are deliberately not interactive. A background job cannot ask a
+     question, because there is nobody watching it; anything needing a decision
+     has to be settled with Hommie before it is delegated. */
+  const jobs = new Map();
+  const JOB_KINDS = {
+    analyse: { tools: 'agent', label: 'analysis' },
+    research: { tools: 'hommie', label: 'research' },
+    repair: { tools: 'repair', label: 'repair' },
+    chore: { tools: 'hommie', label: 'job' }
+  };
+
+  /* The part of a subagent's answer that gets read out.
+
+     It is asked to end with a SPOKEN: line and usually does. When it does not --
+     and a model that has just written a long report sometimes does not -- the
+     fallback is the last couple of sentences with the markdown taken out, which
+     is far better than reading three and a half thousand characters of table
+     syntax at someone. */
+  function spokenTail(text){
+    const raw = String(text || '');
+    const marked = /(?:^|\n)\s*SPOKEN:\s*([\s\S]+)$/i.exec(raw);
+    let out = marked ? marked[1] : raw;
+    out = out
+      .replace(/^\|.*\|\s*$/gm, ' ')          // whole table rows
+      .replace(/```[\s\S]*?```/g, ' ')
+      .replace(/[*_#>`|-]{2,}/g, ' ')
+      .replace(/[*_#`]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!marked) {
+      const bits = out.match(/[^.!?]+[.!?]+/g) || [out];
+      out = bits.slice(-2).join(' ').trim();
+    }
+    return out.slice(0, 600);
+  }
+
+  const jobView = j => ({
+    id: j.id, kind: j.kind, title: j.title, status: j.status,
+    startedAt: j.startedAt, endedAt: j.endedAt || null,
+    seconds: Math.round(((j.endedAt || Date.now()) - j.startedAt) / 1000),
+    steps: j.steps, result: j.result || null, error: j.error || null,
+    /* Two different things: one is read out, the other is read. */
+    spoken: j.spoken || null,
+    panels: j.panels || [],
+    /* Read once. A finished job announces itself exactly one time, or Hommie
+       reports the same result on every poll for as long as the tab is open. */
+    announced: j.announced
+  });
+
+  function startJob({ kind, title, prompt, platform }){
+    const spec = JOB_KINDS[kind] || JOB_KINDS.chore;
+    const id = crypto.randomUUID();
+    const token = crypto.randomBytes(24).toString('hex');
+    const selfUrl = 'http://127.0.0.1:' + (env.PORT || 3000);
+
+    const servers = {};
+    if (spec.tools === 'agent' && platform) {
+      servers[AGENT_SERVER] = {
+        command: process.execPath, args: [AGENT_SCRIPT],
+        env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: token, CC_AGENT_PLATFORM: platform }
+      };
+    } else {
+      servers[HOMMIE_SERVER] = {
+        command: process.execPath, args: [HOMMIE_SCRIPT],
+        env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: token,
+          CC_HOMMIE_REPAIR: spec.tools === 'repair' ? '1' : '0' }
+      };
+    }
+
+    const brief = spec.tools === 'agent' && platform
+      ? (Object.values(AGENTS).find(a => a.platform === platform)?.brief || '')
+      : JOB_BRIEF + (spec.tools === 'repair' ? '\n\n' + REPAIR_NOTE : '');
+
+    const args = ['--input-format', 'stream-json', '--output-format', 'stream-json',
+      '--include-partial-messages', '--verbose',
+      '--mcp-config', JSON.stringify({ mcpServers: servers }),
+      '--strict-mcp-config',
+      '--append-system-prompt', brief,
+      /* No question widget. Nobody is watching a background job, so a tool that
+         waits for a person waits forever. */
+      '--disallowed-tools', ...IMPOSSIBLE_HERE,
+      ...(spec.tools === 'repair' ? [] : ['Bash', 'PowerShell', 'Edit', 'Write', 'NotebookEdit']),
+      '--allowed-tools',
+      ...(spec.tools === 'repair' ? REPAIR_TOOLS : READ_TOOLS),
+      'mcp__' + (spec.tools === 'agent' && platform ? AGENT_SERVER : HOMMIE_SERVER)];
+
+    const job = {
+      id, kind, token, title: String(title || spec.label).slice(0, 120),
+      status: 'running', startedAt: Date.now(), endedAt: null,
+      steps: 0, result: '', error: null, announced: false,
+      /* The session cookie of whoever asked. A subagent sees exactly what they
+         see and nothing more. */
+      cookie: ask?.cookie || '',
+      repair: spec.tools === 'repair',
+      platform: platform || null,
+      panels: []
+    };
+
+    let child;
+    try {
+      child = spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
+    } catch (err) {
+      job.status = 'failed'; job.error = err.message; job.endedAt = Date.now();
+      jobs.set(id, job);
+      return job;
+    }
+    job.child = child;
+    jobs.set(id, job);
+
+    /* Only the servers this job asked for, so the prompt goes as soon as its own
+       tool server is up rather than waiting on a fixed timer. */
+    let sent = false;
+    const send = () => {
+      if (sent) return;
+      sent = true;
+      try {
+        child.stdin.write(JSON.stringify({ type: 'user',
+          message: { role: 'user', content: [{ type: 'text', text: prompt }] } }) + '\n');
+      } catch { /* the child went away */ }
+    };
+    const timer = setTimeout(send, 6_000);
+
+    let buf = '';
+    child.stdout.on('data', chunk => {
+      buf += chunk.toString();
+      let i;
+      while ((i = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, i).trim();
+        buf = buf.slice(i + 1);
+        if (!line) continue;
+        let f; try { f = JSON.parse(line); } catch { continue; }
+        if (!sent && f.type === 'system' && Array.isArray(f.mcp_servers)
+            && !f.mcp_servers.some(sv => sv.status === 'pending')) {
+          clearTimeout(timer); send();
+        }
+        if (f.type === 'assistant') {
+          for (const c of f.message?.content || []) {
+            if (c.type === 'tool_use') job.steps++;
+            if (c.type === 'text' && c.text) job.result += c.text;
+          }
+        }
+        if (f.type === 'result') {
+          if (typeof f.result === 'string' && f.result.trim()) job.result = f.result;
+          job.status = f.is_error ? 'failed' : 'done';
+          job.endedAt = Date.now();
+          job.spoken = spokenTail(job.result);
+          try { child.stdin.end(); } catch { /* already closed */ }
+        }
+      }
+    });
+    child.stderr.on('data', () => { /* the CLI's own chatter */ });
+    child.on('close', () => {
+      clearTimeout(timer);
+      if (job.status === 'running') {
+        job.status = job.result.trim() ? 'done' : 'failed';
+        job.error = job.result.trim() ? null : 'it stopped without answering';
+        job.endedAt = Date.now();
+        job.spoken = spokenTail(job.result);
+      }
+      console.log('[hommie] job ' + job.kind + ' ' + job.status + ' in '
+        + Math.round((job.endedAt - job.startedAt) / 1000) + 's: ' + job.title);
+    });
+
+    /* Nothing runs forever. Ten minutes is longer than the longest real job here
+       -- a full platform analysis is about four -- and a wedged one has to end
+       rather than sit in the list looking busy. */
+    setTimeout(() => {
+      if (job.status !== 'running') return;
+      job.status = 'failed';
+      job.error = 'it ran for ten minutes without finishing, so it was stopped';
+      job.endedAt = Date.now();
+      try { child.kill('SIGTERM'); } catch { /* gone */ }
+    }, 600_000);
+
+    return job;
+  }
+
+  /* A running job's tool server calls back with the job's own token, which is
+     how a subagent reads this dashboard without borrowing the live turn's
+     channel -- there may not be one by then. */
+  const jobByToken = req => {
+    const given = String(req.get('x-agent-token') || req.get('x-ask-token') || '');
+    if (!given) return null;
+    for (const j of jobs.values()) {
+      if (j.status !== 'running' || j.token.length !== given.length) continue;
+      try {
+        if (crypto.timingSafeEqual(Buffer.from(given), Buffer.from(j.token))) return j;
+      } catch { /* length mismatch */ }
+    }
+    return null;
+  };
+
+  /* The browser asking what is in flight. Marks finished jobs announced as it
+     hands them over, so each result is reported exactly once. */
+  r.get('/api/claude/hommie/jobs', auth.require, (req, res) => {
+    const out = [...jobs.values()].map(jobView);
+    for (const j of jobs.values()) if (j.status !== 'running') j.announced = true;
+    /* Finished and already told about: drop it, so the map does not grow for as
+       long as the server is up. */
+    for (const [id, j] of jobs) {
+      if (j.status !== 'running' && j.endedAt && Date.now() - j.endedAt > 300_000) jobs.delete(id);
+    }
+    res.json({ ok: true, jobs: out, running: out.filter(j => j.status === 'running').length });
+  });
+
+  r.post('/api/claude/hommie/jobs/:id/stop', auth.require, (req, res) => {
+    const j = jobs.get(String(req.params.id));
+    if (!j) return res.status(404).json({ error: 'no such job' });
+    if (j.status === 'running') {
+      j.status = 'stopped'; j.endedAt = Date.now();
+      try { j.child?.kill('SIGTERM'); } catch { /* gone */ }
+    }
+    res.json({ ok: true, job: jobView(j) });
+  });
+
   /* ---- Hommie ------------------------------------------------------------
 
      One assistant across the whole dashboard, driven by voice. Everything it can
@@ -440,15 +704,29 @@ export function claudeRoutes({ env, auth }){
   /* Things Hommie makes the page do: change section, draw a panel, or queue an
      analyst run. Pushed down the same SSE stream the turn is already using. */
   r.post('/api/claude/hommie/act', express.json({ limit: '1mb' }), (req, res) => {
-    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    /* A subagent draws too. It has no live SSE channel -- the turn that started
+       it has long since ended -- so what it draws is kept on the job and handed
+       over when the job is collected. Without this show_table came back 403 and
+       the model did the sensible thing: wrote the table into its answer as
+       markdown, which then went to a speech synthesiser. */
+    const job = jobByToken(req);
+    if (!job && !askCaller(req)) return res.status(403).json({ error: 'not this turn' });
     const b = req.body || {};
+    const emit = (kind, payload) => {
+      if (job) { job.panels.push({ kind, ...payload }); return; }
+      ask.send('hommie', { kind, ...payload });
+    };
     try {
       if (b.action === 'navigate') {
+        /* A background job does not get to move the screen out from under
+           whoever is using it. */
+        if (job) return res.json({ ok: false, ignored: 'a background job cannot navigate' });
         ask.send('hommie', { kind: 'navigate', section: String(b.section || ''),
           view: b.view ? String(b.view) : null });
       } else if (b.action === 'panel') {
-        ask.send('hommie', { kind: 'panel',
-          panel: { id: crypto.randomUUID(), at: Date.now(), ...(b.panel || {}) } });
+        emit('panel', { panel: { id: crypto.randomUUID(), at: Date.now(), ...(b.panel || {}) } });
+      } else if (job) {
+        return res.status(400).json({ error: 'a background job cannot do that' });
       } else if (b.action === 'analyze') {
         ask.send('hommie', { kind: 'analyze', platform: String(b.platform || '') });
       } else if (b.action === 'connectors') {
@@ -479,14 +757,19 @@ export function claudeRoutes({ env, auth }){
   };
 
   r.post('/api/claude/hommie/data', express.json({ limit: '256kb' }), async (req, res) => {
-    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    /* Either the live turn or a running subagent. A subagent outlives the turn
+       that started it, so it cannot borrow that turn's channel -- it carries its
+       own token and the same session cookie. */
+    const job = jobByToken(req);
+    const who = job || (askCaller(req) ? ask : null);
+    if (!who) return res.status(403).json({ error: 'not this turn' });
     const b = req.body || {};
     const base = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
     const inner = async (method, pathname, body) => {
       const r2 = await fetch(base + pathname, {
         method,
         headers: {
-          ...(ask.cookie ? { cookie: ask.cookie } : {}),
+          ...(who.cookie ? { cookie: who.cookie } : {}),
           ...(body ? { 'Content-Type': 'application/json' } : {})
         },
         body: body ? JSON.stringify(body) : undefined
@@ -630,6 +913,36 @@ export function claudeRoutes({ env, auth }){
 
         case 'clips': return res.json(await inner('GET', '/api/systems'));
 
+        case 'delegate': {
+          /* A subagent cannot start a subagent. One level, so a runaway cannot
+             fan out, and so "what is running" stays a list a person can read. */
+          if (job) return res.status(400).json({ error: 'a subagent cannot delegate' });
+          const kind = JOB_KINDS[String(b.jobKind)] ? String(b.jobKind) : 'chore';
+          const task = String(b.task || '').trim();
+          if (task.length < 10) {
+            return res.status(400).json({ error: 'the task has to say what to do, in full' });
+          }
+          const running = [...jobs.values()].filter(x => x.status === 'running').length;
+          if (running >= 3) {
+            return res.status(409).json({
+              error: 'Three jobs are already running. Tell the user what they are and '
+                + 'ask whether to wait or stop one.' });
+          }
+          const j = startJob({ kind, title: b.title || task.slice(0, 60), prompt: task });
+          return res.json({ started: true, jobId: j.id, kind, title: j.title,
+            note: 'Running on its own. Tell the user in one short line what you set going '
+              + 'and roughly how long, then carry on. You will be told when it finishes.' });
+        }
+
+        case 'job_status': {
+          const rows = [...jobs.values()].map(jobView);
+          if (b.jobId) {
+            const one = rows.find(x => x.id === String(b.jobId));
+            return res.json(one || { error: 'no such job' });
+          }
+          return res.json({ jobs: rows, running: rows.filter(x => x.status === 'running').length });
+        }
+
         case 'recent_errors': {
           const since = Number(b.minutes) > 0 ? Number(b.minutes) : 60;
           const cut = Date.now() - since * 60_000;
@@ -680,12 +993,21 @@ export function claudeRoutes({ env, auth }){
           const key = String(b.platform || '');
           const agent = Object.values(AGENTS).find(a => a.platform === key);
           if (!agent) return res.status(400).json({ error: 'no analyst for ' + key });
-          /* Queued in the browser rather than started here. One Claude turn runs
-             at a time and this IS that turn, so starting a second would 409
-             against Hommie itself. The page runs it the moment Hommie is done. */
-          ask.send('hommie', { kind: 'analyze', platform: key, agent: agent.id });
-          return res.json({ queued: true, agent: agent.id, platform: key,
-            note: 'It starts as soon as this turn ends and runs in Systems.' });
+          /* Handed to a subagent, which is what makes this answerable at all:
+             a platform analysis is about four minutes and Hommie is not holding
+             the conversation open for four minutes. */
+          const j = startJob({ kind: 'analyse', platform: key,
+            title: agent.short + ' analysis',
+            prompt: 'Pull the last 28 days for ' + key + ' and give the full read. '
+              + 'Draw the numbers with show_table. End with a two-sentence summary '
+              + 'that can be read out loud, because it will be.' });
+          /* And shown in the Systems section, so it is visible rather than
+             happening somewhere nobody can see. */
+          try { who.send?.('hommie', { kind: 'analyze', platform: key, agent: agent.id, jobId: j.id }); }
+          catch { /* no live page */ }
+          return res.json({ started: true, jobId: j.id, agent: agent.id, platform: key,
+            note: 'Running on its own now. Say it is going and carry on -- do not wait '
+              + 'for it. You will be told when it lands.' });
         }
 
         case 'read_video':
@@ -709,7 +1031,7 @@ export function claudeRoutes({ env, auth }){
         case 'repair_status':
         case 'repair_ship':
         case 'repair_live': {
-          if (!ask.repair) {
+          if (!who.repair) {
             return res.status(403).json({
               error: 'Repair mode is off. The user has to turn it on with the Repair switch '
                 + 'next to the microphone before anything can touch the code.' });
@@ -1782,8 +2104,11 @@ export function claudeRoutes({ env, auth }){
        Hommie only. The Claude section is a full Claude Code session and gates
        its own write tools on CLAUDE_WRITE; narrowing it here would quietly
        change what that switch means. */
+    /* PowerShell as well as Bash. On Windows the CLI offers both, and a list
+       that names only one of them is a list that removes only one of them --
+       which is how an unarmed Hommie came to run two shell commands. */
     const strippedForHommie = hommie && !repair
-      ? ['Bash', 'Edit', 'Write', 'NotebookEdit'] : [];
+      ? ['Bash', 'PowerShell', 'Edit', 'Write', 'NotebookEdit'] : [];
     args.push('--disallowed-tools', ...IMPOSSIBLE_HERE, ...strippedForHommie);
     if (b.noSkills) args.push('--disable-slash-commands');
 
@@ -1875,13 +2200,37 @@ export function claudeRoutes({ env, auth }){
     const onlyAsk = !mcpAllow.length;
     send('status', { phase: 'connectors', text: onlyAsk ? 'starting…' : 'attaching connectors…' });
     /* A ceiling, because one wedged server must not hold the turn forever. */
-    mcpTimer = setTimeout(() => {
-      if (!onlyAsk) send('status', { phase: 'connectors', text: 'proceeding without all connectors' });
-      writePrompt();
-    /* The ceiling exists for account connectors, which are remote and slow. The
-       two local stdio servers attach in well under a second, so waiting eight
-       for them is eight seconds of silence bought for nothing. */
-    }, !onlyAsk ? 45_000 : hommie ? 2_500 : 8_000);
+    /* How long to hold the prompt back, measured rather than guessed.
+
+       There is no signal to wait on. The CLI emits no system frame until it has
+       been given something to do, so the init frame that reports whether the MCP
+       servers are attached arrives AFTER the moment you needed to know. Waiting
+       for it is waiting for something that only happens once you stop waiting.
+
+       So it was measured directly -- spawn, wait N, send, count the tools in the
+       init frame:
+
+         0ms, 500, 1000, 1500, 2000  ->  pending, 0 tools
+         3000ms                      ->  connected, 20 tools
+         5000ms                      ->  connected, 20 tools
+
+       Somewhere between two and three seconds. The old value was 2.5, sitting
+       exactly on that line, which is why it worked most of the time and then
+       produced a turn with no tools at all -- three ToolSearch calls, four Reads,
+       five Greps and 214 seconds spent reading source code to answer "how many
+       overdue tasks do I have".
+
+       3.2 is over the line with a margin, and the init frame is checked below in
+       case the margin is not enough on a slower morning. */
+    const LOCAL_ATTACH_MS = 3200;
+    if (onlyAsk) {
+      mcpTimer = setTimeout(writePrompt, LOCAL_ATTACH_MS);
+    } else {
+      mcpTimer = setTimeout(() => {
+        send('status', { phase: 'connectors', text: 'proceeding without all connectors' });
+        writePrompt();
+      }, 45_000);
+    }
 
     let buf = '';
     let finished = false;
@@ -1913,6 +2262,27 @@ export function claudeRoutes({ env, auth }){
               : (onlyAsk ? 'ready' : 'connectors ready'),
             servers: watch.map(sv => ({ name: sv.name, status: sv.status }))
           });
+          /* The init frame arrives just after the prompt, which is too late to
+             wait on but exactly right for checking. If this turn's own tool
+             server did not attach, the model is about to answer with no idea
+             where anything is -- so stop, rather than let it guess.
+
+             Only for Hommie and the analysts. The Claude section is a general
+             session and is perfectly usable with no MCP at all. */
+          if ((hommie || agent) && watch.some(sv => sv.status !== 'connected')) {
+            const dead = watch.filter(sv => sv.status !== 'connected')
+              .map(sv => sv.name + ' (' + sv.status + ')').join(', ');
+            console.error('[claude] tool server did not attach: ' + dead);
+            if (!finished) {
+              finished = true;
+              try { child.kill('SIGTERM'); } catch { /* gone */ }
+              send('fatal', { error: 'My tools did not load in time, so I would only be '
+                + 'guessing. Ask me again.' });
+              try { res.end(); } catch { /* already closed */ }
+              running = null;
+            }
+            return;
+          }
           if (!pending.length) {
             if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
             writePrompt();
