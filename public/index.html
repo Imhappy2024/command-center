@@ -2468,6 +2468,15 @@ main{min-width:0;display:flex;flex-direction:column}
 .hmrail.off .st{color:var(--rust)}
 .hmrail .work{width:6px;height:6px;border-radius:50%;background:var(--brass);flex:none;
   animation:hmblink 1s ease-in-out infinite}
+.hmrail .gear{background:none;border:0;color:var(--dimmer);cursor:pointer;padding:4px;
+  flex:none;opacity:0;transition:.15s var(--ease);display:grid;place-items:center}
+.hmrail:hover .gear,.hmrail.open .gear{opacity:1}
+.hmrail .gear:hover{color:var(--cream);transform:rotate(35deg)}
+
+/* Heard, and not acted on, with the reason. Dropping an utterance silently is
+   how "it just ignores me" happens with nothing to look at. */
+.hmdrop{align-self:flex-end;max-width:88%;text-align:right;font-size:10.5px;
+  color:var(--dimmer);line-height:1.45;font-style:italic}
 @media (prefers-reduced-motion:reduce){
   .hmrail .halo{animation:none}
   .hmrail .work{animation:none}
@@ -2531,6 +2540,29 @@ main{min-width:0;display:flex;flex-direction:column}
 .hmseg button:last-child{border-right:0}
 .hmseg button:hover{color:var(--cream)}
 .hmseg button.on{background:var(--brass);color:#fff}
+
+/* A list you can hear rather than a dropdown you guess from. */
+.hmvlist{max-height:190px;overflow-y:auto;border:1px solid var(--edge2);border-radius:8px;
+  background:var(--panel)}
+.hmvrow{display:grid;grid-template-columns:16px 1fr auto auto 24px;align-items:center;gap:7px;
+  padding:6px 8px;cursor:pointer;border-bottom:1px solid rgba(38,44,70,.5)}
+.hmvrow:last-child{border-bottom:0}
+.hmvrow:hover{background:var(--panel2)}
+.hmvrow.on{background:rgba(124,108,255,.12)}
+.hmvrow .tick{color:var(--brass);font-size:11px;text-align:center}
+.hmvrow .nm{font-size:12px;color:var(--text);overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap}
+.hmvrow.on .nm{color:var(--cream)}
+.hmvrow .ac{font-size:10px;color:var(--dimmer)}
+.hmvrow .q{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--dimmer);min-width:44px;text-align:right}
+.hmvrow .q.natural{color:var(--jade)}
+.hmvrow .q.online{color:var(--brass)}
+.hmvrow .q.basic{color:var(--dimmer);opacity:.6}
+.hmvrow .pl{background:none;border:0;color:var(--dimmer);cursor:pointer;font-size:10px;
+  padding:2px 4px}
+.hmvrow .pl:hover{color:var(--brass)}
+.hmvnone{padding:14px;font-size:11.5px;color:var(--dimmer);text-align:center}
 .hmcfg .hmbtn{align-self:flex-start}
 
 .hmfeed{flex:1;min-height:120px;overflow-y:auto;padding:12px;display:flex;
@@ -14653,6 +14685,9 @@ const HM = {
                          // is recognised as an echo rather than a new question
   interim: '',           // the utterance being assembled
   hush: null,            // the silence timer that commits it
+  lastAskAt: 0,          // when, so a follow-up can be joined to it
+  interrupted: false,    // a turn was cut off and the CLI needs a beat
+  dropped: null,         // heard but not acted on, and why -- shown, not hidden
   voice: null,           // chosen voice name, if one was picked by hand
   gender: 'male',        // which to reach for when none has been
   rate: 1.02,
@@ -14672,7 +14707,25 @@ const HM_ARM_MS = 9000;  // how long "Hommie" stays armed with nothing after it
    microphone that can be several seconds after the person stopped talking --
    which is most of "why didn't it answer". So silence is timed here too, and
    whichever notices first wins. */
-const HM_HUSH_MS = 1100;
+/* How long a pause has to be before the sentence is treated as over.
+
+   1.1 seconds was far too eager: people pause mid-thought, and cutting them off
+   there sends half a question and then treats the other half as an interruption.
+
+   Three numbers rather than one, because how long to wait depends on what was
+   just said. "and then" is obviously unfinished; "how many overdue tasks do I
+   have" obviously is not; most things are in between. */
+const HM_HUSH_MS = 2600;        // the ordinary case
+const HM_HUSH_TRAILING = 4200;  // it ended on a word nobody ends on
+const HM_HUSH_DONE = 1400;      // a complete question, asked and finished
+
+/* Words people stop on when they have not finished. Ending on one of these is
+   the clearest signal in speech that more is coming, and waiting the extra
+   second and a half costs nothing when they have. */
+const HM_TRAILING = /\b(and|but|so|or|then|also|plus|with|for|to|the|a|an|of|in|on|at|by|from|about|because|since|while|if|when|that|which|who|like|into|onto|up|down|my|your|our|its|it's|is|are|was|were|do|does|did|can|could|would|should|will|i|we|you|they|he|she|let|make|get|put|take|give|show|tell|ask|need|want|going|gonna|trying|um|uh|er)$/i;
+
+/* And the shape of something already finished. */
+const HM_COMPLETE = /[?!.]$|\b(please|thanks|thank you|now|instead|as well|too)$/i;
 /* Things people say to themselves and to other people in the room. Sending
    these to a model costs a turn and gets a confused answer back. */
 const HM_FILLER = /^(uh|um|erm|hmm+|mm+|ah|oh|eh|yeah|yep|yes|no|nope|ok|okay|right|so|well|hi|hey|hello|thanks|thank you|cool|nice|sure|what|huh|sorry|excuse me|one sec|hold on)[\s.,!?]*$/i;
@@ -14754,12 +14807,25 @@ function hmStartEar(){
           const pending = HM.interim;
           HM.interim = ''; HM.heard = ''; HM.hush = null;
           if (pending) { hmFinal(pending); hmPatch(); }
-        }, HM_HUSH_MS);
+        }, hmWaitFor(text));
         hmPatch();
         continue;
       }
+      /* A final result is Chrome's opinion that the sentence ended, and Chrome
+         is often wrong about that -- a pause in the middle of a thought produces
+         one. So it is held for the same window as an interim: if more arrives,
+         the two are joined; if nothing does, it goes.
+
+         This is the fix for "I paused for a second and it cut me off". */
       HM.heard = '';
-      hmFinal(text);
+      HM.interim = (HM.interim ? HM.interim + ' ' : '') + text;
+      clearTimeout(HM.hush);
+      HM.hush = setTimeout(() => {
+        const pending = HM.interim;
+        HM.interim = ''; HM.heard = ''; HM.hush = null;
+        if (pending) { hmFinal(pending); hmPatch(); }
+      }, hmWaitFor(HM.interim));
+      hmPatch();
     }
   };
 
@@ -14823,11 +14889,48 @@ function hmEcho(text){
   return shared / heard.length >= 0.5;
 }
 
+/* How long to wait before deciding a sentence is over.
+
+   People do not stop talking at the end of a sentence, they stop in the middle
+   of a thought and then carry on. So the wait is chosen from what was just
+   said: longer when it ended on a word nobody ends on, shorter when it is
+   plainly a finished question. */
+function hmWaitFor(text){
+  const t = String(text || '').trim();
+  if (!t) return HM_HUSH_MS;
+  const last = t.replace(/[,;:\s]+$/, '');
+  if (HM_TRAILING.test(last) || /[,;]$/.test(t.trim())) return HM_HUSH_TRAILING;
+  if (HM_COMPLETE.test(last) && last.split(/\s+/).length >= 4) return HM_HUSH_DONE;
+  return HM_HUSH_MS;
+}
+
+/* Openers that mean "what I am about to say attaches to what I just said".
+   A follow-up starting with one of these is the rest of the last question, not
+   a new one, and answering it on its own gets an answer to half a thought. */
+const HM_MORE = /^(and|also|plus|but|or|actually|wait|no|sorry|i mean|as well|oh|then|instead|make (it|that)|add|include|except|not the|rather)\b/i;
+
+/* Stop everything and listen.
+
+   "It should pause what it's doing and listen to me" -- so it does. A turn in
+   flight is aborted, speech is cut off, and whatever is being said now becomes
+   the live thing. The old behaviour was to answer "still working on the last
+   one", which is the wrong answer to being interrupted: the person interrupting
+   already knows it is working, that is why they are interrupting. */
+function hmInterrupt(){
+  if (HM.busy) {
+    HM.interrupted = true;
+    try { HM.abort?.abort(); } catch { /* already gone */ }
+    fetch('/api/claude/stop', { method: 'POST' }).catch(() => {});
+    HM.busy = false; HM.abort = null;
+  }
+  hmShutUp();
+}
+
 /* A complete utterance.
 
    With the microphone on, everything said is addressed to Hommie -- that is what
    the switch means. The name is still understood, because it is the natural way
-   to interrupt or to re-address it mid-answer, but nothing waits for it. */
+   to re-address it mid-answer, but nothing waits for it. */
 function hmFinal(text){
   clearTimeout(HM.hush);
   HM.hush = null;
@@ -14835,42 +14938,59 @@ function hmFinal(text){
   const raw = String(text || '').trim();
   if (!raw) return;
 
-  if (hmEcho(raw)) return;
+  if (hmEcho(raw)) { HM.dropped = { text: raw, why: 'that was my own voice' }; return; }
 
   const after = hmWake(raw);
-
-  /* Said while Hommie is talking: an interruption, so stop and take it. */
-  if (HM.state === 'speaking') hmShutUp();
+  let said = raw;
 
   if (after !== null) {
-    /* The name was in it. Whatever followed is the question; the name alone
-       means "listen", which in always-on mode is already true. */
-    if (after) { hmSay(after); return; }
-    if (!HM.always) {
-      HM.state = 'armed';
-      HM.armedAt = Date.now();
+    if (!after) {
+      /* The name and nothing else. In always-on mode that is already true, so
+         it is an attention-getter: stop talking and wait. */
+      hmInterrupt();
       hmBeep();
-      hmPaint();
-      setTimeout(() => {
-        if (HM.state === 'armed' && Date.now() - HM.armedAt >= HM_ARM_MS - 50) {
-          HM.state = 'listening';
-          hmPaint();
-        }
-      }, HM_ARM_MS);
+      if (!HM.always) {
+        HM.state = 'armed';
+        HM.armedAt = Date.now();
+        hmPaint();
+        setTimeout(() => {
+          if (HM.state === 'armed' && Date.now() - HM.armedAt >= HM_ARM_MS - 50) {
+            HM.state = 'listening';
+            hmPaint();
+          }
+        }, HM_ARM_MS);
+      }
       return;
     }
-    hmBeep();
+    said = after;
+  } else if (!HM.always && HM.state !== 'armed') {
+    return;                                    // wake-word mode, not addressed
+  }
+
+  const norm = hmNorm(said);
+  if (HM_FILLER.test(said) || norm.length < 4 || norm.split(' ').length < 2) {
+    HM.dropped = { text: raw, why: 'too short to be a question' };
+    hmPatch();
     return;
   }
 
-  if (!HM.always && HM.state !== 'armed') return;   // wake-word mode, not addressed
+  /* Interrupting something already running. Whether this is a continuation or a
+     new question decides what gets sent, and the difference is whether it opens
+     like one: "and also the Facebook one" is the rest of the last sentence,
+     "open properties" is not. */
+  const wasBusy = HM.busy;
+  const recent = HM.lastAsk && Date.now() - HM.lastAskAt < 45_000;
+  hmInterrupt();
 
-  const norm = hmNorm(raw);
-  /* Filler and one-word noise. Two words minimum, because "open tasks" is a real
-     instruction and "yeah" is somebody agreeing with a colleague. */
-  if (HM_FILLER.test(raw) || norm.length < 4 || norm.split(' ').length < 2) return;
+  if (wasBusy && recent && HM_MORE.test(said)) {
+    said = HM.lastAsk + ' ' + said;
+  } else if (!wasBusy && recent && Date.now() - HM.lastAskAt < 12_000 && HM_MORE.test(said)) {
+    /* Answered already, but the sentence is plainly a continuation of the one
+       just answered -- carry it, since the session has the context anyway. */
+    said = HM.lastAsk + ' ' + said;
+  }
 
-  hmSay(raw);
+  hmSay(said);
 }
 
 /* Two short tones, because there are two moments worth confirming and a spoken
@@ -15062,13 +15182,13 @@ function hmSpeak(text){
 async function hmSay(text, opts){
   const said = String(text || '').trim();
   if (!said) return;
-  if (HM.busy) {
-    /* One turn at a time, so a second question while the first is running gets
-       an answer rather than silence. */
-    hmSpeak('Still working on the last one.');
-    return;
-  }
+  /* Anything still running is stopped rather than refused. hmFinal has usually
+     done this already; this covers the typed path and the connector retry. */
+  if (HM.busy) hmInterrupt();
   hmShutUp();
+  /* The CLI needs a moment to let go of the session it was told to stop, or the
+     next turn collides with it and comes back 409. */
+  if (HM.interrupted) { HM.interrupted = false; await new Promise(r => setTimeout(r, 350)); }
 
   HM.messages.push({ role: 'user', text: said });
   const reply = { role: 'assistant', text: '', steps: [], tools: [], panelIds: [] };
@@ -15081,6 +15201,8 @@ async function hmSay(text, opts){
   HM.spokeLen = 0;
   HM.said = '';
   HM.lastAsk = o.retryOf || said;
+  HM.lastAskAt = Date.now();
+  HM.dropped = null;
   if (!o.silent) hmBeep(true);
   hmPaint();
 
@@ -15329,9 +15451,7 @@ async function hmOn(){
   hmSave();
   hmPaint();
   /* Proof the speaker works, before anyone has to trust it mid-task. */
-  hmSpeak(HM.messages.length ? 'Back.'
-    : HM.always ? "Hommie here. Mic's on, so just talk."
-    : 'Hommie here. Say my name when you need me.');
+  hmSpeak(hmGreeting());
 }
 
 function hmOff(){
@@ -15349,6 +15469,35 @@ function hmOff(){
     HM.offTimer = setTimeout(() => { HM.justOff = false; hmRail(); }, 2500);
   }
   hmPaint();
+}
+
+/* What it says when the microphone comes on.
+
+   Time of day and then an opening, varied rather than fixed: the same eleven
+   words every single time is the thing that makes a voice assistant feel like a
+   recording of a person rather than a person. */
+const HM_OPENERS = [
+  'What can I do for you?',
+  'Anything I can do?',
+  'What do you need?',
+  'Got something for me?',
+  'How can I help?',
+  'What are we doing?',
+  "What's first?"
+];
+
+function hmGreeting(){
+  const h = new Date().getHours();
+  const part = h < 12 ? 'Good morning'
+    : h < 17 ? 'Good afternoon'
+    : h < 22 ? 'Good evening'
+    : 'Evening';
+  const opener = HM_OPENERS[Math.floor(Math.random() * HM_OPENERS.length)];
+  /* Mid-conversation it is a return, not an introduction. Saying good morning
+     again after being switched off for a minute is how you notice something is
+     reading from a card. */
+  if (HM.messages.length) return 'Back. ' + opener;
+  return part + ', sir. ' + opener;
 }
 
 function hmToggle(){ HM.on ? hmOff() : hmOn(); }
@@ -15424,24 +15573,31 @@ function hmRail(){
     + '<button class="tx" data-hmopen="1" title="Open the transcript">'
     +   '<span class="nm">Hommie</span><span class="st">' + escS(sub) + '</span></button>'
     + (HM.busy ? '<span class="work"></span>' : '')
+    + '<button class="gear" data-hmgear="1" title="Voice and settings" aria-label="Hommie settings">'
+    +   '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" '
+    +   'stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">'
+    +   '<circle cx="12" cy="12" r="3"></circle>'
+    +   '<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>'
+    +   '</svg></button>'
     + '</div>';
   host.querySelectorAll('[data-hmmic]').forEach(b => b.onclick = hmToggle);
   host.querySelectorAll('[data-hmopen]').forEach(b => b.onclick = () => {
     HM.open = !HM.open; hmSave(); hmPaint();
+  });
+  host.querySelectorAll('[data-hmgear]').forEach(b => b.onclick = () => {
+    HM.open = true; HM.cfg = true; hmSave(); hmPaint();
   });
 }
 
 function hmPanel(){
   const feed = HM.messages.length
     ? HM.messages.map((m, i) => hmBubble(m, i)).join('')
-    : '<div class="hmempty"><b>' + (HM.on ? 'Just talk' : 'Switch the mic on, then just talk')
+    : '<div class="hmempty"><b>' + (HM.on ? 'Go ahead' : 'Tap the mic in the sidebar')
       + '</b><small>'
-      + (HM.always
-          ? 'While the mic is on, everything you say comes to me. '
-          : 'Say &ldquo;Hommie&rdquo; first, then ask. ')
-      + 'Ask for anything in here. &ldquo;How many overdue tasks do I have.&rdquo; '
-      + '&ldquo;Open Properties.&rdquo; &ldquo;Analyse YouTube.&rdquo; '
-      + '&ldquo;Make a clip from the day one video in Raw videos.&rdquo;</small></div>';
+      + (HM.always ? 'Everything you say comes to me while the mic is on. '
+          : 'Say &ldquo;Hommie&rdquo; first. ')
+      + '&ldquo;How many overdue tasks do I have.&rdquo; &ldquo;Open Properties.&rdquo; '
+      + '&ldquo;Analyse YouTube.&rdquo;</small></div>';
 
   return '<div class="hmhead">'
     + '<span class="hmstate ' + HM.state + '"><i></i>' + escS(HM_LABEL[HM.state] || '') + '</span>'
@@ -15453,48 +15609,84 @@ function hmPanel(){
     + (HM.error ? '<div class="hmerr">' + escS(HM.error) + '</div>' : '')
     + (HM.cfg ? hmSettings() : '')
     + '<div class="hmfeed" id="hm-feed">' + feed
+    + (HM.dropped ? '<div class="hmdrop">Heard &ldquo;' + escS(HM.dropped.text)
+        + '&rdquo; &mdash; ' + escS(HM.dropped.why) + '</div>' : '')
     + (HM.heard ? '<div class="hmheard">' + escS(HM.heard) + '</div>' : '')
     + (HM.busy && !HM.streaming ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '')
-    + '</div>'
-    + '<div class="hmfoot">'
-    + '<label class="hmsw"><input type="checkbox" data-hmswitch="1"'
-    +   (HM.on ? ' checked' : '') + '><span class="tr"></span>'
-    +   '<b>' + (HM.on ? 'Mic on' : 'Mic off') + '</b></label>'
-    + '<span style="flex:1"></span>'
-    + '<input class="hmtype" id="hm-type" placeholder="…or type it" autocomplete="off">'
     + '</div>';
+  /* No footer. The microphone switch and the type box were both here and both
+     were the wrong answer: the switch is in the rail where it belongs, and
+     typing at a thing you are talking to is not what this is for. */
 }
+
+/* Where a voice is from, out of its language tag. Accent is the thing people
+   actually pick on after gender, and "en-GB" is not a word anyone says. */
+const HM_ACCENT = {
+  'en-US': 'American', 'en-GB': 'British', 'en-AU': 'Australian', 'en-IN': 'Indian',
+  'en-CA': 'Canadian', 'en-IE': 'Irish', 'en-ZA': 'South African', 'en-NZ': 'New Zealand',
+  'en-SG': 'Singaporean', 'en-HK': 'Hong Kong', 'en-PH': 'Filipino', 'en-NG': 'Nigerian',
+  'en-KE': 'Kenyan'
+};
+const hmAccent = v => HM_ACCENT[(v.lang || '').replace('_', '-')]
+  || (v.lang || '').split(/[-_]/)[0].toUpperCase();
+
+/* Natural, Neural and Online are the modern engines; Desktop is the old flat
+   one that shipped with Windows 7 and still ships. Worth saying which is which,
+   because the difference is enormous and the names do not make it obvious. */
+const hmQuality = v => /natural|neural/i.test(v.name) ? 'natural'
+  : /online/i.test(v.name) ? 'online'
+  : /desktop/i.test(v.name) ? 'basic' : '';
+
+const hmShortName = v => String(v.name || '')
+  .replace(/^Microsoft\s+/i, '').replace(/^Google\s+/i, '')
+  .replace(/\s*(Online\s*)?\(Natural\)\s*/i, ' ')
+  .replace(/\s*-\s*English.*$/i, '')
+  .replace(/\s*English\s*\(.*\)\s*/i, ' ')
+  .replace(/\s+Desktop$/i, '')
+  .replace(/\s{2,}/g, ' ').trim() || v.name;
 
 function hmSettings(){
   const voices = hmVoices();
   const picked = hmPickVoice();
   const g = HM.gender || 'male';
-  /* Grouped, so choosing by ear is choosing from a short list rather than
-     reading thirty names. Gender is not in the Web Speech API, so this is by
-     name, and anything unrecognised sits under "other" honestly. */
-  const group = { male: [], female: [], other: [] };
-  for (const v of voices) {
-    const k = hmGenderOf(v);
-    group[k === 'unknown' ? 'other' : k].push(v);
+
+  /* A list you can hear, not a dropdown you have to guess from. Choosing a voice
+     by reading "Microsoft Aria Online (Natural) - English (United States)" is
+     choosing blind; every row here has a play button. */
+  let list = voices.filter(v => /^en\b|^en[-_]/i.test(v.lang || ''));
+  if (!list.length) list = voices;
+  if (g !== 'any') {
+    const wanted = list.filter(v => hmGenderOf(v) === g);
+    /* Only narrow if there is anything left. A machine with two female voices
+       and the preference set to male should show something. */
+    if (wanted.length) list = wanted;
   }
-  const opts = list => list.map(v => '<option value="' + escS(v.name) + '"'
-    + (picked && v.name === picked.name ? ' selected' : '') + '>'
-    + escS(v.name.replace(/^Microsoft |^Google /, '') + ' · ' + v.lang) + '</option>').join('');
+  list = [...list].sort((a, b) => {
+    const acc = hmAccent(a).localeCompare(hmAccent(b));
+    return acc || hmShortName(a).localeCompare(hmShortName(b));
+  });
+
+  const rows = list.length
+    ? list.map(v => {
+        const on = picked && v.name === picked.name;
+        const q = hmQuality(v);
+        return '<div class="hmvrow' + (on ? ' on' : '') + '" data-hmpick="' + escS(v.name) + '">'
+          + '<span class="tick">' + (on ? '&#10003;' : '') + '</span>'
+          + '<span class="nm">' + escS(hmShortName(v)) + '</span>'
+          + '<span class="ac">' + escS(hmAccent(v)) + '</span>'
+          + (q ? '<span class="q ' + q + '">' + q + '</span>' : '<span class="q"></span>')
+          + '<button class="pl" data-hmhear="' + escS(v.name) + '" '
+          +   'title="Hear this one" aria-label="Hear ' + escS(hmShortName(v)) + '">&#9654;</button>'
+          + '</div>';
+      }).join('')
+    : '<div class="hmvnone">No speech voices are installed.</div>';
 
   return '<div class="hmcfg">'
     + '<div class="hmseg" role="group" aria-label="Voice">'
     +   ['male', 'female', 'any'].map(k => '<button class="' + (g === k ? 'on' : '')
         + '" data-hmgender="' + k + '">' + k[0].toUpperCase() + k.slice(1) + '</button>').join('')
     + '</div>'
-    + '<label>Voice'
-    + '<select data-hmvoice="1">'
-    + (voices.length
-        ? '<option value="">Best ' + escS(g === 'any' ? 'available' : g) + ' voice</option>'
-          + (group.male.length ? '<optgroup label="Male">' + opts(group.male) + '</optgroup>' : '')
-          + (group.female.length ? '<optgroup label="Female">' + opts(group.female) + '</optgroup>' : '')
-          + (group.other.length ? '<optgroup label="Other">' + opts(group.other) + '</optgroup>' : '')
-        : '<option>No voices installed</option>')
-    + '</select></label>'
+    + '<div class="hmvlist">' + rows + '</div>'
     + '<label>Speed <span class="v">' + HM.rate.toFixed(2) + '&times;</span>'
     +   '<input type="range" min="70" max="140" value="' + Math.round(HM.rate * 100)
     +   '" data-hmrate="1"></label>'
@@ -15506,10 +15698,10 @@ function hmSettings(){
     +   '> Answer fast (a quicker model; turn off for hard questions)</label>'
     + '<label class="row"><input type="checkbox" data-hmmute="1"' + (HM.muted ? ' checked' : '')
     +   '> Mute the voice, keep the text</label>'
-    + '<button class="hmbtn" data-hmtest="1">Hear it</button>'
-    + '<p>These are the voices installed on this machine. Windows adds more under '
-    + 'Settings, Time &amp; language, Speech &mdash; the Natural ones sound far better than '
-    + 'the Desktop ones. Cloning a real person&rsquo;s voice is not something this will do.</p>'
+    + '<p>' + list.length + ' voice' + (list.length === 1 ? '' : 's') + ' installed. '
+    + 'Windows adds more under Settings, Time &amp; language, Speech &mdash; the ones marked '
+    + 'natural sound far better than the basic ones. Cloning a real person&rsquo;s voice is '
+    + 'not something this will do.</p>'
     + '</div>';
 }
 
@@ -15538,6 +15730,8 @@ function hmPatch(){
   if (!feed) { hmPaint(); return; }
   const stuck = feed.scrollHeight - feed.scrollTop - feed.clientHeight < 80;
   feed.innerHTML = HM.messages.map((m, i) => hmBubble(m, i)).join('')
+    + (HM.dropped ? '<div class="hmdrop">Heard &ldquo;' + escS(HM.dropped.text)
+        + '&rdquo; &mdash; ' + escS(HM.dropped.why) + '</div>' : '')
     + (HM.heard ? '<div class="hmheard">' + escS(HM.heard) + '</div>' : '')
     + (HM.busy && !HM.streaming ? '<div class="agthinking"><span></span><span></span><span></span></div>' : '');
   if (stuck) feed.scrollTop = feed.scrollHeight;
@@ -15566,9 +15760,20 @@ function hmWire(root){
     hmSave(); hmPaint();
     hmSpeak('This is how I sound.');
   });
-  root.querySelectorAll('[data-hmvoice]').forEach(sel => sel.onchange = e => {
-    HM.voice = e.target.value || null; hmSave();
+  /* Picking a row chooses it; the play button only auditions it. Two different
+     intentions, so two different targets. */
+  root.querySelectorAll('[data-hmpick]').forEach(row => row.onclick = e => {
+    if (e.target.closest('[data-hmhear]')) return;
+    HM.voice = row.dataset.hmpick; hmSave(); hmPaint();
     hmSpeak('This is how I sound.');
+  });
+  root.querySelectorAll('[data-hmhear]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    const was = HM.voice;
+    HM.voice = b.dataset.hmhear;
+    hmSpeak(hmGreeting());
+    /* Auditioning is not choosing. Put it back once the sample is queued. */
+    HM.voice = was;
   });
   root.querySelectorAll('[data-hmrate]').forEach(sl => {
     sl.oninput = e => {
@@ -15602,15 +15807,6 @@ function hmWire(root){
       (p.note ? '<div class="agsubnote">' + escS(p.note) + '</div>' : '') + agTable(p),
       { wide: true, flush: true });
   });
-
-  const type = root.querySelector('#hm-type');
-  if (type) type.onkeydown = e => {
-    if (e.key !== 'Enter') return;
-    e.preventDefault();
-    const v = type.value.trim();
-    type.value = '';
-    if (v) hmSay(v);
-  };
 
   /* The question widget, same delegation the other two chats use. */
   ccWireFeed(root.querySelector('#hm-feed'), () => HM);
