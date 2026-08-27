@@ -201,6 +201,41 @@ export function claudeRoutes({ env, auth }){
 
   let running = null;
 
+  /* Hommie's session stays up between questions.
+
+     Every turn used to spawn a fresh CLI, and the expensive part of a turn is
+     not the thinking -- it is the three to five seconds of starting a process and
+     waiting for two MCP servers to attach, paid again for every sentence spoken.
+     That is what made it feel like submitting a form rather than talking to
+     somebody, and it is why a second question a few seconds after the first
+     arrived while the machine was still busy with the startup of the first.
+
+     So the process is kept. The MCP servers it spawned stay attached with it,
+     which is why the token has to live as long as the session rather than being
+     minted per turn: the servers were handed it at startup and cannot be told a
+     new one.
+
+     Idle sessions are closed after twenty minutes. A CLI process holding a model
+     session open indefinitely is a thing to clean up, not a thing to be proud
+     of. */
+  let live = null;
+
+  const closeLive = why => {
+    if (!live) return;
+    const c = live.child;
+    clearTimeout(live.idle);
+    live = null;
+    try { c.stdin.end(); } catch { /* already closed */ }
+    try { c.kill('SIGTERM'); } catch { /* already gone */ }
+    if (why) console.log('[hommie] session closed: ' + why);
+  };
+
+  const touchLive = () => {
+    if (!live) return;
+    clearTimeout(live.idle);
+    live.idle = setTimeout(() => closeLive('idle for twenty minutes'), 20 * 60_000);
+  };
+
   /* ---- the question channel ------------------------------------------------
 
      One turn runs at a time, so one channel exists at a time: a token the ask
@@ -317,6 +352,25 @@ export function claudeRoutes({ env, auth }){
     if (given.length !== ask.token.length) return false;
     return crypto.timingSafeEqual(Buffer.from(given), Buffer.from(ask.token));
   };
+
+  /* A tool server saying the CLI has finished handshaking with it.
+
+     This exists because there is no other way to know. The CLI emits no frame
+     until it is given something to do, so the init frame that reports whether
+     the servers attached arrives AFTER the prompt has gone -- and the attach
+     itself takes between two and five seconds, varying run to run. A fixed wait
+     was tried at 8s, 2.5s and 3.2s. The first was slow, the other two produced
+     turns with no tools at all, where the model reaches for Read and Grep and
+     starts going through the source looking for the answer.
+
+     These servers are ours, so they simply say. tools/list is the last step of
+     registration, so answering it means the handshake is done. */
+  r.post('/api/claude/mcp-ready', express.json({ limit: '4kb' }), (req, res) => {
+    if (!askCaller(req)) return res.status(403).json({ error: 'not this turn' });
+    const name = String(req.body?.server || '').trim();
+    if (name && ask.ready) ask.ready(name);
+    res.json({ ok: true });
+  });
 
   /* Called by the ask server when Claude wants to ask something. Returns as soon
      as the question is on screen; the answer is collected by polling. */
@@ -950,11 +1004,14 @@ export function claudeRoutes({ env, auth }){
           if (task.length < 10) {
             return res.status(400).json({ error: 'the task has to say what to do, in full' });
           }
-          const running = [...jobs.values()].filter(x => x.status === 'running').length;
-          if (running >= 3) {
+          /* Five, because the point is that a second task does not wait for the
+             first. Two was the number that made "give it to another subagent"
+             into "queue behind the last one". */
+          const busy = [...jobs.values()].filter(x => x.status === 'running');
+          if (busy.length >= 5) {
             return res.status(409).json({
-              error: 'Three jobs are already running. Tell the user what they are and '
-                + 'ask whether to wait or stop one.' });
+              error: 'Five subagents are already going: ' + busy.map(x => x.title).join(', ')
+                + '. Tell the user that and ask whether to wait or stop one.' });
           }
           const j = startJob({ kind, title: b.title || task.slice(0, 60), prompt: task });
           return res.json({ started: true, jobId: j.id, kind, title: j.title,
@@ -1975,11 +2032,19 @@ export function claudeRoutes({ env, auth }){
     /* Before the kill, not after: the ask server is polling, and a question left
        pending would keep it polling against a turn that no longer exists. */
     askCancelAll('stopped');
+    /* Stop ends the conversation, not just the sentence. Keeping a session that
+       has been told to stop would mean the next question resumes a context the
+       user just abandoned. */
+    closeLive('stopped');
     if (running) { running.kill('SIGTERM'); running = null; }
     res.json({ ok: true });
   });
 
   r.post('/api/claude/chat', auth.require, express.json({ limit: '1mb' }), (req, res) => {
+    /* One turn at a time, still. A kept session is one process with one stdin,
+       so two questions written to it at once interleave into nonsense -- the
+       page queues them instead, which is the right place for it since only the
+       page knows what was said in what order. */
     if (running) return res.status(409).json({ error: 'already running a turn' });
     const b = req.body || {};
     const prompt = String(b.prompt || '').trim();
@@ -2037,7 +2102,12 @@ export function claudeRoutes({ env, auth }){
        call back by the port this very request arrived on -- guessing 3000 is how
        you get a widget that silently never appears on a machine running two
        copies. */
-    const askToken = crypto.randomBytes(24).toString('hex');
+    /* Reused when the session is. The MCP servers were given this at startup and
+       there is no way to hand them a new one. */
+    const askToken = (b.agent === HOMMIE_META.id && live && live.child && !live.child.killed
+      && live.repair === (b.repair === true) && live.cwd === path.resolve(env.CLAUDE_DIR || process.cwd()))
+      ? live.token
+      : crypto.randomBytes(24).toString('hex');
     const selfUrl = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
     let servers = {
       [ASK_SERVER]: {
@@ -2209,8 +2279,27 @@ export function claudeRoutes({ env, auth }){
     /* The prompt goes to stdin, not argv — see lib/claude-cli.js. */
     /* stdin stays open: in streaming mode closing it ends the session, and the
        process has to outlive the write for the MCP servers to attach. */
-    const child = spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
+
+    /* Hommie reuses the process it was talking to a moment ago, if there is one
+       and nothing about the turn has changed under it. Repair arming changes the
+       tool set, so it starts a new one. */
+    const reusable = hommie && live && live.child && !live.child.killed
+      && live.repair === repair && live.cwd === CWD;
+    const child = reusable ? live.child
+      : spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
     running = child;
+
+    if (hommie && !reusable) {
+      closeLive('starting a new one');
+      live = { child, token: askToken, repair, cwd: CWD, idle: null, ready: new Set() };
+    }
+    if (reusable) {
+      /* The servers attached to this process were handed the token it started
+         with and cannot be told another, so the turn adopts it rather than
+         minting one. */
+      ask.token = live.token;
+      live.ready.forEach(n => { /* already up */ });
+    }
 
     const writePrompt = () => {
       if (promptSent) return;
@@ -2245,31 +2334,49 @@ export function claudeRoutes({ env, auth }){
     const onlyAsk = !mcpAllow.length;
     send('status', { phase: 'connectors', text: onlyAsk ? 'starting…' : 'attaching connectors…' });
     /* A ceiling, because one wedged server must not hold the turn forever. */
-    /* How long to hold the prompt back, measured rather than guessed.
+    /* The prompt goes when the tool servers say they are ready, not on a clock.
 
-       There is no signal to wait on. The CLI emits no system frame until it has
-       been given something to do, so the init frame that reports whether the MCP
-       servers are attached arrives AFTER the moment you needed to know. Waiting
-       for it is waiting for something that only happens once you stop waiting.
+       Every fixed wait was wrong. 8s was slow; 2.5s and 3.2s each produced turns
+       with no tools at all, because the attach takes between two and five
+       seconds and varies run to run -- one measured session had turn 2 connected
+       and turns 1 and 3 not, same code, same machine, a minute apart.
 
-       So it was measured directly -- spawn, wait N, send, count the tools in the
-       init frame:
+       So the servers announce themselves instead. Each posts to /mcp-ready when
+       the CLI asks it for its tool list, which is the last step of registration,
+       and the prompt goes out the moment the last one has checked in.
 
-         0ms, 500, 1000, 1500, 2000  ->  pending, 0 tools
-         3000ms                      ->  connected, 20 tools
-         5000ms                      ->  connected, 20 tools
+       The timer left behind is only a backstop for a server that never starts at
+       all, and hitting it is a failure worth saying out loud rather than
+       answering around. */
+    const needReady = new Set(
+      Object.keys(servers).filter(n => n === ASK_SERVER || n === HOMMIE_SERVER || n === AGENT_SERVER));
+    /* A session that is already up has already handshaked. This is the whole
+       point of keeping it: the second question costs no startup at all. */
+    const gotReady = reusable ? new Set(needReady) : new Set();
+    ask.ready = name => {
+      gotReady.add(name);
+      if (promptSent) return;
+      for (const n of needReady) if (!gotReady.has(n)) return;
+      if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
+      /* A breath after the last handshake. Answering tools/list and being listed
+         as a usable tool are the same beat, but not quite the same instant. */
+      setTimeout(writePrompt, 150);
+    };
 
-       Somewhere between two and three seconds. The old value was 2.5, sitting
-       exactly on that line, which is why it worked most of the time and then
-       produced a turn with no tools at all -- three ToolSearch calls, four Reads,
-       five Greps and 214 seconds spent reading source code to answer "how many
-       overdue tasks do I have".
-
-       3.2 is over the line with a margin, and the init frame is checked below in
-       case the margin is not enough on a slower morning. */
-    const LOCAL_ATTACH_MS = 3200;
-    if (onlyAsk) {
-      mcpTimer = setTimeout(writePrompt, LOCAL_ATTACH_MS);
+    if (reusable) {
+      setImmediate(writePrompt);
+    } else if (onlyAsk) {
+      mcpTimer = setTimeout(() => {
+        const missing = [...needReady].filter(n => !gotReady.has(n));
+        if (missing.length) {
+          console.error('[claude] tool server never started: ' + missing.join(', '));
+          send('fatal', { error: 'My tools did not start.', retryable: true });
+          try { res.end(); } catch { /* already closed */ }
+          running = null;
+          return;
+        }
+        writePrompt();
+      }, 20_000);
     } else {
       mcpTimer = setTimeout(() => {
         send('status', { phase: 'connectors', text: 'proceeding without all connectors' });
@@ -2298,8 +2405,12 @@ export function claudeRoutes({ env, auth }){
         }
 
         /* Server states arrive on `system` frames after init. Once none are
-           pending, the session is as connected as it is going to get. */
-        if (!promptSent && frame.type === 'system' && Array.isArray(frame.mcp_servers)) {
+           pending, the session is as connected as it is going to get.
+
+           Not gated on promptSent any more. The init frame arrives just after
+           the prompt goes, so gating on it meant the check below -- the one that
+           catches a turn about to answer with no tools -- could never run. */
+        if (frame.type === 'system' && Array.isArray(frame.mcp_servers)) {
           /* Only the servers this turn actually asked for. Waiting on all 25 --
              including a dozen that need re-authenticating and will never settle --
              turned a nine-second turn into a fifty-nine-second one for no gain. */
@@ -2328,8 +2439,11 @@ export function claudeRoutes({ env, auth }){
             if (!finished) {
               finished = true;
               try { child.kill('SIGTERM'); } catch { /* gone */ }
-              send('fatal', { error: 'My tools did not load in time, so I would only be '
-                + 'guessing. Ask me again.' });
+              /* retryable, because it usually is: the attach takes between two
+                 and five seconds and varies, so the same question a moment
+                 later generally works. The page retries once on its own rather
+                 than handing the problem to someone who is not at the keyboard. */
+              send('fatal', { error: 'My tools did not load in time.', retryable: true });
               try { res.end(); } catch { /* already closed */ }
               running = null;
             }
@@ -2345,8 +2459,19 @@ export function claudeRoutes({ env, auth }){
         if (frame.type === 'result' && !finished) {
           finished = true;
           if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
-          try { child.stdin.end(); } catch { /* already gone */ }
-          setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* exited */ } }, 1500);
+          if (live && live.child === child) {
+            /* Kept. stdin stays open for the next question, the MCP servers stay
+               attached, and the whole three-to-five seconds of starting up is
+               simply not paid again. The turn is over; the conversation is not. */
+            touchLive();
+            askCancelAll('turn ended');
+            send('done', { code: 0, kept: true });
+            running = null;
+            try { res.end(); } catch { /* already closed */ }
+          } else {
+            try { child.stdin.end(); } catch { /* already gone */ }
+            setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* exited */ } }, 1500);
+          }
         }
       }
     });
@@ -2358,10 +2483,13 @@ export function claudeRoutes({ env, auth }){
       running = null; res.end();
     });
     child.on('close', code => {
+      /* If the kept session is what died, forget it, or the next question writes
+         into a closed pipe and waits for an answer that cannot come. */
+      if (live && live.child === child) closeLive('the process exited');
       askCancelAll('turn ended');
       send('done', { code });
       running = null;
-      res.end();
+      try { res.end(); } catch { /* already closed */ }
     });
     /* res, not req. `req` emits 'close' as soon as the request body has been
        read — which with a JSON body parser is immediately — and killing the
@@ -2370,6 +2498,10 @@ export function claudeRoutes({ env, auth }){
     res.on('close', () => {
       if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
       askCancelAll('page closed');
+      /* A kept session survives its own response ending, which happens at the
+         end of every single turn. Only a turn still in flight gets killed --
+         that is a page that really did go away mid-answer. */
+      if (live && live.child === child) { running = null; return; }
       if (running === child) { child.kill('SIGTERM'); running = null; }
     });
   });

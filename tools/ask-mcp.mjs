@@ -137,6 +137,22 @@ const write = obj => { try { process.stdout.write(JSON.stringify(obj) + '\n'); }
 const ok = (id, result) => write({ jsonrpc: '2.0', id, result });
 const err = (id, code, message) => write({ jsonrpc: '2.0', id, error: { code, message } });
 
+
+/* Telling the app the CLI has finished handshaking with us.
+
+   There is no way to ask the CLI whether its MCP servers are attached: it emits
+   no frame until it is given something to do, and by then the prompt has already
+   gone. tools/list is the last step of registration, so answering it means the
+   handshake is done, and the route holds the prompt back until this lands. */
+function announceReady(name){
+  if (!URL_BASE || !TOKEN) return;
+  fetch(URL_BASE + '/api/claude/mcp-ready', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Ask-Token': TOKEN },
+    body: JSON.stringify({ server: name })
+  }).catch(() => { /* the turn may already have given up on us */ });
+}
+
 async function handle(msg){
   const { id, method, params } = msg;
   /* A notification has no id and must never be answered. Replying to one is the
@@ -154,7 +170,7 @@ async function handle(msg){
   }
   if (method === 'notifications/initialized' || method === 'initialized') return;
   if (method === 'ping') return isNotification ? undefined : ok(id, {});
-  if (method === 'tools/list') return ok(id, { tools: [TOOL] });
+  if (method === 'tools/list') { announceReady(NAME); return ok(id, { tools: [TOOL] }); }
   if (method === 'resources/list') return ok(id, { resources: [] });
   if (method === 'prompts/list') return ok(id, { prompts: [] });
 

@@ -2489,6 +2489,8 @@ main{min-width:0;display:flex;flex-direction:column}
 .hmjob:last-child{border-bottom:0}
 .hmjob .sp{width:10px;height:10px;border-radius:50%;flex:none;
   border:2px solid var(--edge2);border-top-color:var(--brass);animation:agspin .8s linear infinite}
+.hmjob.waiting .sp{animation:none;border-color:var(--edge2);display:grid;place-items:center;
+  width:14px;height:14px;font-family:var(--ff-mono);font-size:8px;color:var(--dimmer)}
 .hmjob .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .hmjob .s{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
 .hmjob .x{background:none;border:0;color:var(--dimmer);font-size:15px;line-height:1;
@@ -12837,7 +12839,14 @@ async function ccSend(text){
    when something changed. */
 function ccConsume(ev, d, reply, surface){
   const S = surface || CC;
-  if (ev === 'fatal') { reply.text += (reply.text ? '\n\n' : '') + d.error; return true; }
+  if (ev === 'fatal') {
+    reply.text += (reply.text ? '\n\n' : '') + d.error;
+    /* Marked by the server as the kind of failure that usually clears on its
+       own -- a tool server that did not finish attaching in time. Read by
+       whoever is driving the turn, which retries it once. */
+    reply.retryable = Boolean(d.retryable);
+    return true;
+  }
 
   /* The agent drawing in its panel. Only agent surfaces have one; the Claude
      section ignores it. */
@@ -14716,6 +14725,7 @@ const HM = {
      Umm, do you have access to my, uh, Youtube metrics?" */
   parts: new Map(),
   hush: null,            // the silence timer that commits it
+  asked: [],             // questions waiting behind the one being answered
   lastAskAt: 0,          // when, so a follow-up can be joined to it
   interrupted: false,    // a turn was cut off and the CLI needs a beat
   dropped: null,         // heard but not acted on, and why -- shown, not hidden
@@ -14948,6 +14958,20 @@ function hmWaitFor(text){
    a new one, and answering it on its own gets an answer to half a thought. */
 const HM_MORE = /^(and|also|plus|but|or|actually|wait|no|sorry|i mean|as well|oh|then|instead|make (it|that)|add|include|except|not the|rather)\b/i;
 
+/* Speaking while it is working means one of four things, and they want four
+   different answers. Getting this wrong in either direction is bad: kill the
+   turn every time and a second question loses the first one's answer; queue
+   every time and you cannot correct yourself or stop it.
+
+     "and also facebook"       a correction -- interrupt, and merge the two
+     "are you there"           impatience  -- say something, leave it alone
+     "stop" / "never mind"     a stop      -- kill it and drop it
+     "what are my views"       a question  -- queue it, answer it next
+
+   The last one is the one that was wrong. Two questions a few seconds apart got
+   the first killed by the second, so its answer never arrived. */
+const HM_STOP = /^(stop|wait|hold on|never ?mind|forget it|cancel|scrap that|leave it|shut up|quiet|be quiet|nothing)[\s.,!?]*$/i;
+
 /* "Are you there." Said while it is working, that is not a new question and
    killing the turn to answer it is the worst possible response -- which is
    exactly what happened: every "hello" aborted the answer being written, so it
@@ -14987,6 +15011,9 @@ const hmPick = list => list[Math.floor(Math.random() * list.length)];
    the live thing. The old behaviour was to answer "still working on the last
    one", which is the wrong answer to being interrupted: the person interrupting
    already knows it is working, that is why they are interrupting. */
+/* Deliberately does NOT touch the queue. Interrupting is about the turn in
+   flight; questions already waiting behind it are still wanted. Only an explicit
+   stop throws those away. */
 function hmInterrupt(){
   if (HM.busy) {
     HM.interrupted = true;
@@ -15060,17 +15087,43 @@ function hmFinal(text){
     return;
   }
 
-  /* Interrupting something already running. Whether this is a continuation or a
-     new question decides what gets sent, and the difference is whether it opens
-     like one: "and also the Facebook one" is the rest of the last sentence,
-     "open properties" is not. */
+  /* Told to stop. Kill it and keep nothing. */
+  if (HM_STOP.test(said.trim())) {
+    const wasDoing = HM.busy || HM.asked.length;
+    HM.asked = [];
+    hmInterrupt();
+    if (wasDoing) hmSpeak('Stopped.');
+    hmPatch();
+    return;
+  }
+
   const wasBusy = HM.busy;
   const recent = HM.lastAsk && Date.now() - HM.lastAskAt < 45_000;
-  hmInterrupt();
 
+  /* A correction. This is the one that should cut the turn off, because
+     finishing an answer to a question that has just been amended is finishing
+     the wrong answer. */
   if (wasBusy && recent && HM_MORE.test(said)) {
-    said = HM.lastAsk + ' ' + said;
-  } else if (!wasBusy && recent && Date.now() - HM.lastAskAt < 12_000 && HM_MORE.test(said)) {
+    const merged = HM.lastAsk + ' ' + said;
+    hmInterrupt();
+    hmSay(merged);
+    return;
+  }
+
+  /* A second question while the first is still being answered. Queued, not
+     substituted: killing the first means its answer never arrives, and you asked
+     for both. */
+  if (wasBusy) {
+    HM.asked.push(said);
+    HM.dropped = { text: said, why: 'queued, answering the last one first' };
+    hmSpeak(HM.asked.length > 1
+      ? 'Noted, that is ' + HM.asked.length + ' waiting.'
+      : 'Noted, right after this.');
+    hmPatch();
+    return;
+  }
+
+  if (recent && Date.now() - HM.lastAskAt < 12_000 && HM_MORE.test(said)) {
     /* Answered already, but the sentence is plainly a continuation of the one
        just answered -- carry it, since the session has the context anyway. */
     said = HM.lastAsk + ' ' + said;
@@ -15428,6 +15481,32 @@ async function hmSay(text, opts){
   }
   hmPaint();
 
+  /* The tool servers did not come up in time. That is the failure that produced
+     an assistant reading source code to answer "how many overdue tasks do I
+     have", and it usually clears by itself -- the attach takes between two and
+     five seconds and varies. So it is retried here, once, rather than handed
+     back to somebody who is not at the keyboard.
+
+     Once, and once only. A second failure is a real problem and saying so is
+     more use than a third attempt. */
+  if (reply.retryable && !o.retried) {
+    hmFault('Tool servers did not attach in time', 'hommie', '');
+    reply.text = '_(tools were slow, trying again)_';
+    hmPatch();
+    if (!HM.muted) hmQueue('Tools were slow. Trying that again.');
+    await new Promise(r => setTimeout(r, 1200));
+    HM.busy = false;
+    return hmSay(said, { ...o, retried: true, silent: true });
+  }
+
+  /* The next question, if one arrived while this was being answered. A short
+     breath first, so two answers do not run into each other as one wall of
+     speech. */
+  if (HM.asked.length) {
+    const next = HM.asked.shift();
+    setTimeout(() => { if (!HM.busy) hmSay(next, { silent: true }); }, 700);
+  }
+
   /* Anything the turn set going. Cheap to ask once; the poll stops on its own
      when nothing is running. */
   if ((reply.steps || []).some(x => x.kind === 'tool'
@@ -15534,6 +15613,7 @@ function hmRunQueued(q){
 }
 
 function hmStop(){
+  HM.asked = [];
   HM.abort?.abort();
   fetch('/api/claude/stop', { method: 'POST' }).catch(() => {});
   HM.busy = false; HM.abort = null;
@@ -15728,6 +15808,10 @@ function hmPanel(){
     + '</div>'
     + (HM.error ? '<div class="hmerr">' + escS(HM.error) + '</div>' : '')
     + (HM.cfg ? hmSettings() : '')
+    + (HM.asked.length ? '<div class="hmjobs">'
+        + HM.asked.map(q => '<div class="hmjob waiting"><span class="sp q">' + HM.asked.length
+          + '</span><span class="t">' + escS(q) + '</span>'
+          + '<span class="s">waiting</span></div>').join('') + '</div>' : '')
     + (HM.jobs.length ? '<div class="hmjobs">' + HM.jobs.map(j =>
         '<div class="hmjob"><span class="sp"></span>'
         + '<span class="t">' + escS(j.title) + '</span>'
