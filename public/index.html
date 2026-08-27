@@ -180,6 +180,21 @@ main{min-width:0;display:flex;flex-direction:column}
 .view.on{display:block}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .vhead{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:20px;flex-wrap:wrap}
+.ldsearch{display:flex;align-items:center;gap:7px;background:var(--ink2);
+  border:1px solid var(--edge2);border-radius:9px;padding:0 9px;height:32px;
+  min-width:min(300px,52vw);transition:border-color .12s}
+.ldsearch:focus-within{border-color:var(--brass)}
+.ldsearch .ic{color:var(--dimmer);font-size:14px;line-height:1;flex:none}
+.ldsearch input{flex:1;min-width:0;background:none;border:0;color:var(--text);
+  font:inherit;font-size:12.5px;height:100%}
+.ldsearch input:focus{outline:none}
+.ldsearch input::placeholder{color:var(--dimmer)}
+.ldsearch input::-webkit-search-cancel-button{display:none}
+.ldsearch .x{background:none;border:0;color:var(--dimmer);font-size:16px;line-height:1;
+  cursor:pointer;padding:0 2px;flex:none}
+.ldsearch .x:hover{color:var(--cream)}
+.ldsearch.busy .ic{color:var(--brass);animation:ldpulse 1s ease-in-out infinite}
+@keyframes ldpulse{50%{opacity:.35}}
 .vhead h1{font-size:26px;font-variation-settings:'wdth' 112,'wght' 700;color:var(--cream);letter-spacing:-.01em}
 .vhead p{font-size:13px;color:var(--dim);margin-top:3px;max-width:56ch}
 
@@ -2663,6 +2678,15 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div class="vhead">
       <div><h1 id="ld-title">All locations</h1><p id="ld-sub">Reading from Supabase…</p></div>
       <div style="display:flex;gap:8px;align-items:center">
+        <!-- Searches every lead in scope, not the page on screen: the list is
+             capped at the most recently active few hundred and the one you are
+             looking for is usually not among them. -->
+        <div class="ldsearch">
+          <span class="ic">⌕</span>
+          <input id="ld-q" type="search" autocomplete="off" spellcheck="false"
+                 placeholder="Search name, email, phone, tag…">
+          <button class="x" id="ld-qclear" hidden title="Clear">×</button>
+        </div>
         <span class="synced" id="ld-synced"></span>
         <!-- Refresh only. There is nothing to connect and nothing to re-sync:
              the ingest pipeline owns GHL -> Supabase, and this is a re-read. -->
@@ -4252,7 +4276,11 @@ const CHANNELS = [
   { k:'fb',    label:'FB' }
 ];
 
-const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms', from:null };
+const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms', from:null,
+  /* The search term, and whether a server round trip for it is in flight. The
+     local filter is instant against what is loaded; the server call finds the
+     rest, and both write into the same list. */
+  q:'', qBusy:false, qTimer:null, qSeq:0 };
 
 /* Kept beside THREADS rather than inside it. Activity records are GHL system
    events, and pending rows are inbound webhooks that arrived with no ids — both
@@ -4279,10 +4307,63 @@ const stageLabel = l => l.stageName || (l.hasOpportunity ? 'No stage' : 'No oppo
    at status open, so reading won/lost off the label would be wrong. */
 const isClosed = l => l.status === 'won' || l.status === 'lost' || l.status === 'abandoned';
 
+/* The same fields the SQL searches, so what appears the instant you type and
+   what the server sends back a moment later are the same set. Phone numbers lose
+   everything that is not a digit on both sides, because nobody types a number
+   the way it was stored. */
+function ldMatches(l, term){
+  const q = term.toLowerCase();
+  if ((l.name || '').toLowerCase().includes(q)) return true;
+  if ((l.email || '').toLowerCase().includes(q)) return true;
+  if ((l.source || '').toLowerCase().includes(q)) return true;
+  if ((l.owner || '').toLowerCase().includes(q)) return true;
+  if ((l.tags || []).some(t => String(t).toLowerCase().includes(q))) return true;
+  const digits = term.replace(/\D+/g, '');
+  if (digits.length >= 3
+    && String(l.phone || '').replace(/\D+/g, '').includes(digits)) return true;
+  return false;
+}
+
 function ldVisible(){
+  const term = LD.q.trim();
   return LEADS.filter(l =>
     (LD.loc === 'all' || l.loc === LD.loc) &&
-    (LD.stage === 'all' || l.stageName === LD.stage));
+    (LD.stage === 'all' || l.stageName === LD.stage) &&
+    (term.length < 2 || ldMatches(l, term)));
+}
+
+/* Typed terms go to the server too, because the list holds the few hundred most
+   recently active leads and the person being looked for is usually older than
+   that. Results are merged rather than replacing the list: clearing the box then
+   costs nothing, and the live-update path keeps working throughout. */
+function ldSearchLater(){
+  clearTimeout(LD.qTimer);
+  const term = LD.q.trim();
+  if (term.length < 2) { LD.qBusy = false; drawLeads(); return; }
+  LD.qTimer = setTimeout(async () => {
+    const seq = ++LD.qSeq;
+    LD.qBusy = true; drawLeadSearch();
+    try {
+      const out = await api('/api/ghl/leads?q=' + encodeURIComponent(term)
+        + (LD.loc === 'all' ? '' : '&location=' + encodeURIComponent(LD.loc)));
+      /* A slower earlier request must not overwrite a later one's results. */
+      if (seq !== LD.qSeq) return;
+      mergeLeads(out.leads || []);
+      saveLeadsCache();
+    } catch (err) {
+      if (seq === LD.qSeq) console.error('lead search failed:', err.message);
+    } finally {
+      if (seq === LD.qSeq) { LD.qBusy = false; drawLeads(); }
+    }
+  }, 280);
+}
+
+/* Just the box, so a repaint mid-typing does not take the caret out of it. */
+function drawLeadSearch(){
+  const box = document.querySelector('.ldsearch');
+  if (box) box.classList.toggle('busy', Boolean(LD.qBusy));
+  const clear = document.getElementById('ld-qclear');
+  if (clear) clear.hidden = !LD.q;
 }
 
 /* ---------- submenu ---------- */
@@ -4427,15 +4508,24 @@ function emptyPipeline(){
 function drawLeadList(){
   const rows = ldVisible().sort((a, b) => b.sortKey - a.sortKey);
   const el = document.getElementById('ld-list');
+  const searching = LD.q.trim().length >= 2;
   document.getElementById('ld-listcount').textContent =
-    rows.length + (rows.length === 1 ? ' lead' : ' leads');
+    rows.length + (searching ? (rows.length === 1 ? ' match' : ' matches')
+      : (rows.length === 1 ? ' lead' : ' leads'));
   document.getElementById('ld-listtitle').textContent =
-    LD.stage === 'all' ? 'All stages' : LD.stage;
+    searching ? 'Search' : LD.stage === 'all' ? 'All stages' : LD.stage;
+  drawLeadSearch();
 
   if (!rows.length) {
-    /* emptyPipeline() covers every case now, including no locations at all. No
-       buttons: there is nothing here a click could fix. */
-    el.innerHTML = emptyPipeline();
+    /* A search that found nothing is a different empty than a pipeline with
+       nothing in it, and emptyPipeline() would say the wrong thing about the
+       sub-account. */
+    el.innerHTML = searching
+      ? '<div class="empty"><b>Nothing matches "' + escL(LD.q.trim()) + '"</b>'
+        + '<small>' + (LD.qBusy ? 'Still checking the rest of the database…'
+            : 'Searched every lead' + (LD.loc === 'all' ? '' : ' in this sub-account')
+              + ' by name, email, phone, tag, owner and source.') + '</small></div>'
+      : emptyPipeline();
     return;
   }
 
@@ -5034,7 +5124,21 @@ function drawLeadHeader(){
     const bad = (INGEST.entities || []).find(e => e.status === 'error');
     el.innerHTML = '<span class="d" style="background:var(--rust)"></span>Ingest failing \u00b7 '
       + INGEST.failing;
-    el.title = bad ? bad.entity + ': ' + (bad.error || 'unknown') : 'Check the ingest pipeline.';
+    el.title = bad
+      ? bad.entity + ': ' + (bad.error || 'no error was recorded')
+      : 'Check the ingest pipeline.';
+  } else if (INGEST?.stale) {
+    /* Something ended in an error once and the pipeline has run past it. Worth
+       being able to see; not worth a red line that never goes away. */
+    const bad = (INGEST.entities || []).find(e => e.status === 'error');
+    el.innerHTML = '<span class="d" style="background:var(--dimmer)"></span>Synced \u00b7 '
+      + INGEST.stale + ' stale';
+    el.title = bad
+      ? bad.entity + ' last failed on '
+        + (bad.at ? new Date(bad.at).toLocaleDateString() : 'an unknown date')
+        + ' (' + (bad.error || 'no error was recorded')
+        + ') and has not run since. Everything else has.'
+      : 'An entity failed once and has not run since.';
   } else if (INGEST?.pending) {
     el.innerHTML = '<span class="d" style="background:var(--brass)"></span>'
       + INGEST.pending + ' never ingested';
@@ -5221,6 +5325,33 @@ function startLiveUpdates(){
 startLiveUpdates();
 
 /* Re-reads Supabase. Not a re-sync: it asks the database what it holds now. */
+{
+  const box = document.getElementById('ld-q');
+  const clear = document.getElementById('ld-qclear');
+  if (box) {
+    box.addEventListener('input', () => {
+      LD.q = box.value;
+      /* Drawn immediately from what is already loaded, so typing feels
+         instant; the server call catches up behind it. */
+      drawLeadList();
+      drawLeadSearch();
+      ldSearchLater();
+    });
+    box.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && LD.q) {
+        e.preventDefault();
+        box.value = ''; LD.q = ''; clearTimeout(LD.qTimer); LD.qBusy = false; drawLeads();
+      }
+    });
+  }
+  if (clear) clear.onclick = () => {
+    if (box) box.value = '';
+    LD.q = ''; clearTimeout(LD.qTimer); LD.qBusy = false;
+    drawLeads();
+    box?.focus();
+  };
+}
+
 document.getElementById('ld-refresh').onclick = async e => {
   const b = e.currentTarget;
   b.textContent = 'Refreshing…'; b.disabled = true;

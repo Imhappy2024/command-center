@@ -267,11 +267,27 @@ export function ghlRoutes({ env, auth, live = null }){
        for it. */
     try {
       const ing = await ingestStatus();
-      if (ing.failing) {
-        const first = ing.entities.find(e => e.status === 'error');
+      const bad = (ing.entities || []).filter(e => e.status === 'error');
+      if (bad.length) {
+        /* Name the entity and say when. A bare count tells the reader something
+           is wrong and nothing about what, which leaves them with a red line
+           they cannot act on and eventually stop seeing. */
+        const first = bad[0];
+        const days = first.at
+          ? Math.floor((Date.now() - new Date(first.at).getTime()) / 86_400_000) : null;
+        const when = days == null ? '' : days === 0 ? ' today'
+          : days === 1 ? ' yesterday' : ' ' + days + ' days ago';
+        const why = first.error ? ': ' + first.error : ' with no error recorded';
+        const rest = bad.length > 1 ? ' (and ' + (bad.length - 1) + ' more)' : '';
+
         warnings.push({ account: 'ghl:ingest', label: 'GHL ingest',
-          error: `${ing.failing} sync ${ing.failing === 1 ? 'entity is' : 'entities are'} failing`
-            + (first?.error ? ` — ${first.entity}: ${first.error}` : '') });
+          stale: ing.failing === 0,
+          error: ing.failing === 0
+            /* Everything else has synced since, so this is history rather than a
+               fault: worth being able to see, not worth an alarm. */
+            ? first.entity + ' last failed' + when + why + rest
+              + ', but every other entity has synced since.'
+            : first.entity + ' failed' + when + why + rest + '.' });
       }
     } catch { /* the panel is a nicety; never fail a read over it */ }
 
@@ -339,13 +355,23 @@ export function ghlRoutes({ env, auth, live = null }){
       since = new Date(t).toISOString();
     }
 
-    const rows = await leadRows(ids, LEAD_ROWS, { since });
+    /* One character is not a search, it is a request for most of the database
+       rendered one row at a time. Below two the term is ignored, and `search`
+       below is what was actually applied rather than what was typed -- echoing
+       back a term that was ignored is how a caller concludes the search is
+       broken when it simply did not run. */
+    const typed = String(req.query.q || '').trim();
+    const search = typed.length >= 2 ? typed : null;
+    const rows = await leadRows(ids, LEAD_ROWS, { since, search });
 
     if (!since && rows.length === LEAD_ROWS) {
       const total = await leadTotal(ids);
       warnings.push({ account: 'ghl', label: 'Leads',
-        error: `Showing the ${LEAD_ROWS} most recently active of ${total.toLocaleString()} leads. `
-          + 'Filter by sub-account or stage to narrow it.' });
+        error: search
+          ? `More than ${LEAD_ROWS} leads match "${search}". Showing the most recently active; `
+            + 'narrow the term or pick a sub-account.'
+          : `Showing the ${LEAD_ROWS} most recently active of ${total.toLocaleString()} leads. `
+            + 'Filter by sub-account or stage to narrow it.' });
     }
 
     /* The stage NAME, because that is what the cards show and because a card
@@ -354,7 +380,8 @@ export function ghlRoutes({ env, auth, live = null }){
     const leads = rows.map(shapeLead)
       .filter(l => wantStage === 'all' || l.stageName === wantStage);
 
-    res.json({ leads, warnings, delta: Boolean(since), serverTime: new Date().toISOString() });
+    res.json({ leads, warnings, delta: Boolean(since), search,
+      serverTime: new Date().toISOString() });
   }));
 
   /* One lead, shaped exactly like a list row. The live path fetches this when a
