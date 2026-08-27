@@ -516,6 +516,46 @@ main{min-width:0;display:flex;flex-direction:column}
 .viewtabs button.on .n{color:var(--brass)}
 .viewtabs button .sdot{width:6px;height:6px;border-radius:50%;flex:none}
 
+/* ---------- the leads table ----------
+
+   Two shapes for one list. With no lead open the pane is the width of the page
+   and a table is the right thing: name, email, phone and tags side by side, one
+   row per person, readable down a column. Open a lead and the pane is half that,
+   where six columns would be six ellipses -- so it falls back to the stacked
+   row. Same data, same click target, chosen by how much room there is. */
+.ldtable{display:flex;flex-direction:column;min-width:0}
+.ldhead{display:grid;background:var(--panel2);border-bottom:1px solid var(--edge);
+  position:sticky;top:0;z-index:4}
+.ldhead>span{padding:8px 12px;font-family:var(--ff-mono);font-size:9px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--dimmer);white-space:nowrap;overflow:hidden;
+  text-overflow:ellipsis}
+.ldhead>span.n{text-align:right}
+.ldrow{display:grid;align-items:center;border-bottom:1px solid rgba(38,44,70,.7);
+  cursor:pointer;transition:background .12s;border-left:2px solid transparent}
+.ldrow:hover{background:var(--panel2)}
+.ldrow.on{background:var(--panel2);border-left-color:var(--c,var(--brass))}
+.ldrow.unread{border-left-color:var(--brass)}
+.ldrow>span{padding:9px 12px;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:12.5px;display:flex;align-items:center;gap:7px}
+.ldrow .nm{color:var(--cream);font-weight:500}
+.ldrow .dim{color:var(--dim);font-size:12px}
+.ldrow .mono{font-family:var(--ff-mono);font-size:11.5px;color:var(--dim)}
+.ldrow .n{justify-content:flex-end;font-family:var(--ff-mono);font-size:11.5px;
+  color:var(--brass);font-variant-numeric:tabular-nums}
+.ldrow .none{color:var(--edge2)}
+.ldrow .udot{width:6px;height:6px;border-radius:50%;background:var(--brass);flex:none;
+  opacity:0}
+.ldrow.unread .udot{opacity:1}
+.ldtags{display:flex;gap:4px;min-width:0;overflow:hidden}
+.ldtag{border:1px solid var(--edge2);border-radius:99px;padding:1px 7px;font-size:9.5px;
+  font-family:var(--ff-mono);color:var(--dim);white-space:nowrap;flex:none}
+.ldtag.more{color:var(--dimmer);border-style:dashed}
+.ldstage{border-radius:99px;padding:1px 8px;font-size:9.5px;font-family:var(--ff-mono);
+  border:1px solid var(--edge2);color:var(--dim);white-space:nowrap}
+.ldstage.won{color:var(--jade);border-color:rgba(53,208,165,.4);background:rgba(53,208,165,.1)}
+.ldstage.lost{color:var(--rust);border-color:rgba(255,90,69,.35);background:rgba(255,90,69,.08)}
+.ldstage.hot{color:var(--brass);border-color:rgba(124,108,255,.4);background:rgba(124,108,255,.1)}
+
 /* ---------- connect form ---------- */
 .form{padding:18px 20px;display:flex;flex-direction:column;gap:15px}
 .fld{display:block}
@@ -4121,7 +4161,13 @@ const ACTIVITY = {};
 const PENDING = {};
 const DETAIL = {};
 
-const locById = id => LOCATIONS.find(l => l.id === id);
+/* Never undefined. A lead outlives the sub-account it came from -- GHL lets you
+   remove a location and the lead rows stay -- and one such lead threw inside the
+   row renderer, which blanked the entire list. An unknown account is still an
+   account; it just has no name here. */
+const LOC_UNKNOWN = { id: null, name: 'Unknown account', short: '—',
+  color: 'var(--dimmer)', brand: null, sendable: false, senders: null };
+const locById = id => LOCATIONS.find(l => l.id === id) || LOC_UNKNOWN;
 const money = n => '\u20b1' + n.toLocaleString();
 
 /* A lead with no opportunity has no stage \u2014 stage belongs to an opportunity, not
@@ -4293,34 +4339,106 @@ function drawLeadList(){
   }
 
   const showLoc = LD.loc === 'all';
-  el.innerHTML = rows.map(l => {
-    const loc = locById(l.loc);
-    const t = THREADS[l.id] || [];
-    const last = t[t.length - 1];
-    /* Tone from GHL's status, which is the fact, rather than from a stage name
-       this dashboard would have to guess the meaning of. */
-    const tone = l.status === 'won' ? ' won'
-               : (l.status === 'lost' || l.status === 'abandoned') ? ' lost'
-               : l.hasOpportunity ? ' hot' : '';
-    return '<div class="msg' + (l.unread ? ' unread' : '') + (LD.sel === l.id ? ' on' : '')
-      + '" data-lead="' + l.id + '" style="--c:' + loc.color + '">'
-      + '<div class="mr1"><span class="udot"></span><b>' + escL(l.name) + '</b>'
-      + (showLoc ? '<span class="mtag">' + escL(loc.short) + '</span>' : '')
-      + '<span class="tm">' + escL(l.last) + '</span></div>'
-      + '<div class="msubj"><span class="lstage' + tone + '">' + escL(stageLabel(l)) + '</span>'
-      + '<span style="margin-left:8px;font-family:\'JetBrains Mono\',monospace;font-size:11.5px;color:var(--brass)">'
-      + money(l.value) + '</span></div>'
-      + '<div class="msnip">' + escL(last ? (last.dir === 'out' ? 'You: ' : '') + last.body : 'No messages yet') + '</div>'
-      + '</div>';
-  }).join('');
+  /* Tone from GHL's status, which is the fact, rather than from a stage name
+     this dashboard would have to guess the meaning of. */
+  const toneOf = l => l.status === 'won' ? 'won'
+    : (l.status === 'lost' || l.status === 'abandoned') ? 'lost'
+    : l.hasOpportunity ? 'hot' : '';
 
-  el.querySelectorAll('[data-lead]').forEach(b => b.onclick = () => {
+  /* Tags are a list of unknown length in a cell of known width. Two, then a
+     count -- "+3" is information; three tags cut off mid-word is not. */
+  const tagCell = tags => {
+    const list = (tags || []).filter(Boolean);
+    if (!list.length) return '<span class="none">—</span>';
+    return '<span class="ldtags">'
+      + list.slice(0, 2).map(t => '<span class="ldtag">' + escL(t) + '</span>').join('')
+      + (list.length > 2 ? '<span class="ldtag more" title="' + escL(list.join(', ')) + '">+'
+          + (list.length - 2) + '</span>' : '')
+      + '</span>';
+  };
+
+  /* The pane is the full width of the page until a lead is open, and half of it
+     after. Six columns in half a pane is six ellipses, so the stacked row comes
+     back when there is no room for the table. */
+  if (LD.sel) {
+    el.innerHTML = rows.map(l => {
+      const loc = locById(l.loc);
+      const t = THREADS[l.id] || [];
+      const last = t[t.length - 1];
+      const tone = toneOf(l);
+      return '<div class="msg' + (l.unread ? ' unread' : '') + (LD.sel === l.id ? ' on' : '')
+        + '" data-lead="' + l.id + '" style="--c:' + loc.color + '">'
+        + '<div class="mr1"><span class="udot"></span><b>' + escL(l.name) + '</b>'
+        + (showLoc ? '<span class="mtag">' + escL(loc.short) + '</span>' : '')
+        + '<span class="tm">' + escL(l.last) + '</span></div>'
+        + '<div class="msubj"><span class="lstage' + (tone ? ' ' + tone : '') + '">'
+        + escL(stageLabel(l)) + '</span>'
+        + '<span style="margin-left:8px;font-family:\'JetBrains Mono\',monospace;font-size:11.5px;color:var(--brass)">'
+        + money(l.value) + '</span></div>'
+        + '<div class="msnip">' + escL(last ? (last.dir === 'out' ? 'You: ' : '') + last.body : 'No messages yet') + '</div>'
+        + '</div>';
+    }).join('');
+  } else {
+    const cols = [
+      ['Name', 'minmax(150px,1.5fr)'],
+      ['Email', 'minmax(170px,1.6fr)'],
+      ['Phone', 'minmax(130px,1fr)'],
+      ['Tags', 'minmax(120px,1.1fr)'],
+      ...(showLoc ? [['Account', 'minmax(90px,.8fr)']] : []),
+      ['Stage', 'minmax(100px,.9fr)'],
+      ['Value', '96px'],
+      ['Last', '68px']
+    ];
+    const grid = cols.map(c => c[1]).join(' ');
+    const numeric = new Set(['Value']);
+
+    el.innerHTML = '<div class="ldtable">'
+      + '<div class="ldhead" style="grid-template-columns:' + grid + '">'
+      +   cols.map(c => '<span' + (numeric.has(c[0]) ? ' class="n"' : '') + '>' + c[0] + '</span>').join('')
+      + '</div>'
+      + rows.map(l => {
+          const loc = locById(l.loc);
+          const tone = toneOf(l);
+          const cell = v => v ? escL(v) : '<span class="none">—</span>';
+          return '<div class="ldrow' + (l.unread ? ' unread' : '') + '" data-lead="' + l.id + '" '
+            + 'style="grid-template-columns:' + grid + ';--c:' + loc.color + '" tabindex="0">'
+            + '<span><span class="udot"></span><span class="nm">' + escL(l.name) + '</span></span>'
+            /* mailto and tel are what these are for; the row click still opens
+               the lead, so the link stops the event rather than fighting it. */
+            + '<span class="dim">' + (l.email
+                ? '<a href="mailto:' + escL(l.email) + '" onclick="event.stopPropagation()">'
+                  + escL(l.email) + '</a>' : '<span class="none">—</span>') + '</span>'
+            + '<span class="mono">' + (l.phone
+                ? '<a href="tel:' + escL(String(l.phone).replace(/[^\d+]/g, '')) + '" '
+                  + 'onclick="event.stopPropagation()">' + escL(l.phone) + '</a>'
+                : '<span class="none">—</span>') + '</span>'
+            + '<span>' + tagCell(l.tags) + '</span>'
+            + (showLoc ? '<span class="dim">' + escL(loc.short) + '</span>' : '')
+            + '<span><span class="ldstage' + (tone ? ' ' + tone : '') + '">'
+            +   escL(stageLabel(l)) + '</span></span>'
+            + '<span class="n">' + (l.value ? money(l.value) : '<span class="none">—</span>') + '</span>'
+            + '<span class="mono">' + cell(l.last) + '</span>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  el.querySelectorAll('[data-lead]').forEach(b => {
+    const open = () => {
+      const l = LEADS.find(x => x.id === b.dataset.lead);
+      if (!l) return;
+      l.unread = false; LD.sel = l.id; drawLeads();
+      loadThread(l.id);
+    };
+    b.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); open(); } };
+    b.onclick = () => {
     const l = LEADS.find(x => x.id === b.dataset.lead);
     l.unread = false; LD.sel = l.id; drawLeads();
     /* Threads are fetched on open rather than with the list, for the same reason
        mail bodies are: one request per lead beats pulling every conversation
        nobody has asked to read. */
     loadThread(l.id);
+    };
   });
 }
 
