@@ -63,7 +63,13 @@ function poolFor(url){
 /* Kept for anything that imported it by name; now resolves to the own-tables pool. */
 export const connect = () => poolFor(ownDbUrl());
 
-/* command-center's own tables. */
+/* command-center's own tables.
+
+   ownDbUrl() and ghlDbUrl() normally resolve to the same Supabase string now.
+   The two functions are kept because the split is still expressible and because
+   every call site says which half of the schema it means -- but poolFor keys on
+   the connection string, so identical strings share a single pool rather than
+   opening two sets of connections to the same host. */
 export const query = (text, params) => poolFor(ownDbUrl()).query(text, params);
 
 /* The portal's GHL tables. Every read in lib/ghl-data.js, every portal write in

@@ -53,6 +53,14 @@ CREATE TABLE IF NOT EXISTS webhook_events (
 CREATE INDEX IF NOT EXISTS wh_unprocessed ON webhook_events (provider, processed) WHERE NOT processed;
 
 /* ---------------------------------------------------------------------------
+   WHERE THIS RUNS
+
+   Against DATABASE_URL, which now points at the same Supabase database the
+   portal lives in. Everything below is created with IF NOT EXISTS and touches
+   only command-center's own tables, which is what makes that safe -- but it does
+   mean this file executes against a database full of tables it must not go near.
+   The warning immediately below is therefore not theoretical.
+
    NOT HERE: the GHL mirror.
 
    ghl_contacts, ghl_pipelines, ghl_opportunities and ghl_messages used to be
