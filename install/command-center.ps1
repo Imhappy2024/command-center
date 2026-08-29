@@ -84,13 +84,29 @@ $url = "http://127.0.0.1:$port"
 # button. A dedicated --user-data-dir gives it a separate window list so it does
 # not group under the everyday browser. AUTH_MODE is open on a local install, so
 # a separate profile costs nothing -- there is no login to carry over.
+# Chrome first, Edge as the fallback.
+#
+# It used to be the other way round, on the reasoning that Edge is on every
+# Windows machine so it always resolves. That was true and is now the wrong
+# trade: Hommie lives in this window, and speech recognition and the voice list
+# are the two places where the two browsers differ most. Every voice in the
+# picker and every wake-word behaviour was measured in Chrome.
+#
+# Edge stays as the fallback rather than being dropped, because a machine
+# without Chrome should still open a window rather than nothing.
+#
+# COMMAND_CENTER_BROWSER overrides both -- point it at any Chromium, including
+# Brave or Vivaldi, and it is used if the path exists.
 function Find-Chromium {
+  if ($env:COMMAND_CENTER_BROWSER -and (Test-Path $env:COMMAND_CENTER_BROWSER)) {
+    return $env:COMMAND_CENTER_BROWSER
+  }
   $candidates = @(
-    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
-    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe",
     "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
     "${env:ProgramFiles(x86)}\Google\Chrome\Application\chrome.exe",
-    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe"
+    "$env:LOCALAPPDATA\Google\Chrome\Application\chrome.exe",
+    "$env:ProgramFiles\Microsoft\Edge\Application\msedge.exe",
+    "${env:ProgramFiles(x86)}\Microsoft\Edge\Application\msedge.exe"
   )
   foreach ($c in $candidates) { if ($c -and (Test-Path $c)) { return $c } }
   return $null
