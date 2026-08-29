@@ -11,3 +11,10 @@ Thumbs.db
 logs/
 .appwindow/
 storage/
+
+# graphify. The settings file holds an absolute path to this machine's Python
+# Scripts directory, so committing it would push a hook that cannot run anywhere
+# else -- including Railway. graphify-out/ is a build artefact of the source
+# already in the repo and is regenerated with `graphify update .`.
+.claude/
+graphify-out/
