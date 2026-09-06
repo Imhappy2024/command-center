@@ -49,13 +49,14 @@ export function taskRoutes({ env, auth }){
     if (inFlight) return inFlight;
     progress = { phase: 'teams', done: 0, total: 0, startedAt: Date.now() };
     partial = { tasks: [], byId: new Set(), spaces: [], lists: [], members: [],
-      teamId: null, teamName: null };
+      statusSets: {}, teamId: null, teamName: null };
     inFlight = cu.workspace({ onProgress: p => {
-      const { batch, spaces, lists, members, teamId, teamName, ...rest } = p;
+      const { batch, spaces, lists, members, statusSets, teamId, teamName, ...rest } = p;
       progress = { ...progress, ...rest };
       if (spaces) partial.spaces = spaces;
       if (lists) partial.lists = lists;
       if (members) partial.members = members;
+      if (statusSets) partial.statusSets = statusSets;
       if (teamId) { partial.teamId = teamId; partial.teamName = teamName; }
       if (batch) {
         for (const t of batch) {
@@ -116,7 +117,8 @@ export function taskRoutes({ env, auth }){
         progress, lastError,
         teamId: p.teamId || null, teamName: p.teamName || null,
         tasks: p.tasks || [], spaces: p.spaces || [],
-        lists: p.lists || [], members: p.members || []
+        lists: p.lists || [], members: p.members || [],
+        statusSets: p.statusSets || {}
       });
     }
 
@@ -156,13 +158,44 @@ export function taskRoutes({ env, auth }){
     next();
   };
 
+  /* Most of these two are answered from the walk now and never reach here at
+     all. What is left is the sixteen lists that override their statuses without
+     declaring them, and the background call that refines a space's members into
+     the list's own -- both of which are the same answer every time for as long
+     as anyone is looking at the board.
+
+     Half an hour, because a status set changes when somebody edits the list
+     template, which is rare, and because being half an hour stale about it
+     costs nothing: the write still goes to ClickUp, which is the authority.
+
+     Concurrent callers share one call rather than each starting their own. Open
+     the same picker twice quickly and the second gets the first one's promise. */
+  const PICK_TTL = 30 * 60 * 1000;
+  const picks = new Map();      // key -> { at, value } | { inFlight }
+
+  async function cached(key, fn){
+    const hit = picks.get(key);
+    if (hit?.inFlight) return hit.inFlight;
+    if (hit && Date.now() - hit.at < PICK_TTL) return hit.value;
+    const inFlight = fn()
+      .then(value => { picks.set(key, { at: Date.now(), value }); return value; })
+      .catch(err => {
+        /* A failure must not be remembered as an answer. Drop back to whatever
+           was there before, if it was only stale. */
+        if (hit && !hit.inFlight) picks.set(key, hit); else picks.delete(key);
+        throw err;
+      });
+    picks.set(key, { inFlight });
+    return inFlight;
+  }
+
   r.get('/api/tasks/list/:id/statuses', auth.require, needClickUp, async (req, res) => {
-    try { res.json({ statuses: await cu.statuses(req.params.id) }); }
+    try { res.json({ statuses: await cached('s:' + req.params.id, () => cu.statuses(req.params.id)) }); }
     catch (err) { res.status(err.status || 502).json({ error: err.message }); }
   });
 
   r.get('/api/tasks/list/:id/members', auth.require, needClickUp, async (req, res) => {
-    try { res.json({ members: await cu.members(req.params.id) }); }
+    try { res.json({ members: await cached('m:' + req.params.id, () => cu.members(req.params.id)) }); }
     catch (err) { res.status(err.status || 502).json({ error: err.message }); }
   });
 

@@ -128,6 +128,16 @@ async function mapLimit(items, limit, fn){
   return out;
 }
 
+/* Enough of a hash to tell two status sets apart. Not a checksum and not
+   security -- the only requirement is that identical sets collide and different
+   ones usually do not, and a collision would at worst show one list the wrong
+   five statuses. */
+function hash(str){
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h * 33) ^ str.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
 /* Every list in the workspace, with the space and folder it belongs to.
 
    Nothing below the top-level space call is allowed to be fatal. A workspace
@@ -141,32 +151,107 @@ async function discoverLists(call, teamId){
   const problems = [];
   const note = (where, err) => problems.push({ where, status: err.status || 0, message: err.message });
 
+  /* Every distinct set of statuses in the workspace, keyed by its own shape.
+
+     Twenty-one spaces and 213 lists, but only a handful of genuinely different
+     status sets between them -- almost every list inherits its space's. Storing
+     the set once and having lists point at it keeps this off a payload that is
+     already carrying nearly five thousand tasks. */
+  const statusSets = {};
+  const keyFor = raw => {
+    const clean = (raw || []).filter(s => s && s.status).map(s => ({
+      status: s.status, type: s.type || null, color: s.color || null,
+      orderindex: s.orderindex, canonical: canonicalStatus(s.status, s.type)
+    }));
+    if (!clean.length) return null;
+    /* The key is the content, so two lists with the same statuses share one
+       entry however they came by them. */
+    const key = 's' + hash(clean.map(s => s.status + '\u0001' + s.type).join('\u0002'));
+    if (!statusSets[key]) statusSets[key] = clean;
+    return key;
+  };
+
   const spacesRes = await call(`/team/${teamId}/space?archived=false`);
   const spaces = spacesRes.spaces || [];
   const lists = [];
 
   await mapLimit(spaces, 3, async space => {
     const meta = { id: space.id, name: space.name };
+    /* The space's own set, which is what a list uses unless it says otherwise. */
+    const spaceKey = keyFor(space.statuses);
+
+    /* A list carries its statuses when it has them; otherwise, unless it has
+       overridden them, it is using the ones above it. Only a list that both
+       overrides and declines to say what with needs asking, and there are
+       sixteen of those in the whole workspace. */
+    const resolve = (l, inheritKey) => keyFor(l.statuses)
+      || (l.override_statuses ? null : (inheritKey || spaceKey));
 
     /* Folderless lists hang directly off the space. */
     const direct = await call(`/space/${space.id}/list?archived=false`)
       .catch(err => { note('lists in space "' + space.name + '"', err); return { lists: [] }; });
-    for (const l of direct.lists || []) lists.push({ id: l.id, name: l.name, space: meta, folder: null });
+    for (const l of direct.lists || []) {
+      lists.push({ id: l.id, name: l.name, space: meta, folder: null, statusKey: resolve(l, null) });
+    }
 
     const folders = await call(`/space/${space.id}/folder?archived=false`)
       .catch(err => { note('folders in space "' + space.name + '"', err); return { folders: [] }; });
     await mapLimit(folders.folders || [], 3, async f => {
       const fmeta = { id: f.id, name: f.name };
+      const folderKey = keyFor(f.statuses) || (f.override_statuses ? null : spaceKey);
       /* The folder payload usually embeds its lists; fall back to asking. */
       const inner = f.lists?.length
         ? { lists: f.lists }
         : await call(`/folder/${f.id}/list?archived=false`)
             .catch(err => { note('lists in folder "' + f.name + '"', err); return { lists: [] }; });
-      for (const l of inner.lists || []) lists.push({ id: l.id, name: l.name, space: meta, folder: fmeta });
+      for (const l of inner.lists || []) {
+        lists.push({ id: l.id, name: l.name, space: meta, folder: fmeta, statusKey: resolve(l, folderKey) });
+      }
     });
   });
 
-  return { lists, spaces: spaces.map(s => ({ id: s.id, name: s.name })), problems };
+  /* Whatever is left over. A list that overrides its statuses without saying
+     what with has to be asked directly. Sixteen of 213 -- but between them they
+     hold 484 tasks, which is why leaving them to be fetched on click puts the
+     old wait back exactly where it is most likely to be felt: 92% of lists
+     resolve for free, but only 68% of tasks.
+
+     Handed back rather than run, so the caller can start it and get on with the
+     task walk instead of making the first row wait behind it. It mutates lists
+     and statusSets in place; both are already in the caller's hands.
+
+     Three at a time, like the rest of the walk, and never fatal: a list whose
+     statuses cannot be read still shows up with all its tasks, and its picker
+     falls back to asking the way it always did. */
+  const resolveStragglers = async () => {
+    const left = lists.filter(l => !l.statusKey);
+    if (!left.length) return;
+    await mapLimit(left, 3, async l => {
+      const one = await call(`/list/${l.id}`)
+        .catch(err => { note('statuses for list "' + l.name + '"', err); return null; });
+      if (one) l.statusKey = keyFor(one.statuses);
+    });
+  };
+
+  return {
+    lists,
+    resolveStragglers,
+    /* Members come with the space and are the set that can actually be assigned
+       there. The workspace has 36 people; a space has nine. Showing nine
+       instantly beats showing thirty-six after a second. */
+    spaces: spaces.map(s => ({
+      id: s.id, name: s.name,
+      members: (s.members || []).map(m => ({
+        id: String(m.user?.id ?? m.id),
+        username: m.user?.username || m.user?.email || String(m.user?.id ?? m.id),
+        email: m.user?.email || null,
+        color: m.user?.color || null,
+        initials: m.user?.initials || null
+      }))
+    })),
+    statusSets,
+    problems
+  };
 }
 
 /* Every page of one list. `include_closed` matters: without it a board looks
@@ -234,17 +319,43 @@ export function createClickUp({ token, teamId }){
       if (!team) throw new ClickUpError('That token can see no ClickUp workspaces', 403);
 
       tick('lists', 0, 0);
-      const { lists, spaces, problems } = await discoverLists(call, team.id);
+      const { lists, spaces, statusSets, resolveStragglers, problems } = await discoverLists(call, team.id);
+      /* What the editors need, shaped once and used in the progress ticks and
+         in the finished payload. statusKey points into statusSets. */
+      const listOut = l => ({ id: l.id, name: l.name, spaceId: l.space.id,
+        folderId: l.folder?.id || null, statusKey: l.statusKey || null });
       /* Spaces, lists and members are known now and the filters need them, so
-         they go out before a single task has been read. */
+         they go out before a single task has been read. The status sets go with
+         them, which is what lets the status picker open with its options
+         already in it rather than asking ClickUp on every click. */
       tick('tasks', 0, lists.length, {
-        teamId: team.id, teamName: team.name, members: team.members, spaces,
-        lists: lists.map(l => ({ id: l.id, name: l.name, spaceId: l.space.id, folderId: l.folder?.id || null }))
+        teamId: team.id, teamName: team.name, members: team.members, spaces, statusSets,
+        lists: lists.map(listOut)
       });
 
       /* Three, not five: the rate limit is per token, and the walk finishing
          two minutes later beats it failing halfway. */
       let walked = 0;
+
+      /* Deliberately started rather than awaited: it shares the rate limit with
+         the task walk below and finishes inside its first few seconds, so
+         putting it in front would only make the first row wait.
+
+         The catch-up tick is the point of doing it this way. statusSets is
+         mutated in place and the caller is holding the same object, but the
+         lists were projected into new objects a moment ago with no key on the
+         sixteen, so those have to be sent again -- otherwise the pickers for
+         them fall back to asking for the whole of the first walk, which on a
+         cold start is the three minutes somebody is most likely to be
+         clicking. */
+      const stragglers = resolveStragglers()
+        .then(() => tick('tasks', walked, lists.length, { statusSets, lists: lists.map(listOut) }))
+        .catch(err => {
+          /* Never fatal, and never an unhandled rejection in the window before
+             it is awaited. Those lists simply keep asking, as they always did. */
+          problems.push({ where: 'statuses for overriding lists',
+            status: err.status || 0, message: err.message });
+        });
       const perList = await mapLimit(lists, 3, async l => {
         const { tasks, error, status } = await listTasks(call, l.id);
         if (error) problems.push({ where: 'tasks in list "' + l.name + '"', status, message: error });
@@ -255,6 +366,9 @@ export function createClickUp({ token, teamId }){
         tick('tasks', ++walked, lists.length, { batch: stamped.map(shapeTask) });
         return stamped;
       });
+
+      /* Long since finished; this is where its failures surface as problems. */
+      await stragglers;
 
       const byId = new Map();
       for (const group of perList) for (const t of group) byId.set(t.id, t);
@@ -274,7 +388,8 @@ export function createClickUp({ token, teamId }){
         teamName: team.name,
         members: team.members,
         spaces,
-        lists: lists.map(l => ({ id: l.id, name: l.name, spaceId: l.space.id, folderId: l.folder?.id || null })),
+        statusSets,
+        lists: lists.map(listOut),
         tasks,
         /* What the walk could not read. Empty because there was nothing, or
            empty because a call broke? The UI cannot tell on its own. */

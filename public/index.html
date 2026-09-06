@@ -2072,6 +2072,16 @@ main{min-width:0;display:flex;flex-direction:column}
 .tkkpi .s{font-size:10.5px;color:var(--dimmer)}
 .tkfilter{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
 .tkfilter .grow{flex:1}
+/* Reads as the select it replaced until you notice it can hold more than one
+   answer, at which point the brass edge says so. */
+.tkmulti{display:inline-flex;align-items:center;gap:7px;max-width:210px}
+.tkmulti em{font-style:normal;font-size:8px;color:var(--dimmer);margin-left:auto}
+.tkmulti.on{border-color:var(--brass);color:var(--cream)}
+.tkmulti.on em{color:var(--brass)}
+#tk-fpop .tkpoplist{max-height:260px}
+#tk-fpop input#tk-fq{width:100%;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:8px;color:var(--text);font:inherit;font-size:12.5px;padding:7px 9px;margin-bottom:6px}
+#tk-fpop .tkpoprow .tgl:disabled{opacity:.4;cursor:default}
 
 .tkhead,.tkrow{display:grid;
   grid-template-columns:26px minmax(0,2.5fr) minmax(0,1fr) minmax(0,1.15fr) 112px 92px 84px 34px;
@@ -7680,7 +7690,12 @@ const TK = {
   propQ: '',                  // the property view searches properties, not tasks
   q: '',                      // free-text search (the source dashboard had none)
   sort: 'due', dir: 'asc',    // nor sorting
-  space: '', list: '', assignee: '', status: '', priority: '',
+  /* Arrays, not strings. Every one of these is a question with more than one
+     reasonable answer -- "what are Nancy and Chris both sitting on", "show me
+     blocked and in review" -- and a single-value select makes you ask it once
+     per value and add the answers up in your head. Empty means no filter, which
+     is the same thing '' used to mean. */
+  space: [], list: [], assignee: [], status: [], priority: [],
   quick: '',                  // the KPI card acting as a filter
   showDone: false,
   volDays: 30
@@ -7825,11 +7840,14 @@ function tkFiltered(){
   const all = TK.data?.tasks || [];
   const q = TK.q.trim().toLowerCase();
   return all.filter(t => {
-    if (TK.space && t.space?.id !== TK.space) return false;
-    if (TK.list && t.list?.id !== TK.list) return false;
-    if (TK.status && t.canonical !== TK.status) return false;
-    if (TK.priority && t.priority !== TK.priority) return false;
-    if (TK.assignee && !t.assignees.some(a => a.id === TK.assignee)) return false;
+    /* Within one filter the values are OR -- picking two people means either of
+       them, not both, because "both" would return almost nothing. Between
+       filters it stays AND: In Review AND assigned to Nancy. */
+    if (TK.space.length && !TK.space.includes(t.space?.id)) return false;
+    if (TK.list.length && !TK.list.includes(t.list?.id)) return false;
+    if (TK.status.length && !TK.status.includes(t.canonical)) return false;
+    if (TK.priority.length && !TK.priority.includes(t.priority)) return false;
+    if (TK.assignee.length && !t.assignees.some(a => TK.assignee.includes(a.id))) return false;
     if (q) {
       const hay = (t.name + ' ' + (t.list?.name || '') + ' ' + (t.space?.name || '')
         + ' ' + t.assignees.map(a => a.username).join(' ')).toLowerCase();
@@ -8233,10 +8251,23 @@ function tkAllView(){
   const sorted = tkSort(rows);
 
   const d = TK.data;
-  const sel = (id, label, opts, val) =>
-    '<select class="stagesel" id="' + id + '"><option value="">' + label + '</option>'
-    + opts.map(([v, l]) => '<option value="' + escS(v) + '"' + (v === val ? ' selected' : '') + '>' + escS(l) + '</option>').join('')
-    + '</select>';
+
+  /* A button that reads like a select and opens a list of checkboxes.
+
+     A native <select multiple> is a permanently-expanded listbox that you drive
+     by ctrl-clicking, which nobody discovers and which pushes the table off the
+     screen. This is the shape everything else in the app already uses -- it
+     reuses the task popover's own styling -- and it says what is picked without
+     being opened: one value by name, several by count. */
+  const sel = (key, label, opts, vals) => {
+    const chosen = opts.filter(([v]) => vals.includes(v));
+    const text = !chosen.length ? label
+      : chosen.length === 1 ? chosen[0][1]
+      : chosen.length + ' ' + label.replace(/^All /, '');
+    return '<button class="stagesel tkmulti' + (chosen.length ? ' on' : '') + '"'
+      + ' data-tkmulti="' + key + '" title="' + escS(chosen.map(c => c[1]).join(', ') || label) + '">'
+      + escS(text) + '<em>▾</em></button>';
+  };
 
   const spaces = (d.spaces || []).map(s => [s.id, s.name]).sort((a, b) => a[1].localeCompare(b[1]));
   const people = [...new Map((d.tasks || []).flatMap(t => t.assignees).map(a => [a.id, a.username])).entries()]
@@ -8247,11 +8278,11 @@ function tkAllView(){
 
   const bar = '<div class="tkfilter">'
     + '<span class="eyebrow">Filter</span>'
-    + sel('tk-assignee', 'All assignees', people, TK.assignee)
-    + sel('tk-status', 'All statuses', (d.canonical || []).map(k => [k, k]), TK.status)
-    + sel('tk-priority', 'All priorities', [['urgent', 'Urgent'], ['high', 'High'], ['normal', 'Normal'], ['low', 'Low']], TK.priority)
-    + sel('tk-space', 'All spaces', spaces, TK.space)
-    + sel('tk-list', 'All lists', lists, TK.list)
+    + sel('assignee', 'All assignees', people, TK.assignee)
+    + sel('status', 'All statuses', (d.canonical || []).map(k => [k, k]), TK.status)
+    + sel('priority', 'All priorities', TK_PRIOS, TK.priority)
+    + sel('space', 'All spaces', spaces, TK.space)
+    + sel('list', 'All lists', lists, TK.list)
     + (tkAnyFilter() ? '<button class="tgl" id="tk-clear">Clear</button>' : '')
     + '<span class="grow"></span>'
     + '<input id="tk-q" class="stagesel" style="flex:0 1 240px" placeholder="Search tasks, lists, people" value="' + escS(TK.q) + '">'
@@ -8291,9 +8322,102 @@ function tkAllView(){
     + tkBulkBar();
 }
 
+const TK_PRIOS = [['urgent', 'Urgent'], ['high', 'High'], ['normal', 'Normal'], ['low', 'Low']];
+
+/* The open filter dropdown. Its own popover rather than the task one: that one
+   is keyed to a task id and every branch of it starts by looking the task up. */
+let TKF = null;   // { key, x, y, q }
+
+function tkFilterOptions(key){
+  const d = TK.data || {};
+  const byName = (a, b) => String(a[1]).localeCompare(String(b[1]));
+  if (key === 'assignee') {
+    return [...new Map((d.tasks || []).flatMap(t => t.assignees).map(a => [a.id, a.username])).entries()].sort(byName);
+  }
+  if (key === 'status') return (d.canonical || []).map(k => [k, k]);
+  if (key === 'priority') return TK_PRIOS;
+  if (key === 'space') return (d.spaces || []).map(sp => [sp.id, sp.name]).sort(byName);
+  if (key === 'list') {
+    return [...new Map((d.tasks || []).map(t => [t.list?.id, t.list?.name]).filter(x => x[0])).entries()].sort(byName);
+  }
+  return [];
+}
+
+function tkCloseFilter(){ TKF = null; tkPaintFilter(); }
+
+function tkOpenFilter(key, anchor){
+  if (TKF && TKF.key === key) { tkCloseFilter(); return; }
+  const r = anchor.getBoundingClientRect();
+  TKF = { key, q: '', x: Math.min(r.left, window.innerWidth - 250), y: r.bottom + 6 };
+  tkPaintFilter();
+}
+
+function tkPaintFilter(){
+  let host = document.getElementById('tk-fpop');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'tk-fpop';
+    document.body.appendChild(host);
+  }
+  if (!TKF) { host.className = ''; host.innerHTML = ''; return; }
+
+  const key = TKF.key;
+  const opts = tkFilterOptions(key);
+  const on = TK[key];
+  const needle = TKF.q.trim().toLowerCase();
+  const shown = needle ? opts.filter(([, l]) => String(l).toLowerCase().includes(needle)) : opts;
+  /* A search box only where it earns its place. Four priorities do not need
+     one; 212 lists very much do. */
+  const searchable = opts.length > 8;
+
+  host.className = 'tkpop on';
+  host.style.left = TKF.x + 'px';
+  host.style.top = TKF.y + 'px';
+  host.innerHTML =
+    '<div class="tkpophead">' + escS(key === 'assignee' ? 'Assignees'
+      : key.charAt(0).toUpperCase() + key.slice(1) + (key === 'status' ? 'es' : 's')) + '</div>'
+    + (searchable ? '<input id="tk-fq" placeholder="Search" autocomplete="off" value="' + escS(TKF.q) + '">' : '')
+    + '<div class="tkpoplist">'
+    + (shown.length
+      ? shown.map(([v, l]) => '<label><input type="checkbox" data-tkfv="' + escS(v) + '"'
+          + (on.includes(v) ? ' checked' : '') + '><span>' + escS(l) + '</span></label>').join('')
+      : '<div class="tkpopwait">Nothing matches.</div>')
+    + '</div>'
+    + '<div class="tkpoprow">'
+    + '<button class="tgl" data-tkfact="none"' + (on.length ? '' : ' disabled') + '>Clear</button>'
+    + '<button class="tgl" data-tkfact="all">All ' + shown.length + '</button>'
+    + '</div>';
+
+  /* Toggled live rather than behind a Save. The table is right there; you want
+     to see what each tick does to it. */
+  host.querySelectorAll('[data-tkfv]').forEach(cb => cb.onchange = () => {
+    const v = cb.dataset.tkfv;
+    TK[key] = cb.checked ? [...TK[key], v] : TK[key].filter(x => x !== v);
+    /* Redraw the table, then repaint this so the footer buttons keep up --
+       drawTasks rebuilds the bar underneath us and would otherwise leave the
+       button behind it reading the old count. */
+    drawTasks();
+    tkPaintFilter();
+  });
+
+  host.querySelectorAll('[data-tkfact]').forEach(b => b.onclick = () => {
+    if (b.dataset.tkfact === 'none') TK[key] = [];
+    else TK[key] = [...new Set([...TK[key], ...shown.map(([v]) => v)])];
+    drawTasks();
+    tkPaintFilter();
+  });
+
+  const q = host.querySelector('#tk-fq');
+  if (q) {
+    q.oninput = () => { TKF.q = q.value; tkPaintFilter(); };
+    q.focus();
+    q.setSelectionRange(q.value.length, q.value.length);
+  }
+}
+
 function tkAnyFilter(){
-  return Boolean(TK.q || TK.space || TK.list || TK.assignee || TK.status || TK.priority
-    || TK.showDone || TK.quick);
+  return Boolean(TK.q || TK.space.length || TK.list.length || TK.assignee.length
+    || TK.status.length || TK.priority.length || TK.showDone || TK.quick);
 }
 
 function tkSort(rows){
@@ -8582,18 +8706,18 @@ function wireTasks(root){
     drawTasks();
   });
 
-  on('tk-space', 'onchange', e => { TK.space = e.target.value; drawTasks(); });
-  on('tk-list', 'onchange', e => { TK.list = e.target.value; drawTasks(); });
   root.querySelectorAll('[data-tkquick]').forEach(b => b.onclick = () => {
     TK.quick = TK.quick === b.dataset.tkquick ? '' : b.dataset.tkquick;
     drawTasks();
   });
-  on('tk-assignee', 'onchange', e => { TK.assignee = e.target.value; drawTasks(); });
-  on('tk-status', 'onchange', e => { TK.status = e.target.value; drawTasks(); });
-  on('tk-priority', 'onchange', e => { TK.priority = e.target.value; drawTasks(); });
+  root.querySelectorAll('[data-tkmulti]').forEach(b => b.onclick = ev => {
+    ev.stopPropagation();
+    tkOpenFilter(b.dataset.tkmulti, b);
+  });
   on('tk-done', 'onchange', e => { TK.showDone = e.target.checked; drawTasks(); });
   on('tk-clear', 'onclick', () => {
-    Object.assign(TK, { q: '', space: '', list: '', assignee: '', status: '', priority: '', showDone: false, quick: '' });
+    Object.assign(TK, { q: '', space: [], list: [], assignee: [], status: [], priority: [],
+      showDone: false, quick: '' });
     drawTasks();
   });
 
@@ -8613,6 +8737,14 @@ function wireTasks(root){
     return false;
   });
 
+  root.querySelectorAll('[data-tkedit]').forEach(b => {
+    /* The pointer takes a few hundred milliseconds to arrive and the answer
+       takes about the same, so they may as well overlap. Only the two cells
+       that need a request; due and priority have nothing to fetch. */
+    if (b.dataset.tkedit === 'status' || b.dataset.tkedit === 'assign') {
+      b.onpointerenter = () => tkWarm(b.dataset.tkid);
+    }
+  });
   root.querySelectorAll('[data-tkedit]').forEach(b => b.onclick = ev => {
     ev.stopPropagation();
     const id = b.dataset.tkid;
@@ -8723,7 +8855,7 @@ function tkPaintPop(){
         + '<input id="tk-assign-q" placeholder="Search members" autocomplete="off">'
         + '<div class="tkpoplist" id="tk-assign-list">'
         + p.data.map(m => '<label><input type="checkbox" value="' + escS(m.id) + '"'
-            + (t.assignees.some(a => a.id === m.id) ? ' checked' : '') + '>'
+            + ((p.ticked ? p.ticked.has(m.id) : t.assignees.some(a => a.id === m.id)) ? ' checked' : '') + '>'
             + '<span>' + escS(m.username) + '</span></label>').join('')
         + '</div>'
         + '<div class="tkpoprow"><button class="tgl" data-tkassign="cancel">Cancel</button>'
@@ -8846,16 +8978,85 @@ function tkBucket(raw){
   return 'To Do';
 }
 
+/* ---------- what the walk already told us ----------
+
+   Opening either picker used to be a round trip to ClickUp: 560-810ms for the
+   statuses, 700-780ms for the members, every time, on top of the hop to our own
+   server. That is the "Asking the list what it offers..." you sit and read.
+
+   Almost none of it was necessary. Statuses live on the space and are inherited
+   downward unless a folder or list overrides them, and the space and folder
+   calls the walk already makes return them -- 197 of 213 lists, measured. The
+   space call also returns its members, which is the set that can actually be
+   assigned there and is a ninth the size of the workspace list.
+
+   So both open with their options in them and no request at all. What is left:
+   sixteen lists that override their statuses without saying what to, and a
+   background pass that narrows a space's members to the list's own. Both are
+   cached on the server for half an hour, and both are started on hover, so by
+   the time the click lands the answer is usually already back. */
+
+function tkStatusesFor(task){
+  const d = TK.data;
+  const key = (d?.lists || []).find(l => l.id === task?.list?.id)?.statusKey;
+  const set = key && d?.statusSets?.[key];
+  return set && set.length ? set : null;
+}
+
+function tkMembersFor(task){
+  const d = TK.data;
+  const sp = (d?.spaces || []).find(x => x.id === task?.space?.id);
+  if (sp?.members?.length) return sp.members;
+  /* No space members means an old payload from before the walk collected them.
+     The workspace list is wider than it should be but it is instant and right
+     often enough; the refine below narrows it either way. */
+  return (d?.members || []).length ? d.members : null;
+}
+
+/* Answers that had to be asked for, kept for as long as the tab is open. The
+   server caches them too -- this one saves the hop as well. */
+const TKQ = new Map();     // 's:'|'m:' + listId -> array, or a Promise
+
+function tkAsk(kind, listId){
+  const key = kind + ':' + listId;
+  const hit = TKQ.get(key);
+  if (hit) return Promise.resolve(hit);
+  const url = '/api/tasks/list/' + encodeURIComponent(listId)
+    + (kind === 's' ? '/statuses' : '/members');
+  const p = fetch(url).then(async r => {
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'could not read that list');
+    const out = (kind === 's' ? j.statuses : j.members) || [];
+    TKQ.set(key, out);
+    return out;
+  }).catch(err => { TKQ.delete(key); throw err; });
+  TKQ.set(key, p);
+  return p;
+}
+
+/* Started on hover, so the wait happens while the pointer is still travelling.
+   Failures are swallowed: nothing has been asked for yet, and a banner about a
+   request the user did not knowingly make is noise. */
+function tkWarm(taskId){
+  const t = tkById(taskId);
+  if (!t?.list?.id) return;
+  if (!tkStatusesFor(t)) tkAsk('s', t.list.id).catch(() => {});
+  tkAsk('m', t.list.id).catch(() => {});
+}
+
 async function tkEditStatus(taskId, anchor){
   const t = tkById(taskId);
   if (!t?.list?.id) { banner('That task has no list, so its statuses cannot be read.'); return; }
-  tkOpenPop('status', taskId, anchor, null);
+
+  const known = tkStatusesFor(t);
+  tkOpenPop('status', taskId, anchor, known);
+  if (known) return;
+
+  /* One of the sixteen. Usually already in flight from the hover. */
   try {
-    const r = await fetch('/api/tasks/list/' + encodeURIComponent(t.list.id) + '/statuses');
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'could not read statuses');
+    const statuses = await tkAsk('s', t.list.id);
     if (TKE.pop && TKE.pop.kind === 'status' && TKE.pop.taskId === taskId) {
-      TKE.pop.data = j.statuses || [];
+      TKE.pop.data = statuses;
       tkPaintPop();
     }
   } catch (err) { tkClosePop(); banner(err.message); }
@@ -8864,16 +9065,48 @@ async function tkEditStatus(taskId, anchor){
 async function tkEditAssign(taskId, anchor){
   const t = tkById(taskId);
   if (!t?.list?.id) { banner('That task has no list, so its members cannot be read.'); return; }
-  tkOpenPop('assign', taskId, anchor, null);
+
+  const known = tkMembersFor(t);
+  tkOpenPop('assign', taskId, anchor, known);
+  if (!known) {
+    /* Nothing to show at all, which means a payload older than this change.
+       Fall back to the way it used to work. */
+    try {
+      const members = await tkAsk('m', t.list.id);
+      if (TKE.pop?.kind === 'assign' && TKE.pop.taskId === taskId) {
+        TKE.pop.data = members;
+        tkPaintPop();
+      }
+    } catch (err) { tkClosePop(); banner(err.message); }
+    return;
+  }
+
+  /* The space's members are already on screen and are right nearly always. This
+     narrows them to the list's own set in the background.
+
+     Repainting under someone's hands is the risk, so it only happens when the
+     names actually differ, and it carries across what they had already ticked
+     and typed. A picker that silently unticks a box while you are looking at it
+     is worse than a slightly wide list of names. */
   try {
-    const r = await fetch('/api/tasks/list/' + encodeURIComponent(t.list.id) + '/members');
-    const j = await r.json();
-    if (!r.ok) throw new Error(j.error || 'could not read members');
-    if (TKE.pop && TKE.pop.kind === 'assign' && TKE.pop.taskId === taskId) {
-      TKE.pop.data = j.members || [];
-      tkPaintPop();
-    }
-  } catch (err) { tkClosePop(); banner(err.message); }
+    const members = await tkAsk('m', t.list.id);
+    if (!(TKE.pop?.kind === 'assign' && TKE.pop.taskId === taskId)) return;
+    const before = (TKE.pop.data || []).map(m => m.id).join(',');
+    if (!members.length || members.map(m => m.id).join(',') === before) return;
+
+    const host = document.getElementById('tk-pop');
+    const ticked = new Set([...(host?.querySelectorAll('#tk-assign-list input:checked') || [])].map(i => i.value));
+    const typed = host?.querySelector('#tk-assign-q')?.value || '';
+    /* Anyone ticked who is not in the narrower set stays visible. They are
+       already assigned, or the user just chose them; dropping them would throw
+       the choice away. */
+    const keep = (TKE.pop.data || []).filter(m => ticked.has(m.id) && !members.some(x => x.id === m.id));
+    TKE.pop.data = [...members, ...keep];
+    TKE.pop.ticked = ticked;
+    tkPaintPop();
+    const again = document.getElementById('tk-assign-q');
+    if (again && typed) { again.value = typed; again.dispatchEvent(new Event('input')); }
+  } catch { /* the space's members are a fine answer on their own */ }
 }
 
 function tkEditDue(taskId, anchor){ tkOpenPop('due', taskId, anchor); }
@@ -9012,9 +9245,9 @@ async function tkBulkComplete(){
   for (const [listId, tasks] of byList) {
     let closed = null;
     try {
-      const r = await fetch('/api/tasks/list/' + encodeURIComponent(listId) + '/statuses');
-      const j = await r.json();
-      const list = j.statuses || [];
+      /* Same statuses the picker uses, so completing thirty tasks across eight
+         lists is eight lookups rather than eight round trips. */
+      const list = tkStatusesFor(tasks[0]) || await tkAsk('s', listId);
       closed = list.find(s => s.type === 'closed') || list.find(s => s.canonical === 'Completed');
     } catch { /* fall through to skipped */ }
     if (!closed) { skipped += tasks.length; continue; }
@@ -9035,6 +9268,13 @@ async function tkBulkComplete(){
 /* One listener for the whole document: popovers close on any outside click, and
    Escape backs out one layer at a time. */
 document.addEventListener('click', ev => {
+  if (TKF) {
+    const fhost = document.getElementById('tk-fpop');
+    const inside = fhost && fhost.contains(ev.target);
+    /* The button that opened it must not immediately close it again -- its own
+       handler already toggles. */
+    if (!inside && !ev.target.closest?.('[data-tkmulti]')) tkCloseFilter();
+  }
   if (!TKE.pop) return;
   const host = document.getElementById('tk-pop');
   if (host && host.contains(ev.target)) return;
@@ -9045,6 +9285,7 @@ document.addEventListener('click', ev => {
 
 document.addEventListener('keydown', ev => {
   if (ev.key !== 'Escape') return;
+  if (TKF) { tkCloseFilter(); return; }
   if (TKE.pop) { tkClosePop(); return; }
   if (TKE.detail) tkCloseDetail();
 });
