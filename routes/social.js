@@ -360,6 +360,19 @@ export function socialRoutes({ env, auth }){
     let ads = null;
 
     if (key === 'meta_ads') {
+      /* What each ad account bills in, straight from what discovery stored.
+
+         ads_daily carries a currency too, but only on days with delivery, so an
+         account that has never spent has none -- and that is exactly the
+         account whose name reads like a person and most needs its chip to say
+         what it is. accountsFor deliberately withholds meta from callers, so
+         this asks for the one column rather than widening what every caller
+         sees. */
+      const { rows: curRows } = await query(
+        `SELECT id, meta->>'currency' AS currency FROM accounts WHERE id = ANY($1)`, [ids]);
+      const declaredCurrency = new Map(
+        curRows.filter(cr => cr.currency).map(cr => [cr.id, cr.currency]));
+
       /* Campaign rows only. The campaign_id='' roll-up is written per day too,
          but summing the campaigns here means the totals on screen and the rows
          under them are the same arithmetic and cannot drift apart. */
@@ -490,8 +503,31 @@ export function socialRoutes({ env, auth }){
         reach: 0, linkClicks: 0
       }, false);
 
+      /* Currency is per ad account, not per Meta connection: one of these bills
+         in USD and the other in PHP. It used to be read off whichever row came
+         back first and then stamped on a total summed across all of them, which
+         is only harmless for as long as one of the two never spends.
+
+         Taken from the accounts that actually spent in the window, because an
+         account with no delivery has no currency to contribute and should not
+         get a vote on what the headline figure is denominated in. */
+      const curOf = new Map(declaredCurrency);
+      /* Delivery beats the stored value where both exist: an account can be
+         moved between businesses and rebilled, and the rows are what the money
+         actually came out in. */
+      for (const r of rows) if (r.currency) curOf.set(r.account_id, r.currency);
+      const spendingCurrencies = [...new Set(accounts
+        .filter(a => n(acctMap.get(a.id)?.spend) > 0)
+        .map(a => curOf.get(a.id))
+        .filter(Boolean))];
+
       ads = {
-        currency: rows.find(r => r.currency)?.currency || null,
+        /* Null rather than a guess when the selection spans two. The page shows
+           the amounts without a symbol and says why, which is worse-looking and
+           correct, instead of good-looking and wrong. */
+        currency: spendingCurrencies.length === 1 ? spendingCurrencies[0]
+          : (spendingCurrencies.length ? null : (rows.find(r => r.currency)?.currency || null)),
+        currencies: spendingCurrencies,
         axis,
         daily,
         campaigns,
@@ -500,6 +536,12 @@ export function socialRoutes({ env, auth }){
         byAccount: accounts.map(a => ({
           id: a.id,
           label: a.label,
+          /* What makes it identifiably an ad account rather than a person: the
+             act number Meta issued it, and the currency it bills in. Both are
+             already stored -- the number is in the id, the currency is on the
+             rows -- so this needs no reconnect. */
+          number: String(a.id).replace(/^meta_ads:act_/, ''),
+          currency: curOf.get(a.id) || null,
           ...derive(acctMap.get(a.id) || BLANK(), false)
         }))
       };

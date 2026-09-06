@@ -2639,6 +2639,12 @@ main{min-width:0;display:flex;flex-direction:column}
   .hmdock.open{width:calc(100vw - 24px)}
 }
 
+/* The currency on an ad-account chip. Quiet, because it is there to say "this
+   is an ad account, not a person" and to warn when two of them disagree -- not
+   to be read as a value. */
+.seg .acur{font-style:normal;font-size:8.5px;letter-spacing:.1em;opacity:.6;margin-left:6px}
+.seg button.on .acur{opacity:.85}
+
 /* ---------- ads dashboard ---------- */
 .adsflags{display:flex;flex-direction:column;gap:1px;margin-bottom:14px}
 .adsflag{display:flex;align-items:flex-start;gap:10px;padding:11px 15px;background:var(--panel);
@@ -7295,9 +7301,14 @@ function adsView(){
   if (!d.connected) return connectCard('meta_ads', d);
 
   const ads = d.ads || {};
-  const cur = ads.currency || 'USD';
+  /* Null when the selection spans two currencies that both spent. Falling back
+     to USD there would print a dollar sign over a sum that is part pesos --
+     the one failure mode where the number looks more trustworthy than it is. */
+  const cur = ads.currency;
+  const mixed = (ads.currencies || []).length > 1;
   const money = n => {
     if (n == null) return '—';
+    if (!cur) return Math.round(n).toLocaleString() + ' (mixed)';
     try { return new Intl.NumberFormat(undefined, { style:'currency', currency:cur, maximumFractionDigits: n < 100 ? 2 : 0 }).format(n); }
     catch { return cur + ' ' + Math.round(n).toLocaleString(); }
   };
@@ -7562,23 +7573,53 @@ function adsView(){
         : '<div class="empty"><small>No campaigns delivered in this window.</small></div>')
     + '</div>';
 
+  /* Two currencies in one total is not a rounding problem, it is a wrong
+     number, so it is said rather than left to be noticed. Picking a single ad
+     account from the row above makes it go away. */
+  const mixedNote = mixed
+    ? '<div class="card flush" style="border-color:rgba(224,138,74,.4);margin-bottom:12px">'
+      + '<div class="cardhead"><h3 style="color:var(--amber)">Two currencies</h3></div>'
+      + '<div style="padding:0 15px 13px;font-size:12.5px;color:var(--dim)">'
+      + 'These ad accounts bill in ' + escS((ads.currencies || []).join(' and '))
+      + ', so the spend figures below are added across both and carry no symbol. '
+      + 'Pick one ad account to get a real total.</div></div>'
+    : '';
+
   /* One filter row, above everything it scopes. */
   const bar2 = '<div class="fbar">'
     + '<span class="flabel">Range</span><div class="seg">'
     + ['7', '28', '90'].map(r => '<button class="' + (SO.range === r ? 'on' : '') + '" data-sorange="' + r + '">' + r + 'd</button>').join('')
     + '</div>'
+    /* "Ad account", not "Account".
+
+       These are ad accounts -- act_1671489240964336 and act_27887759577496749,
+       is_personal 0 on both -- but one of them is called "Jay Delgado", because
+       Meta names an ad account after whoever created it and that one has no
+       Business Manager behind it. Read as a bare name in a row labelled
+       "Account" it is indistinguishable from a Facebook login, which is exactly
+       how it was read.
+
+       So the currency rides along in the chip. A person does not have one, and
+       here they genuinely differ -- USD against PHP -- which is the same fact
+       that decides whether the totals may be added up at all. The act number is
+       in the title for anyone who wants to match it against Ads Manager. */
     + ((ads.byAccount || []).length > 1
-        ? '<span class="sep"></span><span class="flabel">Account</span><div class="seg">'
-          + '<button class="' + (SO.adsAcct === 'all' ? 'on' : '') + '" data-adsacct="all">All ' + ads.byAccount.length + '</button>'
-          + ads.byAccount.map(a => '<button class="' + (SO.adsAcct === a.id ? 'on' : '') + '" data-adsacct="' + escS(a.id) + '">'
-              + escS(a.label) + '</button>').join('') + '</div>'
+        ? '<span class="sep"></span><span class="flabel">Ad account</span><div class="seg">'
+          + '<button class="' + (SO.adsAcct === 'all' ? 'on' : '') + '" data-adsacct="all"'
+            + ' title="Every ad account below, added together">All ' + ads.byAccount.length + '</button>'
+          + ads.byAccount.map(a => '<button class="' + (SO.adsAcct === a.id ? 'on' : '') + '"'
+              + ' data-adsacct="' + escS(a.id) + '"'
+              + ' title="Ad account ' + escS(a.number || a.id) + (a.currency ? ' · bills in ' + escS(a.currency) : '') + '">'
+              + escS(a.label)
+              + (a.currency ? '<em class="acur">' + escS(a.currency) + '</em>' : '')
+              + '</button>').join('') + '</div>'
         : '')
     + '<span class="sep"></span><span class="flabel">Efficiency</span><div class="seg">' + lineToggle + '</div>'
     + '<span class="grow"></span>'
     + '<button class="tgl' + (SO.table ? ' on' : '') + '" data-sotable="1"><span class="box">' + (SO.table ? '✓' : '') + '</span>Table</button>'
     + '</div>';
 
-  return bar2 + flagHtml + tiles + chart + table + accountsFooter(d);
+  return bar2 + mixedNote + flagHtml + tiles + chart + table + accountsFooter(d);
 }
 
 const shortAcct = (id, ads) => (ads.byAccount || []).find(a => a.id === id)?.label || id.replace(/^meta_ads:/, '');
