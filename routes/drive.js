@@ -1,9 +1,15 @@
 /* Finding a file in Google Drive.
 
-   One endpoint, one verb, read only. It exists so Hommie can turn a name someone
-   said out loud into a real URL that OpusClip can fetch, and for nothing else --
-   there is no browse, no download and no write, because none of those is needed
-   to answer "the day one video in Raw videos".
+   One endpoint, one verb, read only. It turns a file name into a real URL that
+   OpusClip can fetch, and does nothing else -- no browse, no download, no
+   write, because none of those is needed to answer "the day one video in Raw
+   videos".
+
+   NOTHING CALLS THIS RIGHT NOW. Its only caller was the voice assistant, which
+   has been removed. It is left mounted rather than deleted because the Google
+   grant already carries drive.readonly and removing the route would mean
+   dropping that scope, which costs a reconnect to undo. The Systems clip flow
+   is the obvious next caller: it already takes a video URL.
 
    It uses the same Google grant as mail and calendar. That grant now asks for
    drive.readonly, so a connection made before this existed keeps working for

@@ -87,10 +87,11 @@ $url = "http://127.0.0.1:$port"
 # Chrome first, Edge as the fallback.
 #
 # It used to be the other way round, on the reasoning that Edge is on every
-# Windows machine so it always resolves. That was true and is now the wrong
-# trade: Hommie lives in this window, and speech recognition and the voice list
-# are the two places where the two browsers differ most. Every voice in the
-# picker and every wake-word behaviour was measured in Chrome.
+# Windows machine so it always resolves. The original reason for flipping it was
+# speech recognition, which is gone -- but the preference is not: this is the
+# browser the dashboard is used and tested in, and launching the app window in
+# a different engine from the one every screen was checked against is how you
+# get a layout bug nobody can reproduce.
 #
 # Edge stays as the fallback rather than being dropped, because a machine
 # without Chrome should still open a window rather than nothing.

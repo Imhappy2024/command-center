@@ -35,7 +35,6 @@ import { runNow, providerFamily, pollerStatus } from '../lib/social-sync.js';
    module import silently. The pull stored session-title fields as its metrics
    summary for a whole run before a comparison test noticed. */
 import { compact, summarise as summariseMetrics, compare, agoLabel } from '../lib/agent-metrics.js';
-import { HOMMIE, HOMMIE_META } from '../lib/hommie-brief.js';
 import { execFile } from 'node:child_process';
 
 /* Hosted platforms all announce themselves. If any of these is set we are not
@@ -85,19 +84,6 @@ const ASK_SCRIPT = fileURLToPath(new URL('../tools/ask-mcp.mjs', import.meta.url
 const AGENT_SERVER = 'command_center_agent';
 const AGENT_SCRIPT = fileURLToPath(new URL('../tools/agent-mcp.mjs', import.meta.url));
 
-/* Hommie gets its own server rather than a bigger version of the analysts'.
-   The analysts are locked to one platform each and that lock is the point of
-   them; Hommie reads everything and can act, so mixing the two would mean the
-   YouTube analyst inheriting a tool that can push to GitHub. */
-const HOMMIE_SERVER = 'hommie';
-const HOMMIE_SCRIPT = fileURLToPath(new URL('../tools/hommie-mcp.mjs', import.meta.url));
-
-/* Repair mode needs a shell and an editor. They are added to the permitted set
-   only for a turn the user has armed from the browser, and never otherwise --
-   a voice assistant that can run bash on a misheard sentence is not something
-   to leave switched on. */
-const REPAIR_TOOLS = ['Read', 'Glob', 'Grep', 'Edit', 'Write', 'Bash', 'TodoWrite'];
-
 const SURFACE_NOTE = [
   'You are running inside the Command Center dashboard, in a chat panel in a web page,',
   'not a terminal. The built-in AskUserQuestion tool does not work here and has been',
@@ -110,81 +96,6 @@ const SURFACE_NOTE = [
   'is genuinely unavailable, write the question and numbered options as plain text and',
   'end your turn.'
 ].join(' ');
-
-/* Only appended on a turn the user has armed. It is written as a procedure
-   rather than a permission, because the failure mode of a self-healing agent is
-   not refusing to act -- it is acting confidently on a diagnosis it never
-   checked, and shipping that. */
-const REPAIR_NOTE = [
-  '# Repair mode is on',
-  '',
-  'You can read and change the code of this dashboard, run its tests, commit and',
-  'push. Pushing deploys. Work in this order and do not skip a step:',
-  '',
-  '1. **Reproduce before you diagnose.** Call repair_check first, every time. If',
-  '   it passes, the thing the user is describing is not a parse or boot error and',
-  '   guessing at a file will waste both your time and theirs. Ask what they saw.',
-  '2. **Look before you touch.** repair_status says what is already changed. Some',
-  '   of it may not be yours, and sweeping someone else\'s work into your commit is',
-  '   worse than the bug.',
-  '3. **Read the actual code.** Read the file. Do not infer what it says from the',
-  '   error and edit blind.',
-  '4. **The smallest change that fixes it.** Not a refactor, not a tidy-up. One',
-  '   cause, one fix.',
-  '5. **repair_check again.** A change that has not been preflighted has not been',
-  '   tested. If it fails, read the output and fix it; do not ship and hope.',
-  '6. **Say what you are shipping and get a yes** before repair_ship. Name the',
-  '   files and the one-line reason. repair_ship runs the preflight again itself',
-  '   and refuses on a failure, so it cannot be talked past.',
-  '7. **Wait, then verify.** Give the deploy about two minutes, then repair_live',
-  '   with the SHA. If it is still on the old commit, wait and check again --',
-  '   do not push anything else at it.',
-  '',
-  'If you cannot find the cause, say so. "I could not work out what is wrong, here',
-  'is what I ruled out" is a real answer and a wrong fix shipped confidently is not.',
-  'Never change a file to make a test pass when the test is right.',
-  '',
-  'Out loud, this is all one or two sentences at a time: what you are checking,',
-  'what you found, what you want to do. Not a running commentary.'
-].join('\n');
-
-/* What a subagent is told. Short, because it is not having a conversation.
-
-   The important half is the last paragraph. A subagent's output is read aloud by
-   something else, to someone who has been doing something else for four minutes
-   and has half-forgotten what they asked -- so it has to end with a sentence
-   that stands on its own. */
-const JOB_BRIEF = [
-  'You are a background worker for the Command Center dashboard. Somebody asked',
-  'Hommie, the assistant, for something that takes minutes rather than seconds,',
-  'and Hommie handed it to you so it could carry on talking to them.',
-  '',
-  'Nobody is watching you. There is no way to ask a question and nothing will',
-  'answer if you try -- anything ambiguous was supposed to be settled before you',
-  'were started, so make the most reasonable call, do the work, and say what you',
-  'assumed.',
-  '',
-  'Use the tools you have been given. Do not guess at a number you could read.',
-  'Draw anything worth looking at on screen with show_table or show_note; it will',
-  'still be there when they look.',
-  '',
-  'FINISH WITH A LINE THAT STARTS "SPOKEN:" AND NOTHING AFTER IT BUT TWO SHORT',
-  'SENTENCES, FORTY WORDS OR FEWER IN TOTAL. That line is read out loud by a',
-  'speech synthesiser, and forty words is already fifteen seconds of somebody',
-  'standing there listening to it. No markdown, no asterisks, no numbers with',
-  'commas in them. Not a summary of what you did -- the answer, and the one thing',
-  'worth doing about it. Everything you had to leave out is in the part above,',
-  'which they can read.',
-  '',
-  'The person hearing it has been doing something else for several minutes and',
-  'may not remember the exact question, so it has to stand on its own. "Your top',
-  'three are all interview clips, and all three lead with a claim rather than a',
-  'topic. The other twenty-three do not." is right. "The analysis is complete."',
-  'is not.',
-  '',
-  'Everything above that line can be as long as it needs to be; it goes on screen',
-  'and is read with the eyes.'
-].join('\n');
 
 const READ_TOOLS = ['Read', 'Glob', 'Grep', 'WebFetch', 'WebSearch', 'TodoWrite'];
 const WRITE_TOOLS = ['Edit', 'Write', 'NotebookEdit', 'Bash'];
@@ -201,41 +112,6 @@ export function claudeRoutes({ env, auth }){
 
   let running = null;
 
-  /* Hommie's session stays up between questions.
-
-     Every turn used to spawn a fresh CLI, and the expensive part of a turn is
-     not the thinking -- it is the three to five seconds of starting a process and
-     waiting for two MCP servers to attach, paid again for every sentence spoken.
-     That is what made it feel like submitting a form rather than talking to
-     somebody, and it is why a second question a few seconds after the first
-     arrived while the machine was still busy with the startup of the first.
-
-     So the process is kept. The MCP servers it spawned stay attached with it,
-     which is why the token has to live as long as the session rather than being
-     minted per turn: the servers were handed it at startup and cannot be told a
-     new one.
-
-     Idle sessions are closed after twenty minutes. A CLI process holding a model
-     session open indefinitely is a thing to clean up, not a thing to be proud
-     of. */
-  let live = null;
-
-  const closeLive = why => {
-    if (!live) return;
-    const c = live.child;
-    clearTimeout(live.idle);
-    live = null;
-    try { c.stdin.end(); } catch { /* already closed */ }
-    try { c.kill('SIGTERM'); } catch { /* already gone */ }
-    if (why) console.log('[hommie] session closed: ' + why);
-  };
-
-  const touchLive = () => {
-    if (!live) return;
-    clearTimeout(live.idle);
-    live.idle = setTimeout(() => closeLive('idle for twenty minutes'), 20 * 60_000);
-  };
-
   /* ---- the question channel ------------------------------------------------
 
      One turn runs at a time, so one channel exists at a time: a token the ask
@@ -251,11 +127,9 @@ export function claudeRoutes({ env, auth }){
 
   /* Which CLI sessions belong to something other than the Claude chat.
 
-     Every turn this app runs -- a Hommie question, an analyst pulling metrics, a
-     subagent working through a list -- creates a session file in the same
-     directory the Claude section lists. So the chat history filled up with
-     "hello", "are you there", and a dozen copies of the metrics payload, none of
-     which anyone opened the Claude section to read.
+     An analyst pulling metrics creates a session file in the same directory the
+     Claude section lists, so the chat history filled up with copies of the
+     metrics payload -- which nobody opens that section to read.
 
      Kept as a file rather than in memory, because the noise outlives a restart
      and so must the filter. Ids only: the transcripts stay exactly where they
@@ -275,56 +149,6 @@ export function claudeRoutes({ env, auth }){
     if (hidden.size > 1000) hidden = new Set([...hidden].slice(-1000));
     try { fs.writeFileSync(HIDDEN_FILE, JSON.stringify([...hidden])); }
     catch (err) { console.error('[claude] could not record a ' + why + ' session:', err.message); }
-  };
-
-  /* What has gone wrong lately, so "something's broken" is a thing Hommie can
-     look at rather than a thing it has to ask about.
-
-     In memory and small on purpose: this is a breadcrumb trail for a repair
-     conversation happening now, not a log. Fifty is more than anyone will
-     discuss and it costs nothing to keep. */
-  const FAULTS = [];
-  const noteFault = f => {
-    /* The same error firing in a render loop is one fault with a count, not
-       fifty rows that push everything else out of the buffer. */
-    const same = FAULTS.find(x => x.message === f.message && x.where === f.where);
-    if (same) { same.count++; same.last = f.last; return; }
-    FAULTS.push({ ...f, count: 1 });
-    if (FAULTS.length > 50) FAULTS.shift();
-  };
-
-  /* The browser reporting its own. Authenticated but not token-gated: this is
-     the page telling the server it broke, which is not a privileged act, and
-     losing the report because a token expired defeats the point. */
-  r.post('/api/claude/fault', auth.require, express.json({ limit: '64kb' }), (req, res) => {
-    const b = req.body || {};
-    const msg = String(b.message || '').slice(0, 500);
-    if (!msg) return res.status(400).json({ error: 'no message' });
-    noteFault({
-      side: 'browser',
-      message: msg,
-      where: String(b.where || '').slice(0, 300),
-      stack: String(b.stack || '').slice(0, 2000),
-      section: String(b.section || '').slice(0, 60),
-      first: new Date().toISOString(),
-      last: new Date().toISOString()
-    });
-    res.json({ ok: true });
-  });
-
-  /* Anything this server logs to console.error lands here too, so a failed
-     query and a failed render are in one list. Wrapped rather than replaced:
-     the console output still happens. */
-  const realError = console.error;
-  console.error = (...args) => {
-    try {
-      const text = args.map(a => (a instanceof Error ? a.message : String(a))).join(' ').slice(0, 500);
-      if (text) {
-        noteFault({ side: 'server', message: text, where: '', stack: '',
-          first: new Date().toISOString(), last: new Date().toISOString() });
-      }
-    } catch { /* never let logging break logging */ }
-    realError(...args);
   };
 
   const askCancelAll = why => {
@@ -546,664 +370,6 @@ export function claudeRoutes({ env, auth }){
       res.status(400).json({ error: 'unknown kind: ' + b.kind });
     } catch (err) {
       res.status(err.status && err.status < 500 ? err.status : 502).json({ error: err.message });
-    }
-  });
-
-  /* ---- subagents ----------------------------------------------------------
-
-     Hommie talks; these do the work.
-
-     One Claude turn at a time is fine for a chat and wrong for a voice
-     assistant: "analyse YouTube" takes four minutes, and holding the
-     conversation hostage for four minutes so that one question can be answered
-     is the whole problem. So anything long is handed to a subagent that runs in
-     its own process with its own tool server, and Hommie is free again
-     immediately -- free to be interrupted, asked something else, or told to stop.
-
-     They are deliberately not interactive. A background job cannot ask a
-     question, because there is nobody watching it; anything needing a decision
-     has to be settled with Hommie before it is delegated. */
-  const jobs = new Map();
-  const JOB_KINDS = {
-    analyse: { tools: 'agent', label: 'analysis' },
-    research: { tools: 'hommie', label: 'research' },
-    repair: { tools: 'repair', label: 'repair' },
-    chore: { tools: 'hommie', label: 'job' }
-  };
-
-  /* The part of a subagent's answer that gets read out.
-
-     It is asked to end with a SPOKEN: line and usually does. When it does not --
-     and a model that has just written a long report sometimes does not -- the
-     fallback is the last couple of sentences with the markdown taken out, which
-     is far better than reading three and a half thousand characters of table
-     syntax at someone. */
-  function spokenTail(text){
-    const raw = String(text || '');
-    const marked = /(?:^|\n)\s*SPOKEN:\s*([\s\S]+)$/i.exec(raw);
-    let out = marked ? marked[1] : raw;
-    out = out
-      .replace(/^\|.*\|\s*$/gm, ' ')          // whole table rows
-      .replace(/```[\s\S]*?```/g, ' ')
-      .replace(/[*_#>`|-]{2,}/g, ' ')
-      .replace(/[*_#`]/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-    if (!marked) {
-      const bits = out.match(/[^.!?]+[.!?]+/g) || [out];
-      out = bits.slice(-2).join(' ').trim();
-    }
-    return out.slice(0, 600);
-  }
-
-  const jobView = j => ({
-    id: j.id, kind: j.kind, title: j.title, status: j.status,
-    startedAt: j.startedAt, endedAt: j.endedAt || null,
-    seconds: Math.round(((j.endedAt || Date.now()) - j.startedAt) / 1000),
-    steps: j.steps, result: j.result || null, error: j.error || null,
-    /* Two different things: one is read out, the other is read. */
-    spoken: j.spoken || null,
-    panels: j.panels || [],
-    /* Read once. A finished job announces itself exactly one time, or Hommie
-       reports the same result on every poll for as long as the tab is open. */
-    announced: j.announced
-  });
-
-  function startJob({ kind, title, prompt, platform }){
-    const spec = JOB_KINDS[kind] || JOB_KINDS.chore;
-    const id = crypto.randomUUID();
-    const token = crypto.randomBytes(24).toString('hex');
-    const selfUrl = 'http://127.0.0.1:' + (env.PORT || 3000);
-
-    const servers = {};
-    if (spec.tools === 'agent' && platform) {
-      servers[AGENT_SERVER] = {
-        command: process.execPath, args: [AGENT_SCRIPT],
-        env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: token, CC_AGENT_PLATFORM: platform }
-      };
-    } else {
-      servers[HOMMIE_SERVER] = {
-        command: process.execPath, args: [HOMMIE_SCRIPT],
-        env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: token,
-          CC_HOMMIE_REPAIR: spec.tools === 'repair' ? '1' : '0' }
-      };
-    }
-
-    const brief = spec.tools === 'agent' && platform
-      ? (Object.values(AGENTS).find(a => a.platform === platform)?.brief || '')
-      : JOB_BRIEF + (spec.tools === 'repair' ? '\n\n' + REPAIR_NOTE : '');
-
-    const args = ['--input-format', 'stream-json', '--output-format', 'stream-json',
-      '--include-partial-messages', '--verbose',
-      '--mcp-config', JSON.stringify({ mcpServers: servers }),
-      '--strict-mcp-config',
-      '--append-system-prompt', brief,
-      /* No question widget. Nobody is watching a background job, so a tool that
-         waits for a person waits forever. */
-      '--disallowed-tools', ...IMPOSSIBLE_HERE,
-      ...(spec.tools === 'repair' ? [] : ['Bash', 'PowerShell', 'Edit', 'Write', 'NotebookEdit']),
-      '--allowed-tools',
-      ...(spec.tools === 'repair' ? REPAIR_TOOLS : READ_TOOLS),
-      'mcp__' + (spec.tools === 'agent' && platform ? AGENT_SERVER : HOMMIE_SERVER)];
-
-    const job = {
-      id, kind, token, title: String(title || spec.label).slice(0, 120),
-      status: 'running', startedAt: Date.now(), endedAt: null,
-      steps: 0, result: '', error: null, announced: false,
-      /* The session cookie of whoever asked. A subagent sees exactly what they
-         see and nothing more. */
-      cookie: ask?.cookie || '',
-      repair: spec.tools === 'repair',
-      platform: platform || null,
-      panels: []
-    };
-
-    let child;
-    try {
-      child = spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
-    } catch (err) {
-      job.status = 'failed'; job.error = err.message; job.endedAt = Date.now();
-      jobs.set(id, job);
-      return job;
-    }
-    job.child = child;
-    jobs.set(id, job);
-
-    /* Only the servers this job asked for, so the prompt goes as soon as its own
-       tool server is up rather than waiting on a fixed timer. */
-    let sent = false;
-    const send = () => {
-      if (sent) return;
-      sent = true;
-      try {
-        child.stdin.write(JSON.stringify({ type: 'user',
-          message: { role: 'user', content: [{ type: 'text', text: prompt }] } }) + '\n');
-      } catch { /* the child went away */ }
-    };
-    const timer = setTimeout(send, 6_000);
-
-    let buf = '';
-    child.stdout.on('data', chunk => {
-      buf += chunk.toString();
-      let i;
-      while ((i = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, i).trim();
-        buf = buf.slice(i + 1);
-        if (!line) continue;
-        let f; try { f = JSON.parse(line); } catch { continue; }
-        if (!sent && f.type === 'system' && Array.isArray(f.mcp_servers)
-            && !f.mcp_servers.some(sv => sv.status === 'pending')) {
-          clearTimeout(timer); send();
-        }
-        if (f.type === 'assistant') {
-          for (const c of f.message?.content || []) {
-            if (c.type === 'tool_use') job.steps++;
-            if (c.type === 'text' && c.text) job.result += c.text;
-          }
-        }
-        if (f.type === 'result') {
-          if (typeof f.result === 'string' && f.result.trim()) job.result = f.result;
-          job.status = f.is_error ? 'failed' : 'done';
-          job.endedAt = Date.now();
-          job.spoken = spokenTail(job.result);
-          try { child.stdin.end(); } catch { /* already closed */ }
-        }
-      }
-    });
-    child.stderr.on('data', () => { /* the CLI's own chatter */ });
-    child.on('close', () => {
-      clearTimeout(timer);
-      if (job.status === 'running') {
-        job.status = job.result.trim() ? 'done' : 'failed';
-        job.error = job.result.trim() ? null : 'it stopped without answering';
-        job.endedAt = Date.now();
-        job.spoken = spokenTail(job.result);
-      }
-      console.log('[hommie] job ' + job.kind + ' ' + job.status + ' in '
-        + Math.round((job.endedAt - job.startedAt) / 1000) + 's: ' + job.title);
-    });
-
-    /* Nothing runs forever. Ten minutes is longer than the longest real job here
-       -- a full platform analysis is about four -- and a wedged one has to end
-       rather than sit in the list looking busy. */
-    setTimeout(() => {
-      if (job.status !== 'running') return;
-      job.status = 'failed';
-      job.error = 'it ran for ten minutes without finishing, so it was stopped';
-      job.endedAt = Date.now();
-      try { child.kill('SIGTERM'); } catch { /* gone */ }
-    }, 600_000);
-
-    return job;
-  }
-
-  /* A running job's tool server calls back with the job's own token, which is
-     how a subagent reads this dashboard without borrowing the live turn's
-     channel -- there may not be one by then. */
-  const jobByToken = req => {
-    const given = String(req.get('x-agent-token') || req.get('x-ask-token') || '');
-    if (!given) return null;
-    for (const j of jobs.values()) {
-      if (j.status !== 'running' || j.token.length !== given.length) continue;
-      try {
-        if (crypto.timingSafeEqual(Buffer.from(given), Buffer.from(j.token))) return j;
-      } catch { /* length mismatch */ }
-    }
-    return null;
-  };
-
-  /* The browser asking what is in flight. Marks finished jobs announced as it
-     hands them over, so each result is reported exactly once. */
-  r.get('/api/claude/hommie/jobs', auth.require, (req, res) => {
-    const out = [...jobs.values()].map(jobView);
-    for (const j of jobs.values()) if (j.status !== 'running') j.announced = true;
-    /* Finished and already told about: drop it, so the map does not grow for as
-       long as the server is up. */
-    for (const [id, j] of jobs) {
-      if (j.status !== 'running' && j.endedAt && Date.now() - j.endedAt > 300_000) jobs.delete(id);
-    }
-    res.json({ ok: true, jobs: out, running: out.filter(j => j.status === 'running').length });
-  });
-
-  r.post('/api/claude/hommie/jobs/:id/stop', auth.require, (req, res) => {
-    const j = jobs.get(String(req.params.id));
-    if (!j) return res.status(404).json({ error: 'no such job' });
-    if (j.status === 'running') {
-      j.status = 'stopped'; j.endedAt = Date.now();
-      try { j.child?.kill('SIGTERM'); } catch { /* gone */ }
-    }
-    res.json({ ok: true, job: jobView(j) });
-  });
-
-  /* ---- Hommie ------------------------------------------------------------
-
-     One assistant across the whole dashboard, driven by voice. Everything it can
-     do is an enumerated kind here that maps to one of this app's own routes,
-     carrying the browser's session -- there is no pass-through, because a tool
-     that can reach an arbitrary URL on this origin is one misheard sentence away
-     from a DELETE. */
-
-  /* Things Hommie makes the page do: change section, draw a panel, or queue an
-     analyst run. Pushed down the same SSE stream the turn is already using. */
-  r.post('/api/claude/hommie/act', express.json({ limit: '1mb' }), (req, res) => {
-    /* A subagent draws too. It has no live SSE channel -- the turn that started
-       it has long since ended -- so what it draws is kept on the job and handed
-       over when the job is collected. Without this show_table came back 403 and
-       the model did the sensible thing: wrote the table into its answer as
-       markdown, which then went to a speech synthesiser. */
-    const job = jobByToken(req);
-    if (!job && !askCaller(req)) return res.status(403).json({ error: 'not this turn' });
-    const b = req.body || {};
-    const emit = (kind, payload) => {
-      if (job) { job.panels.push({ kind, ...payload }); return; }
-      ask.send('hommie', { kind, ...payload });
-    };
-    try {
-      if (b.action === 'navigate') {
-        /* A background job does not get to move the screen out from under
-           whoever is using it. */
-        if (job) return res.json({ ok: false, ignored: 'a background job cannot navigate' });
-        ask.send('hommie', { kind: 'navigate', section: String(b.section || ''),
-          view: b.view ? String(b.view) : null });
-      } else if (b.action === 'panel') {
-        emit('panel', { panel: { id: crypto.randomUUID(), at: Date.now(), ...(b.panel || {}) } });
-      } else if (job) {
-        return res.status(400).json({ error: 'a background job cannot do that' });
-      } else if (b.action === 'analyze') {
-        ask.send('hommie', { kind: 'analyze', platform: String(b.platform || '') });
-      } else if (b.action === 'connectors') {
-        ask.send('hommie', { kind: 'connectors', which: String(b.which || ''),
-          reason: String(b.reason || '') });
-      } else {
-        return res.status(400).json({ error: 'unknown action' });
-      }
-    } catch { /* the page went away mid-turn */ }
-    res.json({ ok: true });
-  });
-
-  /* Preflight, git and the deployed copy. Kept here rather than let loose as
-     shell strings: the model picks the verb, never the command line. */
-  const sh = (cmd, args, opts) => new Promise(done => {
-    execFile(cmd, args, { cwd: CWD, maxBuffer: 8 * 1024 * 1024, timeout: 240_000, ...opts },
-      (error, stdout, stderr) => done({
-        ok: !error,
-        code: error?.code ?? 0,
-        out: String(stdout || '').slice(-6000),
-        err: String(stderr || '').slice(-4000)
-      }));
-  });
-
-  const preflight = async () => {
-    const r2 = await sh(process.execPath, ['tools/preflight.mjs']);
-    return { passed: r2.ok, output: (r2.out + (r2.err ? '\n' + r2.err : '')).slice(-4000) };
-  };
-
-  r.post('/api/claude/hommie/data', express.json({ limit: '256kb' }), async (req, res) => {
-    /* Either the live turn or a running subagent. A subagent outlives the turn
-       that started it, so it cannot borrow that turn's channel -- it carries its
-       own token and the same session cookie. */
-    const job = jobByToken(req);
-    const who = job || (askCaller(req) ? ask : null);
-    if (!who) return res.status(403).json({ error: 'not this turn' });
-    const b = req.body || {};
-    const base = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
-    const inner = async (method, pathname, body) => {
-      const r2 = await fetch(base + pathname, {
-        method,
-        headers: {
-          ...(who.cookie ? { cookie: who.cookie } : {}),
-          ...(body ? { 'Content-Type': 'application/json' } : {})
-        },
-        body: body ? JSON.stringify(body) : undefined
-      });
-      const t = await r2.text();
-      let j = null; try { j = JSON.parse(t); } catch { /* raw */ }
-      if (!r2.ok) throw Object.assign(new Error((j && j.error) || ('inner ' + r2.status)), { status: r2.status });
-      return j || {};
-    };
-    /* Everything heard out loud is approximate, so every name match here is
-       loose and case-insensitive rather than exact. */
-    const has = (hay, needle) => !needle
-      || String(hay || '').toLowerCase().includes(String(needle).toLowerCase());
-    const cap = (n, d, max) => Math.min(max, Math.max(1, Number(n) || d));
-
-    try {
-      switch (b.kind) {
-        case 'tasks': {
-          const j = await inner('GET', '/api/tasks');
-          if (!j.configured) return res.json({ connected: false, reason: j.reason });
-          const now = Date.now();
-          const closed = t => t.canonical === 'done' || t.canonical === 'closed' || Boolean(t.closed);
-          const all = j.tasks || [];
-          const day = 86_400_000;
-          const endOfToday = new Date(); endOfToday.setHours(23, 59, 59, 999);
-          const f = String(b.filter || 'overdue');
-          let rows = all.filter(t => {
-            if (f === 'all') return true;
-            if (f === 'closed') return closed(t);
-            if (f === 'open') return !closed(t);
-            if (f === 'unassigned') return !closed(t) && !(t.assignees || []).length;
-            if (closed(t) || !t.due) return false;
-            if (f === 'overdue') return t.due < now;
-            if (f === 'today') return t.due <= endOfToday.getTime();
-            if (f === 'week') return t.due <= endOfToday.getTime() + 7 * day;
-            return true;
-          });
-          if (b.assignee) {
-            rows = rows.filter(t => (t.assignees || []).some(a =>
-              has(a.username, b.assignee) || has(a.email, b.assignee)));
-          }
-          if (b.list) rows = rows.filter(t => has(t.list?.name, b.list) || has(t.space?.name, b.list));
-          if (b.search) rows = rows.filter(t => has(t.name, b.search));
-          rows.sort((x, y) => (x.due || Infinity) - (y.due || Infinity));
-
-          /* Who owns the pile, so "fourteen overdue and eleven of them are Ben's"
-             is one call rather than fourteen. */
-          const byPerson = {};
-          for (const t of rows) {
-            for (const a of (t.assignees || [])) {
-              byPerson[a.username] = (byPerson[a.username] || 0) + 1;
-            }
-            if (!(t.assignees || []).length) byPerson['(unassigned)'] = (byPerson['(unassigned)'] || 0) + 1;
-          }
-          const limit = cap(b.limit, 25, 100);
-          return res.json({
-            filter: f, count: rows.length, warming: Boolean(j.warming),
-            progress: j.warming ? j.progress : undefined,
-            byAssignee: Object.entries(byPerson).sort((x, y) => y[1] - x[1])
-              .slice(0, 8).map(([who, n]) => ({ who, n })),
-            tasks: rows.slice(0, limit).map(t => ({
-              name: t.name, url: t.url, status: t.status,
-              due: t.due ? new Date(t.due).toISOString().slice(0, 10) : null,
-              daysLate: t.due && t.due < now ? Math.floor((now - t.due) / day) : null,
-              assignees: (t.assignees || []).map(a => a.username),
-              list: t.list?.name || null, space: t.space?.name || null,
-              priority: t.priority || null
-            })),
-            truncated: Math.max(0, rows.length - limit)
-          });
-        }
-
-        case 'social': {
-          const key = String(b.platform || '');
-          if (!['youtube', 'facebook', 'instagram', 'x', 'meta_ads'].includes(key)) {
-            return res.status(400).json({ error: 'unknown platform: ' + key });
-          }
-          const range = [7, 28, 90].includes(Number(b.range)) ? Number(b.range) : 28;
-          const raw = await inner('GET', '/api/social/platform/' + key + '?range=' + range);
-          const c = compact(key, raw);
-          return res.json({ ...c, summary: summariseMetrics(key, c) });
-        }
-
-        case 'leads': {
-          const q = b.search ? '?q=' + encodeURIComponent(String(b.search)) : '';
-          const j = await inner('GET', '/api/ghl/leads' + q);
-          let rows = j.leads || [];
-          if (b.stage) rows = rows.filter(l => has(l.stageName, b.stage));
-          const limit = cap(b.limit, 15, 50);
-          return res.json({
-            count: rows.length, searched: j.search || null,
-            leads: rows.slice(0, limit).map(l => ({
-              name: l.name, email: l.email || null, phone: l.phone || null,
-              stage: l.stageName, status: l.status, value: l.value,
-              tags: l.tags, owner: l.owner || null, last: l.last
-            })),
-            truncated: Math.max(0, rows.length - limit)
-          });
-        }
-
-        case 'properties': {
-          const j = await inner('GET', '/api/properties');
-          let rows = j.properties || [];
-          if (b.search) {
-            rows = rows.filter(p => has(p.address, b.search) || has(p.name, b.search)
-              || has(p.entityName, b.search) || has(p.city, b.search));
-          }
-          const limit = cap(b.limit, 15, 50);
-          return res.json({
-            count: rows.length,
-            properties: rows.slice(0, limit),
-            truncated: Math.max(0, rows.length - limit)
-          });
-        }
-
-        case 'calendar': {
-          const j = await inner('GET', '/api/calendar');
-          const days = cap(b.days, 7, 60);
-          const until = Date.now() + days * 86_400_000;
-          const rows = (j.events || []).filter(e => {
-            const t = Date.parse(e.start || e.startsAt || '');
-            return Number.isFinite(t) && t <= until && t >= Date.now() - 3_600_000;
-          });
-          return res.json({ days, count: rows.length, events: rows.slice(0, 40) });
-        }
-
-        case 'mail': {
-          const folder = ['inbox', 'sent', 'archive', 'spam', 'trash']
-            .includes(String(b.folder)) ? String(b.folder) : 'inbox';
-          const j = await inner('GET', '/api/mail?folder=' + folder);
-          const limit = cap(b.limit, 15, 40);
-          const rows = (j.messages || j.mail || []);
-          return res.json({
-            folder, count: rows.length,
-            messages: rows.slice(0, limit).map(m => ({
-              from: m.from || m.sender || null, subject: m.subject || '(no subject)',
-              when: m.when || m.date || null, unread: Boolean(m.unread)
-            }))
-          });
-        }
-
-        case 'clips': return res.json(await inner('GET', '/api/systems'));
-
-        case 'delegate': {
-          /* A subagent cannot start a subagent. One level, so a runaway cannot
-             fan out, and so "what is running" stays a list a person can read. */
-          if (job) return res.status(400).json({ error: 'a subagent cannot delegate' });
-          const kind = JOB_KINDS[String(b.jobKind)] ? String(b.jobKind) : 'chore';
-          const task = String(b.task || '').trim();
-          if (task.length < 10) {
-            return res.status(400).json({ error: 'the task has to say what to do, in full' });
-          }
-          /* Five, because the point is that a second task does not wait for the
-             first. Two was the number that made "give it to another subagent"
-             into "queue behind the last one". */
-          const busy = [...jobs.values()].filter(x => x.status === 'running');
-          if (busy.length >= 5) {
-            return res.status(409).json({
-              error: 'Five subagents are already going: ' + busy.map(x => x.title).join(', ')
-                + '. Tell the user that and ask whether to wait or stop one.' });
-          }
-          const j = startJob({ kind, title: b.title || task.slice(0, 60), prompt: task });
-          return res.json({ started: true, jobId: j.id, kind, title: j.title,
-            note: 'Running on its own. Tell the user in one short line what you set going '
-              + 'and roughly how long, then carry on. You will be told when it finishes.' });
-        }
-
-        case 'job_status': {
-          const rows = [...jobs.values()].map(jobView);
-          if (b.jobId) {
-            const one = rows.find(x => x.id === String(b.jobId));
-            return res.json(one || { error: 'no such job' });
-          }
-          return res.json({ jobs: rows, running: rows.filter(x => x.status === 'running').length });
-        }
-
-        case 'recent_errors': {
-          const since = Number(b.minutes) > 0 ? Number(b.minutes) : 60;
-          const cut = Date.now() - since * 60_000;
-          const rows = FAULTS.filter(f => new Date(f.last).getTime() >= cut)
-            .slice(-20).reverse();
-          return res.json({
-            minutes: since,
-            count: rows.length,
-            faults: rows.map(f => ({
-              side: f.side, message: f.message, where: f.where || undefined,
-              section: f.section || undefined, seen: f.count,
-              lastAt: f.last,
-              stack: f.stack ? String(f.stack).split('\n').slice(0, 6).join('\n') : undefined
-            })),
-            note: rows.length
-              ? 'Newest first. A high "seen" count is one fault repeating, not several.'
-              : 'Nothing has gone wrong in that window. If the user saw something, ask '
-                + 'them what they were doing and what it looked like -- not every failure '
-                + 'throws.'
-          });
-        }
-
-        case 'drive_find':
-          return res.json(await inner('GET', '/api/drive/find?name='
-            + encodeURIComponent(String(b.name || ''))
-            + (b.folder ? '&folder=' + encodeURIComponent(String(b.folder)) : '')
-            + (b.video === false ? '' : '&video=1')));
-
-        case 'create_clip': {
-          const lengths = Array.isArray(b.lengths) && b.lengths.length
-            ? b.lengths.slice(0, 4).map(p => [Number(p[0]) || 0, Number(p[1]) || 60])
-            : [[0, 30], [30, 60], [60, 90]];
-          return res.json(await inner('POST', '/api/systems/clip/projects', {
-            videoUrl: String(b.url || ''),
-            title: b.title || null,
-            prefs: {
-              model: 'ClipBasic', durations: lengths, genre: 'Auto',
-              keywords: b.keywords || '', prompt: b.prompt || '',
-              rangeStart: b.rangeStart == null ? '' : String(b.rangeStart),
-              rangeEnd: b.rangeEnd == null ? '' : String(b.rangeEnd),
-              sourceLang: 'auto', aspect: 'portrait',
-              removeFiller: false, skipCurate: false, templateId: ''
-            }
-          }));
-        }
-
-        case 'analyze': {
-          const key = String(b.platform || '');
-          const agent = Object.values(AGENTS).find(a => a.platform === key);
-          if (!agent) return res.status(400).json({ error: 'no analyst for ' + key });
-          /* Handed to a subagent, which is what makes this answerable at all:
-             a platform analysis is about four minutes and Hommie is not holding
-             the conversation open for four minutes. */
-          const j = startJob({ kind: 'analyse', platform: key,
-            title: agent.short + ' analysis',
-            prompt: 'Pull the last 28 days for ' + key + ' and give the full read. '
-              + 'Draw the numbers with show_table. End with a two-sentence summary '
-              + 'that can be read out loud, because it will be.' });
-          /* And shown in the Systems section, so it is visible rather than
-             happening somewhere nobody can see. */
-          try { who.send?.('hommie', { kind: 'analyze', platform: key, agent: agent.id, jobId: j.id }); }
-          catch { /* no live page */ }
-          return res.json({ started: true, jobId: j.id, agent: agent.id, platform: key,
-            note: 'Running on its own now. Say it is going and carry on -- do not wait '
-              + 'for it. You will be told when it lands.' });
-        }
-
-        case 'read_video':
-        case 'update_video': {
-          const id = String(b.videoId || '').trim();
-          if (!/^[A-Za-z0-9_-]{6,20}$/.test(id)) {
-            return res.status(400).json({ error: 'that is not a YouTube video id' });
-          }
-          if (b.kind === 'read_video') {
-            return res.json(await inner('GET', '/api/social/youtube/video/' + id));
-          }
-          const body = {};
-          if (typeof b.title === 'string') body.title = b.title;
-          if (typeof b.description === 'string') body.description = b.description;
-          if (!Object.keys(body).length) return res.status(400).json({ error: 'nothing to change' });
-          return res.json(await inner('POST', '/api/social/youtube/video/' + id, body));
-        }
-
-        /* ---- repair. Only reachable on a turn the user armed. ---- */
-        case 'repair_check':
-        case 'repair_status':
-        case 'repair_ship':
-        case 'repair_live': {
-          if (!who.repair) {
-            return res.status(403).json({
-              error: 'Repair mode is off. The user has to turn it on with the Repair switch '
-                + 'next to the microphone before anything can touch the code.' });
-          }
-          if (b.kind === 'repair_check') return res.json(await preflight());
-
-          if (b.kind === 'repair_status') {
-            const st = await sh('git', ['status', '--porcelain']);
-            const log = await sh('git', ['log', '--oneline', '-6']);
-            const branch = await sh('git', ['rev-parse', '--abbrev-ref', 'HEAD']);
-            const files = st.out.split(/\r?\n/).filter(Boolean).map(l => l.trim());
-            return res.json({
-              branch: branch.out.trim(),
-              changed: files, changedCount: files.length,
-              recent: log.out.split(/\r?\n/).filter(Boolean),
-              note: files.length
-                ? 'Some of this may not be yours. Say what you are about to commit before you do.'
-                : 'Nothing is changed.'
-            });
-          }
-
-          if (b.kind === 'repair_ship') {
-            const msg = String(b.message || '').trim();
-            if (!msg) return res.status(400).json({ error: 'a commit needs a message' });
-            /* Preflight here, every time, rather than trusting a flag set
-               earlier in the turn. A commit that was not tested at the moment it
-               was made is an untested commit. */
-            const pre = await preflight();
-            if (!pre.passed) {
-              return res.json({ shipped: false, reason: 'preflight failed', output: pre.output,
-                note: 'Nothing was committed. Fix this first, then ship.' });
-            }
-            const st = await sh('git', ['status', '--porcelain']);
-            if (!st.out.trim()) return res.json({ shipped: false, reason: 'nothing to commit' });
-
-            const add = await sh('git', ['add', '-A']);
-            if (!add.ok) return res.json({ shipped: false, reason: 'git add failed', output: add.err });
-            const full = msg + (b.body ? '\n\n' + String(b.body) : '')
-              + '\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>';
-            const commit = await sh('git', ['commit', '-m', full]);
-            if (!commit.ok) return res.json({ shipped: false, reason: 'git commit failed', output: commit.err || commit.out });
-            const push = await sh('git', ['push']);
-            if (!push.ok) {
-              const sha0 = await sh('git', ['rev-parse', '--short', 'HEAD']);
-              return res.json({ shipped: false, committed: true, sha: sha0.out.trim(),
-                reason: 'the commit landed locally but the push failed', output: push.err,
-                note: 'Say so plainly. Do not commit again.' });
-            }
-            const sha = await sh('git', ['rev-parse', '--short', 'HEAD']);
-            console.log('[hommie] shipped ' + sha.out.trim() + ': ' + msg);
-            return res.json({ shipped: true, sha: sha.out.trim(), message: msg,
-              note: 'Pushed. Give the deploy about two minutes, then call repair_live.' });
-          }
-
-          /* repair_live */
-          const url = env.PUBLIC_URL || '';
-          if (!/^https?:\/\//.test(url)) {
-            return res.json({ checked: false, reason: 'PUBLIC_URL is not set, so there is no deployed copy to check.' });
-          }
-          const started = Date.now();
-          let health = null, version = null, error = null;
-          try {
-            const h = await fetch(url.replace(/\/+$/, '') + '/api/health',
-              { signal: AbortSignal.timeout(15_000) });
-            health = h.status;
-            const v = await fetch(url.replace(/\/+$/, '') + '/api/app/version',
-              { signal: AbortSignal.timeout(15_000) }).then(x => x.json()).catch(() => null);
-            version = v || null;
-          } catch (e) { error = e.message; }
-          const live = version?.commit || version?.sha || null;
-          const want = b.expectCommit ? String(b.expectCommit).slice(0, 12) : null;
-          return res.json({
-            checked: true, url, health, error,
-            liveCommit: live, expected: want,
-            match: want && live ? String(live).startsWith(want) || want.startsWith(String(live)) : null,
-            tookMs: Date.now() - started,
-            note: want && live && !(String(live).startsWith(want) || want.startsWith(String(live)))
-              ? 'Still on the old commit. Wait and check again rather than pushing anything else.'
-              : undefined
-          });
-        }
-
-        default:
-          return res.status(400).json({ error: 'unknown kind: ' + b.kind });
-      }
-    } catch (err2) {
-      res.status(err2.status && err2.status < 500 ? err2.status : 502).json({ error: err2.message });
     }
   });
 
@@ -1867,8 +1033,8 @@ export function claudeRoutes({ env, auth }){
       let st;
       try { st = fs.statSync(full); } catch { continue; }
       const id = path.basename(f, '.jsonl');
-      /* Hommie, the analysts and the subagents all leave session files here.
-         They are conversations, but not the ones this list is for. */
+      /* The analysts leave session files here too. They are conversations, but
+         not the ones this list is for. */
       if (hidden.has(id)) { hiddenCount++; continue; }
       const info = summarise(full);
       /* A transcript with no real prompt in it is a session that never got off
@@ -2032,19 +1198,14 @@ export function claudeRoutes({ env, auth }){
     /* Before the kill, not after: the ask server is polling, and a question left
        pending would keep it polling against a turn that no longer exists. */
     askCancelAll('stopped');
-    /* Stop ends the conversation, not just the sentence. Keeping a session that
-       has been told to stop would mean the next question resumes a context the
-       user just abandoned. */
-    closeLive('stopped');
     if (running) { running.kill('SIGTERM'); running = null; }
     res.json({ ok: true });
   });
 
   r.post('/api/claude/chat', auth.require, express.json({ limit: '1mb' }), (req, res) => {
-    /* One turn at a time, still. A kept session is one process with one stdin,
-       so two questions written to it at once interleave into nonsense -- the
-       page queues them instead, which is the right place for it since only the
-       page knows what was said in what order. */
+    /* One turn at a time. Two CLI processes streaming into one page is two
+       answers interleaved, and the page is the only thing that knows what was
+       asked in what order, so it queues rather than this. */
     if (running) return res.status(409).json({ error: 'already running a turn' });
     const b = req.body || {};
     const prompt = String(b.prompt || '').trim();
@@ -2052,16 +1213,8 @@ export function claudeRoutes({ env, auth }){
 
     /* An agent turn is an ordinary turn with a brief and an extra tool server.
        Everything else -- streaming, connectors, the ask widget -- is unchanged,
-       which is the point: there is one chat implementation, not two.
-
-       Hommie is the same trick again with a different brief and a different tool
-       server. It is deliberately NOT in AGENTS: those are platform analysts, each
-       locked to one platform, and letting Hommie join that list is how the
-       YouTube analyst would end up inheriting a tool that pushes to GitHub. */
+       which is the point: there is one chat implementation, not two. */
     const agent = b.agent && AGENTS[String(b.agent)] ? AGENTS[String(b.agent)] : null;
-    const hommie = !agent && String(b.agent || '') === HOMMIE_META.id;
-    /* Armed from the browser, per turn. Never sticky and never a default. */
-    const repair = hommie && b.repair === true;
 
     /* Streaming input, not one-shot -p.
 
@@ -2078,12 +1231,7 @@ export function claudeRoutes({ env, auth }){
     const args = ['--input-format', 'stream-json', '--output-format', 'stream-json',
                   '--include-partial-messages', '--verbose'];
     if (b.sessionId) args.push('--resume', String(b.sessionId));
-    /* Spoken answers are short and the questions are mostly lookups, so the
-       slowest model is the wrong default here -- the thinking time is the wait,
-       and it is a wait someone is standing in silence for. Overridable from the
-       Hommie settings, and every other surface keeps whatever it had. */
     if (b.model) args.push('--model', String(b.model));
-    else if (hommie) args.push('--model', 'sonnet');
     if (b.effort) args.push('--effort', String(b.effort));
 
     const bad = msg => { res.write(`event: fatal\ndata: ${JSON.stringify({ error: msg })}\n\n`); res.end(); running = null; };
@@ -2102,12 +1250,9 @@ export function claudeRoutes({ env, auth }){
        call back by the port this very request arrived on -- guessing 3000 is how
        you get a widget that silently never appears on a machine running two
        copies. */
-    /* Reused when the session is. The MCP servers were given this at startup and
-       there is no way to hand them a new one. */
-    const askToken = (b.agent === HOMMIE_META.id && live && live.child && !live.child.killed
-      && live.repair === (b.repair === true) && live.cwd === path.resolve(env.CLAUDE_DIR || process.cwd()))
-      ? live.token
-      : crypto.randomBytes(24).toString('hex');
+    /* Per turn. Nothing outlives a turn any more, so nothing has to be handed
+       a token it was not started with. */
+    const askToken = crypto.randomBytes(24).toString('hex');
     const selfUrl = 'http://127.0.0.1:' + (req.socket.localPort || env.PORT || 3000);
     let servers = {
       [ASK_SERVER]: {
@@ -2123,46 +1268,7 @@ export function claudeRoutes({ env, auth }){
         env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: askToken, CC_AGENT_PLATFORM: agent.platform }
       };
     }
-    if (hommie) {
-      servers[HOMMIE_SERVER] = {
-        command: process.execPath,
-        args: [HOMMIE_SCRIPT],
-        env: { CC_AGENT_URL: selfUrl, CC_AGENT_TOKEN: askToken,
-          /* The tool list itself is shorter when repair is off: an unarmed
-             Hommie is not told the repair tools exist, rather than being told
-             about them and asked not to reach for them. */
-          CC_HOMMIE_REPAIR: repair ? '1' : '0' }
-      };
-    }
-    /* Hommie throws the account connectors away.
-
-       Measured: they cost 8.1 seconds of session startup before the first token
-       can be thought about, and they put 397 tools in the session -- past the
-       point where the CLI defers them, so every single turn began with a
-       ToolSearch round trip to find a tool Hommie was always going to use.
-       Neither buys anything: Hommie's own server already reaches everything in
-       this dashboard.
-
-       A spoken assistant is the one surface where that is unarguable. Eight
-       seconds of silence after you say someone's name is the difference between
-       talking to something and waiting for it. */
-    /* Hommie throws the account connectors away UNLESS this turn asked for one.
-
-       Measured: attaching all of them costs 8.1 seconds of session startup
-       before the first token can be thought about, and puts 397 tools in the
-       session -- past the point where the CLI defers them, so every turn began
-       with a ToolSearch round trip to find a tool Hommie was always going to
-       use. Without them: 2.6 seconds and 37 tools.
-
-       So the fast path is the default and the slow one is asked for by name.
-       Hommie has a tool that says "this needs Dropbox", the page hears it, tells
-       the user to hold on, and runs the question again with that one server
-       attached. Eight seconds of silence after saying someone's name is the
-       difference between talking to something and waiting for it; eight seconds
-       after being told to hold on is just how long it takes. */
-    const hommieWantsConnectors = hommie && b.useMcp === true
-      && Array.isArray(b.mcpServers) && b.mcpServers.length > 0;
-    let strictMcp = hommie && !hommieWantsConnectors;
+    let strictMcp = false;
     if (b.mcp && String(b.mcp).trim()) {
       try {
         const parsed = JSON.parse(String(b.mcp));
@@ -2187,12 +1293,9 @@ export function claudeRoutes({ env, auth }){
       /* Which agent, which pull and which conversation this turn belongs to, so
          anything the agent records lands attached to them rather than floating
          free. */
-      agentId: agent ? agent.id : (hommie ? HOMMIE_META.id : null),
+      agentId: agent ? agent.id : null,
       pullId: b.pullId ? String(b.pullId).slice(0, 64) : null,
-      threadId: b.threadId ? String(b.threadId).slice(0, 64) : null,
-      /* Checked by the repair kinds. Held here rather than read back off the
-         request, so a later call in the same turn cannot arm itself. */
-      repair };
+      threadId: b.threadId ? String(b.threadId).slice(0, 64) : null };
     for (const d of (b.pluginDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--plugin-dir', String(d).trim());
     for (const d of (b.addDirs || []).slice(0, 8)) if (String(d).trim()) args.push('--add-dir', String(d).trim());
     if (b.agents && String(b.agents).trim()) {
@@ -2206,25 +1309,14 @@ export function claudeRoutes({ env, auth }){
     /* One flag, not two: a second --append-system-prompt replaces the first
        rather than adding to it, and the surface note is the half that must not
        be the one dropped. */
-    const extraSystem = [SURFACE_NOTE, agent && agent.brief, hommie && HOMMIE,
-      hommie && repair && REPAIR_NOTE,
+    const extraSystem = [SURFACE_NOTE, agent && agent.brief,
       b.appendSystem && String(b.appendSystem).trim()].filter(Boolean).join('\n\n');
     args.push('--append-system-prompt', extraSystem);
     /* --allowed-tools AUTO-APPROVES; it does not remove. Every built-in stays in
-       the session's tool list whether or not it was named, so an unarmed Hommie
-       was still offered Bash -- and on this surface there is no permission
-       prompt to stop it being used. --disallowed-tools is the only flag that
-       takes a tool away, so that is what guards repair mode.
-
-       Hommie only. The Claude section is a full Claude Code session and gates
-       its own write tools on CLAUDE_WRITE; narrowing it here would quietly
-       change what that switch means. */
-    /* PowerShell as well as Bash. On Windows the CLI offers both, and a list
-       that names only one of them is a list that removes only one of them --
-       which is how an unarmed Hommie came to run two shell commands. */
-    const strippedForHommie = hommie && !repair
-      ? ['Bash', 'PowerShell', 'Edit', 'Write', 'NotebookEdit'] : [];
-    args.push('--disallowed-tools', ...IMPOSSIBLE_HERE, ...strippedForHommie);
+       the session's tool list whether or not it was named, which is why the one
+       tool that cannot work on this surface has to be taken away by name rather
+       than merely left out of the allow list. */
+    args.push('--disallowed-tools', ...IMPOSSIBLE_HERE);
     if (b.noSkills) args.push('--disable-slash-commands');
 
     /* The browser may narrow the tool set but never widen it past what this
@@ -2258,13 +1350,8 @@ export function claudeRoutes({ env, auth }){
     /* The agent's own tools read this dashboard and draw in its panel. Neither
        can reach outside the app, so they are allowed for the whole turn rather
        than being gated behind the connector switch. */
-    const always = agent ? [askAllow, 'mcp__' + AGENT_SERVER]
-      : hommie ? [askAllow, 'mcp__' + HOMMIE_SERVER]
-      : [askAllow];
-    /* Repair mode widens the built-in set for this turn only. Without it Hommie
-       has the dashboard tools and nothing that can touch a file, which is what
-       every other turn gets. */
-    const builtins = repair ? REPAIR_TOOLS : PERMITTED;
+    const always = agent ? [askAllow, 'mcp__' + AGENT_SERVER] : [askAllow];
+    const builtins = PERMITTED;
     if (builtins) {
       const use = asked && asked.length ? asked.filter(t => builtins.includes(t)) : builtins;
       args.push('--allowed-tools', ...(use.length ? use : builtins), ...mcpAllow, ...always);
@@ -2279,27 +1366,8 @@ export function claudeRoutes({ env, auth }){
     /* The prompt goes to stdin, not argv — see lib/claude-cli.js. */
     /* stdin stays open: in streaming mode closing it ends the session, and the
        process has to outlive the write for the MCP servers to attach. */
-
-    /* Hommie reuses the process it was talking to a moment ago, if there is one
-       and nothing about the turn has changed under it. Repair arming changes the
-       tool set, so it starts a new one. */
-    const reusable = hommie && live && live.child && !live.child.killed
-      && live.repair === repair && live.cwd === CWD;
-    const child = reusable ? live.child
-      : spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
+    const child = spawnClaude(args, { cwd: CWD, prompt: null, keepStdin: true });
     running = child;
-
-    if (hommie && !reusable) {
-      closeLive('starting a new one');
-      live = { child, token: askToken, repair, cwd: CWD, idle: null, ready: new Set() };
-    }
-    if (reusable) {
-      /* The servers attached to this process were handed the token it started
-         with and cannot be told another, so the turn adopts it rather than
-         minting one. */
-      ask.token = live.token;
-      live.ready.forEach(n => { /* already up */ });
-    }
 
     const writePrompt = () => {
       if (promptSent) return;
@@ -2329,8 +1397,7 @@ export function claudeRoutes({ env, auth }){
        no way to ask a question, which is the whole bug this fixes -- and it is a
        local stdio process, so waiting for it costs a fraction of a second. */
     const waitFor = [...mcpAllow, 'mcp__' + ASK_SERVER,
-      ...(agent ? ['mcp__' + AGENT_SERVER] : []),
-      ...(hommie ? ['mcp__' + HOMMIE_SERVER] : [])];
+      ...(agent ? ['mcp__' + AGENT_SERVER] : [])];
     const onlyAsk = !mcpAllow.length;
     send('status', { phase: 'connectors', text: onlyAsk ? 'starting…' : 'attaching connectors…' });
     /* A ceiling, because one wedged server must not hold the turn forever. */
@@ -2349,10 +1416,8 @@ export function claudeRoutes({ env, auth }){
        all, and hitting it is a failure worth saying out loud rather than
        answering around. */
     const needReady = new Set(
-      Object.keys(servers).filter(n => n === ASK_SERVER || n === HOMMIE_SERVER || n === AGENT_SERVER));
-    /* A session that is already up has already handshaked. This is the whole
-       point of keeping it: the second question costs no startup at all. */
-    const gotReady = reusable ? new Set(needReady) : new Set();
+      Object.keys(servers).filter(n => n === ASK_SERVER || n === AGENT_SERVER));
+    const gotReady = new Set();
     ask.ready = name => {
       gotReady.add(name);
       if (promptSent) return;
@@ -2363,9 +1428,7 @@ export function claudeRoutes({ env, auth }){
       setTimeout(writePrompt, 150);
     };
 
-    if (reusable) {
-      setImmediate(writePrompt);
-    } else if (onlyAsk) {
+    if (onlyAsk) {
       mcpTimer = setTimeout(() => {
         const missing = [...needReady].filter(n => !gotReady.has(n));
         if (missing.length) {
@@ -2397,12 +1460,11 @@ export function claudeRoutes({ env, auth }){
         try { frame = JSON.parse(line); } catch { send('raw', { text: line }); continue; }
         send('msg', frame);
 
-        /* Hommie, an analyst and a subagent all leave a session file in the same
-           directory the Claude section lists. Recording the id here is what keeps
-           the chat history a list of chats. */
-        if ((hommie || agent) && frame.session_id) {
-          hide(frame.session_id, hommie ? 'hommie' : 'agent');
-        }
+        /* An analyst leaves a session file in the same directory the Claude
+           section lists, and nobody opens that section to read a metrics
+           payload. Recording the id here is what keeps the chat history a list
+           of chats. */
+        if (agent && frame.session_id) hide(frame.session_id, 'agent');
 
         /* Server states arrive on `system` frames after init. Once none are
            pending, the session is as connected as it is going to get.
@@ -2430,9 +1492,9 @@ export function claudeRoutes({ env, auth }){
              server did not attach, the model is about to answer with no idea
              where anything is -- so stop, rather than let it guess.
 
-             Only for Hommie and the analysts. The Claude section is a general
-             session and is perfectly usable with no MCP at all. */
-          if ((hommie || agent) && watch.some(sv => sv.status !== 'connected')) {
+             Only for the analysts. The Claude section is a general session and
+             is perfectly usable with no MCP at all. */
+          if (agent && watch.some(sv => sv.status !== 'connected')) {
             const dead = watch.filter(sv => sv.status !== 'connected')
               .map(sv => sv.name + ' (' + sv.status + ')').join(', ');
             console.error('[claude] tool server did not attach: ' + dead);
@@ -2459,19 +1521,8 @@ export function claudeRoutes({ env, auth }){
         if (frame.type === 'result' && !finished) {
           finished = true;
           if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
-          if (live && live.child === child) {
-            /* Kept. stdin stays open for the next question, the MCP servers stay
-               attached, and the whole three-to-five seconds of starting up is
-               simply not paid again. The turn is over; the conversation is not. */
-            touchLive();
-            askCancelAll('turn ended');
-            send('done', { code: 0, kept: true });
-            running = null;
-            try { res.end(); } catch { /* already closed */ }
-          } else {
-            try { child.stdin.end(); } catch { /* already gone */ }
-            setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* exited */ } }, 1500);
-          }
+          try { child.stdin.end(); } catch { /* already gone */ }
+          setTimeout(() => { try { child.kill('SIGTERM'); } catch { /* exited */ } }, 1500);
         }
       }
     });
@@ -2483,9 +1534,6 @@ export function claudeRoutes({ env, auth }){
       running = null; res.end();
     });
     child.on('close', code => {
-      /* If the kept session is what died, forget it, or the next question writes
-         into a closed pipe and waits for an answer that cannot come. */
-      if (live && live.child === child) closeLive('the process exited');
       askCancelAll('turn ended');
       send('done', { code });
       running = null;
@@ -2498,10 +1546,6 @@ export function claudeRoutes({ env, auth }){
     res.on('close', () => {
       if (mcpTimer) { clearTimeout(mcpTimer); mcpTimer = null; }
       askCancelAll('page closed');
-      /* A kept session survives its own response ending, which happens at the
-         end of every single turn. Only a turn still in flight gets killed --
-         that is a page that really did go away mid-answer. */
-      if (live && live.child === child) { running = null; return; }
       if (running === child) { child.kill('SIGTERM'); running = null; }
     });
   });
