@@ -3134,9 +3134,16 @@ const MENU = [
   ['properties','Properties','Postgres',''],
   ['financial','Financial','Ledger',''],
   ['social','Social','5 networks',''],
-  ['claude','Claude','SUBSCRIPTION',''],
   ['systems','Systems','n8n','']
 ];
+/* Claude used to sit between those two. The section it opened is still in the
+   document and its code is still loaded -- /api/claude is what Hommie talks to
+   and what the analyst agents behind Pull and analyze run on, and the chat
+   surface shares its helpers with both -- but there is no longer a way in from
+   the rail, which is what was asked for.
+
+   This list is also what ROUTE.ids() validates a URL against, so an old
+   #claude link now fails routeApply and boot lands on Overview. */
 /* Declared here, not down in the TASKS block: the rail loop below assigns it
    immediately, and a `let` further down the same script puts it in the temporal
    dead zone -- which throws at load and silently kills every statement after
@@ -13263,7 +13270,6 @@ function ccStop(){
    it is only reachable there because it matters solely when the dashboard is
    NOT the machine running Claude. */
 document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', () => {
-  if (b.dataset.target === 'claude') ccProbe();
   /* Loaded on first open rather than at boot: the ClickUp walk is three minutes
      cold, and nobody who came to read their inbox should pay for it. */
   if (b.dataset.target === 'tasks' && !TK.loaded && !TK.loading) tkLoad();

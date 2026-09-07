@@ -37,7 +37,10 @@ const SECTIONS = [
   ['leads', 'GHL', 'Leads and conversations, mirrored from GoHighLevel into Supabase.'],
   ['properties', 'Properties', 'The portfolio: entities, properties, units, loans, insurance.'],
   ['social', 'Social', 'YouTube, Facebook, Instagram, X and the Meta ad account.'],
-  ['claude', 'Claude', 'A full Claude Code session.'],
+  /* No Claude entry. The rail item was removed, and hmAct opens a section by
+     clicking its rail button -- so navigate would have found nothing, done
+     nothing, and returned success, leaving Hommie to announce it had opened
+     something the screen never showed. */
   ['systems', 'Systems', 'OpusClip, and the five analyst agents behind Pull and analyze metrics.']
 ];
 
