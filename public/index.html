@@ -11333,6 +11333,30 @@ document.addEventListener('keydown', e => {
 
 const VER = { info: null, check: null, busy: false, dismissed: false };
 
+/* Anything on screen that a reload would destroy, named so the bar can say
+   which thing it is waiting on rather than just refusing.
+
+   Deliberately generous about what counts. Getting this wrong in the cautious
+   direction costs one click; getting it wrong the other way loses something
+   somebody typed. */
+function unsavedWork(){
+  for (const el of document.querySelectorAll('textarea, input[type=text], input[type=search], input:not([type])')) {
+    /* Filters and search boxes are re-derivable from the URL and the state, so
+       they are not work. Everything else with text in it might be. */
+    if (el.classList.contains('fsearch') || el.id === 'so-q' || el.id === 'tk-q'
+      || el.id === 'so-palin' || el.closest('.cmdbar') || el.closest('#tk-fpop')) continue;
+    if (String(el.value || '').trim()) return 'unsent text in ' + (el.id || el.name || 'a field');
+  }
+  for (const el of document.querySelectorAll('[contenteditable=true]')) {
+    if (String(el.textContent || '').trim()) return 'an open editor';
+  }
+  /* A turn mid-stream. Reloading drops the connection and the answer with it. */
+  try { if (window.S && S.busy) return 'an agent turn still running'; } catch { /* not loaded */ }
+  try { if (window.CC && CC.busy) return 'a Claude turn still running'; } catch { /* not loaded */ }
+  try { if (window.TKE && TKE.busy) return 'a task update in flight'; } catch { /* not loaded */ }
+  return null;
+}
+
 async function verLoad(){
   try {
     const r = await fetch('/api/app/version');
@@ -11361,23 +11385,53 @@ function drawVersion(){
     VER.reloadOffered = true;
     const bar = document.getElementById('upd-bar');
     if (bar) {
-      document.getElementById('upd-title').textContent = 'Restarted — reload to see it';
-      document.getElementById('upd-note').textContent =
-        'Command Center restarted into a newer build. This page is still running the old one.';
+      /* Reloading on its own is the point of hands-free updating -- but only
+         when there is nothing on screen to lose. Anything typed and unsent, or
+         a turn still streaming, and it asks instead. A page that throws away a
+         half-written message to install an update it chose to install on its
+         own is worse than one that waits to be clicked. */
+      const risky = unsavedWork();
+      document.getElementById('upd-title').textContent = risky
+        ? 'Updated — reload when you are ready'
+        : 'Updated · reloading';
+      document.getElementById('upd-note').textContent = risky
+        ? 'A newer build is running, but this page has unsaved text on it (' + risky
+          + '), so it has not reloaded itself.'
+        : 'Command Center restarted into a newer build.';
       const go = document.getElementById('upd-go');
       go.textContent = 'Reload';
       go.onclick = () => location.reload();
       bar.classList.add('on');
+      if (!risky) setTimeout(() => location.reload(), 1800);
     }
     return;
   }
 
   const c = VER.check;
+  const a = VER.info.auto || {};
+  /* Four states, and the difference between them matters:
+       on and idle      -> "auto"
+       staged, waiting  -> "restarting soon", because the app is about to
+                           disappear for a second and that should not surprise
+                           anyone
+       blocked/failed   -> the reason, in amber, because an update that is
+                           silently not happening is the whole problem this
+                           was meant to solve
+       off              -> nothing, and the manual button stays */
+  const autoBit = !a.enabled ? ''
+    : a.phase === 'waiting-for-idle' || a.phase === 'restarting'
+      ? ' · <span style="color:var(--jade)" title="Updated on disk; restarting when nothing is mid-flight">restarting soon</span>'
+    : a.phase === 'blocked' || a.phase === 'failed'
+      ? ' · <span style="color:var(--amber)" title="' + escS(a.reason || '') + '">auto blocked</span>'
+      : ' · <span style="color:var(--dimmer)" title="Checks GitHub and updates itself, restarting only when idle">auto</span>';
   el.innerHTML = 'v' + escS(VER.info.version)
     + (VER.info.commit ? ' · ' + escS(VER.info.commit) : '')
     + (VER.info.dirty ? ' · <span style="color:var(--amber)">local edits</span>' : '')
+    + autoBit
+    /* The button stays even with auto on: "install it now" is a reasonable
+       thing to want, and it is the only way through when auto is blocked. */
     + (c?.behind ? ' · <button class="up" id="ver-upd">update</button>'
-       : c?.ok ? ' · up to date' : '')
+       : c?.ok && !a.enabled ? ' · up to date' : '')
     /* Launched from the shortcut there is no console window to close, so this
        is the only way to stop it short of Task Manager. */
     + (VER.info.supervised ? ' · <button class="up" id="ver-quit">quit</button>' : '');
@@ -11451,8 +11505,22 @@ document.getElementById('upd-later').onclick = () => {
   VER.dismissed = true; drawUpdBar();
 };
 verLoad();
-/* Once an hour is plenty for a dashboard someone leaves open. */
-setInterval(() => { if (!VER.busy) verLoad(); }, 3600_000);
+/* Once an hour was plenty when a human pressed the button. It is not, now that
+   the server restarts on its own: the page would keep drawing the old build's
+   UI for up to an hour before noticing, which is precisely the silent failure
+   the boot-stamp check exists to catch.
+
+   Ninety seconds against a server on this machine, and only two small git
+   calls behind it. The interval tightens itself once auto-updates are known to
+   be on, so a hosted build -- where /api/app/version 404s and none of this
+   applies -- keeps the slow one. */
+let verEvery = 90_000;
+const verTick = () => {
+  if (!VER.busy) verLoad();
+  const want = VER.info?.auto?.enabled ? 90_000 : 3600_000;
+  if (want !== verEvery) { verEvery = want; clearInterval(verTimer); verTimer = setInterval(verTick, verEvery); }
+};
+let verTimer = setInterval(verTick, verEvery);
 
 
 /* ================= CLAUDE =================
