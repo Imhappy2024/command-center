@@ -116,7 +116,11 @@ export function inboxRoutes({ auth }){
       const text = String(req.body?.text || '').trim();
       if (!text) return res.status(400).json({ error: 'A reply cannot be empty.' });
       try {
-        res.json({ ok: true, ...await reply(req.params.id, text) });
+        res.json({ ok: true, ...await reply(req.params.id, text, {
+          /* The row id of the message being quoted, if this is a reply to one
+             in particular rather than to the conversation. */
+          replyTo: req.body?.replyTo || null
+        }) });
       } catch (err) {
         res.status(err.status || 502).json({
           error: err.message, needsScope: err.needsScope || null
@@ -204,7 +208,9 @@ export function inboxRoutes({ auth }){
       if (!item) return res.status(400).json({ error: 'Which comment?' });
       try {
         res.json({ ok: true, ...await react({
-          threadId: req.params.id, itemId: item, on: req.body?.on !== false
+          threadId: req.params.id, itemId: item, on: req.body?.on !== false,
+          /* Which reaction, for a message. A comment like has no flavours. */
+          reaction: req.body?.reaction || null
         }) });
       } catch (err) {
         res.status(err.status || 502).json({

@@ -10131,6 +10131,16 @@ document.addEventListener('keydown', e => {
   if (!document.getElementById('v-social')?.classList.contains('on')) return;
   const t = e.target;
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  /* Innermost first, and ONE handler doing it.
+
+     There were briefly two listeners on document for this, and stopPropagation
+     does not stop a second listener on the SAME node -- so Escape dismissed the
+     emoji picker and closed the whole conversation behind it in the same
+     keystroke. Two handlers that have to agree about precedence are a bug
+     waiting to happen; this is the only one. */
+  if (IBX.emoji || IBX.panel) { IBX.emoji = false; IBX.panel = null; ibxDraw(); return; }
+  if (IBX.reactFor) { IBX.reactFor = null; ibxDraw(); return; }
+  if (IBX.replyTo) { IBX.replyTo = null; ibxDraw(); return; }
   if (IBX.compose) { IBX.compose = null; ibxDraw(); return; }
   if (!IBX.sel) return;
   IBX.sel = null; IBX.items = []; ibxDraw();
@@ -10743,17 +10753,6 @@ async function msgrReact(itemId, reaction){
   }
 }
 
-/* Escape closes whatever is open, innermost first, and a click outside a
-   picker closes it. Both are bound once rather than per redraw: rebinding a
-   document listener on every keystroke is how you end up with two hundred of
-   them. */
-document.addEventListener('keydown', e => {
-  if (e.key !== 'Escape') return;
-  if (SO.view !== 'inbox' || IBX.kind !== 'message') return;
-  if (IBX.emoji || IBX.panel) { IBX.emoji = false; IBX.panel = null; ibxDraw(); e.stopPropagation(); return; }
-  if (IBX.reactFor) { IBX.reactFor = null; ibxDraw(); e.stopPropagation(); return; }
-  if (IBX.replyTo) { IBX.replyTo = null; ibxDraw(); e.stopPropagation(); }
-});
 
 document.addEventListener('pointerdown', e => {
   if (SO.view !== 'inbox' || IBX.kind !== 'message') return;

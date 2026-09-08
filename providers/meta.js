@@ -1094,16 +1094,24 @@ export async function conversations(token, { pageId, platform = 'facebook', igId
    HUMAN_AGENT (itself a reviewed feature) or one of the other tags gets
    through. That refusal is translated, because "This message is sent outside of
    allowed window" is otherwise read as a bug here. */
-export async function sendMessage(token, { pageId, recipientId, text, platform = 'facebook' }){
+export async function sendMessage(token, {
+  pageId, recipientId, text, platform = 'facebook', replyTo = null
+}){
   const body = String(text || '').trim();
   if (!body) throw new Error('A message cannot be empty.');
   if (!recipientId) throw new Error('No recipient on that conversation.');
   const need = platform === 'instagram' ? 'instagram_manage_messages' : 'pages_messaging';
   try {
+    /* reply_to quotes a specific earlier message, which is what makes a reply
+       in a long thread land against the thing it answers rather than at the
+       bottom. Both platforms take it; the id is the platform's own mid. */
+    const message = { text: body };
+    if (replyTo) message.reply_to = { mid: String(replyTo) };
+
     const j = await post(token, `/${pageId}/messages`, {
       recipient: JSON.stringify({ id: recipientId }),
       messaging_type: 'RESPONSE',
-      message: JSON.stringify({ text: body })
+      message: JSON.stringify(message)
     });
     return { externalId: j.message_id || null, recipientId, body };
   } catch (err) {
@@ -1113,6 +1121,48 @@ export async function sendMessage(token, { pageId, recipientId, text, platform =
         + 'approved message tag. Reply from the Meta inbox for this one.');
     }
     throw inboxError(err, { need, what: 'Sending a message' });
+  }
+}
+
+/* Reacting to a message.
+
+   Both platforms take this, on the same edge as a message: sender_action
+   "react" with the message id and a reaction, and "unreact" with the id alone
+   to take it back. The named set below is the one Messenger itself shows;
+   Instagram additionally accepts an arbitrary emoji, which is not used here
+   because a reaction that only works on one of the two platforms is a control
+   that fails half the time.
+
+   Note this is the message equivalent of likeComment() above, and they are NOT
+   the same call: a comment like is an edge on the comment, a message reaction
+   is a sender_action on the conversation. */
+export const MESSAGE_REACTIONS = ['love', 'haha', 'wow', 'sad', 'angry', 'like', 'dislike'];
+
+export async function reactToMessage(token, {
+  pageId, recipientId, messageId, reaction = null, platform = 'facebook'
+}){
+  if (!messageId) throw new Error('Which message?');
+  if (!recipientId) throw new Error('No recipient on that conversation.');
+  if (reaction && !MESSAGE_REACTIONS.includes(reaction)) {
+    throw new Error(`${reaction} is not a reaction Meta accepts on both platforms. `
+      + `It takes ${MESSAGE_REACTIONS.join(', ')}.`);
+  }
+  const need = platform === 'instagram' ? 'instagram_manage_messages' : 'pages_messaging';
+  try {
+    await post(token, `/${pageId}/messages`, {
+      recipient: JSON.stringify({ id: recipientId }),
+      sender_action: reaction ? 'react' : 'unreact',
+      payload: JSON.stringify(reaction
+        ? { message_id: messageId, reaction }
+        : { message_id: messageId })
+    });
+    return { messageId, reaction };
+  } catch (err) {
+    if (/outside of allowed window|outside the allowed window/i.test(String(err.message))) {
+      throw new Error('Meta will not take this: their last message was more than 24 hours '
+        + 'ago, and a Page can only act inside that window without an approved tag.');
+    }
+    throw inboxError(err, { need, what: 'Reacting to a message' });
   }
 }
 
