@@ -410,6 +410,181 @@ main{min-width:0;display:flex;flex-direction:column}
 .reader{min-height:380px;max-height:672px;overflow:hidden;display:flex;flex-direction:column}
 
 #ib-list{padding:8px;display:flex;flex-direction:column;gap:6px}
+/* ---- Comments & Messages ----
+
+   Borrowed from the Inbox and the Leads list on purpose: a list of
+   conversations beside the open one is a shape this app already has twice, and
+   a third variation of it would be a third thing to learn. */
+#ibx-list{padding:6px;display:flex;flex-direction:column;gap:4px}
+.ibxrow{
+  display:grid;grid-template-columns:34px minmax(0,1fr);gap:10px;
+  padding:10px 11px;border-radius:var(--r-md);cursor:pointer;
+  border:1px solid transparent;transition:background .13s var(--ease),border-color .13s var(--ease);
+}
+.ibxrow:hover{background:var(--panel2)}
+.ibxrow.on{background:var(--panel2);border-color:var(--edge2)}
+.ibxrow:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+.ibxrow .udot{opacity:0}
+.ibxrow.unread .udot{opacity:1}
+.ibxrow.unread b{color:var(--cream)}
+.ibxmid{min-width:0}
+.ibxr1{display:flex;align-items:center;gap:7px;min-width:0}
+.ibxr1 b{font-size:13px;color:var(--dim);font-variation-settings:'wght' 550;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ibxr1 .tm{margin-left:auto;flex:none;font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
+.ibxn{flex:none;font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);
+  border:1px solid var(--edge);border-radius:999px;padding:0 5px}
+.ibxsnip{font-size:12.5px;color:var(--dim);margin-top:3px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ibxsnip em{color:var(--dimmer);font-style:normal}
+
+/* Which video or post the comment is on. The chip IS the answer to "where did
+   this come from", so it is legible rather than decorative. */
+.ibxfrom{
+  display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-top:4px;
+  font-size:11.5px;color:var(--dimmer);
+}
+.ibxfrom i{
+  flex:none;font-style:normal;font-family:var(--ff-mono);font-size:9px;
+  letter-spacing:.9px;text-transform:uppercase;color:var(--dimmer);
+  border:1px solid var(--edge);border-radius:4px;padding:1px 4px;
+}
+.ibxfrom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ibxfrom.big{font-size:12.5px;color:var(--dim);margin-top:5px}
+.ibxfrom.big a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--edge)}
+.ibxfrom.big a:hover{color:var(--brass);border-color:var(--brass)}
+
+.ibxav{
+  width:34px;height:34px;border-radius:50%;flex:none;
+  background:var(--panel2) center/cover no-repeat;border:1px solid var(--edge);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--ff-display);font-size:14px;color:var(--dim);
+}
+.ibxav.sm{width:26px;height:26px;font-size:11px}
+
+.ibxtags{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px}
+/* In the thread header, where the tag control lives. Wraps rather than
+   scrolls: a dozen short labels on two lines is legible and a horizontal
+   scroller full of them is not. */
+.ibxtagbar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:7px}
+.ibxtagbar .tgl{padding:2px 9px;font-size:11px}
+.ibxtag{
+  font-size:10.5px;color:var(--dim);background:var(--panel2);
+  border:1px solid var(--edge);border-radius:999px;padding:1px 7px;
+}
+
+/* ---- the open thread ---- */
+.ibxhead{display:flex;align-items:flex-start;gap:10px;padding:14px 16px 12px;
+  border-bottom:1px solid var(--edge)}
+.ibxhl{min-width:0;flex:1}
+.ibxhl b{display:block;font-size:15px;color:var(--cream);
+  font-variation-settings:'wght' 600}
+.ibxthread{padding:12px 16px;overflow:auto;max-height:460px;
+  display:flex;flex-direction:column;gap:2px}
+
+.ibxit{display:grid;grid-template-columns:26px minmax(0,1fr);gap:9px;padding:9px 0}
+.ibxit + .ibxit{border-top:1px solid var(--edge)}
+/* A reply is indented once and only once. Deeper nesting for a three-deep
+   chain wastes the width the text needs. */
+.ibxit.reply{margin-left:22px}
+.ibxit.pending{opacity:.6}
+.ibxih{display:flex;align-items:center;gap:8px}
+.ibxih b{font-size:12.5px;color:var(--dim);font-variation-settings:'wght' 550}
+.ibxit.mine .ibxih b{color:var(--brass)}
+.ibxih .tm{font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
+.ibxbody{font-size:13.5px;line-height:1.5;color:var(--cream);
+  margin-top:3px;white-space:pre-wrap;word-break:break-word}
+.ibxacts{display:flex;gap:8px;margin-top:6px}
+.ibxlike{
+  background:none;border:1px solid var(--edge);border-radius:999px;
+  padding:2px 9px;font-size:11px;color:var(--dimmer);cursor:pointer;
+  font-family:inherit;transition:color .13s,border-color .13s;
+}
+.ibxlike:hover{color:var(--rust);border-color:var(--rust)}
+.ibxlike.on{color:var(--rust);border-color:var(--rust)}
+.ibxlike.flat{cursor:default;border-style:dashed}
+.ibxlike.flat:hover{color:var(--dimmer);border-color:var(--edge)}
+
+/* ---- messages, as bubbles ---- */
+.ibxthread.msgs{gap:9px}
+.ibxbub{max-width:74%;align-self:flex-start}
+.ibxbub.mine{align-self:flex-end}
+.ibxbub .b{
+  background:var(--panel2);border:1px solid var(--edge);
+  border-radius:14px 14px 14px 4px;padding:9px 13px;
+  font-size:13.5px;line-height:1.45;color:var(--cream);
+  white-space:pre-wrap;word-break:break-word;
+}
+.ibxbub.mine .b{
+  border-radius:14px 14px 4px 14px;
+  background:rgba(124,108,255,.14);border-color:rgba(124,108,255,.4);
+}
+.ibxbub .m{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);
+  margin-top:4px;padding:0 4px}
+.ibxbub.mine .m{text-align:right}
+.ibxbub.pending .b{opacity:.65;border-style:dashed}
+.ibxatt{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.ibxatt img{max-width:180px;border-radius:8px;display:block}
+.ibxatt span{font-size:11px;color:var(--dimmer);border:1px solid var(--edge);
+  border-radius:6px;padding:2px 7px}
+
+/* ---- the composer ---- */
+.ibxcomp{border-top:1px solid var(--edge);padding:12px 16px 14px}
+.ibxcomp.locked{padding:14px 16px}
+.ibxcomp.locked p{font-size:12.5px;color:var(--dim);margin:0;line-height:1.5}
+.ibxcomp textarea{
+  width:100%;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:var(--r-md);padding:10px 12px;color:var(--cream);
+  font-family:inherit;font-size:13.5px;line-height:1.5;resize:vertical;
+}
+.ibxcomp textarea:focus{outline:none;border-color:var(--brass)}
+.ibxcbar{display:flex;align-items:center;gap:8px;margin-top:9px;flex-wrap:wrap}
+.ibxhint{font-size:11px;color:var(--dimmer);max-width:44ch;text-align:right}
+.ibxpick{
+  margin-top:9px;padding:9px;border:1px solid var(--edge);border-radius:var(--r-md);
+  background:var(--ink2);display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+}
+.ibxpick p{flex:1 0 100%;margin:0 0 4px;font-size:11.5px;color:var(--dimmer);line-height:1.45}
+.ibxpick button{
+  display:inline-flex;align-items:center;gap:6px;background:var(--panel);
+  border:1px solid var(--edge);border-radius:999px;padding:3px 10px;
+  font-family:inherit;font-size:12px;color:var(--dim);cursor:pointer;
+}
+.ibxpick button:hover{border-color:var(--brass);color:var(--cream)}
+.ibxpick button.on{border-color:var(--brass);color:var(--brass)}
+.ibxpick .fsearch{flex:1;min-width:140px}
+
+/* ---- the new-comment sheet ---- */
+.ibxsheet{
+  position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.55);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+}
+.ibxsheetin{
+  width:min(620px,100%);max-height:86vh;overflow:auto;
+  background:var(--panel);border:1px solid var(--edge2);border-radius:var(--r-lg);
+  box-shadow:var(--shadow);padding:0 16px 16px;
+}
+.ibxsheetin .ibxhead{margin:0 -16px 14px;padding-left:16px;padding-right:16px}
+.ibxlab{display:block;font-size:11px;letter-spacing:.9px;text-transform:uppercase;
+  color:var(--dimmer);margin:0 0 6px;font-family:var(--ff-mono)}
+.ibxsheetin select{
+  width:100%;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:var(--r-md);padding:9px 11px;color:var(--cream);
+  font-family:inherit;font-size:13px;margin-bottom:12px;
+}
+.ibxsheetin select:focus{outline:none;border-color:var(--brass)}
+.ibxsheetin textarea{
+  width:100%;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:var(--r-md);padding:10px 12px;color:var(--cream);
+  font-family:inherit;font-size:13.5px;line-height:1.5;resize:vertical;
+}
+.ibxsheetin textarea:focus{outline:none;border-color:var(--brass)}
+
+@media(max-width:820px){
+  .ibxthread{max-height:none}
+  .ibxhint{display:none}
+  .ibxbub{max-width:88%}
+}
 .msg{
   border:1px solid var(--edge);border-radius:9px;padding:11px 13px;cursor:pointer;
   background:transparent;transition:background .12s,border-color .12s;position:relative;
@@ -5907,8 +6082,14 @@ let PLAT = {};
 
 /* Which sign-in produces which platform rows. One Meta grant feeds three. */
 const SO_GRANT = { facebook:'meta', instagram:'meta', meta_ads:'meta', youtube:'youtube', x:'x' };
-const SO_VIEW_KEYS = { youtube:['youtube'], x:['x'], meta:['facebook','instagram','meta_ads'] };
-const SO_VIEW_LABEL = { youtube:'YouTube', meta:'Meta', x:'X' };
+/* 'inbox' is a view over three platforms rather than one platform's dashboard.
+   It is listed here so the route guard, the sub-menu and the account-state dot
+   all treat it like any other view -- but loadSocialView() and drawSocial()
+   both special-case it, because it reads /api/social/inbox rather than the
+   per-platform metrics payload. */
+const SO_VIEW_KEYS = { inbox:['youtube','facebook','instagram'],
+  youtube:['youtube'], x:['x'], meta:['facebook','instagram','meta_ads'] };
+const SO_VIEW_LABEL = { inbox:'Comments & Messages', youtube:'YouTube', meta:'Meta', x:'X' };
 /* The name of one PLATFORM, which is not the name of the view it sits under.
    Facebook and Instagram both live under Meta, so SO_VIEW_LABEL called them
    both "Meta" -- and the combined dashboard puts that name in sentences:
@@ -6025,13 +6206,19 @@ function drawSocialSubnav(){
 
   /* Three platforms, no overview, and no "Platforms" heading over a list of
      three things that are obviously platforms. */
+  /* Comments & Messages first: it is the thing with unanswered items in it, and
+     a dashboard of last week's numbers can wait behind a question somebody
+     asked this morning. The count is the unread badge. */
   soSubEl.innerHTML =
-    row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube))
+    row('inbox', 'Comments &amp; Messages', IBX.unreadCount || 0, 'var(--brass)',
+      state(SO_VIEW_KEYS.inbox))
+    + row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube))
     + row('meta',    'Meta',    0, 'var(--fb)', state(SO_VIEW_KEYS.meta))
     + row('x',       'X',       0, 'var(--xx)', state(SO_VIEW_KEYS.x));
 
   soSubEl.querySelectorAll('[data-soview]').forEach(b => b.onclick = () => {
     SO.view = b.dataset.soview;
+    if (SO.view === 'inbox') { drawSocial(); loadSocialView(); return; }
     /* A platform always opens on its first section, never on whatever was left
        selected under a different platform. */
     SO.section = 'performance';
@@ -6048,6 +6235,22 @@ function drawSocialSubnav(){
    already fills. */
 async function loadSocialView(){
   if (CAL.demo) return;
+  /* The inbox reads one endpoint for the list and one for what the grant can
+     do, not three per-platform metrics payloads. Fetching those here would be
+     360 days of daily rows nobody on this screen looks at. */
+  if (SO.view === 'inbox') {
+    try {
+      const caps = await api('/api/social/inbox/capabilities');
+      IBX.health = caps.health || [];
+      IBX.capsAll = caps.capabilities || null;
+      IBX.caps = IBX.capsAll?.[IBX.platform] || null;
+    } catch (err) {
+      IBX.err = err.body?.detail || err.message || 'could not read what this connection can do';
+    }
+    await ibxLoad();
+    ibxTagList();
+    return;
+  }
   const keys = SO_VIEW_KEYS[SO.view];
   if (!keys) return;
   await Promise.all(keys.map(async k => {
@@ -6082,6 +6285,37 @@ function drawSocial(){
     const keys = SO_VIEW_KEYS[SO.view];
     const connected = soAccountsFor(keys).length > 0;
     const grant = SO_GRANT[keys[0]];
+
+    /* On the inbox, Fetch now means sync the comments rather than the metrics,
+       and there is nothing to add -- accounts are connected on the platform
+       views. Handled before the metrics wiring below rather than after it, so
+       the two do not both bind the same button. */
+    if (SO.view === 'inbox') {
+      connectBtn.hidden = true;
+      fetchBtn.hidden = false;
+      fetchBtn.textContent = IBX.syncing ? 'Syncing…' : 'Sync now';
+      fetchBtn.disabled = IBX.syncing;
+      fetchBtn.onclick = ibxSync;
+      title.textContent = SO_VIEW_LABEL.inbox;
+      drawSchedule(null);
+      try {
+        body.innerHTML = inboxView();
+        ibxWire(body);
+        sub.textContent = IBX.accounts.length
+          ? IBX.accounts.map(a => a.label).join(', ')
+            + ' · ' + IBX.total.toLocaleString() + ' ' + IBX.kind
+            + (IBX.total === 1 ? '' : 's') + ' held'
+            + (IBX.unreadCount ? ' · ' + IBX.unreadCount + ' unread' : '')
+          : 'Nothing connected on ' + ibxPlat().label + '.';
+      } catch (err) {
+        console.error('[inbox] render failed', err);
+        body.innerHTML = '<div class="card flush"><div class="empty">'
+          + '<b>This view failed to render</b><small>' + escS(err.message) + '</small></div></div>';
+        sub.textContent = 'Render error';
+      }
+      return;
+    }
+
     connectBtn.hidden = !connected;
     connectBtn.textContent = '+ Add ' + ({ youtube:'channel', meta:'Meta account', x:'X account' }[grant] || 'account');
     connectBtn.onclick = () => soConnectProvider(grant);
@@ -8391,6 +8625,781 @@ document.addEventListener('keydown', e => {
   if (!LD.sel) return;
   LD.sel = null;
   drawLeads();
+});
+
+/* ================= COMMENTS & MESSAGES =================
+
+   One inbox over three platforms, and they do not offer the same verbs. The
+   whole design question here is what to do about that, and the answer is: ask
+   the server what this grant can do and draw only that. A Reply box appears
+   because the scope for replying was granted, a Like button appears because the
+   platform has a like endpoint AND the scope is there, and where a verb is
+   impossible the reason is on screen once rather than discovered by clicking.
+
+   The alternative -- draw every control and let the failures explain -- is what
+   makes a dashboard feel broken. A button that returns "YouTube has no API for
+   this" is worse than no button.
+
+   Two panes, like the Inbox and the Leads view, and for the same reason: a list
+   of conversations is only useful next to the one that is open. */
+
+const IBX = {
+  /* Which platform and which of its two kinds. YouTube has only comments --
+     there are no YouTube DMs to have -- so its Comments/Messages strip is not
+     drawn rather than drawn with one dead tab. */
+  platform: 'youtube',
+  kind: 'comment',
+  account: 'all',
+
+  /* Filters. tag is a LOCAL label; see the note where tags are written. */
+  q: '', qTimer: null, tag: null, unreadOnly: false,
+
+  /* The list, and where in it we are. Offset paging with a total, the same
+     shape the leads list uses, so the footer can say 40 of 312 rather than
+     stopping at a page and implying that is all there is. */
+  threads: [], total: 0, unreadCount: 0, offset: 0, limit: 40, hasMore: false,
+  accounts: [], caps: null, notice: null,
+
+  /* The open thread. */
+  sel: null, items: [], mentions: [], threadTags: [], loadingThread: false,
+
+  draft: '', sending: false, err: null, busy: false, syncing: false,
+  /* The new-comment composer: which post it goes under, or null when closed. */
+  compose: null, targets: [], tagsInUse: [],
+  /* Which popover is open: 'mention' | 'tag' | null. */
+  picker: null
+};
+
+const IBX_PLATFORMS = [
+  { k: 'youtube',   label: 'YouTube',   colour: 'var(--yt)', kinds: ['comment'] },
+  { k: 'facebook',  label: 'Facebook',  colour: 'var(--fb)', kinds: ['comment', 'message'] },
+  { k: 'instagram', label: 'Instagram', colour: 'var(--brass)', kinds: ['comment', 'message'] }
+];
+const ibxPlat = () => IBX_PLATFORMS.find(p => p.k === IBX.platform) || IBX_PLATFORMS[0];
+const IBX_KIND_LABEL = { comment: 'Comments', message: 'Messages' };
+
+/* Short relative time. Long enough ago and the date is more use than the
+   interval: "34 days ago" is a number nobody converts. */
+function ibxAgo(iso){
+  const t = Date.parse(iso || '');
+  if (!isFinite(t)) return '';
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 1) return 'now';
+  if (mins < 60) return mins + 'm';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return hrs + 'h';
+  const days = Math.round(hrs / 24);
+  if (days < 8) return days + 'd';
+  return new Date(t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+const ibxInitial = name => String(name || '?').replace(/^@/, '').trim().charAt(0).toUpperCase() || '?';
+
+/* ---------- loading ---------- */
+
+/* The list. `more` appends the next page instead of replacing, which is what
+   the Load more button calls. */
+async function ibxLoad({ more = false } = {}){
+  if (CAL.demo) return;
+  IBX.busy = true; IBX.err = null;
+  if (!more) { IBX.offset = 0; }
+  ibxDraw();
+  try {
+    const qs = new URLSearchParams({
+      platform: IBX.platform, kind: IBX.kind, account: IBX.account,
+      limit: String(IBX.limit), offset: String(more ? IBX.offset : 0)
+    });
+    if (IBX.q.trim().length >= 2) qs.set('q', IBX.q.trim());
+    if (IBX.tag) qs.set('tag', IBX.tag);
+    if (IBX.unreadOnly) qs.set('unread', '1');
+    const out = await api('/api/social/inbox?' + qs);
+
+    IBX.threads = more ? [...IBX.threads, ...out.threads] : (out.threads || []);
+    IBX.total = out.total || 0;
+    IBX.unreadCount = out.unreadCount || 0;
+    IBX.hasMore = Boolean(out.hasMore);
+    IBX.offset = (out.offset || 0) + (out.threads || []).length;
+    IBX.accounts = out.accounts || [];
+    IBX.caps = out.caps || null;
+    IBX.notice = out.notice || null;
+    /* A selection that is no longer in the list stays open -- it was chosen
+       deliberately and a filter change should not close it -- but one that never
+       existed is dropped. */
+    if (IBX.sel && !IBX.items.length) IBX.sel = null;
+  } catch (err) {
+    IBX.err = err.body?.detail || err.message || 'request failed';
+  } finally {
+    IBX.busy = false;
+    ibxDraw();
+  }
+}
+
+/* One thread.
+
+   fresh=1 asks the server to re-read the reply chain from the platform first,
+   which is what makes opening a thread show all of a long conversation rather
+   than the handful of replies that arrived inline with the list. Only when the
+   thread says it is truncated, because it costs quota. */
+async function ibxOpen(id){
+  IBX.sel = id;
+  IBX.items = []; IBX.mentions = []; IBX.draft = ''; IBX.err = null;
+  IBX.picker = null;
+  IBX.loadingThread = true;
+  ibxDraw();
+
+  const row = IBX.threads.find(t => t.id === id);
+  const truncated = row && row.count > row.held;
+  try {
+    const out = await api('/api/social/inbox/thread/' + encodeURIComponent(id)
+      + (truncated ? '?fresh=1' : ''));
+    if (IBX.sel !== id) return;
+    IBX.items = out.items || [];
+    IBX.mentions = out.mentionable || [];
+    IBX.threadTags = out.thread?.tags || [];
+    /* Read locally and on the row, so the list stops showing a dot the moment
+       the thread is on screen rather than after the next poll. */
+    if (row?.unread) {
+      row.unread = false;
+      IBX.unreadCount = Math.max(0, IBX.unreadCount - 1);
+      post('/api/social/inbox/thread/' + encodeURIComponent(id) + '/read',
+        { read: true }).catch(() => {});
+    }
+  } catch (err) {
+    if (IBX.sel === id) IBX.err = err.body?.detail || err.message || 'could not open that thread';
+  } finally {
+    if (IBX.sel === id) IBX.loadingThread = false;
+    ibxDraw();
+  }
+}
+
+async function ibxSync(){
+  if (IBX.syncing) return;
+  IBX.syncing = true; IBX.err = null; ibxDraw();
+  try {
+    const out = await post('/api/social/inbox/sync', { platform: IBX.platform });
+    /* The per-account notes are the useful part of a sync that "worked": a Page
+       whose comments synced and whose messages could not are both true at once,
+       and only the note says which. */
+    const bad = (out.results || []).filter(r => !r.ok);
+    const notes = (out.results || []).flatMap(r => r.notes || []);
+    if (bad.length) IBX.err = bad.map(r => r.label + ': ' + r.error).join(' · ');
+    else if (notes.length) IBX.err = notes.map(n => n.error).join(' · ');
+    await ibxLoad();
+    if (IBX.sel) await ibxOpen(IBX.sel);
+  } catch (err) {
+    IBX.err = err.body?.detail || err.message || 'sync failed';
+  } finally {
+    IBX.syncing = false; ibxDraw();
+  }
+}
+
+/* ---------- writing ---------- */
+
+async function ibxSend(){
+  const text = IBX.draft.trim();
+  if (!text || !IBX.sel || IBX.sending) return;
+  IBX.sending = true; IBX.err = null; ibxDraw();
+  try {
+    await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/reply', { text });
+    IBX.draft = '';
+    await ibxOpen(IBX.sel);
+    /* The list row's snippet and time changed too. */
+    ibxLoad();
+  } catch (err) {
+    IBX.err = err.body?.detail || err.message || 'that did not send';
+  } finally {
+    IBX.sending = false; ibxDraw();
+  }
+}
+
+async function ibxPostComment(){
+  const c = IBX.compose;
+  if (!c || !c.text.trim() || !c.parent || IBX.sending) return;
+  IBX.sending = true; IBX.err = null; ibxDraw();
+  try {
+    const out = await post('/api/social/inbox/comment', {
+      account: c.account, parent: c.parent, text: c.text.trim() });
+    IBX.compose = null;
+    await ibxLoad();
+    if (out.threadId) await ibxOpen(out.threadId);
+  } catch (err) {
+    IBX.err = err.body?.detail || err.message || 'that did not post';
+  } finally {
+    IBX.sending = false; ibxDraw();
+  }
+}
+
+async function ibxReact(itemId, on){
+  if (!IBX.sel) return;
+  IBX.err = null;
+  const it = IBX.items.find(i => i.id === itemId);
+  /* Optimistic, because a like that waits for a round trip feels broken, and
+     reverted on failure rather than left looking done. */
+  if (it) { it.likedByUs = on; it.likes = Math.max(0, it.likes + (on ? 1 : -1)); ibxDraw(); }
+  try {
+    await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/react',
+      { item: itemId, on });
+  } catch (err) {
+    if (it) { it.likedByUs = !on; it.likes = Math.max(0, it.likes + (on ? -1 : 1)); }
+    IBX.err = err.body?.detail || err.message || 'that reaction did not stick';
+    ibxDraw();
+  }
+}
+
+async function ibxSetTags(tags){
+  if (!IBX.sel) return;
+  const before = IBX.threadTags.slice();
+  IBX.threadTags = tags;
+  const row = IBX.threads.find(t => t.id === IBX.sel);
+  if (row) row.tags = tags;
+  ibxDraw();
+  try {
+    const out = await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/tags',
+      { tags });
+    IBX.threadTags = out.tags || tags;
+    if (row) row.tags = IBX.threadTags;
+    ibxTagList();
+  } catch (err) {
+    IBX.threadTags = before;
+    if (row) row.tags = before;
+    IBX.err = err.body?.detail || err.message || 'those tags did not save';
+  }
+  ibxDraw();
+}
+
+async function ibxTagList(){
+  try {
+    const out = await api('/api/social/inbox/tags?platform=' + IBX.platform + '&kind=' + IBX.kind);
+    IBX.tagsInUse = out.tags || [];
+  } catch { /* the picker still takes a typed tag */ }
+}
+
+async function ibxTargets(){
+  try {
+    const out = await api('/api/social/inbox/targets?platform=' + IBX.platform);
+    IBX.targets = out.targets || [];
+  } catch (err) {
+    IBX.err = err.body?.detail || err.message || 'could not list your posts';
+  }
+}
+
+/* ---------- rendering ---------- */
+
+/* Which verbs this grant actually has. Absent caps means "not loaded yet", and
+   nothing is offered until the answer is in -- offering a Reply box and then
+   taking it away is worse than a moment without one. */
+const ibxCan = verb => Boolean(IBX.caps?.can?.[verb]);
+const ibxWhy = verb => IBX.caps?.why?.[verb] || null;
+
+function ibxTabs(){
+  const plat = viewTabs(IBX_PLATFORMS.map(p => [p.k, p.label, '']), IBX.platform, 'data-ibplat');
+  const p = ibxPlat();
+  /* One tab is furniture. YouTube has no DMs, so it gets no strip at all. */
+  const kinds = p.kinds.length > 1
+    ? viewTabs(p.kinds.map(k => [k, IBX_KIND_LABEL[k],
+        k === IBX.kind && IBX.unreadCount ? IBX.unreadCount : '']), IBX.kind, 'data-ibkind')
+    : '';
+  return plat + kinds;
+}
+
+/* Said once, at the top, rather than per row.
+
+   Only the verbs that matter for what is on screen: the reason Instagram DMs
+   need App Review is not worth saying while reading YouTube comments. */
+function ibxCapBar(){
+  if (!IBX.caps) return '';
+  const needed = IBX.kind === 'message' ? ['messages'] : ['read', 'reply', 'post', 'react'];
+  const missing = needed.filter(v => !ibxCan(v) && ibxWhy(v));
+  const reconnect = IBX.caps.needsReconnect || [];
+
+  if (!missing.length && !reconnect.length) return '';
+
+  /* Which grant to send them to. Facebook and Instagram are one Meta sign-in. */
+  const grant = IBX.platform === 'youtube' ? 'youtube' : 'meta';
+  /* A platform limit is not a permission problem and must not offer a button
+     that cannot fix it. */
+  const fixable = missing.some(v => /Reconnect/i.test(ibxWhy(v) || '')) || reconnect.length > 0;
+
+  return '<div class="ytalert">'
+    + '<div class="ytalert-i" aria-hidden="true">!</div>'
+    + '<div><b>' + escS(reconnect.length
+      ? (reconnect.length === 1 ? reconnect[0] + ' needs reconnecting'
+        : reconnect.length + ' accounts need reconnecting')
+      : 'Some of this is read-only') + '</b>'
+    + missing.map(v => '<p>' + escS(ibxWhy(v)) + '</p>').join('')
+    + (reconnect.length && !missing.length
+      ? '<p>Everything below is the last data that arrived, not what the platform holds now.</p>' : '')
+    + (fixable
+      ? '<div class="ytalert-do">'
+        + '<button class="btn" data-soreconnect="' + escS(grant) + '">Reconnect '
+        + escS(PROV_UI[grant]?.name || grant) + '</button>'
+        + '<span>Opens ' + escS(PROV_UI[grant]?.name || grant) + ' in a new window. '
+        + 'Sign in again and the missing permissions are granted on the consent screen.</span>'
+        + '</div>'
+      : '')
+    + '</div></div>';
+}
+
+function ibxToolbar(){
+  const accts = IBX.accounts.length > 1
+    ? '<span class="flabel">Account</span><div class="seg">'
+      + '<button class="' + (IBX.account === 'all' ? 'on' : '') + '" data-ibacct="all">All '
+      + IBX.accounts.length + '</button>'
+      + IBX.accounts.map(a => '<button class="' + (IBX.account === a.id ? 'on' : '') + '"'
+          + ' data-ibacct="' + escS(a.id) + '">' + escS(a.label) + '</button>').join('')
+      + '</div><span class="sep"></span>'
+    : '';
+
+  const tags = IBX.tagsInUse.length
+    ? '<div class="seg"><button class="' + (IBX.tag ? '' : 'on') + '" data-ibtag="">Any tag</button>'
+      + IBX.tagsInUse.map(t => '<button class="' + (IBX.tag === t ? 'on' : '') + '"'
+          + ' data-ibtag="' + escS(t) + '">' + escS(t) + '</button>').join('')
+      + '</div><span class="sep"></span>'
+    : '';
+
+  return '<div class="fbar">'
+    + accts + tags
+    + '<button class="tgl' + (IBX.unreadOnly ? ' on' : '') + '" data-ibunread="1">'
+    + '<span class="box">' + (IBX.unreadOnly ? '✓' : '') + '</span>Unread'
+    + (IBX.unreadCount ? ' (' + IBX.unreadCount + ')' : '') + '</button>'
+    + '<span class="grow"></span>'
+    + '<input class="fsearch" id="ibx-q" placeholder="Search these ' + IBX.kind + 's…"'
+    + ' value="' + escS(IBX.q) + '">'
+    + (IBX.kind === 'comment' && ibxCan('post')
+      ? '<button class="btn" data-ibnew="1">New comment</button>' : '')
+    + '<button class="tgl" data-ibsync="1"' + (IBX.syncing ? ' disabled' : '') + '>'
+    + (IBX.syncing ? 'Syncing…' : 'Sync now') + '</button>'
+    + '</div>';
+}
+
+/* One row of the list.
+
+   The "from" chip is the whole point of the row on a comment view: it says
+   which video or post the comment is on, by name, so the list answers "where
+   did this come from" without being opened. A DM has no parent and gets no
+   chip. */
+function ibxRow(t){
+  const from = t.from && (t.from.title || t.from.id)
+    ? '<span class="ibxfrom" title="' + escS(t.from.title || t.from.id) + '">'
+      + '<i>' + escS(t.from.kind === 'video' ? 'video' : t.from.kind === 'media' ? 'post' : t.from.kind) + '</i>'
+      + escS(t.from.title || t.from.id) + '</span>'
+    : '';
+  return '<div class="ibxrow' + (t.unread ? ' unread' : '') + (IBX.sel === t.id ? ' on' : '')
+    + '" data-ibopen="' + escS(t.id) + '" tabindex="0">'
+    + '<div class="ibxav"' + (t.with.avatar ? ' style="background-image:url(' + escS(t.with.avatar) + ')"' : '') + '>'
+    + (t.with.avatar ? '' : escS(ibxInitial(t.with.name))) + '</div>'
+    + '<div class="ibxmid">'
+    +   '<div class="ibxr1"><span class="udot"></span><b>' + escS(t.with.name) + '</b>'
+    +     (t.count > 1 ? '<span class="ibxn">' + t.count + '</span>' : '')
+    +     '<span class="tm">' + escS(ibxAgo(t.lastAt)) + '</span></div>'
+    +   from
+    +   '<div class="ibxsnip">' + (t.lastFrom === 'us' ? '<em>You: </em>' : '')
+    +     escS(t.snippet || '(no text)') + '</div>'
+    +   (t.tags?.length
+        ? '<div class="ibxtags">' + t.tags.map(x =>
+            '<span class="ibxtag">' + escS(x) + '</span>').join('') + '</div>'
+        : '')
+    + '</div></div>';
+}
+
+function ibxList(){
+  if (IBX.notice) {
+    return '<div class="empty"><b>Nothing connected</b><small>' + escS(IBX.notice) + '</small></div>';
+  }
+  if (!IBX.threads.length) {
+    if (IBX.busy) return '<div class="empty"><b>Reading…</b></div>';
+    if (IBX.q.trim() || IBX.tag || IBX.unreadOnly) {
+      return '<div class="empty"><b>Nothing matches</b>'
+        + '<small>Clear the search and the filters to see everything held.</small></div>';
+    }
+    /* An empty list on a platform that cannot read is a permission problem, not
+       an absence of comments, and saying "no comments" there would be a lie. */
+    if (!ibxCan(IBX.kind === 'message' ? 'messages' : 'read')) {
+      return '<div class="empty"><b>Nothing synced from here yet</b>'
+        + '<small>' + escS(ibxWhy(IBX.kind === 'message' ? 'messages' : 'read')
+          || 'This connection cannot read them.') + '</small></div>';
+    }
+    return '<div class="empty"><b>No ' + escS(IBX.kind) + 's yet</b>'
+      + '<small>Nothing has arrived on ' + escS(ibxPlat().label)
+      + ' since the last sync. <b>Sync now</b> checks again.</small></div>';
+  }
+  return IBX.threads.map(ibxRow).join('');
+}
+
+function ibxFooter(){
+  if (!IBX.threads.length) return '';
+  const shown = IBX.threads.length;
+  return '<div class="ldmore">'
+    + '<span>' + shown.toLocaleString() + ' of ' + IBX.total.toLocaleString() + '</span>'
+    + (IBX.hasMore
+      ? '<button class="btn" data-ibmore="1"' + (IBX.busy ? ' disabled' : '') + '>'
+        + (IBX.busy ? 'Loading…' : 'Load more') + '</button>'
+      : '')
+    + '</div>';
+}
+
+/* The composer, shared by a comment reply and a DM.
+
+   @ and # are buttons rather than only keystrokes, because a control nobody can
+   see is a control nobody uses. Both insert at the caret. */
+function ibxComposer(){
+  const canReply = IBX.kind === 'message' ? ibxCan('messages') : ibxCan('reply');
+  if (!canReply) {
+    return '<div class="ibxcomp locked"><p>' + escS(
+      (IBX.kind === 'message' ? ibxWhy('messages') : ibxWhy('reply'))
+      || 'This connection cannot reply here.') + '</p></div>';
+  }
+  const mentionNote = IBX.platform === 'facebook'
+    ? 'A mention posts as plain text on Facebook: the API takes no mention tags on '
+      + 'a Page comment, so @Name will not become a link.'
+    : IBX.platform === 'instagram'
+      ? 'An @handle becomes a real mention on Instagram.'
+      : 'An @handle becomes a real mention on YouTube.';
+
+  return '<div class="ibxcomp">'
+    + '<textarea id="ibx-draft" rows="3" placeholder="'
+    + escS(IBX.kind === 'message' ? 'Write a message…' : 'Write a reply…')
+    + '">' + escS(IBX.draft) + '</textarea>'
+    + (IBX.picker === 'mention' ? ibxMentionPicker() : '')
+    + '<div class="ibxcbar">'
+    +   '<button class="tgl' + (IBX.picker === 'mention' ? ' on' : '') + '" data-ibpick="mention"'
+    +     ' title="' + escS(mentionNote) + '">@ Mention</button>'
+    +   '<span class="grow"></span>'
+    +   '<span class="ibxhint">' + escS(mentionNote) + '</span>'
+    +   '<button class="btn" data-ibsend="1"'
+    +     (IBX.sending || !IBX.draft.trim() ? ' disabled' : '') + '>'
+    +     (IBX.sending ? 'Sending…' : IBX.kind === 'message' ? 'Send' : 'Reply') + '</button>'
+    + '</div></div>';
+}
+
+function ibxMentionPicker(){
+  if (!IBX.mentions.length) {
+    return '<div class="ibxpick"><p>Nobody else has written in this thread yet. '
+      + 'A mention only resolves for someone already in the conversation — none of '
+      + 'these platforms lets an app search for people.</p></div>';
+  }
+  return '<div class="ibxpick">'
+    + IBX.mentions.map(m => '<button data-ibmention="' + escS(m.name) + '">'
+      + '<span class="ibxav sm">' + escS(ibxInitial(m.name)) + '</span>'
+      + escS(m.name) + '</button>').join('')
+    + '</div>';
+}
+
+function ibxTagPicker(){
+  const on = new Set(IBX.threadTags);
+  const suggestions = [...new Set([...IBX.tagsInUse, 'follow up', 'lead', 'spam', 'answered'])];
+  return '<div class="ibxpick tags">'
+    + '<p>Labels kept in this dashboard. They are not sent to '
+    + escS(ibxPlat().label) + ' — no platform here lets an app label a conversation.</p>'
+    + suggestions.map(t => '<button class="' + (on.has(t) ? 'on' : '') + '"'
+      + ' data-ibtoggletag="' + escS(t) + '">' + (on.has(t) ? '✓ ' : '') + escS(t) + '</button>').join('')
+    + '<input class="fsearch" id="ibx-newtag" placeholder="New tag, then Enter">'
+    + '</div>';
+}
+
+/* One comment or one message.
+
+   Comments are rows with an author line; messages are bubbles, left and right,
+   because that is what a message inbox looks like everywhere else and a reader
+   should not have to learn a new shape here. */
+function ibxItem(it){
+  if (IBX.kind === 'message') {
+    return '<div class="ibxbub' + (it.mine ? ' mine' : '') + (it.pending ? ' pending' : '') + '">'
+      + '<div class="b">' + (it.body ? escS(it.body) : '<em>(no text)</em>')
+      + (it.attachments?.length
+        ? '<div class="ibxatt">' + it.attachments.map(a =>
+            a.kind === 'image' && a.url
+              ? '<img src="' + escS(a.url) + '" alt="' + escS(a.name || 'attachment') + '">'
+              : '<span>' + escS(a.name || a.kind || 'attachment') + '</span>').join('') + '</div>'
+        : '')
+      + '</div>'
+      + '<div class="m">' + escS(it.mine ? 'You' : it.author.name) + ' · '
+      + escS(ibxAgo(it.at)) + (it.pending ? ' · sending' : '') + '</div>'
+      + '</div>';
+  }
+  const canReact = ibxCan('react');
+  return '<div class="ibxit' + (it.mine ? ' mine' : '') + (it.replyTo ? ' reply' : '')
+    + (it.pending ? ' pending' : '') + '">'
+    + '<div class="ibxav sm"' + (it.author.avatar ? ' style="background-image:url(' + escS(it.author.avatar) + ')"' : '') + '>'
+    + (it.author.avatar ? '' : escS(ibxInitial(it.author.name))) + '</div>'
+    + '<div class="ibxib">'
+    +   '<div class="ibxih"><b>' + escS(it.mine ? 'You' : it.author.name) + '</b>'
+    +     '<span class="tm">' + escS(ibxAgo(it.at)) + '</span>'
+    +     (it.pending ? '<span class="ibxn">posting</span>' : '') + '</div>'
+    +   '<div class="ibxbody">' + escS(it.body || '(no text)') + '</div>'
+    +   '<div class="ibxacts">'
+    +     (canReact
+        ? '<button class="ibxlike' + (it.likedByUs ? ' on' : '') + '"'
+          + ' data-iblike="' + escS(it.id) + '" data-ibon="' + (it.likedByUs ? '0' : '1') + '">'
+          + '♥ ' + (it.likes || 0) + '</button>'
+        : (it.likes ? '<span class="ibxlike flat" title="' + escS(ibxWhy('react') || '')
+            + '">♥ ' + it.likes + '</span>' : ''))
+    +   '</div>'
+    + '</div></div>';
+}
+
+function ibxReader(){
+  if (!IBX.sel) {
+    return '<div class="empty"><b>Nothing open</b>'
+      + '<small>Pick a ' + escS(IBX.kind) + ' on the left. Opening one loads the whole '
+      + (IBX.kind === 'message' ? 'conversation' : 'comment history') + '.</small></div>';
+  }
+  const t = IBX.threads.find(x => x.id === IBX.sel);
+  const head = '<div class="ibxhead">'
+    + '<div class="ibxhl">'
+    +   '<b>' + escS(t?.with.name || 'Conversation') + '</b>'
+    +   (t?.from && (t.from.title || t.from.id)
+        ? '<span class="ibxfrom big">'
+          + '<i>' + escS(t.from.kind === 'video' ? 'video' : t.from.kind === 'media' ? 'post' : t.from.kind) + '</i>'
+          + (t.from.link
+            ? '<a href="' + escS(t.from.link) + '" target="_blank" rel="noopener">'
+              + escS(t.from.title || t.from.id) + '</a>'
+            : escS(t.from.title || t.from.id))
+          + '</span>'
+        : '')
+    +   '<div class="ibxtagbar">'
+    +     (IBX.threadTags.length
+          ? IBX.threadTags.map(x => '<span class="ibxtag">' + escS(x) + '</span>').join('')
+          : '')
+    +     '<button class="tgl' + (IBX.picker === 'tag' ? ' on' : '') + '" data-ibpick="tag"'
+    +       ' title="A label kept in this dashboard, not sent to the platform">'
+    +       (IBX.threadTags.length ? '# Tags' : '# Tag this') + '</button>'
+    +   '</div>'
+    +   (IBX.picker === 'tag' ? ibxTagPicker() : '')
+    + '</div>'
+    + '<button class="ldclose" data-ibclose="1" title="Close (Esc)" aria-label="Close">×</button>'
+    + '</div>';
+
+  const body = IBX.loadingThread
+    ? '<div class="empty"><b>Reading the ' + (IBX.kind === 'message' ? 'conversation' : 'thread') + '…</b></div>'
+    : IBX.items.length
+      ? '<div class="ibxthread' + (IBX.kind === 'message' ? ' msgs' : '') + '">'
+        + IBX.items.map(ibxItem).join('')
+        + (t && t.count > IBX.items.length
+          ? '<p class="ytnote">' + t.count + ' in the thread on '
+            + escS(ibxPlat().label) + ', ' + IBX.items.length + ' held here.</p>'
+          : '')
+        + '</div>'
+      : '<div class="empty"><b>Nothing in this thread</b></div>';
+
+  return head + body + ibxComposer();
+}
+
+/* The new-comment sheet: which of the account's own posts to comment under.
+
+   The list is social_posts, which the metrics poller already fills, so opening
+   this spends no quota. */
+function ibxCompose(){
+  const c = IBX.compose;
+  if (!c) return '';
+  const mine = IBX.targets.filter(t => IBX.account === 'all' || t.account === IBX.account);
+  return '<div class="ibxsheet"><div class="ibxsheetin">'
+    + '<div class="ibxhead"><div class="ibxhl"><b>New comment on '
+    + escS(ibxPlat().label) + '</b></div>'
+    + '<button class="ldclose" data-ibcompclose="1" aria-label="Close">×</button></div>'
+    + (mine.length
+      ? '<label class="ibxlab">Under which post</label>'
+        + '<select id="ibx-target">'
+        + '<option value="">Pick one…</option>'
+        + mine.map(t => '<option value="' + escS(t.id) + '|' + escS(t.account) + '"'
+            + (c.parent === t.id ? ' selected' : '') + '>'
+            + escS(String(t.title).slice(0, 70))
+            + (t.at ? ' — ' + escS(new Date(t.at).toLocaleDateString()) : '')
+            + '</option>').join('')
+        + '</select>'
+        + '<textarea id="ibx-comptext" rows="4" placeholder="Your comment…">' + escS(c.text) + '</textarea>'
+        + '<div class="ibxcbar"><span class="grow"></span>'
+        + '<button class="btn" data-ibpost="1"'
+        + (IBX.sending || !c.text.trim() || !c.parent ? ' disabled' : '') + '>'
+        + (IBX.sending ? 'Posting…' : 'Post comment') + '</button></div>'
+      : '<div class="empty"><b>No posts to comment on</b>'
+        + '<small>This dashboard lists posts from the metrics sync. Run <b>Fetch now</b> '
+        + 'on the platform view first.</small></div>')
+    + '</div></div>';
+}
+
+function inboxView(){
+  return ibxTabs()
+    + ibxCapBar()
+    + (IBX.err ? '<div class="err">' + escS(IBX.err) + '</div>' : '')
+    + ibxToolbar()
+    + '<div class="mailwrap' + (IBX.sel ? ' split' : '') + '">'
+    +   '<div class="card flush maillist">'
+    +     '<div class="cardhead"><h3>' + escS(IBX_KIND_LABEL[IBX.kind]) + '</h3>'
+    +       '<span class="eyebrow">' + (IBX.total
+              ? IBX.total.toLocaleString() + (IBX.unreadCount ? ' · ' + IBX.unreadCount + ' unread' : '')
+              : '—') + '</span></div>'
+    +     '<div id="ibx-list">' + ibxList() + '</div>'
+    +     ibxFooter()
+    +   '</div>'
+    +   (IBX.sel ? '<div class="gutter"></div>' : '')
+    +   (IBX.sel ? '<div class="card flush reader">' + ibxReader() + '</div>' : '')
+    + '</div>'
+    + ibxCompose();
+}
+
+/* A redraw of just this view, so a keystroke in the composer does not repaint
+   the platform tabs and take the caret with them. */
+function ibxDraw(){
+  if (SO.view !== 'inbox') return;
+  const body = document.getElementById('so-body');
+  if (!body) return;
+  /* The caret, kept across the repaint. Losing it mid-sentence is the single
+     most annoying thing a live-updating composer can do. */
+  const active = document.activeElement;
+  const keep = active && (active.id === 'ibx-draft' || active.id === 'ibx-comptext' || active.id === 'ibx-q')
+    ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+
+  body.innerHTML = inboxView();
+  ibxWire(body);
+  const sub = document.getElementById('so-sub');
+  if (sub) {
+    sub.textContent = IBX.accounts.length
+      ? IBX.accounts.map(a => a.label).join(', ')
+        + ' · ' + IBX.total.toLocaleString() + ' ' + IBX.kind + (IBX.total === 1 ? '' : 's') + ' held'
+        + (IBX.unreadCount ? ' · ' + IBX.unreadCount + ' unread' : '')
+      : 'Nothing connected on ' + ibxPlat().label + '.';
+  }
+  if (keep) {
+    const el = document.getElementById(keep.id);
+    if (el) { el.focus(); try { el.setSelectionRange(keep.start, keep.end); } catch { /* not a text field */ } }
+  }
+}
+
+function ibxInsertAtCaret(text){
+  const el = document.getElementById('ibx-draft');
+  if (!el) { IBX.draft += text; return; }
+  const s = el.selectionStart ?? IBX.draft.length;
+  const e = el.selectionEnd ?? s;
+  IBX.draft = IBX.draft.slice(0, s) + text + IBX.draft.slice(e);
+  ibxDraw();
+  const back = document.getElementById('ibx-draft');
+  if (back) { back.focus(); try { back.setSelectionRange(s + text.length, s + text.length); } catch { /* fine */ } }
+}
+
+function ibxWire(body){
+  body.querySelectorAll('[data-ibplat]').forEach(b => b.onclick = () => {
+    IBX.platform = b.dataset.ibplat;
+    /* A platform that has no messages must not open on its Messages tab. */
+    if (!ibxPlat().kinds.includes(IBX.kind)) IBX.kind = 'comment';
+    IBX.account = 'all'; IBX.sel = null; IBX.items = []; IBX.q = '';
+    IBX.tag = null; IBX.compose = null; IBX.err = null;
+    ibxLoad(); ibxTagList();
+  });
+  body.querySelectorAll('[data-ibkind]').forEach(b => b.onclick = () => {
+    IBX.kind = b.dataset.ibkind;
+    IBX.sel = null; IBX.items = []; IBX.q = ''; IBX.tag = null; IBX.err = null;
+    ibxLoad(); ibxTagList();
+  });
+  body.querySelectorAll('[data-ibacct]').forEach(b => b.onclick = () => {
+    IBX.account = b.dataset.ibacct; IBX.sel = null; ibxLoad();
+  });
+  body.querySelectorAll('[data-ibtag]').forEach(b => b.onclick = () => {
+    IBX.tag = b.dataset.ibtag || null; ibxLoad();
+  });
+  body.querySelectorAll('[data-ibunread]').forEach(b => b.onclick = () => {
+    IBX.unreadOnly = !IBX.unreadOnly; ibxLoad();
+  });
+  body.querySelectorAll('[data-ibsync]').forEach(b => b.onclick = ibxSync);
+  body.querySelectorAll('[data-ibmore]').forEach(b => b.onclick = () => ibxLoad({ more: true }));
+  body.querySelectorAll('[data-ibopen]').forEach(b => {
+    b.onclick = () => ibxOpen(b.dataset.ibopen);
+    b.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ibxOpen(b.dataset.ibopen); } };
+  });
+  body.querySelectorAll('[data-ibclose]').forEach(b => b.onclick = () => {
+    IBX.sel = null; IBX.items = []; IBX.picker = null; ibxDraw();
+  });
+
+  const q = body.querySelector('#ibx-q');
+  if (q) q.oninput = () => {
+    IBX.q = q.value;
+    clearTimeout(IBX.qTimer);
+    IBX.qTimer = setTimeout(() => ibxLoad(), 260);
+  };
+
+  const draft = body.querySelector('#ibx-draft');
+  if (draft) {
+    draft.oninput = () => { IBX.draft = draft.value; ibxSendState(); };
+    /* Enter sends, Shift+Enter is a newline. The same bargain the reply box on
+       the Leads view makes. */
+    draft.onkeydown = e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ibxSend(); }
+      if (e.key === 'Escape') { IBX.picker = null; ibxDraw(); }
+    };
+  }
+  body.querySelectorAll('[data-ibsend]').forEach(b => b.onclick = ibxSend);
+  body.querySelectorAll('[data-ibpick]').forEach(b => b.onclick = () => {
+    IBX.picker = IBX.picker === b.dataset.ibpick ? null : b.dataset.ibpick;
+    if (IBX.picker === 'tag' && !IBX.tagsInUse.length) ibxTagList();
+    ibxDraw();
+  });
+  body.querySelectorAll('[data-ibmention]').forEach(b => b.onclick = () => {
+    const name = b.dataset.ibmention;
+    /* Instagram and YouTube handles already carry the @. */
+    ibxInsertAtCaret((/^@/.test(name) ? name : '@' + name) + ' ');
+    IBX.picker = null;
+  });
+  body.querySelectorAll('[data-ibtoggletag]').forEach(b => b.onclick = () => {
+    const t = b.dataset.ibtoggletag;
+    const on = new Set(IBX.threadTags);
+    if (on.has(t)) on.delete(t); else on.add(t);
+    ibxSetTags([...on]);
+  });
+  const newTag = body.querySelector('#ibx-newtag');
+  if (newTag) newTag.onkeydown = e => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const v = newTag.value.trim();
+    if (!v) return;
+    ibxSetTags([...new Set([...IBX.threadTags, v])]);
+  };
+  body.querySelectorAll('[data-iblike]').forEach(b => b.onclick = () =>
+    ibxReact(b.dataset.iblike, b.dataset.ibon === '1'));
+
+  body.querySelectorAll('[data-ibnew]').forEach(b => b.onclick = async () => {
+    IBX.compose = { account: IBX.account === 'all' ? (IBX.accounts[0]?.id || '') : IBX.account,
+      parent: null, text: '' };
+    ibxDraw();
+    await ibxTargets();
+    ibxDraw();
+  });
+  body.querySelectorAll('[data-ibcompclose]').forEach(b => b.onclick = () => {
+    IBX.compose = null; ibxDraw();
+  });
+  const target = body.querySelector('#ibx-target');
+  if (target) target.onchange = () => {
+    const [parent, account] = String(target.value).split('|');
+    IBX.compose.parent = parent || null;
+    if (account) IBX.compose.account = account;
+    ibxDraw();
+  };
+  const compText = body.querySelector('#ibx-comptext');
+  if (compText) compText.oninput = () => {
+    IBX.compose.text = compText.value;
+    const btn = document.querySelector('[data-ibpost]');
+    if (btn) btn.disabled = IBX.sending || !IBX.compose.text.trim() || !IBX.compose.parent;
+  };
+  body.querySelectorAll('[data-ibpost]').forEach(b => b.onclick = ibxPostComment);
+}
+
+/* Just the Send button, so typing does not repaint the textarea underneath the
+   caret on every character. */
+function ibxSendState(){
+  const b = document.querySelector('[data-ibsend]');
+  if (b) b.disabled = IBX.sending || !IBX.draft.trim();
+}
+
+/* Escape closes the open thread, the same as on the Leads view, and only when
+   the Social view is on screen and nothing is being typed into. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (SO.view !== 'inbox') return;
+  if (!document.getElementById('v-social')?.classList.contains('on')) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (IBX.compose) { IBX.compose = null; ibxDraw(); return; }
+  if (!IBX.sel) return;
+  IBX.sel = null; IBX.items = []; ibxDraw();
 });
 
 /* ================= TASKS =================

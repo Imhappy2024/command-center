@@ -411,3 +411,13 @@ CREATE TABLE IF NOT EXISTS social_items (
 );
 CREATE INDEX IF NOT EXISTS social_items_thread ON social_items (thread_id, created_at);
 CREATE INDEX IF NOT EXISTS social_items_acct ON social_items (account_id, created_at DESC);
+
+/* Labels put on a thread HERE, not on the platform.
+
+   None of the three platforms lets an app label a comment or a conversation, so
+   this is local triage and is described that way in the UI: "follow up" on a
+   comment is a note to whoever reads this dashboard next, and it does not appear
+   in YouTube Studio or the Meta inbox. A tag that silently failed to reach the
+   platform would be worse than no tags at all. */
+ALTER TABLE social_threads ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
+CREATE INDEX IF NOT EXISTS social_threads_tags ON social_threads USING GIN (tags);

@@ -16,7 +16,8 @@ import { guarded } from './guard.js';
 import { accountsFor } from '../lib/accounts.js';
 import {
   INBOX_PLATFORMS, capabilities, listThreads, loadThread, markThreadRead,
-  mentionable, reply, postComment, react, postTargets, syncInbox, inboxHealth
+  mentionable, reply, postComment, react, postTargets, syncInbox, inboxHealth,
+  tagThread, tagsInUse
 } from '../lib/social-inbox.js';
 
 /* A platform name from a query string, or nothing. Validated against the list
@@ -62,6 +63,7 @@ export function inboxRoutes({ auth }){
     const out = await listThreads({
       platform, kind, accountIds: ids,
       q: req.query.q || null,
+      tag: req.query.tag || null,
       unread: String(req.query.unread || '') === '1',
       limit: req.query.limit,
       offset: req.query.offset
@@ -152,6 +154,28 @@ export function inboxRoutes({ auth }){
         });
       }
     }));
+
+  /* Tags. Local labels, and the response says so rather than leaving the caller
+     to assume they reached the platform -- none of the three lets an app label a
+     comment or a conversation. */
+  r.post('/api/social/inbox/thread/:id/tags', auth.require, json,
+    guarded('api/social/inbox/tags', async (req, res) => {
+      try {
+        res.json({
+          ok: true,
+          local: true,
+          ...await tagThread(req.params.id, req.body?.tags)
+        });
+      } catch (err) {
+        res.status(err.status || 400).json({ error: err.message });
+      }
+    }));
+
+  r.get('/api/social/inbox/tags', auth.require, guarded('api/social/inbox/tags:list', async (req, res) => {
+    const platform = platformOf(req.query.platform);
+    if (!platform) return res.status(400).json({ error: 'platform is required' });
+    res.json({ tags: await tagsInUse({ platform, kind: kindOf(req.query.kind) }) });
+  }));
 
   /* Sync now. One platform at a time by default, so a YouTube click cannot
      spend Meta's rate budget. */
