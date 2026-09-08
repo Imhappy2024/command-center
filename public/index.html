@@ -619,9 +619,60 @@ body.ycmlock{overflow:hidden}
 .mgsend:hover{background:var(--panel2)}
 .mgsend[disabled]{color:var(--dimmer);cursor:default;background:none}
 
-.mgwarn{font-size:11.5px;color:var(--amber,#d9a441);line-height:1.5;
-  background:rgba(217,164,65,.09);border:1px solid rgba(217,164,65,.22);
-  border-radius:8px;padding:8px 11px;margin-bottom:9px}
+/* ---- reply and react, on the bubble ----
+
+   Hidden until the pointer is on the message or the keyboard is in it. Forty
+   messages with two buttons each is eighty buttons on screen; Messenger hides
+   them for the same reason. */
+.mgbubrow{display:flex;align-items:center;gap:6px}
+.mgline.mine .mgbubrow{flex-direction:row-reverse}
+.mgtools{display:flex;align-items:center;gap:2px;position:relative;
+  opacity:0;pointer-events:none;transition:opacity .12s}
+.mgline:hover .mgtools,.mgline:focus-within .mgtools{opacity:1;pointer-events:auto}
+.mghover{width:26px;height:26px;border:0;border-radius:50%;cursor:pointer;background:none;
+  color:var(--dimmer);display:flex;align-items:center;justify-content:center;flex:none}
+.mghover svg{width:15px;height:15px;fill:currentColor}
+.mghover:hover{background:var(--panel2);color:var(--cream)}
+.mghover.on{background:var(--panel2);color:var(--brass)}
+
+/* The reaction row. Above the bubble rather than beside it, so it never
+   pushes the message sideways as it opens. */
+.mgreactbar{position:absolute;bottom:30px;left:0;z-index:5;display:flex;gap:2px;
+  background:var(--panel);border:1px solid var(--edge2);border-radius:999px;
+  padding:4px 6px;box-shadow:0 8px 24px rgba(0,0,0,.45)}
+.mgline.mine .mgreactbar{left:auto;right:0}
+.mgreactbar button{background:none;border:0;cursor:pointer;font-size:19px;line-height:1;
+  padding:3px 4px;border-radius:50%;transition:transform .1s}
+.mgreactbar button:hover{transform:scale(1.25)}
+.mgreactbar button.clear{font-size:15px;color:var(--dimmer)}
+
+/* A reaction that has been left on a message, tucked under its corner the way
+   Messenger tucks it. */
+.mgreact{font-size:13px;line-height:1;margin:-6px 8px 0;background:var(--panel);
+  border:1px solid var(--edge);border-radius:999px;padding:2px 5px;align-self:flex-start;
+  position:relative;z-index:1}
+.mgline.mine .mgreact{align-self:flex-end}
+
+/* What a message is answering. */
+.mgquote{font-size:11.5px;color:var(--dimmer);border-left:2px solid var(--edge2);
+  padding:2px 0 2px 8px;margin:0 4px 3px;max-width:100%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.mgreplybar{display:flex;align-items:flex-start;gap:10px;margin-bottom:9px;
+  background:var(--ink2);border-left:3px solid var(--brass);border-radius:8px;padding:8px 11px}
+.mgreplybar span{font-size:11px;color:var(--brass);font-family:var(--ff-mono)}
+.mgreplybar p{margin:2px 0 0;font-size:12px;color:var(--dim);line-height:1.4;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mgreplybar div{min-width:0;flex:1}
+
+/* Every picker gets a title and a close. */
+.mgpickhead{display:flex;align-items:center;margin:-2px 0 8px}
+.mgpickhead b{font-size:11px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--dimmer);font-family:var(--ff-mono);font-weight:400}
+.mgx{margin-left:auto;background:none;border:0;color:var(--dimmer);font-size:18px;
+  line-height:1;cursor:pointer;padding:0 4px;border-radius:6px;flex:none}
+.mgx:hover{color:var(--cream);background:var(--panel2)}
+
+
 .mgrec{font-size:11.5px;color:var(--dimmer);padding:6px 4px 0;
   font-family:var(--ff-mono)}
 .mgflat{background:none;border:0;cursor:pointer;font-family:inherit;font-size:12px;
@@ -1866,6 +1917,91 @@ body.ycmlock{overflow:hidden}
 .bulkbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;background:var(--panel2);
   border:1px solid var(--edge2);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px}
 .bulkbar .cnt2{font-size:13px;color:var(--cream);font-variation-settings:'wght' 600}
+
+/* ---- checkout links ---- */
+
+/* Rows, not cards. A product here is a name, a price and a link — three short
+   values that line up better than they tile. */
+.wplist{display:flex;flex-direction:column;gap:1px;background:var(--edge);
+  border:1px solid var(--edge);border-radius:var(--r-md);overflow:hidden}
+.wprow{display:flex;align-items:center;gap:12px;background:var(--panel);padding:13px 15px;transition:background .13s}
+.wprow:hover{background:var(--panel2)}
+.wprow .nm{flex:1;min-width:0;font-size:13.5px;color:var(--cream);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wprow .pr{font-family:var(--ff-mono);font-size:11px;color:var(--dim);white-space:nowrap}
+.wprow .pr.free{color:var(--jade)}
+
+/* The link button carries its label in a tooltip rather than beside it: the
+   row is already three columns wide and "Copy product URL" doubles it. */
+.wplink{position:relative;display:grid;place-items:center;background:none;border:1px solid var(--edge);
+  border-radius:8px;color:var(--dim);cursor:pointer;width:32px;height:32px;flex:none;transition:.14s}
+.wplink:hover:not(.dis){border-color:var(--brass);color:var(--brass);background:var(--panel2)}
+.wplink.dis{opacity:.4;cursor:not-allowed}
+.wplink svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.wplink .tip{position:absolute;right:0;bottom:calc(100% + 7px);white-space:nowrap;pointer-events:none;
+  background:var(--ink2);border:1px solid var(--edge2);border-radius:6px;color:var(--cream);
+  font-family:var(--ff-mono);font-size:10px;letter-spacing:.04em;padding:5px 8px;
+  opacity:0;transform:translateY(3px);transition:.14s;z-index:4}
+.wplink:hover .tip,.wplink:focus-visible .tip{opacity:1;transform:none}
+
+/* Free vs Paid. Two radio cards, because the choice changes what the rest of
+   the form shows and a select would hide that. */
+.wpchoice{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+@media(max-width:520px){.wpchoice{grid-template-columns:1fr}}
+.wpopt{display:flex;align-items:center;gap:10px;background:var(--ink2);border:1.5px solid var(--edge);
+  border-radius:var(--r-md);padding:13px 14px;cursor:pointer;text-align:left;color:inherit;transition:.15s var(--ease)}
+.wpopt:hover{border-color:var(--edge2)}
+.wpopt.on{border-color:var(--brass);background:rgba(124,108,255,.06)}
+.wpopt .lbl{flex:1;font-size:13px;color:var(--cream)}
+.wpopt .dot{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--edge2);flex:none;
+  display:grid;place-items:center}
+.wpopt.on .dot{border-color:var(--brass)}
+.wpopt.on .dot::after{content:'';width:8px;height:8px;border-radius:50%;background:var(--brass)}
+
+/* The price is a button that opens the pricing dialog, and it reads as a field
+   so it is obvious it holds a value rather than performing an action. */
+.wpprice{width:100%;display:flex;align-items:center;gap:10px;background:var(--ink2);
+  border:1px solid var(--edge);border-radius:var(--r-md);color:var(--cream);font:inherit;font-size:13.5px;
+  padding:12px 14px;cursor:pointer;text-align:left;transition:.14s}
+.wpprice:hover{border-color:var(--edge2);background:var(--panel2)}
+.wpprice .v{flex:1}
+.wpprice .ch{color:var(--dimmer);font-size:15px;line-height:1}
+
+/* Suggested amounts under the input in the pricing dialog. */
+.wpsug{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.wpsug button{background:var(--panel2);border:1px solid var(--edge);border-radius:6px;color:var(--dim);
+  cursor:pointer;font-family:var(--ff-mono);font-size:11px;padding:4px 9px;transition:.13s}
+.wpsug button:hover{border-color:var(--brass);color:var(--cream)}
+
+.wpamt{display:grid;grid-template-columns:1fr 150px 110px;gap:10px}
+.wpamt.once{grid-template-columns:1fr 110px}
+@media(max-width:600px){.wpamt,.wpamt.once{grid-template-columns:1fr}}
+.wpamt select{width:100%;background:var(--ink2);border:1px solid var(--edge);border-radius:var(--r-md);
+  color:var(--text);font:inherit;font-size:13.5px;padding:10px 12px}
+.wpamt select:focus{outline:none;border-color:var(--brass)}
+
+/* The currency symbol sits inside the field, so the number reads as a price
+   rather than as a quantity. */
+.wpin{display:flex;align-items:center;gap:8px;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:var(--r-md);padding:0 12px}
+.wpin:focus-within{border-color:var(--brass)}
+.wpin .sym{color:var(--dimmer);font-family:var(--ff-mono);font-size:13px;flex:none}
+.wpin input{flex:1;min-width:0;background:none;border:0;color:var(--text);font:inherit;
+  font-size:13.5px;padding:10px 0}
+.wpin input:focus{outline:none}
+
+/* `.hint` and `.mono` are both scoped to other components in this sheet, so
+   this section carries its own rather than widening theirs. */
+.wphint{font-size:11.5px;color:var(--dimmer);line-height:1.55}
+.wpmono{font-family:var(--ff-mono);font-size:12px;color:var(--cream)}
+
+/* The finished link. Monospace and selectable — people read a URL before they
+   trust a Copy button. */
+.wpurl{display:flex;align-items:center;gap:8px;background:var(--ink2);border:1px solid var(--edge2);
+  border-radius:var(--r-md);padding:11px 13px}
+.wpurl code{flex:1;min-width:0;font-family:var(--ff-mono);font-size:12px;color:var(--cream);
+  overflow-x:auto;white-space:nowrap;user-select:all}
 
 /* ---- modals ---- */
 .mwrap{position:fixed;inset:0;z-index:75;display:none;align-items:center;justify-content:center;
@@ -3742,6 +3878,33 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div class="mbody"><div class="autos" style="grid-template-columns:1fr 1fr;margin-bottom:0" id="cl-platforms"></div></div>
     <div class="mfoot"><span style="flex:1;font-size:11.5px;color:var(--dimmer)">Connect there, then reopen this dialog and the account appears.</span>
       <button class="btn primary" id="cl-openopus">Open OpusClip</button></div>
+  </div>
+</div>
+
+<!-- whop: pricing option -->
+<div class="mwrap" id="wp-price">
+  <div class="mbox narrow">
+    <div class="mhead"><div style="flex:1"><h3>Pricing option</h3>
+      <p>How the customer is charged. Done writes it back to the form; nothing is created yet.</p></div>
+      <button class="xbtn" data-mclose="wp-price">&times;</button></div>
+    <div class="mbody" id="wp-pricebody"></div>
+    <div class="mfoot"><button class="tgl danger" id="wp-pricereset">Clear price</button>
+      <span style="flex:1"></span>
+      <button class="tgl" data-mclose="wp-price">Cancel</button>
+      <button class="btn primary" id="wp-pricedone">Done</button></div>
+  </div>
+</div>
+
+<!-- whop: the finished link -->
+<div class="mwrap" id="wp-made">
+  <div class="mbox narrow">
+    <div class="mhead"><div style="flex:1"><h3 id="wp-madetitle">Product created</h3>
+      <p id="wp-madesub">Share this link and the customer lands on Whop's checkout.</p></div>
+      <button class="xbtn" data-mclose="wp-made">&times;</button></div>
+    <div class="mbody" id="wp-madebody"></div>
+    <div class="mfoot"><span style="flex:1"></span>
+      <button class="tgl" data-mclose="wp-made">Close</button>
+      <button class="btn primary" id="wp-madecopy">Copy link</button></div>
   </div>
 </div>
 </div>
@@ -9171,6 +9334,9 @@ const IBX = {
   /* The Messenger panes. side is the profile column, panel is the sticker or
      GIF sheet, emoji is the picker, find is the in-conversation search. */
   side: true, panel: null, emoji: false, linkDraft: '',
+  /* replyTo is the item being answered; reactFor is the message whose
+     reaction row is open. One at a time, both cleared by Escape. */
+  replyTo: null, reactFor: null,
   find: '', findOpen: false, sidePick: null, attaching: null, health: []
 };
 
@@ -9304,8 +9470,12 @@ async function ibxSend(){
   if (!text || !IBX.sel || IBX.sending) return;
   IBX.sending = true; IBX.err = null; ibxDraw();
   try {
-    await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/reply', { text });
-    IBX.draft = '';
+    await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/reply',
+      /* The message being answered, when one was picked. The server turns this
+         row id into the platform's own message id -- the browser knows our ids
+         and has no business knowing Meta's. */
+      { text, replyTo: IBX.replyTo || null });
+    IBX.draft = ''; IBX.replyTo = null;
     await ibxOpen(IBX.sel);
     /* The list row's snippet and time changed too. */
     ibxLoad();
@@ -10010,20 +10180,6 @@ const MSGR_REC = { rec: null, stream: null, chunks: [], startedAt: 0, timer: nul
 
 const msgrHasSide = () => IBX.side !== false;
 
-/* Is Meta's 24-hour window still open on this thread?
-
-   Their clock, not ours: it runs from the last message THEY sent. Inside it a
-   Page may reply freely; outside it Meta refuses everything but an approved
-   tag, and the refusal reads like a bug in this app unless something warned
-   first. */
-function msgrWindow(){
-  const theirs = IBX.items.filter(i => !i.mine && i.at);
-  if (!theirs.length) return { open: false, reason: 'nothing received' };
-  const last = Math.max(...theirs.map(i => Date.parse(i.at) || 0));
-  const hours = (Date.now() - last) / 3600_000;
-  return { open: hours < 24, hours, last };
-}
-
 function msgrAvatar(who, cls){
   const url = who?.avatar;
   return '<div class="mgav' + (cls ? ' ' + cls : '') + '"'
@@ -10126,17 +10282,93 @@ function msgrBubble(it, prev, next){
   }).join('');
 
   const body = it.body ? escS(it.body) : '';
+
+  /* What this message is answering, when it is answering one. Quoted above the
+     bubble the way every message app does it, so a reply four turns later still
+     reads against the thing it replies to. */
+  const quoted = it.replyTo
+    ? IBX.items.find(x => x.externalId === it.replyTo) : null;
+
+  const mine = (it.reactions || []).find(r => r.by === 'us');
+
   return '<div class="mgline' + (it.mine ? ' mine' : '')
-    + (first ? ' first' : '') + (last ? ' last' : '') + (it.pending ? ' pending' : '') + '">'
+    + (first ? ' first' : '') + (last ? ' last' : '') + (it.pending ? ' pending' : '') + '"'
+    + ' data-mgitem="' + escS(it.id) + '">'
     + (it.mine ? '' : (last ? msgrAvatar(it.author, 'sm') : '<div class="mgav sm blank"></div>'))
     + '<div class="mgbubwrap">'
-    +   (body || atts
-        ? '<div class="mgbub"' + (it.at ? ' title="' + escS(new Date(it.at).toLocaleString()) + '"' : '') + '>'
-          + body + atts + '</div>'
-        : '<div class="mgbub empty">(no content)</div>')
+    +   (quoted
+        ? '<div class="mgquote">' + escS(quoted.mine ? 'You' : quoted.author.name) + ': '
+          + escS(String(quoted.body || '(attachment)').slice(0, 90)) + '</div>'
+        : '')
+    +   '<div class="mgbubrow">'
+    +     (body || atts
+          ? '<div class="mgbub"' + (it.at ? ' title="' + escS(new Date(it.at).toLocaleString()) + '"' : '') + '>'
+            + body + atts + '</div>'
+          : '<div class="mgbub empty">(no content)</div>')
+    +     msgrHoverTools(it)
+    +   '</div>'
+    +   (mine
+        ? '<div class="mgreact" title="You reacted ' + escS(mine.reaction) + '">'
+          + escS(MSGR_REACT_EMOJI[mine.reaction] || mine.reaction) + '</div>'
+        : '')
     +   (last ? '<div class="mgmeta">' + escS(ibxAgo(it.at))
           + (it.pending ? ' · sending' : '') + '</div>' : '')
     + '</div></div>';
+}
+
+/* Reply and react, on the bubble, visible on hover.
+
+   On hover because a reply button on every message is forty buttons on screen
+   at once, and Messenger does the same thing for the same reason. They stay
+   reachable from the keyboard: the row is focusable, and focus shows them too.
+
+   The reaction row opens on click rather than on hover-of-a-hover. A menu that
+   appears because the pointer drifted over a button is a menu that opens by
+   accident. */
+function msgrHoverTools(it){
+  if (!ibxCan('messages') || it.pending) return '';
+  return '<div class="mgtools">'
+    + '<button class="mghover" data-mgreply="' + escS(it.id) + '" title="Reply to this message">'
+    + msgrIcon('reply') + '</button>'
+    + '<button class="mghover' + (IBX.reactFor === it.id ? ' on' : '') + '"'
+    +   ' data-mgreactopen="' + escS(it.id) + '" title="React">' + msgrIcon('emoji') + '</button>'
+    + (IBX.reactFor === it.id
+      ? '<div class="mgreactbar">'
+        + MSGR_REACTIONS.map(r => '<button data-mgreact="' + escS(r.k) + '"'
+            + ' data-mgreactitem="' + escS(it.id) + '" title="' + escS(r.k) + '">'
+            + r.e + '</button>').join('')
+        + ((it.reactions || []).some(r => r.by === 'us')
+          ? '<button class="clear" data-mgreact="" data-mgreactitem="' + escS(it.id) + '"'
+            + ' title="Remove your reaction">×</button>'
+          : '')
+        + '</div>'
+      : '')
+    + '</div>';
+}
+
+/* What Meta accepts on BOTH platforms. Instagram additionally takes any emoji;
+   Messenger does not, and a reaction that works on one of the two is a control
+   that fails half the time. */
+const MSGR_REACTIONS = [
+  { k: 'love', e: '❤️' }, { k: 'haha', e: '😆' }, { k: 'wow', e: '😮' },
+  { k: 'sad', e: '😢' }, { k: 'angry', e: '😠' }, { k: 'like', e: '👍' },
+  { k: 'dislike', e: '👎' }
+];
+const MSGR_REACT_EMOJI = Object.fromEntries(MSGR_REACTIONS.map(r => [r.k, r.e]));
+
+const msgrPickerClose = title =>
+  '<div class="mgpickhead"><b>' + escS(title) + '</b>'
+  + '<button class="mgx" data-mgpickclose="1" title="Close" aria-label="Close">×</button></div>';
+
+/* The bar above the composer naming the message being answered. */
+function msgrReplyBar(){
+  const it = IBX.items.find(x => x.id === IBX.replyTo);
+  if (!it) return '';
+  return '<div class="mgreplybar">'
+    + '<div><span>Replying to ' + escS(it.mine ? 'yourself' : it.author.name) + '</span>'
+    + '<p>' + escS(String(it.body || '(attachment)').slice(0, 110)) + '</p></div>'
+    + '<button class="mgx" data-mgreplycancel="1" title="Cancel reply" aria-label="Cancel reply">×</button>'
+    + '</div>';
 }
 
 function msgrThreadBody(){
@@ -10193,7 +10425,8 @@ function msgrIcon(name){
     info: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z',
     close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
     tag: 'M21.41 11.58 12.41 2.58A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.84zM6.5 8A1.5 1.5 0 1 1 8 6.5 1.5 1.5 0 0 1 6.5 8z',
-    stop: 'M6 6h12v12H6z'
+    stop: 'M6 6h12v12H6z',
+    reply: 'M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z'
   };
   return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (paths[name] || '') + '"/></svg>';
 }
@@ -10206,17 +10439,14 @@ function msgrComposer(){
     return '<div class="mgcomp locked"><p>' + escS(ibxWhy('messages')
       || 'This connection cannot send messages.') + '</p></div>';
   }
-  const win = msgrWindow();
-  const shut = !win.open && win.reason !== 'nothing received';
+  /* No 24-hour warning.
 
+     It was above every older conversation, permanently, saying the same thing
+     about a rule that has not changed since 2018 -- and a banner that is always
+     there is furniture rather than information. When Meta actually refuses a
+     send it says so, in the error, at the moment it matters. */
   return '<div class="mgcomp">'
-    + (shut
-      ? '<div class="mgwarn">Meta’s 24-hour window has closed on this conversation — '
-        + 'their last message was ' + Math.floor(win.hours / 24) + ' day'
-        + (Math.floor(win.hours / 24) === 1 ? '' : 's') + ' ago. A Page can only send inside '
-        + 'that window without an approved message tag, so anything below will be refused '
-        + 'by Meta rather than by this app.</div>'
-      : '')
+    + (IBX.replyTo ? msgrReplyBar() : '')
     + (IBX.panel ? msgrPanel() : '')
     + (IBX.emoji ? msgrEmojiPicker() : '')
     + '<div class="mgcomprow">'
@@ -10250,6 +10480,7 @@ const msgrTool = (key, icon, title, cls) =>
 
 function msgrEmojiPicker(){
   return '<div class="mgpicker">'
+    + msgrPickerClose('Emoji')
     + Object.entries(MSGR_EMOJI).map(([group, set]) =>
       '<div class="mggroup"><h5>' + escS(group) + '</h5><div class="mggrid">'
       + set.split(' ').filter(Boolean).map(e =>
@@ -10272,6 +10503,7 @@ function msgrEmojiPicker(){
 function msgrPanel(){
   if (IBX.panel === 'sticker') {
     return '<div class="mgpicker">'
+      + msgrPickerClose('Stickers')
       + '<p>Meta publishes no sticker catalogue to apps, so there is nothing here to pick '
       + 'from. These send as a message on its own, which is what a sticker mostly is.</p>'
       + '<div class="mggrid big">'
@@ -10280,6 +10512,7 @@ function msgrPanel(){
       + '</div></div>';
   }
   return '<div class="mgpicker">'
+    + msgrPickerClose('GIF')
     + '<p>Paste a GIF link and it sends as one. Searching Giphy or Tenor needs an API key, '
     + 'which this deployment has not been given, so there is no grid to browse.</p>'
     + '<div class="mgurlrow">'
@@ -10485,6 +10718,53 @@ function msgrStopRecording(send){
 
 /* ---------- wiring ---------- */
 
+/* React to one message.
+
+   Optimistic and reverted on failure, like every other write here. Passing a
+   null reaction is how a reaction is taken back: the server sends unreact.
+
+   Meta only accepts this inside the same 24-hour window as a message, so on an
+   old conversation it fails -- and it fails with Meta's own reason rather than
+   with a guess made in advance. */
+async function msgrReact(itemId, reaction){
+  if (!IBX.sel || !itemId) return;
+  const it = IBX.items.find(x => x.id === itemId);
+  const before = it ? (it.reactions || []).slice() : [];
+  if (it) it.reactions = reaction ? [{ by: 'us', reaction }] : [];
+  IBX.reactFor = null; IBX.err = null;
+  ibxDraw();
+  try {
+    await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/react',
+      { item: itemId, on: Boolean(reaction), reaction });
+  } catch (err) {
+    if (it) it.reactions = before;
+    IBX.err = err.body?.detail || err.message || 'that reaction did not stick';
+    ibxDraw();
+  }
+}
+
+/* Escape closes whatever is open, innermost first, and a click outside a
+   picker closes it. Both are bound once rather than per redraw: rebinding a
+   document listener on every keystroke is how you end up with two hundred of
+   them. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (SO.view !== 'inbox' || IBX.kind !== 'message') return;
+  if (IBX.emoji || IBX.panel) { IBX.emoji = false; IBX.panel = null; ibxDraw(); e.stopPropagation(); return; }
+  if (IBX.reactFor) { IBX.reactFor = null; ibxDraw(); e.stopPropagation(); return; }
+  if (IBX.replyTo) { IBX.replyTo = null; ibxDraw(); e.stopPropagation(); }
+});
+
+document.addEventListener('pointerdown', e => {
+  if (SO.view !== 'inbox' || IBX.kind !== 'message') return;
+  if (!IBX.emoji && !IBX.panel && !IBX.reactFor) return;
+  const t = e.target;
+  /* Inside the panel, or on the button that toggles it: leave it alone. */
+  if (t.closest?.('.mgpicker, [data-mgtool], [data-mgemoji], .mgreactbar, [data-mgreactopen]')) return;
+  IBX.emoji = false; IBX.panel = null; IBX.reactFor = null;
+  ibxDraw();
+});
+
 function msgrWire(body){
   body.querySelectorAll('[data-mgtool]').forEach(b => b.onclick = () => {
     const k = b.dataset.mgtool;
@@ -10495,6 +10775,31 @@ function msgrWire(body){
     ibxDraw();
   });
   body.querySelectorAll('[data-mgreccancel]').forEach(b => b.onclick = () => msgrStopRecording(false));
+
+  /* Closing a picker. The X, Escape, and a click anywhere outside it -- three
+     ways because a panel that can only be closed by the button that opened it
+     is a panel people leave open. */
+  body.querySelectorAll('[data-mgpickclose]').forEach(b => b.onclick = () => {
+    IBX.panel = null; IBX.emoji = false; ibxDraw();
+  });
+
+  /* Reply to one message, and react to one. */
+  body.querySelectorAll('[data-mgreply]').forEach(b => b.onclick = () => {
+    IBX.replyTo = b.dataset.mgreply;
+    IBX.reactFor = null;
+    ibxDraw();
+    document.getElementById('ibx-draft')?.focus();
+  });
+  body.querySelectorAll('[data-mgreplycancel]').forEach(b => b.onclick = () => {
+    IBX.replyTo = null; ibxDraw();
+  });
+  body.querySelectorAll('[data-mgreactopen]').forEach(b => b.onclick = () => {
+    const id = b.dataset.mgreactopen;
+    IBX.reactFor = IBX.reactFor === id ? null : id;
+    ibxDraw();
+  });
+  body.querySelectorAll('[data-mgreact]').forEach(b => b.onclick = () =>
+    msgrReact(b.dataset.mgreactitem, b.dataset.mgreact || null));
 
   const file = body.querySelector('#mg-file');
   if (file) file.onchange = () => {
@@ -16994,6 +17299,53 @@ const SY = {
   playing: null, scheduling: null, schedTargets: new Set()
 };
 
+/* ---------- Checkout Links (Whop) ----------
+
+   `form` is the create form; `draft` is the pricing dialog's working copy, so
+   Cancel there leaves the form as it was. `made` is the product the confirmation
+   dialog is showing. */
+const WP = {
+  configured: null, loaded: false, error: null, warning: null,
+  products: [], busy: false,
+  creating: false,
+  form: null,
+  draft: null,
+  made: null
+};
+
+const WP_PERIODS = [
+  { days: 7,   label: '1 week' },
+  { days: 14,  label: '2 weeks' },
+  { days: 30,  label: '1 month' },
+  { days: 90,  label: '3 months' },
+  { days: 180, label: '6 months' },
+  { days: 365, label: '1 year' }
+];
+const WP_CURRENCIES = ['usd', 'eur', 'gbp', 'cad', 'aud', 'php'];
+const WP_SYMBOL = { usd:'$', eur:'€', gbp:'£', cad:'CA$', aud:'A$', php:'₱' };
+
+const wpBlankForm = () => ({
+  title: '',
+  access: 'paid',
+  plan: { planType:'renewal', amount:0, currency:'usd', billingPeriodDays:30 }
+});
+
+const wpPeriod = d => WP_PERIODS.find(p => p.days === Number(d))?.label || (d + ' days');
+
+const wpMoney = (amount, currency) => {
+  const n = Number(amount || 0);
+  const sym = WP_SYMBOL[String(currency || 'usd').toLowerCase()] || '';
+  const shown = Number.isInteger(n) ? String(n) : n.toFixed(2);
+  return sym ? sym + shown : shown + ' ' + String(currency).toUpperCase();
+};
+
+/* Zero is shown as "$0 per month" rather than "Free" while the form is open —
+   the field is a price being set, and collapsing it to a word hides the period
+   the person just chose. */
+const wpPlanLabel = pl => pl.planType === 'renewal'
+  ? wpMoney(pl.amount, pl.currency) + ' per ' + wpPeriod(pl.billingPeriodDays)
+  : wpMoney(pl.amount, pl.currency) + ' once';
+
 /* Only documented fields. `model` gates which of keywords/prompt is even sent,
    because the service rejects the wrong one for the model. */
 const SYP_DEFAULTS = {
@@ -17040,6 +17392,7 @@ async function loadSystems(){
     SY.automations = out.automations || [];
     SY.cfg = out.clip || null;
     SY.projects = out.clip?.recent || [];
+    if (out.whop && WP.configured === null) WP.configured = out.whop.configured;
   } catch (err) {
     SY.automations = []; SY.cfg = { configured:false, error: err.message };
   }
@@ -17074,14 +17427,21 @@ function drawSystems(){
     state.innerHTML = S && S.busy
       ? '<span class="d" style="background:var(--brass)"></span>Analysing…'
       : '<span class="d" style="background:var(--jade)"></span>Runs on your Claude subscription';
+  } else if (SY.open === 'whop') {
+    state.innerHTML = WP.configured === false
+      ? '<span class="d" style="background:var(--rust)"></span>Whop not configured'
+      : '<span class="d" style="background:var(--jade)"></span>Whop connected'
+        + (WP.loaded ? ' · ' + WP.products.length + ' product' + (WP.products.length === 1 ? '' : 's') : '');
   } else state.innerHTML = '';
 
   routeSync('systems');
   body.innerHTML = SY.open === 'clip' ? clipSystem()
     : SY.open === 'metrics' ? metricsSystem()
+    : SY.open === 'whop' ? whopSystem()
     : automationGrid();
   wireSystems(body);
   if (SY.open === 'metrics') wireAgents(body);
+  if (SY.open === 'whop') wireWhop(body);
 }
 
 function automationGrid(){
@@ -17299,12 +17659,300 @@ function projectView(){
 
 /* ---------- wiring ---------- */
 
+/* ---------- Checkout Links (Whop) ----------
+
+   Two screens in one section: a list of products, and the create form. The form
+   replaces the list rather than opening beside it, because the price dialog is
+   already a layer and stacking a drawer under a modal is where focus goes to
+   die. */
+
+const WPICON = {
+  link: '<svg viewBox="0 0 24 24"><path d="M9.5 14.5l5-5M7 12l-2 2a3.5 3.5 0 005 5l2-2M17 12l2-2a3.5 3.5 0 00-5-5l-2 2"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" style="width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round"><path d="M12 5v14M5 12h14"/></svg>',
+  tick: '<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>'
+};
+
+/* navigator.clipboard needs a secure context, which the hosted app has and a
+   plain-http local run does not. The textarea path is the fallback, not the
+   main road. */
+function wpCopy(text, what){
+  const done = () => toast((what || 'Link') + ' copied');
+  const fail = () => toast('Could not copy. Select the link and copy it by hand.', 'bad');
+  if (navigator.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(done, fail);
+    return;
+  }
+  try {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand('copy');
+    ta.remove();
+    ok ? done() : fail();
+  } catch { fail(); }
+}
+
+async function loadWhop(){
+  if (CAL.demo) return;
+  WP.error = null;
+  try {
+    const out = await api('/api/systems/whop/products');
+    WP.configured = out.configured !== false;
+    WP.products = out.products || [];
+    WP.warning = out.warning || out.error || null;
+  } catch (err) {
+    WP.error = err.message;
+  }
+  WP.loaded = true;
+  drawSystems();
+}
+
+function whopSystem(){
+  if (WP.configured === false) {
+    return '<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
+      + '<span class="tx"><b>Whop is not configured.</b> Set <span class="wpmono">WHOP_API_KEY</span> on the '
+      + 'server to an Account API key from your Whop dashboard settings, then reload.</span></div></div></div>';
+  }
+  if (!WP.loaded) return '<div class="vwrap viz"><div class="vempty"><b>Loading…</b></div></div>';
+  if (WP.error) {
+    return '<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
+      + '<span class="tx"><b>Whop could not be reached.</b> ' + escS(WP.error) + '</span></div>'
+      + '<div style="margin-top:12px"><button class="tgl" data-wpreload="1">Try again</button></div></div></div>';
+  }
+  return WP.creating ? whopForm() : whopList();
+}
+
+function whopList(){
+  const warn = WP.warning
+    ? '<div class="vbody" style="padding-top:0"><div class="insrow"><span class="sev warn">!</span>'
+      + '<span class="tx">' + escS(WP.warning) + '</span></div></div>'
+    : '';
+
+  const head = '<div class="vhead2"><h3>Products</h3>'
+    + '<span class="sub">' + WP.products.length + '</span><span class="grow"></span>'
+    + '<button class="btn primary" data-wpnew="1">' + WPICON.plus + ' New product</button></div>';
+
+  if (!WP.products.length) {
+    return '<div class="vwrap viz">' + head + warn
+      + '<div class="vempty" style="padding:44px 20px"><b>No products yet</b>'
+      + 'Create one and you get a checkout link back, ready to paste into an email or a post.'
+      + '</div></div>';
+  }
+
+  const rows = WP.products.map(p => {
+    const free = p.priceLabel === 'Free';
+    return '<div class="wprow">'
+      + '<span class="nm" title="' + escS(p.title) + '">' + escS(p.title) + '</span>'
+      + '<span class="pr' + (free ? ' free' : '') + '">' + escS(p.priceLabel || 'no price set') + '</span>'
+      + (p.url
+          ? '<button class="wplink" data-wpcopy="' + escS(p.url) + '" aria-label="Copy product URL">'
+            + WPICON.link + '<span class="tip">Copy product URL</span></button>'
+          : '<span class="wplink dis" role="img" aria-label="No checkout link">' + WPICON.link
+            + '<span class="tip">No checkout link</span></span>')
+      + '</div>';
+  }).join('');
+
+  return '<div class="vwrap viz">' + head + warn
+    + '<div class="vbody"><div class="wplist">' + rows + '</div>'
+    + '<p class="wphint" style="margin-top:11px">Prices come from Whop. A product with no price has no plan '
+    + 'on it yet — add one in Whop and it appears here.</p></div></div>';
+}
+
+function whopForm(){
+  const f = WP.form;
+  const paid = f.access === 'paid';
+
+  return '<div class="vwrap viz"><div class="vhead2"><h3>New product</h3>'
+    + '<span class="grow"></span><button class="tgl" data-wpcancel="1">Cancel</button></div>'
+    + '<div class="vbody" style="max-width:560px">'
+
+    + '<div class="fld"><label for="wp-name">Name</label>'
+    + '<input type="text" id="wp-name" maxlength="80" placeholder="Basic access" '
+    + 'value="' + escS(f.title) + '" autocomplete="off">'
+    + '<div class="hint">The name buyers see on the checkout page. Up to 80 characters.</div></div>'
+
+    + '<div class="fld"><label>Pricing</label>'
+    + '<div class="wpchoice">'
+    +   '<button class="wpopt' + (paid ? '' : ' on') + '" data-wpaccess="free">'
+    +     '<span class="dot"></span><span class="lbl">Free access</span></button>'
+    +   '<button class="wpopt' + (paid ? ' on' : '') + '" data-wpaccess="paid">'
+    +     '<span class="dot"></span><span class="lbl">Paid access</span></button>'
+    + '</div>'
+    + (paid
+        ? '<button class="wpprice" data-wpopenprice="1">'
+          + '<span class="v">' + escS(wpPlanLabel(f.plan)) + '</span><span class="ch">&rsaquo;</span></button>'
+          + '<div class="hint">Click to set one-time or recurring.</div>'
+        : '<div class="hint">Anyone with the link joins for free. Whop still records the membership.</div>')
+    + '</div>'
+
+    + '<button class="bigbtn accent" id="wp-create"' + (f.title.trim() && !WP.busy ? '' : ' disabled') + '>'
+    + (WP.busy ? 'Creating…' : 'Create product') + '</button>'
+    + '</div></div>';
+}
+
+/* ---- the pricing dialog ---- */
+
+function openWhopPrice(){
+  WP.draft = { ...WP.form.plan };
+  drawWhopPrice();
+  document.getElementById('wp-price').classList.add('on');
+}
+
+function drawWhopPrice(){
+  const d = WP.draft;
+  const box = document.getElementById('wp-pricebody');
+  if (!box || !d) return;
+  const recurring = d.planType === 'renewal';
+  const sug = recurring ? [19.99, 39.99, 79.99] : [50, 100, 250];
+
+  box.innerHTML =
+      '<div class="fld"><select id="wp-ptype">'
+    +   '<option value="renewal"' + (recurring ? ' selected' : '') + '>Recurring</option>'
+    +   '<option value="one_time"' + (recurring ? '' : ' selected') + '>One-time</option>'
+    + '</select></div>'
+
+    + '<div class="wpamt' + (recurring ? '' : ' once') + '">'
+    +   '<div class="wpin"><span class="sym">' + escS(WP_SYMBOL[d.currency] || d.currency.toUpperCase()) + '</span>'
+    +     '<input type="number" id="wp-pamt" min="0" step="0.01" placeholder="0" value="'
+    +     escS(d.amount === 0 ? '' : String(d.amount)) + '"></div>'
+    +   (recurring
+        ? '<select id="wp-pper">' + WP_PERIODS.map(p =>
+            '<option value="' + p.days + '"' + (p.days === Number(d.billingPeriodDays) ? ' selected' : '')
+            + '>' + p.label + '</option>').join('') + '</select>'
+        : '')
+    +   '<select id="wp-pcur">' + WP_CURRENCIES.map(c =>
+          '<option value="' + c + '"' + (c === d.currency ? ' selected' : '') + '>'
+          + c.toUpperCase() + '</option>').join('') + '</select>'
+    + '</div>'
+
+    + '<div class="wpsug">' + sug.map(v =>
+        '<button data-wpsug="' + v + '">' + wpMoney(v, d.currency) + '</button>').join('') + '</div>'
+
+    + '<p class="wphint" style="margin-top:14px">'
+    + (recurring
+        ? 'The customer is charged ' + escS(wpMoney(d.amount, d.currency)) + ' now and again every '
+          + escS(wpPeriod(d.billingPeriodDays)) + ' until they cancel.'
+        : 'The customer is charged ' + escS(wpMoney(d.amount, d.currency)) + ' once. Access does not expire.')
+    + '</p>';
+
+  const set = (id, ev, fn) => { const e = box.querySelector('#' + id); if (e) e[ev] = () => fn(e); };
+  set('wp-ptype', 'onchange', e => { d.planType = e.value; drawWhopPrice(); });
+  set('wp-pper',  'onchange', e => { d.billingPeriodDays = Number(e.value); drawWhopPrice(); });
+  set('wp-pcur',  'onchange', e => { d.currency = e.value; drawWhopPrice(); });
+  /* Redrawn on change, not on input: retyping an amount should not move the
+     caret on every keystroke. */
+  set('wp-pamt',  'oninput',  e => { d.amount = Math.max(0, Number(e.value) || 0); });
+  set('wp-pamt',  'onchange', e => { d.amount = Math.max(0, Number(e.value) || 0); drawWhopPrice(); });
+  box.querySelectorAll('[data-wpsug]').forEach(b => b.onclick = () => {
+    d.amount = Number(b.dataset.wpsug); drawWhopPrice();
+  });
+}
+
+/* ---- create ---- */
+
+async function createWhopProduct(){
+  const f = WP.form;
+  const title = f.title.trim();
+  if (!title || WP.busy) return;
+
+  WP.busy = true; drawSystems();
+  try {
+    const body = f.access === 'free'
+      ? { title, access: 'free' }
+      : { title, access: 'paid', planType: f.plan.planType, amount: f.plan.amount,
+          currency: f.plan.currency, billingPeriodDays: f.plan.billingPeriodDays };
+    const out = await post('/api/systems/whop/products', body);
+
+    WP.busy = false;
+    WP.creating = false;
+    WP.form = wpBlankForm();
+    /* Put it at the top straight away. The list is re-fetched underneath, but
+       the row should be there the moment the dialog closes. */
+    WP.products = [out.product, ...WP.products.filter(p => p.id !== out.product.id)];
+    WP.made = out.product;
+    drawSystems();
+    showWhopMade(out.product, out.note);
+    loadWhop();
+  } catch (err) {
+    WP.busy = false;
+    drawSystems();
+    toast(err.message || 'Could not create the product.', 'bad');
+  }
+}
+
+function showWhopMade(product, note){
+  const body = document.getElementById('wp-madebody');
+  const copy = document.getElementById('wp-madecopy');
+  if (!body) return;
+
+  document.getElementById('wp-madetitle').textContent = product.title || 'Product created';
+  document.getElementById('wp-madesub').textContent = product.url
+    ? 'Share this link and the customer lands on Whop’s checkout.'
+    : 'The product is on Whop, but it has no checkout link yet.';
+
+  body.innerHTML =
+      '<div class="fld"><label>Product URL</label>'
+    + (product.url
+        ? '<div class="wpurl"><code id="wp-madeurl">' + escS(product.url) + '</code></div>'
+        : '<div class="wpurl"><code style="color:var(--dim)">no link</code></div>')
+    + '</div>'
+    + (product.priceLabel
+        ? '<p class="wphint">' + escS(product.title) + ' · ' + escS(product.priceLabel) + '</p>'
+        : '')
+    + (note ? '<div class="insrow" style="margin-top:12px"><span class="sev warn">!</span>'
+        + '<span class="tx">' + escS(note) + '</span></div>' : '')
+    + (product.productUrl && product.productUrl !== product.url
+        ? '<p class="wphint" style="margin-top:10px">Storefront page: <span class="wpmono">'
+          + escS(product.productUrl) + '</span></p>'
+        : '');
+
+  copy.disabled = !product.url;
+  copy.textContent = 'Copy link';
+  document.getElementById('wp-made').classList.add('on');
+}
+
+function wireWhop(root){
+  root.querySelectorAll('[data-wpreload]').forEach(b => b.onclick = () => {
+    WP.loaded = false; WP.error = null; drawSystems(); loadWhop();
+  });
+  root.querySelectorAll('[data-wpnew]').forEach(b => b.onclick = () => {
+    WP.form = wpBlankForm(); WP.creating = true; drawSystems();
+    document.getElementById('wp-name')?.focus();
+  });
+  root.querySelectorAll('[data-wpcancel]').forEach(b => b.onclick = () => {
+    WP.creating = false; WP.form = null; drawSystems();
+  });
+  root.querySelectorAll('[data-wpaccess]').forEach(b => b.onclick = () => {
+    WP.form.access = b.dataset.wpaccess; drawSystems();
+  });
+  root.querySelectorAll('[data-wpopenprice]').forEach(b => b.onclick = openWhopPrice);
+  root.querySelectorAll('[data-wpcopy]').forEach(b => b.onclick = () => wpCopy(b.dataset.wpcopy, 'Product URL'));
+
+  const name = root.querySelector('#wp-name');
+  const go = root.querySelector('#wp-create');
+  if (name) {
+    /* Bound without a redraw so the caret stays put; the one thing the button
+       needs from it is whether there is a name at all. */
+    name.oninput = () => {
+      WP.form.title = name.value;
+      if (go) go.disabled = !name.value.trim() || WP.busy;
+    };
+    name.onkeydown = e => {
+      if (e.key === 'Enter') { e.preventDefault(); createWhopProduct(); }
+    };
+  }
+  if (go) go.onclick = createWhopProduct;
+}
+
 function wireSystems(root){
   root.querySelectorAll('[data-auto]').forEach(b => b.onclick = () => {
     const a = SY.automations.find(x => x.id === b.dataset.auto);
     if (!a?.built) return;
     SY.open = a.id; drawSystems();
     if (a.id === 'clip') loadClipExtras();
+    if (a.id === 'whop' && !WP.loaded) loadWhop();
   });
 
   const drop = root.querySelector('#sy-drop');
@@ -18656,7 +19304,12 @@ function openAddAccount(){
 /* ---------- route registrations ----------
    At the bottom because every state object these close over has to exist first. */
 routeRegister('tasks', () => TK.view, v => { TK.view = v; drawTasks(); });
-routeRegister('systems', () => SY.open || '', v => { SY.open = v; drawSystems(); });
+/* A deep link lands here without ever passing through the automation grid, so
+   the section's own fetch has to be kicked off from the route as well. */
+routeRegister('systems', () => SY.open || '', v => {
+  SY.open = v; drawSystems();
+  if (v === 'whop' && !WP.loaded) loadWhop();
+});
 routeRegister('social',
   () => SO.view + '/' + (SO.view === 'meta' ? SO.metaTab : SO.section),
   v => {
@@ -18688,6 +19341,7 @@ window.addEventListener('hashchange', () => {
 function sysBack(){
   clearInterval(SY.poll); SY.poll = null;
   SY.open = null; SY.project = null; SY.clips = []; SY.picked.clear();
+  WP.creating = false; WP.form = null;
   drawSystems();
   /* The section header is above the fold once an automation has been open and
      the page has been scrolled, so going back to a grid the reader cannot see
@@ -18709,6 +19363,36 @@ document.querySelectorAll('.mwrap').forEach(w => w.addEventListener('click', e =
   if (e.target !== w) return;
   if (w.id === 'cl-player') closePlayer(); else w.classList.remove('on');
 }));
+/* Whop dialogs. Done writes the draft back into the form and closes; Cancel and
+   the × leave the form untouched, which is the whole reason draft is a copy. */
+document.getElementById('wp-pricedone').onclick = () => {
+  if (WP.draft && WP.form) WP.form.plan = { ...WP.draft };
+  WP.draft = null;
+  document.getElementById('wp-price').classList.remove('on');
+  drawSystems();
+};
+/* Zeroes the amount and leaves the shape of the plan alone. Whop's own dialog
+   deletes the pricing option here, but there is only ever one on this form, so
+   deleting it would leave the field with nothing to show. */
+document.getElementById('wp-pricereset').onclick = () => {
+  if (WP.draft) WP.draft.amount = 0;
+  drawWhopPrice();
+};
+
+/* Escape closes whichever of the two Whop dialogs is open, price first — it is
+   the one that can sit on top. Neither applies anything on the way out. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  const price = document.getElementById('wp-price');
+  const made = document.getElementById('wp-made');
+  if (price?.classList.contains('on')) { WP.draft = null; price.classList.remove('on'); return; }
+  if (made?.classList.contains('on')) made.classList.remove('on');
+});
+document.getElementById('wp-madecopy').onclick = () => {
+  const url = WP.made?.url;
+  if (url) wpCopy(url, 'Product URL');
+};
+
 document.getElementById('cl-pdl').onclick = () => { if (SY.playing) downloadClips([SY.playing]); };
 document.getElementById('cl-psched').onclick = () => { const id = SY.playing; closePlayer(); if (id) openSchedule([id]); };
 document.getElementById('cl-addacct').onclick = openAddAccount;

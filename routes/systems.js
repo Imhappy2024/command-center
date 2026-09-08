@@ -1,7 +1,8 @@
 /* Systems: automations that are run by hand.
 
-   Six are listed. One — Create a Clip — is built; the other five say so rather
-   than presenting a button that does nothing.
+   Seven are listed. Three — Create a Clip, Pull and Analyze Metrics, and
+   Checkout Links — are built; the other four say so rather than presenting a
+   button that does nothing.
 
    Create a Clip wraps OpusClip. The first version hosted uploads on this server
    and handed OpusClip the URL, which the service refuses: `videoUrl` only
@@ -13,7 +14,9 @@
 import express from 'express';
 import { Readable } from 'node:stream';
 import * as opus from '../providers/opus.js';
+import * as whop from '../providers/whop.js';
 import * as store from '../lib/clip-store.js';
+import * as whopStore from '../lib/whop-store.js';
 import { guarded } from './guard.js';
 
 export const AUTOMATIONS = [
@@ -22,6 +25,8 @@ export const AUTOMATIONS = [
   { id:'metrics',   name:'Pull and Analyze Metrics', built:true, agent:true,
     blurb:'Four analyst agents — YouTube, Facebook, Instagram, X. They read the numbers, '
       + 'show the working, and say what to change.' },
+  { id:'whop',      name:'Checkout Links',           built:true,
+    blurb:'Create a Whop product with its price and get a checkout link back, ready to copy.' },
   { id:'today',     name:'Plan Today',               built:false,
     blurb:'Calendar, unread mail and open leads folded into one running order.' },
   { id:'tomorrow',  name:'Plan Tomorrow',            built:false,
@@ -49,6 +54,10 @@ export function systemRoutes({ env, auth }){
         setupHint: 'Set OPUS_API_KEY from clip.opus.pro/dashboard. OPUS_ORG_ID is optional.',
         sourceHosts: opus.SOURCE_HOSTS,
         recent: projects
+      },
+      whop: {
+        configured: whop.configured(env),
+        setupHint: 'Set WHOP_API_KEY to an Account API key from your Whop dashboard settings.'
       }
     });
   }));
@@ -327,6 +336,204 @@ export function systemRoutes({ env, auth }){
     await probe('usage', '/api-usage?q=mine');
     if (req.query.projectId) {
       await probe('exportableClips', `/exportable-clips?q=findByProjectId&projectId=${encodeURIComponent(req.query.projectId)}`);
+    }
+    res.json(out);
+  }));
+
+  /* =========================================================================
+     Checkout Links — Whop.
+
+     A product on Whop holds no price; a plan does, and the plan's purchase_url
+     is the checkout link. So "create a product" here is two writes, and the
+     link only exists after the second one. That ordering is why a plan failure
+     still returns 200 with the product and an explanatory note rather than an
+     error: the product is real by then, and telling the user it failed would
+     leave an orphan they cannot see.
+     ========================================================================= */
+
+  const whopCfg = () => whop.configured(env);
+  const notConfigured = res => res.status(400).json({
+    error: 'Whop is not configured. Set WHOP_API_KEY.' });
+
+  /* The list. Prices come from three places, in descending order of trust:
+     the plan Whop returns for the product, the row we wrote when we created it,
+     and nothing. */
+  r.get('/api/systems/whop/products', auth.require,
+    guarded('api/systems/whop:list', async (req, res) => {
+      if (!whopCfg()) {
+        return res.json({ configured: false, products: [],
+          setupHint: 'Set WHOP_API_KEY to an Account API key from your Whop dashboard settings.' });
+      }
+
+      const remembered = await whopStore.byProduct().catch(() => new Map());
+
+      let products, warning = null;
+      try {
+        products = await whop.listProducts(env, { limit: 60 });
+      } catch (err) {
+        /* An unreachable Whop should still show what we created, so the copy
+           buttons keep working while the API is down. */
+        const rows = await whopStore.recent(60).catch(() => []);
+        return res.status(err.status === 401 ? 401 : 200).json({
+          configured: true,
+          products: rows.map(m => ({
+            id: m.productId, title: m.title, priceLabel: m.priceLabel,
+            url: m.purchaseUrl, productUrl: m.productUrl, planId: m.planId,
+            createdAt: m.createdAt, stale: true
+          })),
+          error: err.message,
+          warning: 'Showing links saved here — Whop could not be reached.'
+        });
+      }
+
+      /* One call for every plan on the account, then joined in memory. Asking
+         per product would be a request per row. */
+      let plansByProduct = null;
+      try {
+        const plans = await whop.listPlans(env);
+        if (plans) {
+          plansByProduct = new Map();
+          for (const p of plans) {
+            const pid = whop.planProductId(p);
+            if (!pid) continue;
+            if (!plansByProduct.has(pid)) plansByProduct.set(pid, []);
+            plansByProduct.get(pid).push(p);
+          }
+        }
+      } catch (err) {
+        warning = 'Prices could not be read from Whop: ' + err.message;
+      }
+
+      const shaped = products.map(p => {
+        const mine = remembered.get(p.id) || null;
+        const plans = plansByProduct?.get(p.id) || [];
+        /* The cheapest visible plan is the one a storefront leads with. */
+        const plan = plans.filter(x => x?.visibility !== 'archived')
+          .sort((a, b) => Number(a?.initial_price ?? 0) - Number(b?.initial_price ?? 0))[0] || null;
+
+        return {
+          id: p.id,
+          title: p.title || p.id,
+          visibility: p.visibility || null,
+          memberCount: p.member_count ?? null,
+          createdAt: p.created_at || mine?.createdAt || null,
+          planId: plan?.id || mine?.planId || null,
+          priceLabel: whop.planLabel(plan) || mine?.priceLabel || null,
+          url: whop.absolute(plan?.purchase_url)
+            || mine?.purchaseUrl
+            || whop.planCheckoutUrl(plan?.id || mine?.planId),
+          productUrl: whop.productPageUrl(p) || mine?.productUrl || null
+        };
+      });
+
+      res.json({ configured: true, products: shaped, warning, periods: whop.PERIODS,
+        currencies: whop.CURRENCIES });
+    }));
+
+  /* Create. `access` is 'free' or 'paid'; a free product is a one-time plan at
+     zero, which is how Whop expresses free access. */
+  r.post('/api/systems/whop/products', auth.require, express.json({ limit: '64kb' }),
+    guarded('api/systems/whop:create', async (req, res) => {
+      if (!whopCfg()) return notConfigured(res);
+      const b = req.body || {};
+
+      const title = String(b.title || '').trim();
+      if (!title) return res.status(400).json({ error: 'Give the product a name.' });
+      if (title.length > 80) return res.status(400).json({ error: 'Whop caps a product name at 80 characters.' });
+
+      const free = b.access === 'free';
+      const amount = free ? 0 : Number(b.amount);
+      if (!free && (!Number.isFinite(amount) || amount < 0)) {
+        return res.status(400).json({ error: 'That is not a price.' });
+      }
+      if (!free && amount > 999999) {
+        return res.status(400).json({ error: 'That price is too large.' });
+      }
+
+      /* A recurring plan that charges nothing is a subscription to zero, and
+         Whop has no reason to accept one. Paid-at-zero is free access, so it is
+         created as free access and the response says so. */
+      const zeroed = !free && amount === 0;
+      const planType = (free || zeroed) ? 'one_time'
+        : (b.planType === 'renewal' ? 'renewal' : 'one_time');
+
+      const currency = whop.CURRENCIES.includes(String(b.currency || '').toLowerCase())
+        ? String(b.currency).toLowerCase() : 'usd';
+      const billingPeriodDays = whop.PERIODS.some(p => p.days === Number(b.billingPeriodDays))
+        ? Number(b.billingPeriodDays) : 30;
+
+      let product;
+      try {
+        product = await whop.createProduct(env, { title });
+      } catch (err) {
+        return res.status(err.status === 401 ? 401 : 502).json({ error: err.message });
+      }
+
+      /* From here the product exists on Whop. Everything below reports rather
+         than fails, so a half-finished create is visible instead of invisible. */
+      let plan = null;
+      let note = zeroed ? 'The price was zero, so this was created as free access.' : null;
+      try {
+        plan = await whop.createPlan(env, {
+          productId: product.id, planType, amount, currency, billingPeriodDays
+        });
+      } catch (err) {
+        note = 'The product was created, but its price was not: ' + err.message
+          + ' Set the price in Whop, then reload this list.';
+      }
+
+      const url = plan ? await whop.resolveLink(env, plan) : null;
+      const productUrl = whop.productPageUrl(product);
+      const priceLabel = whop.priceLabel({ planType, amount, currency, billingPeriodDays });
+
+      if (plan) {
+        await whopStore.remember({
+          productId: product.id, planId: plan.id, title,
+          planType, amount, currency,
+          billingPeriodDays: planType === 'renewal' ? billingPeriodDays : null,
+          priceLabel, purchaseUrl: url, productUrl
+        }).catch(err => console.error('[whop] could not save the link locally:', err.message));
+      }
+
+      res.json({
+        product: {
+          id: product.id,
+          title: product.title || title,
+          visibility: product.visibility || null,
+          memberCount: product.member_count ?? 0,
+          createdAt: product.created_at || new Date().toISOString(),
+          planId: plan?.id || null,
+          priceLabel: plan ? priceLabel : null,
+          url,
+          productUrl
+        },
+        note
+      });
+    }));
+
+  /* Drops our copy of the link. The product stays on Whop — deleting it there
+     would take the members with it, and this button is in a dashboard. */
+  r.delete('/api/systems/whop/products/:id', auth.require,
+    guarded('api/systems/whop:forget', async (req, res) => {
+      await whopStore.forget(req.params.id);
+      res.json({ ok: true, note: 'Removed from the saved links. The product is still on Whop.' });
+    }));
+
+  /* Same purpose as the OpusClip probe above: read the shapes back from the
+     real account rather than from prose. */
+  r.get('/api/systems/whop/diag', auth.require, guarded('api/systems/whop:diag', async (req, res) => {
+    const out = { configured: whopCfg(), base: 'https://api.whop.com/api/v1' };
+    if (!whopCfg()) { out.hint = 'Set WHOP_API_KEY.'; return res.json(out); }
+    const probe = async (name, path, query) => {
+      try { out[name] = { ok: true, body: await whop.raw(env, path, query) }; }
+      catch (err) { out[name] = { ok: false, status: err.status, error: err.message }; }
+    };
+    await probe('me', '/accounts/me');
+    let acct = null;
+    try { acct = await whop.accountId(env); out.accountId = acct; } catch (err) { out.accountError = err.message; }
+    if (acct) {
+      await probe('products', '/products', { account_id: acct, first: 3 });
+      await probe('plans', '/plans', { account_id: acct, first: 3 });
     }
     res.json(out);
   }));

@@ -266,8 +266,9 @@ and an explanation, so anything still calling them is told why.
 
 ## Systems
 
-Automations you trigger by hand. Six are listed; **Create a Clip** is built and
-the other five are marked "Not built yet" rather than offering a dead button.
+Automations you trigger by hand. Seven are listed; **Create a Clip**, **Pull and
+Analyze Metrics** and **Checkout Links** are built, and the other four are marked
+"Not built yet" rather than offering a dead button.
 
 ### Create a Clip
 
@@ -314,6 +315,52 @@ field name and shipping it is how the Meta integration failed twice.
 Clips are collected by polling (`Check for clips`) as well as by webhook at
 `POST /webhooks/opus`, because a webhook that was never configured leaves a
 project stuck at "processing" with no way to find out.
+
+### Checkout Links
+
+Wraps [Whop](https://docs.whop.com/api-reference). A name and a price go in, a
+checkout link comes out, and the list shows every product on the account with
+its price and a copy button.
+
+```
+name + price ──► POST /products ──► prod_xxx
+                       │
+                       └─► POST /plans ──► plan_xxx + purchase_url ──► copy
+                                  │
+                                  └─(no url)─► POST /checkout_configurations ──┘
+```
+
+**A product on Whop holds no price; a plan does.** So creating one is two
+writes, and the link only exists after the second. That ordering is the whole
+reason the create route answers 200 with a note when the plan fails rather than
+an error: by then the product is real, and reporting a failure would leave an
+orphan the list cannot explain.
+
+`GET /products` returns no pricing at all, so the list makes a second call for
+every plan on the account and joins them in memory — one request, not one per
+row. The plan id, price and link are also written to `whop_links` at creation,
+which is what the list falls back to when Whop is unreachable or when the plan
+list comes back in a shape the reader does not recognise.
+
+| Need | Why |
+|---|---|
+| `WHOP_API_KEY` | an **account** key, not an app key; app keys cannot create products |
+| `access_pass:create` | the permission the create call needs, or it 403s |
+| `WHOP_ACCOUNT_ID` | optional; read from `/accounts/me` when unset |
+
+Two things are handled by retrying rather than by hoping. The currency field is
+called `base_currency` on the products endpoint's `plan_options` and `currency`
+on the plan object, so create sends the first and retries with the second on a
+4xx. And a plan names its product under one of four possible keys, so the reader
+tries all of them. `GET /api/systems/whop/diag` returns the raw `/accounts/me`,
+`/products` and `/plans` payloads so both guesses can be replaced with facts on
+the first authenticated call.
+
+`billing_period` is a number of **days** — 30 for monthly, 365 for annual.
+Sending 1 for "1 month" would bill daily.
+
+A recurring plan priced at zero is created as free access instead, and the
+confirmation says so: Whop has no reason to accept a subscription to nothing.
 
 ## Social
 

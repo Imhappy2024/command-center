@@ -421,3 +421,28 @@ CREATE INDEX IF NOT EXISTS social_items_acct ON social_items (account_id, create
    platform would be worse than no tags at all. */
 ALTER TABLE social_threads ADD COLUMN IF NOT EXISTS tags TEXT[] NOT NULL DEFAULT '{}';
 CREATE INDEX IF NOT EXISTS social_threads_tags ON social_threads USING GIN (tags);
+
+/* ---------------------------------------------------------------------------
+   Systems: Whop checkout links.
+
+   Whop is the record of truth for products and plans — this table is only the
+   link. /products does not return pricing and the plan list is a separate call
+   whose shape is not guaranteed, so the purchase_url we were handed at creation
+   is kept here rather than re-derived on every page load. A row going missing
+   costs a price label, not a product.
+   --------------------------------------------------------------------------- */
+
+CREATE TABLE IF NOT EXISTS whop_links (
+  product_id     TEXT PRIMARY KEY,          -- prod_xxx, as Whop issued it
+  plan_id        TEXT,                      -- plan_xxx; the price lives on this
+  title          TEXT,
+  plan_type      TEXT,                      -- 'one_time' | 'renewal'
+  amount         NUMERIC(12,2),
+  currency       TEXT,
+  billing_period INTEGER,                   -- days between charges; null if one-time
+  price_label    TEXT,                      -- what the form showed, kept verbatim
+  purchase_url   TEXT,                      -- the checkout link, absolute
+  product_url    TEXT,                      -- storefront page, when there is one
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS whop_links_created ON whop_links (created_at DESC);
