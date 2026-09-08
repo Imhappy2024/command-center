@@ -208,6 +208,9 @@ main{min-width:0;display:flex;flex-direction:column}
 .g2{grid-template-columns:repeat(2,1fr)}
 .g3{grid-template-columns:repeat(3,1fr)}
 .g4{grid-template-columns:repeat(4,1fr)}
+/* Five, for a KPI band on a platform that publishes reach as well as views.
+   Instagram does; YouTube does not, so its band stays four. */
+.g5{grid-template-columns:repeat(5,1fr)}
 .g21{grid-template-columns:1.55fr 1fr}
 
 .card{
@@ -325,6 +328,7 @@ main{min-width:0;display:flex;flex-direction:column}
 
 @media(max-width:1100px){
   .g4{grid-template-columns:repeat(2,1fr)}
+  .g5{grid-template-columns:repeat(3,1fr)}
   .g3{grid-template-columns:repeat(2,1fr)}
   .g21{grid-template-columns:1fr}
   .actions{grid-template-columns:repeat(3,1fr)}
@@ -338,7 +342,7 @@ main{min-width:0;display:flex;flex-direction:column}
   .navitem .src,.navitem .badge{display:none}
   .navitem.on::before{left:9px;right:9px;top:auto;bottom:2px;width:auto;height:2px}
   .railfoot{display:none}
-  .g2,.g3,.g4{grid-template-columns:1fr}
+  .g2,.g3,.g4,.g5{grid-template-columns:1fr}
   .view{padding:18px 16px 50px}
   .clock{display:none}
   .week{grid-template-columns:repeat(4,1fr)}
@@ -5905,6 +5909,15 @@ let PLAT = {};
 const SO_GRANT = { facebook:'meta', instagram:'meta', meta_ads:'meta', youtube:'youtube', x:'x' };
 const SO_VIEW_KEYS = { youtube:['youtube'], x:['x'], meta:['facebook','instagram','meta_ads'] };
 const SO_VIEW_LABEL = { youtube:'YouTube', meta:'Meta', x:'X' };
+/* The name of one PLATFORM, which is not the name of the view it sits under.
+   Facebook and Instagram both live under Meta, so SO_VIEW_LABEL called them
+   both "Meta" -- and the combined dashboard puts that name in sentences:
+   "not what Meta holds now" above a Facebook Page's numbers, and "Meta
+   publishes no unique-reach figure" under Instagram, which publishes little
+   else. */
+const SO_PLAT_LABEL = { youtube:'YouTube', facebook:'Facebook', instagram:'Instagram',
+  meta_ads:'Meta Ads', x:'X' };
+const platLabel = k => SO_PLAT_LABEL[k] || SO_VIEW_LABEL[SO.view] || k;
 const platByK = k => PLATFORMS.find(p => p.k === k);
 
 /* Escapes anything interpolated into the HTML these views build as strings.
@@ -6859,11 +6872,23 @@ function soDaily(series, metric){
   return [...byDay.entries()].sort((a, b) => a[0] < b[0] ? -1 : 1).map(([day, v]) => ({ day, v }));
 }
 
+/* unit/units is what this platform calls a connected account, and it is here
+   because the combined dashboard says it six times -- "2 channels need
+   reconnecting", "Subscribers by channel", "Split by channel". Facebook has
+   Pages, Instagram has accounts, and reading "channel" on either is the kind
+   of wrong word that makes a reader distrust the numbers next to it.
+
+   item is one row of the posts table: a video on YouTube, a post everywhere
+   else. */
 const SO_WORDS = {
-  youtube:   { followers:'Subscribers', posts:'Videos',  postTitle:'Top videos', color:'var(--rust)' },
-  x:         { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'var(--xx)' },
-  facebook:  { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'var(--fb)' },
-  instagram: { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'var(--brass)' }
+  youtube:   { followers:'Subscribers', posts:'Videos',  postTitle:'Top videos', color:'var(--rust)',
+               unit:'channel', units:'channels', item:'Video' },
+  x:         { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'var(--xx)',
+               unit:'account', units:'accounts', item:'Post' },
+  facebook:  { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'var(--fb)',
+               unit:'Page',    units:'Pages',    item:'Post' },
+  instagram: { followers:'Followers',   posts:'Posts',   postTitle:'Top posts',  color:'var(--brass)',
+               unit:'account', units:'accounts', item:'Post' }
 };
 
 /* ---------- a platform's dashboard ---------- */
@@ -7039,7 +7064,7 @@ function videosFor(d, axis){
    colour. */
 function insights(d, key, rows, prevRows){
   const out = [];
-  const label = SO_VIEW_LABEL[SO.view] || key;
+  const label = platLabel(key);
   const days = [...new Set(rows.map(r => String(r.day).slice(0, 10)))].sort();
   const byDay = m => days.map(dd => rows.filter(r => String(r.day).slice(0,10) === dd)
     .reduce((n, r) => n + (r[m] || 0), 0));
@@ -7145,14 +7170,24 @@ function platformView(key){
   if (!d) return '<div class="card flush"><div class="empty"><b>Loading ' + escS(label) + '…</b></div></div>';
   if (d.error) return '<div class="card flush"><div class="empty"><b>Could not load</b><small>' + escS(d.error) + '</small></div></div>';
   if (!d.connected) return connectCard(key, d);
-  /* YouTube is one dashboard. The other platforms keep their three sections
-     until they are given the same treatment -- the split is not wrong for them
-     yet, because they do not have the same three-way contradiction. */
-  if (key === 'youtube') return oneDashboard(d, key);
+  /* One dashboard for YouTube, Facebook and Instagram.
+
+     For Meta the three-section split was not merely redundant, it was broken:
+     the tab strip on a Meta view switches PROPERTY (FB Page / Instagram / Meta
+     Ads) and resets SO.section to 'performance' as it does so, so nothing on
+     screen could ever reach content or audience. Those two sections were
+     unreachable for both properties.
+
+     X keeps the split. Its own tab strip really does switch section, so the
+     three tabs there are a working control rather than dead code. */
+  if (ONE_DASH.has(key)) return oneDashboard(d, key);
   if (SO.section === 'content') return contentSection(d, key);
   if (SO.section === 'audience') return audienceSection(d, key);
   return performanceSection(d, key);
 }
+
+/* Platforms on the combined dashboard. X is not here: see platformView. */
+const ONE_DASH = new Set(['youtube', 'facebook', 'instagram']);
 
 const SO_METRICS = {
   youtube:   [{k:'views',label:'Views'},{k:'interactions',label:'Interactions'},{k:'followers',label:'Subscribers'}],
@@ -7394,6 +7429,7 @@ function performanceSection(d, key){
    headline space for. */
 function oneDashboard(d, key){
   const words = SO_WORDS[key] || SO_WORDS.facebook;
+  const label = platLabel(key);
   const accounts = acctsOf(d);
   const rows = rowsFor(d, key, 0);
   const prevRows = SO.compare ? rowsFor(d, key, 1) : [];
@@ -7432,22 +7468,23 @@ function oneDashboard(d, key){
      bottom" and the channel list had no reconnect control in it -- an
      instruction pointing at something that did not exist, three screens away
      from where it was read. */
-  const grantOf = d.grant || SO_GRANT[d.provider] || 'youtube';
+  const grantOf = d.grant || SO_GRANT[d.provider] || key;
   const alert = (broken.length || failed.length)
     ? '<div class="ytalert">'
       + '<div class="ytalert-i" aria-hidden="true">!</div>'
       + '<div><b>' + escS(broken.length
-        ? (broken.length === 1 ? 'One channel needs reconnecting' : broken.length + ' channels need reconnecting')
+        ? (broken.length === 1 ? 'One ' + words.unit + ' needs reconnecting'
+          : broken.length + ' ' + words.units + ' need reconnecting')
         : 'The last pull failed') + '</b>'
-      + '<p>Everything below is the last data that arrived, not what YouTube holds now'
+      + '<p>Everything below is the last data that arrived, not what ' + escS(label) + ' holds now'
       + (d.cachedAt ? ' — read ' + escS(agoOf(d.cachedAt)) : '') + '. '
       + escS((broken.length ? broken : failed).map(a => a.label).join(', ')) + '.</p>'
       + '<div class="ytalert-do">'
       + '<button class="btn" data-soreconnect="' + escS(grantOf) + '">Reconnect'
-      + (broken.length > 1 ? ' channels' : '') + '</button>'
+      + (broken.length > 1 ? ' ' + words.units : '') + '</button>'
       + '<span>Opens ' + escS(PROV_UI[grantOf]?.name || grantOf)
-      + ' in a new window. Signing in again refreshes whichever channel you pick;'
-      + ' repeat for the second one.</span>'
+      + ' in a new window. Signing in again refreshes whichever ' + escS(words.unit)
+      + ' you pick' + (broken.length > 1 ? '; repeat for the others' : '') + '.</span>'
       + '</div></div></div>'
     : '';
 
@@ -7470,31 +7507,46 @@ function oneDashboard(d, key){
      --brass is #7C6CFF, an indigo chrome accent; the views series draws in
      --s1, #3987e5. So the Views tile carried an indigo sparkline directly above
      a blue Views chart of the same numbers. One metric, one colour. */
-  const band = '<div class="kpis grid g4 viz">'
-    + tile('views', 'Views', views == null ? '—' : compact(views), {
-        delta: SO.compare ? pctMove(views, prevVal('views')) : null,
-        deltaLabel: views == null ? 'not published' : vsPrior,
-        prev: SO.compare && prevVal('views') != null ? 'prev ' + compact(prevVal('views')) : '',
-        spark: sparkOf('views'), na: views == null })
-    + tile('interactions', 'Interactions', inter == null ? '—' : compact(inter), {
-        delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
-        deltaLabel: inter == null ? 'not published' : 'likes and comments',
-        prev: SO.compare && prevVal('interactions') != null ? 'prev ' + compact(prevVal('interactions')) : '',
-        spark: sparkOf('interactions'), na: inter == null })
-    /* Summed across channels, which is the fix. The caption says so, because
-       377 against a channel page reading 374 needs one word of explanation. */
-    + tile('followers', words.followers, subs.now == null ? '—' : compact(subs.now), {
-        delta: subs.move,
-        deltaLabel: subs.per.length > 1 ? 'across ' + subs.per.length + ' channels'
-          : subs.readings > 1 ? 'across ' + RANGE_N() + 'd' : 'single reading',
-        spark: subs.per.length === 1 ? subs.per[0].series.slice(-14) : null,
-        na: subs.now == null })
-    + '<div data-scrollto="yt-videos" style="cursor:pointer">'
+
+  /* Collected rather than concatenated, because the band is no longer always
+     four wide. Reach is Instagram's headline figure and YouTube publishes none
+     at all, so a tile for it appears only where there is a number to put in
+     it -- an empty fifth tile reading "not published" is a column of the band
+     spent saying nothing. */
+  const tiles = [];
+  if (has('reach')) {
+    const reach = val('reach');
+    tiles.push(tile('reach', 'Reach', reach == null ? '—' : compact(reach), {
+      delta: SO.compare ? pctMove(reach, prevVal('reach')) : null,
+      deltaLabel: 'people reached, ' + vsPrior,
+      prev: SO.compare && prevVal('reach') != null ? 'prev ' + compact(prevVal('reach')) : '',
+      spark: sparkOf('reach'), na: reach == null }));
+  }
+  tiles.push(tile('views', 'Views', views == null ? '—' : compact(views), {
+    delta: SO.compare ? pctMove(views, prevVal('views')) : null,
+    deltaLabel: views == null ? 'not published' : vsPrior,
+    prev: SO.compare && prevVal('views') != null ? 'prev ' + compact(prevVal('views')) : '',
+    spark: sparkOf('views'), na: views == null }));
+  tiles.push(tile('interactions', 'Interactions', inter == null ? '—' : compact(inter), {
+    delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
+    deltaLabel: inter == null ? 'not published' : 'likes and comments',
+    prev: SO.compare && prevVal('interactions') != null ? 'prev ' + compact(prevVal('interactions')) : '',
+    spark: sparkOf('interactions'), na: inter == null }));
+  /* Summed across accounts, which is the fix. The caption says so, because
+     377 against a channel page reading 374 needs one word of explanation. */
+  tiles.push(tile('followers', words.followers, subs.now == null ? '—' : compact(subs.now), {
+    delta: subs.move,
+    deltaLabel: subs.per.length > 1 ? 'across ' + subs.per.length + ' ' + words.units
+      : subs.readings > 1 ? 'across ' + RANGE_N() + 'd' : 'single reading',
+    spark: subs.per.length === 1 ? subs.per[0].series.slice(-14) : null,
+    na: subs.now == null }));
+  tiles.push('<div data-scrollto="yt-videos" style="cursor:pointer">'
     + kpi(words.posts + ' published', String(videos.length), {
-        deltaLabel: SO.allTime ? 'every video held' : 'published in this window',
+        deltaLabel: SO.allTime ? 'every ' + words.item.toLowerCase() + ' held' : 'published in this window',
         color: hueFor(key) })
-    + '</div>'
-    + '</div>';
+    + '</div>');
+
+  const band = '<div class="kpis grid g' + tiles.length + ' viz">' + tiles.join('') + '</div>';
 
   /* ---------- the chart ---------- */
   const available = (SO_METRICS[key] || []).filter(m => has(m.k));
@@ -7511,11 +7563,23 @@ function oneDashboard(d, key){
            dash: !!off, values: seriesTotal(src, ax, m) }];
   };
 
-  const chips = available.map(m =>
-    '<button class="mchip' + (use.includes(m.k) ? ' on' : '') + '" data-someta="' + m.k + '">'
-    + '<i></i>' + escS(m.label) + '</button>').join('')
+  /* data-mchip, not data-someta: that is the attribute the click handler
+     listens for, and every chip here was inert until it matched.
+
+     The swatch is the channel hue rather than a per-metric slot colour,
+     because two metrics are drawn as two charts here rather than two series on
+     one axis -- views and subscribers share no scale. A slot colour would
+     promise a legend that does not exist. */
+  const chips = available.map(m => {
+    const on = use.includes(m.k);
+    return '<button class="mchip' + (on ? ' on' : '') + '"'
+      + ' style="--c:' + (on ? hueFor(key) : 'transparent') + '"'
+      + ' data-mchip="' + m.k + '"><i class="sw"></i>' + escS(m.label) + '</button>';
+  }).join('')
     + (accounts.length > 1
-      ? '<button class="mchip' + (SO.split ? ' on' : '') + '" data-sosplit="1"><i></i>Split by channel</button>'
+      ? '<button class="mchip' + (SO.split ? ' on' : '') + '"'
+        + ' style="--c:' + (SO.split ? 'var(--s3)' : 'transparent') + '"'
+        + ' data-sosplit="1"><i class="sw"></i>Split by ' + escS(words.unit) + '</button>'
       : '');
 
   /* ONE segmented control for the chart shape.
@@ -7548,7 +7612,8 @@ function oneDashboard(d, key){
          two-hundred-pixel hole beside it. A chart is also the one thing on this
          page that gets better with height. */
       title: '', sub: '', height: 330,
-      note: SO.split ? 'One line per channel. A gap is a day that channel published nothing — not a zero.' : '' });
+      note: SO.split ? 'One line per ' + words.unit + '. A gap is a day that '
+        + words.unit + ' published nothing — not a zero.' : '' });
   } else {
     charts = '<div class="vempty"><b>Nothing to chart</b>Pick a metric above.</div>';
   }
@@ -7580,11 +7645,13 @@ function oneDashboard(d, key){
     : '';
 
   const channels = subs.per.length
-    ? '<section class="ytpanel viz"><header class="ytph"><div><h3>' + escS(words.followers) + ' by channel</h3>'
+    ? '<section class="ytpanel viz"><header class="ytph"><div><h3>' + escS(words.followers)
+      + ' by ' + escS(words.unit) + '</h3>'
       + '<p>latest reading each, ' + escS(dayLabel(subs.per[0].asOf)) + '</p></div></header>'
       + '<ul class="ytchan">' + chanRows + '</ul>'
       + (subs.per.length > 1
-        ? '<p class="ytnote">The tile above is these added together. A channel page shows only its own.</p>'
+        ? '<p class="ytnote">The tile above is these added together. One '
+          + escS(words.unit) + '\u2019s own page shows only its own.</p>'
         : '')
       + '</section>'
     : '';
@@ -7626,7 +7693,7 @@ function oneDashboard(d, key){
     + '</header>'
     + (sorted.length
       ? '<div class="ytscroll"><table class="yttable"><thead><tr>'
-        + th2('title', 'Video') + th2('published', 'Published')
+        + th2('title', words.item) + th2('published', 'Published')
         + th2('views', 'Views', 'num') + th2('interactions', 'Interactions', 'num')
         + th2('shares', 'Shares', 'num')
         + '<th class="num">vs average</th></tr></thead><tbody>'
@@ -7650,7 +7717,8 @@ function oneDashboard(d, key){
           + '<button class="tgl" data-postpage="-1"' + (SO.page === 0 ? ' disabled' : '') + '>Previous</button>'
           + '<button class="tgl" data-postpage="1"' + (SO.page >= pages - 1 ? ' disabled' : '') + '>Next</button>'
           + '</footer>' : '')
-      : '<div class="vempty"><b>No videos ' + (SO.q ? 'match that search' : 'in this window') + '</b>'
+      : '<div class="vempty"><b>No ' + escS(words.posts.toLowerCase()) + ' '
+        + (SO.q ? 'match that search' : 'in this window') + '</b>'
         + (SO.q ? 'Clear the search, or turn on All time.'
           : 'Nothing was published in these ' + RANGE_N() + ' days. Turn on All time to see the back catalogue.') + '</div>')
     + '</section>';
