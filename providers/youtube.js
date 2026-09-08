@@ -235,3 +235,221 @@ export async function updateVideo(token, id, changes = {}){
     after: { title: after.title, description: after.description, tags: after.tags }
   };
 }
+
+/* ---------------------------------------------------------------------------
+   Comments.
+
+   Quota decides the shape of everything below. commentThreads.list costs 1 unit
+   and returns up to 100 threads with their first few replies inline, so one
+   call covers a channel's recent comment activity. comments.list for the rest
+   of a long reply chain is another unit, and it is spent only when somebody
+   opens that thread.
+
+   allThreadsRelatedToChannelId is what makes a channel-wide inbox possible at
+   all. Without it the only way to find comments is to walk every video and ask
+   per video, which is one unit per video per poll.
+
+   What is NOT here, because YouTube does not offer it: liking a comment. The
+   Data API can insert, update, delete, mark as spam and set a moderation
+   status, and it has no rate or like method on comments -- videos.rate exists,
+   its comment equivalent does not. So a heart on a YouTube comment cannot be
+   done from here, and the UI says so rather than offering a button that
+   quietly does nothing.
+   --------------------------------------------------------------------------- */
+
+/* One item as the rest of the app wants it, from either shape Google returns: a
+   commentThread's topLevelComment, or a plain comment resource. */
+function commentOut(c, { threadId, channelId } = {}){
+  const s = c.snippet || {};
+  const authorId = s.authorChannelId?.value || null;
+  return {
+    externalId: c.id,
+    threadExternalId: threadId || s.parentId || c.id,
+    replyTo: s.parentId || null,
+    authorId,
+    authorName: s.authorDisplayName || '',
+    authorAvatar: s.authorProfileImageUrl || null,
+    /* The channel's own replies come back with the channel as author, which is
+       how a reply is told apart from a viewer's comment. By id, not by name:
+       two channels can share a display name. */
+    mine: Boolean(channelId && authorId && authorId === channelId),
+    body: s.textOriginal ?? s.textDisplay ?? '',
+    likes: Number(s.likeCount) || 0,
+    createdAt: s.publishedAt || null,
+    videoId: s.videoId || null
+  };
+}
+
+/* Every recent comment thread on the channel, newest activity first.
+
+   `since` is applied here rather than sent to Google: commentThreads.list has no
+   publishedAfter parameter, only an ordering, so the walk stops at the first
+   thread older than the cursor. Paging past it would spend quota re-reading
+   comments already stored. */
+export async function comments(token, { channelId, since = null, max = 200 } = {}){
+  if (!channelId) throw new Error('comments() needs the channel id');
+  const cutoff = since ? Date.parse(since) : null;
+  const threads = [];
+  let pageToken = null;
+
+  for (let calls = 0; threads.length < max && calls < 10; calls++) {
+    const qs = new URLSearchParams({
+      part: 'snippet,replies',
+      allThreadsRelatedToChannelId: channelId,
+      order: 'time',
+      maxResults: '100',
+      textFormat: 'plainText'
+    });
+    if (pageToken) qs.set('pageToken', pageToken);
+    const j = await call(token, `${DATA}/commentThreads?${qs}`);
+
+    let reachedCutoff = false;
+    for (const t of j.items || []) {
+      const top = t.snippet?.topLevelComment;
+      if (!top) continue;
+      const stamp = Date.parse(top.snippet?.updatedAt || top.snippet?.publishedAt || 0);
+      if (cutoff && isFinite(stamp) && stamp <= cutoff) { reachedCutoff = true; break; }
+
+      const items = [commentOut(top, { threadId: t.id, channelId })];
+      for (const r of t.replies?.comments || []) {
+        items.push(commentOut(r, { threadId: t.id, channelId }));
+      }
+      items.sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
+
+      threads.push({
+        externalId: t.id,
+        parentKind: 'video',
+        parentId: t.snippet?.videoId || null,
+        /* totalReplyCount counts every reply; replies.comments carries at most
+           five of them. The difference is how the UI knows to offer the rest
+           rather than implying the thread is complete. */
+        totalItems: 1 + (Number(t.snippet?.totalReplyCount) || 0),
+        canReply: t.snippet?.canReply !== false,
+        items
+      });
+    }
+    if (reachedCutoff) break;
+    pageToken = j.nextPageToken || null;
+    if (!pageToken) break;
+  }
+  return threads;
+}
+
+/* The whole of one reply chain, for a thread whose inline replies were
+   truncated. 1 unit. */
+export async function commentReplies(token, parentId, { channelId = null } = {}){
+  const out = [];
+  let pageToken = null;
+  for (let i = 0; i < 10; i++) {
+    const qs = new URLSearchParams({
+      part: 'snippet', parentId, maxResults: '100', textFormat: 'plainText'
+    });
+    if (pageToken) qs.set('pageToken', pageToken);
+    const j = await call(token, `${DATA}/comments?${qs}`);
+    for (const c of j.items || []) out.push(commentOut(c, { threadId: parentId, channelId }));
+    pageToken = j.nextPageToken || null;
+    if (!pageToken) break;
+  }
+  out.sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
+  return out;
+}
+
+/* One write against the Data API, with the 403 everybody hits first translated
+   into the thing to do about it.
+
+   force-ssl is the scope that carries comment writes. youtube.readonly cannot
+   write, and the plain youtube scope covers videos and playlists but not
+   comments -- so a connection made before force-ssl was requested reads
+   comments perfectly well and fails on the first reply. */
+async function commentWrite(token, path, body, method = 'POST'){
+  const res = await fetch(`${DATA}${path}`, {
+    method,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!res.ok) {
+    const j = await res.json().catch(() => ({}));
+    const reason = j.error?.errors?.[0]?.reason;
+    if (res.status === 401 || res.status === 403) {
+      if (/commentsDisabled|processingFailure/i.test(reason || '')) {
+        throw new Error('Comments are turned off on that video, so nothing can be posted to it.');
+      }
+      const err = new Error('This YouTube connection cannot write comments. '
+        + 'Reconnect YouTube in Connections: the comment scope is granted on the '
+        + 'consent screen, and a connection made before it was requested can '
+        + 'read comments but not reply to them.');
+      err.needsScope = 'https://www.googleapis.com/auth/youtube.force-ssl';
+      throw err;
+    }
+    throw new Error(`YouTube ${res.status}${reason ? ` (${reason})` : ''}: `
+      + (j.error?.message || res.statusText));
+  }
+  return res.json();
+}
+
+/* A reply inside an existing thread. 50 units. */
+export async function replyToComment(token, { parentId, text, channelId = null }){
+  const body = String(text || '').trim();
+  if (!body) throw new Error('A reply cannot be empty.');
+  const j = await commentWrite(token, '/comments?part=snippet', {
+    snippet: { parentId, textOriginal: body }
+  });
+  return commentOut(j, { threadId: parentId, channelId });
+}
+
+/* A new top-level comment on one of the channel's videos. 50 units. */
+export async function postComment(token, { videoId, text, channelId = null }){
+  const body = String(text || '').trim();
+  if (!body) throw new Error('A comment cannot be empty.');
+  if (!videoId) throw new Error('A new comment needs the video it goes under.');
+  const j = await commentWrite(token, '/commentThreads?part=snippet', {
+    snippet: { videoId, topLevelComment: { snippet: { textOriginal: body } } }
+  });
+  const top = j.snippet?.topLevelComment;
+  return {
+    thread: {
+      externalId: j.id, parentKind: 'video', parentId: videoId,
+      totalItems: 1, canReply: true
+    },
+    item: commentOut(top || j, { threadId: j.id, channelId })
+  };
+}
+
+/* Editing one's own comment. 50 units. */
+export async function editComment(token, { id, text, channelId = null }){
+  const body = String(text || '').trim();
+  if (!body) throw new Error('A comment cannot be empty.');
+  const j = await commentWrite(token, '/comments?part=snippet',
+    { id, snippet: { textOriginal: body } }, 'PUT');
+  return commentOut(j, { channelId });
+}
+
+/* Deleting one's own comment. 50 units. A 204 is success and carries no body. */
+export async function deleteComment(token, id){
+  const res = await fetch(`${DATA}/comments?id=${encodeURIComponent(id)}`, {
+    method: 'DELETE', headers: { Authorization: `Bearer ${token}` }
+  });
+  if (!res.ok && res.status !== 204) {
+    const j = await res.json().catch(() => ({}));
+    throw new Error(`YouTube ${res.status}: ${j.error?.message || res.statusText}`);
+  }
+  return { deleted: id };
+}
+
+/* Titles for a batch of video ids. One call per 50 ids, 1 quota unit each.
+
+   The comment inbox needs this: a comment thread carries the video id and
+   nothing else, and "dQw4w9WgXcQ" is not an answer to "which video is this
+   comment on". */
+export async function videosByIds(token, ids){
+  const list = [...new Set((ids || []).filter(Boolean))].slice(0, 50);
+  if (!list.length) return [];
+  const j = await call(token,
+    `${DATA}/videos?part=snippet&id=${encodeURIComponent(list.join(","))}`);
+  return (j.items || []).map(v => ({
+    id: v.id,
+    title: v.snippet?.title || "",
+    publishedAt: v.snippet?.publishedAt || null,
+    permalink: `https://www.youtube.com/watch?v=${v.id}`
+  }));
+}

@@ -639,3 +639,486 @@ export async function adsInsights(token, actId, { days = 90 } = {}){
 /* Ad accounts have a status; a disabled one is worth reporting rather than
    polling forever. 1 = active, 2 = disabled, 3 = unsettled. */
 export const adAccountActive = status => status == null || Number(status) === 1;
+
+/* ---------------------------------------------------------------------------
+   Comments and messages.
+
+   Four different things behind one Graph API, and they need four different
+   permissions, which is why every function here reports WHICH permission it
+   was refused for rather than a bare 403:
+
+     Facebook comments   pages_read_engagement to read the Page's own posts,
+                         pages_read_user_content to read what other people
+                         wrote on them, pages_manage_engagement to reply or
+                         like.
+     Instagram comments  instagram_manage_comments. instagram_basic reads the
+                         media and the comments_count but NOT the comment text
+                         -- the count comes back and the comments edge comes
+                         back empty, which looks exactly like a post with no
+                         comments and is the most misleading failure in here.
+     Facebook messages   pages_messaging.
+     Instagram messages  instagram_manage_messages, and the app itself needs
+                         the Instagram messaging capability -- a scope alone is
+                         not enough, and the refusal is "Application does not
+                         have the capability to make this API call" rather than
+                         a permission error.
+
+   Reactions: a Facebook comment can be liked (POST /{comment-id}/likes) and an
+   Instagram comment cannot -- Instagram's Graph API has no like endpoint for
+   comments at all. Message reactions are not writable either. Rather than
+   guess, capability is declared in lib/social-inbox.js and the UI hides what
+   the platform does not offer.
+   --------------------------------------------------------------------------- */
+
+/* A permission failure worth translating. Meta's code 200 covers every "you
+   need a permission for that", and its message names the permission when the
+   caller has a Page role and does not when it is an app-level capability. */
+function inboxError(err, { need, what }){
+  const msg = String(err.message || '');
+  if (err.code === 200 || err.code === 3 || /Requires .*permission|capability/i.test(msg)) {
+    const out = new Error(`${what} needs the ${need} permission, which this Meta `
+      + `connection does not carry. Reconnect Meta in Connections to grant it.`);
+    out.needsScope = need;
+    out.original = msg;
+    return out;
+  }
+  return err;
+}
+
+/* One POST to Graph. Writes take their parameters as a form body rather than a
+   query string: a comment can be longer than a URL. */
+async function post(token, path, params = {}){
+  const body = new URLSearchParams({ access_token: token });
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    body.set(k, String(v));
+  }
+  const res = await fetch(`${GRAPH}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body
+  });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || json?.error) {
+    const e = json?.error || {};
+    const err = new Error(`Meta ${res.status}: ${e.message || res.statusText}`);
+    err.code = e.code;
+    err.subcode = e.error_subcode;
+    err.isAuth = e.code === 190;
+    throw err;
+  }
+  return json;
+}
+
+const COMMENT_FIELDS = 'id,message,created_time,like_count,user_likes,parent{id},'
+  + 'from{id,name,picture{url}},attachment';
+
+function fbCommentOut(c, { threadId, pageId }){
+  const from = c.from || {};
+  return {
+    externalId: c.id,
+    threadExternalId: threadId || c.parent?.id || c.id,
+    replyTo: c.parent?.id || null,
+    authorId: from.id || null,
+    authorName: from.name || 'Someone on Facebook',
+    authorAvatar: from.picture?.data?.url || null,
+    /* The Page replying to a comment appears as the Page. By id, because a Page
+       and a person can share a name. */
+    mine: Boolean(pageId && from.id && String(from.id) === String(pageId)),
+    body: c.message || '',
+    likes: Number(c.like_count) || 0,
+    likedByUs: Boolean(c.user_likes),
+    createdAt: c.created_time || null,
+    attachments: c.attachment ? [{
+      kind: c.attachment.type || 'file',
+      url: c.attachment.url || c.attachment.media?.image?.src || null
+    }] : []
+  };
+}
+
+/* Comment threads on a Page's own posts.
+
+   One comment thread per top-level comment, which is how Facebook models it and
+   how the reader thinks about it: the post is the place, the top-level comment
+   starts a conversation, and replies hang off that.
+
+   filter=stream would flatten replies into the top-level list; toplevel keeps
+   the shape. */
+export async function pageComments(token, pageId, { since = null, posts = 25 } = {}){
+  let feed;
+  try {
+    ({ data: feed } = await call(token, `/${pageId}/posts`, {
+      fields: `id,message,story,created_time,permalink_url,`
+        + `comments.filter(toplevel).order(reverse_chronological).limit(50)`
+        + `{${COMMENT_FIELDS},comments.limit(25){${COMMENT_FIELDS}}}`,
+      limit: posts
+    }));
+  } catch (err) {
+    throw inboxError(err, { need: 'pages_read_user_content', what: 'Reading Facebook comments' });
+  }
+
+  const cutoff = since ? Date.parse(since) : null;
+  const threads = [];
+  for (const p of feed?.data || []) {
+    const title = (p.message || p.story || '').replace(/\s+/g, ' ').trim();
+    for (const c of p.comments?.data || []) {
+      const items = [fbCommentOut(c, { threadId: c.id, pageId })];
+      for (const r of c.comments?.data || []) {
+        items.push(fbCommentOut(r, { threadId: c.id, pageId }));
+      }
+      items.sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
+      const last = Date.parse(items[items.length - 1].createdAt || 0);
+      if (cutoff && isFinite(last) && last <= cutoff) continue;
+
+      threads.push({
+        externalId: c.id,
+        parentKind: 'post',
+        parentId: p.id,
+        parentTitle: title || 'A post with no caption',
+        parentLink: p.permalink_url || null,
+        totalItems: items.length,
+        canReply: true,
+        items
+      });
+    }
+  }
+  threads.sort((a, b) => {
+    const la = a.items[a.items.length - 1].createdAt || '';
+    const lb = b.items[b.items.length - 1].createdAt || '';
+    return la < lb ? 1 : la > lb ? -1 : 0;
+  });
+  return threads;
+}
+
+function igCommentOut(c, { threadId, igId, username }){
+  const who = c.from?.username || c.username || null;
+  return {
+    externalId: c.id,
+    threadExternalId: threadId || c.id,
+    replyTo: threadId && threadId !== c.id ? threadId : null,
+    authorId: c.from?.id || null,
+    authorName: who ? '@' + who : 'Someone on Instagram',
+    authorAvatar: null,
+    /* Instagram gives the commenter's username but not always an id, so this is
+       the one place a name comparison is the only option available -- and it is
+       comparing against the connected account's own handle, which is unique on
+       Instagram in a way a display name is not. */
+    mine: Boolean(c.from?.id && igId && String(c.from.id) === String(igId))
+      || Boolean(username && who && who.toLowerCase() === String(username).toLowerCase()),
+    body: c.text || '',
+    likes: Number(c.like_count) || 0,
+    likedByUs: false,
+    createdAt: c.timestamp || null,
+    attachments: []
+  };
+}
+
+/* Comment threads on an Instagram account's own media.
+
+   comments_count is readable with instagram_basic and the comment TEXT is not,
+   so a grant without instagram_manage_comments returns media with a count of 4
+   and an empty comments edge. That is not an error and does not throw, which
+   would leave the reader looking at "no comments" on a post that has four --
+   so the count is carried through as `missingText` and the caller says why. */
+export async function igComments(token, igId, { since = null, media = 25, username = null } = {}){
+  let feed;
+  try {
+    ({ data: feed } = await call(token, `/${igId}/media`, {
+      fields: 'id,caption,timestamp,permalink,media_type,comments_count,'
+        + 'comments.limit(50){id,text,timestamp,like_count,username,from{id,username},'
+        + 'replies.limit(25){id,text,timestamp,like_count,username,from{id,username}}}',
+      limit: media
+    }));
+  } catch (err) {
+    throw inboxError(err, { need: 'instagram_manage_comments', what: 'Reading Instagram comments' });
+  }
+
+  const cutoff = since ? Date.parse(since) : null;
+  const threads = [];
+  let counted = 0, read = 0;
+
+  for (const m of feed?.data || []) {
+    counted += Number(m.comments_count) || 0;
+    const title = String(m.caption || '').replace(/\s+/g, ' ').trim();
+    for (const c of m.comments?.data || []) {
+      read++;
+      const items = [igCommentOut(c, { threadId: c.id, igId, username })];
+      for (const r of c.replies?.data || []) {
+        read++;
+        items.push(igCommentOut(r, { threadId: c.id, igId, username }));
+      }
+      items.sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
+      const last = Date.parse(items[items.length - 1].createdAt || 0);
+      if (cutoff && isFinite(last) && last <= cutoff) continue;
+
+      threads.push({
+        externalId: c.id,
+        parentKind: 'media',
+        parentId: m.id,
+        parentTitle: title || (m.media_type === 'VIDEO' ? 'A reel with no caption' : 'A post with no caption'),
+        parentLink: m.permalink || null,
+        totalItems: items.length,
+        canReply: true,
+        items
+      });
+    }
+  }
+  threads.sort((a, b) => {
+    const la = a.items[a.items.length - 1].createdAt || '';
+    const lb = b.items[b.items.length - 1].createdAt || '';
+    return la < lb ? 1 : la > lb ? -1 : 0;
+  });
+  /* Non-throwing evidence that the read was silently partial. */
+  threads.missingText = counted > 0 && read === 0 ? counted : 0;
+  return threads;
+}
+
+/* A reply to a comment. Facebook and Instagram take different edges: a
+   Facebook comment has its own comments edge, an Instagram comment has replies.
+   Both accept a message field. */
+export async function replyToComment(token, { platform, commentId, text, pageId = null, igId = null, username = null }){
+  const body = String(text || '').trim();
+  if (!body) throw new Error('A reply cannot be empty.');
+  const edge = platform === 'instagram' ? 'replies' : 'comments';
+  const need = platform === 'instagram' ? 'instagram_manage_comments' : 'pages_manage_engagement';
+  let j;
+  try {
+    j = await post(token, `/${commentId}/${edge}`, { message: body });
+  } catch (err) {
+    throw inboxError(err, { need, what: 'Replying to a comment' });
+  }
+  /* Graph returns only the new id. Re-reading it costs one call and is what
+     makes the posted reply appear with the right author and timestamp instead
+     of a locally invented one. */
+  return readComment(token, j.id, { platform, pageId, igId, username })
+    .catch(() => ({
+      externalId: j.id,
+      threadExternalId: commentId,
+      replyTo: commentId,
+      authorId: platform === 'instagram' ? igId : pageId,
+      authorName: 'You',
+      mine: true,
+      body,
+      likes: 0,
+      likedByUs: false,
+      createdAt: new Date().toISOString(),
+      attachments: []
+    }));
+}
+
+/* A new top-level comment on one of the account's own posts. */
+export async function commentOnPost(token, { platform, postId, text, pageId = null, igId = null, username = null }){
+  const body = String(text || '').trim();
+  if (!body) throw new Error('A comment cannot be empty.');
+  const need = platform === 'instagram' ? 'instagram_manage_comments' : 'pages_manage_engagement';
+  let j;
+  try {
+    j = await post(token, `/${postId}/comments`, { message: body });
+  } catch (err) {
+    throw inboxError(err, { need, what: 'Posting a comment' });
+  }
+  const item = await readComment(token, j.id, { platform, pageId, igId, username }).catch(() => null);
+  return {
+    thread: { externalId: j.id, parentKind: platform === 'instagram' ? 'media' : 'post',
+      parentId: postId, totalItems: 1, canReply: true },
+    item: item || {
+      externalId: j.id, threadExternalId: j.id, replyTo: null,
+      authorId: platform === 'instagram' ? igId : pageId, authorName: 'You',
+      mine: true, body, likes: 0, likedByUs: false,
+      createdAt: new Date().toISOString(), attachments: []
+    }
+  };
+}
+
+export async function readComment(token, commentId, { platform, pageId = null, igId = null, username = null }){
+  if (platform === 'instagram') {
+    const { data } = await call(token, `/${commentId}`, {
+      fields: 'id,text,timestamp,like_count,username,from{id,username}'
+    });
+    return igCommentOut(data, { threadId: null, igId, username });
+  }
+  const { data } = await call(token, `/${commentId}`, { fields: COMMENT_FIELDS });
+  return fbCommentOut(data, { threadId: null, pageId });
+}
+
+/* Liking a comment, which exists on Facebook and does not exist on Instagram.
+
+   Instagram's Graph API has no like endpoint for comments -- not an undocumented
+   one, not a different edge, none. Called for Instagram this refuses locally
+   rather than sending a request that returns a confusing 400. */
+export async function likeComment(token, { platform, commentId, on = true }){
+  if (platform === 'instagram') {
+    throw new Error('Instagram has no API for liking a comment. It can be replied to, '
+      + 'hidden or deleted, and liking is only possible in the Instagram app itself.');
+  }
+  try {
+    if (on) await post(token, `/${commentId}/likes`, {});
+    else {
+      const res = await fetch(`${GRAPH}/${commentId}/likes?access_token=${encodeURIComponent(token)}`,
+        { method: 'DELETE' });
+      const j = await res.json().catch(() => null);
+      if (!res.ok || j?.error) {
+        const e = j?.error || {};
+        const err = new Error(`Meta ${res.status}: ${e.message || res.statusText}`);
+        err.code = e.code;
+        throw err;
+      }
+    }
+  } catch (err) {
+    throw inboxError(err, { need: 'pages_manage_engagement', what: 'Liking a comment' });
+  }
+  return { commentId, liked: on };
+}
+
+export async function hideComment(token, { commentId, hidden = true }){
+  try {
+    await post(token, `/${commentId}`, { is_hidden: hidden ? 'true' : 'false' });
+  } catch (err) {
+    throw inboxError(err, { need: 'pages_manage_engagement', what: 'Hiding a comment' });
+  }
+  return { commentId, hidden };
+}
+
+export async function deleteComment(token, commentId){
+  const res = await fetch(`${GRAPH}/${commentId}?access_token=${encodeURIComponent(token)}`,
+    { method: 'DELETE' });
+  const j = await res.json().catch(() => null);
+  if (!res.ok || j?.error) {
+    const e = j?.error || {};
+    const err = new Error(`Meta ${res.status}: ${e.message || res.statusText}`);
+    err.code = e.code;
+    throw inboxError(err, { need: 'pages_manage_engagement', what: 'Deleting a comment' });
+  }
+  return { deleted: commentId };
+}
+
+/* ---------------------------------------------------------------------------
+   Messages.
+   --------------------------------------------------------------------------- */
+
+const MSG_FIELDS = 'id,message,created_time,from{id,name,email},to{data{id,name}},'
+  + 'attachments{name,mime_type,image_data,file_url},sticker';
+
+function msgOut(m, { threadId, selfIds }){
+  const from = m.from || {};
+  const atts = (m.attachments?.data || []).map(a => ({
+    kind: a.mime_type && /^image\//.test(a.mime_type) ? 'image' : (a.mime_type || 'file'),
+    name: a.name || null,
+    url: a.image_data?.url || a.file_url || null
+  }));
+  if (m.sticker) atts.push({ kind: 'sticker', url: m.sticker, name: null });
+  return {
+    externalId: m.id,
+    threadExternalId: threadId,
+    replyTo: null,
+    authorId: from.id || null,
+    authorName: from.name || 'Unknown',
+    authorAvatar: null,
+    mine: Boolean(from.id && selfIds.has(String(from.id))),
+    body: m.message || '',
+    likes: 0,
+    likedByUs: false,
+    createdAt: m.created_time || null,
+    attachments: atts
+  };
+}
+
+/* Conversations for a Page, or for an Instagram account under that Page.
+
+   One request per property, with the messages inline: a second call per thread
+   would be one request per conversation and Meta's rate limits are per app, not
+   per thread.
+
+   `platform=instagram` on the same edge is how Instagram DMs are read -- there
+   is no separate Instagram conversations endpoint, and the id in the path is
+   still the PAGE, not the Instagram account. Getting that wrong returns an
+   empty list rather than an error, which reads as "no messages". */
+export async function conversations(token, { pageId, platform = 'facebook', igId = null, limit = 40, messages = 25 } = {}){
+  const need = platform === 'instagram' ? 'instagram_manage_messages' : 'pages_messaging';
+  let data;
+  try {
+    ({ data } = await call(token, `/${pageId}/conversations`, {
+      platform: platform === 'instagram' ? 'instagram' : undefined,
+      fields: `id,updated_time,message_count,unread_count,`
+        + `participants{id,name,username,email},`
+        + `messages.limit(${messages}){${MSG_FIELDS}}`,
+      limit
+    }));
+  } catch (err) {
+    throw inboxError(err, {
+      need,
+      what: platform === 'instagram' ? 'Reading Instagram messages' : 'Reading Facebook messages'
+    });
+  }
+
+  /* Which participant is us. Both ids are checked because a Page conversation
+     lists the Page and an Instagram conversation lists the Instagram account,
+     and a thread can list either depending on the edge. */
+  const selfIds = new Set([String(pageId), igId ? String(igId) : null].filter(Boolean));
+
+  return (data?.data || []).map(c => {
+    const people = c.participants?.data || [];
+    const them = people.find(p => !selfIds.has(String(p.id))) || people[0] || {};
+    const items = (c.messages?.data || [])
+      .map(m => msgOut(m, { threadId: c.id, selfIds }))
+      .sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
+    return {
+      externalId: c.id,
+      parentKind: null,
+      parentId: null,
+      parentTitle: null,
+      parentLink: null,
+      withId: them.id || null,
+      withName: them.name || (them.username ? '@' + them.username : 'Unknown'),
+      totalItems: Number(c.message_count) || items.length,
+      unread: Number(c.unread_count) > 0,
+      canReply: true,
+      items
+    };
+  });
+}
+
+/* Sending. The recipient is the person's scoped id, which comes off the
+   conversation's participants rather than from anywhere the user types.
+
+   The 24-hour rule is Meta's, not this app's: outside the window since the
+   person's last message a plain reply is refused, and only a message tagged as
+   HUMAN_AGENT (itself a reviewed feature) or one of the other tags gets
+   through. That refusal is translated, because "This message is sent outside of
+   allowed window" is otherwise read as a bug here. */
+export async function sendMessage(token, { pageId, recipientId, text, platform = 'facebook' }){
+  const body = String(text || '').trim();
+  if (!body) throw new Error('A message cannot be empty.');
+  if (!recipientId) throw new Error('No recipient on that conversation.');
+  const need = platform === 'instagram' ? 'instagram_manage_messages' : 'pages_messaging';
+  try {
+    const j = await post(token, `/${pageId}/messages`, {
+      recipient: JSON.stringify({ id: recipientId }),
+      messaging_type: 'RESPONSE',
+      message: JSON.stringify({ text: body })
+    });
+    return { externalId: j.message_id || null, recipientId, body };
+  } catch (err) {
+    if (/outside of allowed window|outside the allowed window/i.test(String(err.message))) {
+      throw new Error('Meta will not deliver this: more than 24 hours have passed since '
+        + 'their last message, and outside that window a Page can only send with an '
+        + 'approved message tag. Reply from the Meta inbox for this one.');
+    }
+    throw inboxError(err, { need, what: 'Sending a message' });
+  }
+}
+
+/* Marking a conversation read. sender_action is the same edge as a message and
+   is what the Messenger platform offers instead of a read flag on the thread. */
+export async function markConversationRead(token, { pageId, recipientId }){
+  try {
+    await post(token, `/${pageId}/messages`, {
+      recipient: JSON.stringify({ id: recipientId }),
+      sender_action: 'mark_seen'
+    });
+    return { ok: true };
+  } catch (err) {
+    /* Not worth failing a read for. */
+    return { ok: false, error: err.message };
+  }
+}

@@ -325,3 +325,89 @@ CREATE TABLE IF NOT EXISTS agent_threads (
   panels      JSONB NOT NULL DEFAULT '[]'::jsonb
 );
 CREATE INDEX IF NOT EXISTS agent_threads_agent ON agent_threads (agent, updated_at DESC);
+
+/* ---------------------------------------------------------------------------
+   Comments and messages.
+
+   Two tables rather than one, because a thread and its items are read on
+   different schedules: the list view wants one row per conversation with a
+   snippet, and the item rows are fetched only when somebody opens one. Storing
+   a thread whole as JSON — which is what agent_threads above does — would mean
+   rewriting every comment on a video each time one new reply arrives, and there
+   is no upper bound on how many that is.
+
+   Both are mirrors. The platform is the record; these tables are what makes the
+   list paint without spending quota on every keystroke. A row here is never the
+   only copy of anything.
+   --------------------------------------------------------------------------- */
+
+/* One conversation: a comment thread under a video or post, or a DM thread with
+   one person.
+
+   parent_* is what the user asked for as "what view the comment is from": the
+   video or post the comment sits under, by title and link, so the list says
+   where a comment came from without opening it. It is null on a DM, which has
+   no parent. */
+CREATE TABLE IF NOT EXISTS social_threads (
+  id            TEXT PRIMARY KEY,          -- '<accountId>:<kind>:<externalId>'
+  account_id    TEXT NOT NULL,
+  platform      TEXT NOT NULL,             -- youtube | facebook | instagram
+  kind          TEXT NOT NULL,             -- 'comment' | 'message'
+  external_id   TEXT NOT NULL,
+  parent_kind   TEXT,                      -- video | post | media
+  parent_id     TEXT,
+  parent_title  TEXT,
+  parent_link   TEXT,
+  with_id       TEXT,                      -- the other party: commenter, or DM peer
+  with_name     TEXT,
+  with_avatar   TEXT,
+  item_count    INTEGER NOT NULL DEFAULT 0,
+  unread        BOOLEAN NOT NULL DEFAULT false,
+  last_at       TIMESTAMPTZ,
+  last_from     TEXT,                      -- 'us' | 'them'
+  last_snippet  TEXT,
+  can_reply     BOOLEAN NOT NULL DEFAULT true,
+  raw           JSONB NOT NULL DEFAULT '{}',
+  synced_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (account_id, kind, external_id)
+);
+/* The list is always "newest activity first, for these accounts and this kind". */
+CREATE INDEX IF NOT EXISTS social_threads_feed
+  ON social_threads (platform, kind, last_at DESC NULLS LAST);
+CREATE INDEX IF NOT EXISTS social_threads_acct
+  ON social_threads (account_id, kind, last_at DESC NULLS LAST);
+
+/* One comment or one message.
+
+   mine is whether the connected account wrote it, decided at sync time from the
+   author id rather than at render time from the name -- two channels can share
+   a display name, and a name comparison would put someone else's comment on the
+   right-hand side of the thread. */
+CREATE TABLE IF NOT EXISTS social_items (
+  id            TEXT PRIMARY KEY,          -- '<accountId>:<externalId>'
+  thread_id     TEXT NOT NULL,
+  account_id    TEXT NOT NULL,
+  platform      TEXT NOT NULL,
+  kind          TEXT NOT NULL,
+  external_id   TEXT NOT NULL,
+  reply_to      TEXT,                      -- external id of the item replied to
+  author_id     TEXT,
+  author_name   TEXT,
+  author_avatar TEXT,
+  mine          BOOLEAN NOT NULL DEFAULT false,
+  body          TEXT,
+  likes         INTEGER NOT NULL DEFAULT 0,
+  liked_by_us   BOOLEAN NOT NULL DEFAULT false,
+  reactions     JSONB NOT NULL DEFAULT '[]',
+  attachments   JSONB NOT NULL DEFAULT '[]',
+  created_at    TIMESTAMPTZ,
+  /* Set when this row was written here and not yet seen coming back from the
+     platform. A reply posts, appears immediately, and stops being pending on the
+     next sync -- so a send that the platform then rejected does not sit in the
+     thread forever looking delivered. */
+  pending       BOOLEAN NOT NULL DEFAULT false,
+  raw           JSONB NOT NULL DEFAULT '{}',
+  synced_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS social_items_thread ON social_items (thread_id, created_at);
+CREATE INDEX IF NOT EXISTS social_items_acct ON social_items (account_id, created_at DESC);
