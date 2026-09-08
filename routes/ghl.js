@@ -362,17 +362,33 @@ export function ghlRoutes({ env, auth, live = null }){
        broken when it simply did not run. */
     const typed = String(req.query.q || '').trim();
     const search = typed.length >= 2 ? typed : null;
-    const rows = await leadRows(ids, LEAD_ROWS, { since, search });
 
-    if (!since && rows.length === LEAD_ROWS) {
-      const total = await leadTotal(ids);
-      warnings.push({ account: 'ghl', label: 'Leads',
-        error: search
-          ? `More than ${LEAD_ROWS} leads match "${search}". Showing the most recently active; `
-            + 'narrow the term or pick a sub-account.'
-          : `Showing the ${LEAD_ROWS} most recently active of ${total.toLocaleString()} leads. `
-            + 'Filter by sub-account or stage to narrow it.' });
-    }
+    /* Where in the ordered list to start. Capped, because an offset makes the
+       database walk everything before it and nothing good happens past a few
+       tens of thousands of rows -- and because a caller asking for offset
+       900000 is a bug rather than a reader. */
+    const offset = Math.min(200_000, Math.max(0, Number(req.query.offset) || 0));
+
+    const rows = await leadRows(ids, LEAD_ROWS, { since, search, offset });
+
+    /* A short page is the end of the list. That is the only claim about
+       "is there more" that survives a mutable sort key, so it is the one the
+       pager runs on -- the total below is for display and nothing branches on
+       it. A final page landing exactly on 1,000 costs one empty fetch.
+
+       The total is skipped when a search is running, because leadTotal() counts
+       every lead in scope and knows nothing about the term: reporting "42 of
+       8,450" for a search would be two unrelated numbers next to each other. */
+    const complete = rows.length < LEAD_ROWS;
+    const total = since ? null
+      : complete ? offset + rows.length
+      : search ? null
+      : await leadTotal(ids);
+
+    /* The capped-list warning is gone. It said "filter by sub-account or stage
+       to narrow it", which was advice rather than an answer: the sub-account
+       HAS 4,643 leads and narrowing does not change that. The footer under the
+       list carries the count now, and a button that fetches the rest. */
 
     /* The stage NAME, because that is what the cards show and because a card
        folded across pipelines has no single stage id to match on. */
@@ -380,7 +396,15 @@ export function ghlRoutes({ env, auth, live = null }){
     const leads = rows.map(shapeLead)
       .filter(l => wantStage === 'all' || l.stageName === wantStage);
 
-    res.json({ leads, warnings, delta: Boolean(since), search,
+    res.json({
+      leads, warnings, delta: Boolean(since), search,
+      /* Described by the server so the browser never infers it. returned is the
+         count BEFORE the stage filter above: filtering to one stage can leave
+         four rows out of a full thousand, and a pager reading leads.length
+         would call that the end of the list. */
+      page: since ? null : {
+        offset, limit: LEAD_ROWS, returned: rows.length, total, hasMore: !complete
+      },
       serverTime: new Date().toISOString() });
   }));
 

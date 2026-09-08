@@ -395,6 +395,14 @@ main{min-width:0;display:flex;flex-direction:column}
 .gutter:focus-visible{outline:none}
 .maillist{max-height:none}
 .mailwrap.split .maillist{max-height:660px;overflow:auto}
+.ldmore{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:12px;border-top:1px solid var(--edge);
+  font-size:12px;color:var(--dim);
+}
+.ldmore .btn{padding:5px 14px;font-size:12px}
+.ldmore .btn[disabled]{opacity:.55;cursor:default}
+.ldmore .bad{color:var(--rust)}
 .reader{min-height:380px;max-height:672px;overflow:hidden;display:flex;flex-direction:column}
 
 #ib-list{padding:8px;display:flex;flex-direction:column;gap:6px}
@@ -2938,6 +2946,9 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
       <div class="card flush maillist">
         <div class="cardhead"><h3 id="ld-listtitle">Leads</h3><span class="eyebrow" id="ld-listcount">—</span></div>
         <div id="ld-list"></div>
+        <!-- Outside #ld-list, so a repaint of the rows does not take the button
+             out from under the cursor mid-click. -->
+        <div class="ldmore" id="ld-more" hidden></div>
       </div>
       <div class="gutter" id="ld-gutter" role="separator" aria-orientation="vertical"
            aria-label="Resize lead list" tabindex="0" title="Drag to resize, double-click to reset"></div>
@@ -4591,7 +4602,15 @@ const LD = { loc:null, stage:'all', sel:null, tab:'thread', channel:'sms', from:
   /* The search term, and whether a server round trip for it is in flight. The
      local filter is instant against what is loaded; the server call finds the
      rest, and both write into the same list. */
-  q:'', qBusy:false, qTimer:null, qSeq:0 };
+  q:'', qBusy:false, qTimer:null, qSeq:0,
+
+  /* Paging state per sub-account: { next, total, busy, done, err }.
+
+     next is the server offset to ask for, and it is counted rather than derived
+     from how many rows are held. Those two drift apart the moment a search
+     merges an older lead into the list, and an offset computed from the held
+     count would then skip exactly as many rows as the search added. */
+  pages:{} };
 
 /* Kept beside THREADS rather than inside it. Activity records are GHL system
    events, and pending rows are inbound webhooks that arrived with no ids — both
@@ -5526,7 +5545,91 @@ function drawLeadHeader(){
   if (badge) badge.textContent = LEADS.filter(l => l.unread).length || '';
 }
 
-function drawLeads(){ drawLeadSubnav(); drawLeadHeader(); drawStages(); drawLeadList(); drawLeadDetail(); }
+/* How many leads are held for the open sub-account, against how many exist.
+
+   The second number comes from ghl_location, which counts contacts, while the
+   list also carries opportunities whose contact never landed -- so held can
+   pass the total. Hence the max() rather than a claim that 1,004 of 1,000 are
+   loaded. */
+function ldMoreState(){
+  const loc = ldLoc();
+  const pg = LD.pages[loc] || {};
+  const held = LEADS.reduce((n, l) => n + (l.loc === loc ? 1 : 0), 0);
+  const total = Math.max(pg.total ?? 0, (locById(loc) || {}).leads || 0, held);
+  return { loc, pg, held, total };
+}
+
+function drawLeadMore(){
+  const el = document.getElementById('ld-more');
+  if (!el) return;
+  const loc = ldLoc();
+
+  /* Nothing to page through during a search: that query already ran against
+     every lead in the sub-account server-side, so a "load more" there would be
+     paging a different list than the one on screen. */
+  if (!loc || LD.q.trim().length >= 2) { el.hidden = true; return; }
+
+  const { pg, held, total } = ldMoreState();
+  const more = !pg.done && held < total;
+  if (!held) { el.hidden = true; return; }
+
+  el.hidden = false;
+  el.innerHTML =
+    '<span>' + (more || pg.busy
+      ? held.toLocaleString() + ' of ' + total.toLocaleString() + ' loaded'
+      : 'All ' + held.toLocaleString() + ' leads loaded') + '</span>'
+    + (pg.err ? '<span class="bad">' + escL(pg.err) + '</span>' : '')
+    + (more || pg.err
+      ? '<button class="btn" id="ld-morebtn"' + (pg.busy ? ' disabled' : '') + '>'
+        + (pg.busy ? 'Loading…' : pg.err ? 'Try again' : 'Load more') + '</button>'
+      : '');
+
+  const btn = document.getElementById('ld-morebtn');
+  if (btn) btn.onclick = loadMoreLeads;
+}
+
+/* One more page of the open sub-account.
+
+   Scoped to the location on purpose: the first read is unscoped and holds the
+   thousand most recently active leads across every sub-account, and asking for
+   offset 1000 unscoped would page a list nobody is looking at. Scoped, the
+   rows already held for this location ARE the head of the scoped ordering, so
+   the first offset is however many arrived that way. */
+async function loadMoreLeads(){
+  const loc = ldLoc();
+  if (!loc) return;
+  const pg = LD.pages[loc] || (LD.pages[loc] = {});
+  if (pg.busy) return;
+
+  if (pg.next == null) pg.next = LEADS.reduce((n, l) => n + (l.loc === loc ? 1 : 0), 0);
+  pg.busy = true; pg.err = null; drawLeadMore();
+
+  try {
+    const out = await api('/api/ghl/leads?location=' + encodeURIComponent(loc)
+      + '&offset=' + pg.next);
+    /* Switched sub-account mid-flight: the rows are still worth keeping, but
+       this page belongs to a location nobody is looking at any more. */
+    mergeLeads(out.leads || []);
+    const page = out.page || {};
+    pg.next += page.returned || 0;
+    if (page.total != null) pg.total = page.total;
+    pg.done = !page.hasMore;
+    /* A page whose every row was already held cannot advance the view, and
+       clicking again would fetch the same rows. Only true when the sort shifted
+       under us between requests. */
+    if ((page.returned || 0) === 0) pg.done = true;
+    saveLeadsCache();
+  } catch (err) {
+    pg.err = err.body?.detail || err.message || 'request failed';
+  } finally {
+    pg.busy = false;
+    /* The whole view, not just the footer: more rows change the header counts
+       and the stage cards as well as the list. */
+    drawLeads();
+  }
+}
+
+function drawLeads(){ drawLeadSubnav(); drawLeadHeader(); drawStages(); drawLeadList(); drawLeadMore(); drawLeadDetail(); }
 
 /* ---------- leads: loaders ----------
 
@@ -5608,7 +5711,7 @@ function startLiveUpdates(){
           }
         }
       }
-      if (leadIds.length) { saveLeadsCache(); drawLeadList(); drawLeadHeader(); }
+      if (leadIds.length) { saveLeadsCache(); drawLeadList(); drawLeadMore(); drawLeadHeader(); }
     } catch (err) {
       console.error('live: lead update failed', err.message);
     }
@@ -15961,7 +16064,12 @@ async function load(){
        this and asks only for what follows. */
     if (leads.status === 'fulfilled' && leads.value) {
       if (leads.value.delta) mergeLeads(leads.value.leads || []);
-      else LEADS = leads.value.leads || [];
+      else {
+        LEADS = leads.value.leads || [];
+        /* The list was replaced, so every offset counted against the old one is
+           meaningless. Refresh means start from the first page again. */
+        LD.pages = {};
+      }
       advanceCursor(leads.value);
       saveLeadsCache();
     }
