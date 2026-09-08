@@ -7,14 +7,26 @@
 # detached process with its own script is predictable, and it can be run by hand
 # to see what it does.
 #
-# Chromium's --app is what makes it a window rather than a tab: no address bar,
-# no tab strip, its own taskbar button. --user-data-dir gives it a separate
-# window list so it does not group under the everyday browser.
+# It opens the DEFAULT BROWSER now, not a Chromium --app window.
+#
+# The app-window framing was dropped deliberately. A --app window offers no
+# Install button, so the app could never be installed as a PWA while it was
+# being launched into one -- and installing is the better version of the same
+# idea: the browser gives it its own window and taskbar icon, but it is the
+# user's choice and it runs in the profile they are already signed into.
+#
+# That last part mattered more than it sounds. --user-data-dir gave it a
+# throwaway profile signed into nothing, so every Google or Meta grant started
+# from a cold sign-in, and a --app window has no address bar or back button to
+# recover with if a redirect went wrong.
+#
+# -AppWindow (or COMMAND_CENTER_APP_WINDOW=1) puts the old behaviour back.
 
 param(
   [Parameter(Mandatory=$true)][string]$Url,
   [string]$Exe = '',
   [string]$ProfileDir = '',
+  [switch]$AppWindow,
   [int]$TimeoutSeconds = 60
 )
 
@@ -39,6 +51,17 @@ while ((Get-Date) -lt $deadline) {
 }
 if (-not $up) { Log ('server never answered; not opening a window -- ' + $lastErr); exit 1 }
 
+$wantApp = $AppWindow -or ($env:COMMAND_CENTER_APP_WINDOW -eq '1')
+
+if (-not $wantApp) {
+  # The ordinary browser, in the ordinary profile. Start-Process on a URL hands
+  # it to whatever the user has set as default, which is the point.
+  Log 'opening the default browser'
+  Start-Process $Url
+  Log 'if you would rather have a window of its own, install it from the browser'
+  exit 0
+}
+
 if ($Exe -and (Test-Path $Exe)) {
   $args = @("--app=$Url", "--no-first-run", "--no-default-browser-check", "--window-size=1440,900")
   if ($ProfileDir) {
@@ -51,7 +74,7 @@ if ($Exe -and (Test-Path $Exe)) {
     }
     $args += "--user-data-dir=$ProfileDir"
   }
-  Log ("launching " + (Split-Path -Leaf $Exe))
+  Log ("launching " + (Split-Path -Leaf $Exe) + " in app mode (asked for)")
   Start-Process $Exe -ArgumentList $args
   # If Chromium exits immediately the window never appears, and falling back to a
   # tab is better than showing nothing at all.
@@ -61,6 +84,6 @@ if ($Exe -and (Test-Path $Exe)) {
   if (-not $win) { Log 'no app window appeared; falling back to the default browser'; Start-Process $Url }
   else { Log ('window is up: ' + ($win | Select-Object -First 1).MainWindowTitle) }
 } else {
-  Log 'no Chromium found; opening the default browser'
+  Log 'app mode was asked for but no Chromium was found; opening the default browser'
   Start-Process $Url
 }

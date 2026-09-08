@@ -86,12 +86,14 @@ $url = "http://127.0.0.1:$port"
 # a separate profile costs nothing -- there is no login to carry over.
 # Chrome first, Edge as the fallback.
 #
+# This only decides which Chromium gets used IF app mode is asked for. By
+# default the launcher opens whatever browser the user has set as default and
+# none of this applies.
+#
 # It used to be the other way round, on the reasoning that Edge is on every
 # Windows machine so it always resolves. The original reason for flipping it was
 # speech recognition, which is gone -- but the preference is not: this is the
-# browser the dashboard is used and tested in, and launching the app window in
-# a different engine from the one every screen was checked against is how you
-# get a layout bug nobody can reproduce.
+# browser the dashboard is used and tested in.
 #
 # Edge stays as the fallback rather than being dropped, because a machine
 # without Chrome should still open a window rather than nothing.
@@ -120,10 +122,14 @@ $profileDir = Join-Path $env:LOCALAPPDATA 'CommandCenter\.appwindow'
 # supervisor, and doing it in a Start-Job did not reliably open anything.
 function Open-AppWindow {
   $opener = Join-Path $PSScriptRoot 'open-window.ps1'
-  Start-Process powershell -WindowStyle Hidden -ArgumentList @(
+  $a = @(
     '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', ('"' + $opener + '"'),
     '-Url', $url, '-Exe', ('"' + $browser + '"'), '-ProfileDir', ('"' + $profileDir + '"')
   )
+  # Opt in, not the default. It opens the ordinary browser otherwise -- see the
+  # long note at the top of open-window.ps1 for why that is the better default.
+  if ($env:COMMAND_CENTER_APP_WINDOW -eq '1') { $a += '-AppWindow' }
+  Start-Process powershell -WindowStyle Hidden -ArgumentList $a
 }
 
 function Test-Up {

@@ -20,6 +20,6 @@
     { "name": "Leads",   "url": "/#leads" },
     { "name": "Social",  "url": "/#social" },
     { "name": "Systems", "url": "/#systems" },
-    { "name": "Claude",  "url": "/#claude" }
+    { "name": "Tasks",   "url": "/#tasks" }
   ]
 }

@@ -4,10 +4,16 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Command Center</title>
-<!-- Installable as a desktop app: Edge/Chrome offer "Install" with these, and
-     the result is a real window with its own taskbar icon rather than a tab.
-     No Electron, no build step, and the self-updater keeps working because the
-     page is still served by the local server. -->
+<!-- A web app, installable.
+
+     This runs in an ordinary browser. Install it and the browser gives it its
+     own window and taskbar icon, which is what the desktop-app framing was
+     reaching for; the difference is that this way it is the user's choice, it
+     uses the profile they are already signed into, and nothing has to pretend
+     to be Electron.
+
+     Worth knowing: a Chromium --app window offers no Install button at all, so
+     launching into one was the thing preventing the app from being installed. -->
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#0E1120">
 <meta name="color-scheme" content="dark">
@@ -2223,6 +2229,15 @@ main{min-width:0;display:flex;flex-direction:column}
 /* A toast is now the fallback for any view without a banner of its own, so it
    has to be able to carry bad news as well as good. Both keep the text, so the
    colour is not doing the work on its own. */
+/* Offline. Fixed to the top, full width, and amber rather than red: the app is
+   working, the numbers are just not current. It exists because the service
+   worker will happily render the whole dashboard from cache, and a dashboard
+   with stale figures and no warning is worse than an error page. */
+.offbar{position:fixed;top:0;left:0;right:0;z-index:90;padding:7px 16px;
+  background:rgba(224,138,74,.16);border-bottom:1px solid rgba(224,138,74,.45);
+  color:var(--amber);font-size:12px;text-align:center;
+  backdrop-filter:blur(6px)}
+
 .toast.ok{border-color:rgba(53,208,165,.45);color:var(--jade)}
 .toast.bad{border-color:rgba(224,90,74,.5);color:var(--rust);max-width:min(520px,90vw)}
 .toast{background:var(--panel2);border:1px solid var(--edge2);border-radius:10px;padding:9px 14px;
@@ -11523,7 +11538,13 @@ function drawVersion(){
       go.textContent = 'Reload';
       go.onclick = () => location.reload();
       bar.classList.add('on');
-      if (!risky) setTimeout(() => location.reload(), 1800);
+      if (!risky) {
+        /* The worker is holding last build's document. Told to drop it before
+           the reload, so the reload fetches the new one rather than the shell
+           it just cached. */
+        window.dispatchEvent(new Event('cc-updated'));
+        setTimeout(() => location.reload(), 1800);
+      }
     }
     return;
   }
@@ -11545,10 +11566,16 @@ function drawVersion(){
     : a.phase === 'blocked' || a.phase === 'failed'
       ? ' · <span style="color:var(--amber)" title="' + escS(a.reason || '') + '">auto blocked</span>'
       : ' · <span style="color:var(--dimmer)" title="Checks GitHub and updates itself, restarting only when idle">auto</span>';
+  /* Offered only when the browser says it is installable and it is not already
+     installed. No button when there is nothing it could do. */
+  const installBit = (PWA.prompt && !standalone())
+    ? ' · <button class="up" id="ver-install" title="Give it its own window and taskbar icon">install</button>'
+    : '';
   el.innerHTML = 'v' + escS(VER.info.version)
     + (VER.info.commit ? ' · ' + escS(VER.info.commit) : '')
     + (VER.info.dirty ? ' · <span style="color:var(--amber)">local edits</span>' : '')
     + autoBit
+    + installBit
     /* The button stays even with auto on: "install it now" is a reasonable
        thing to want, and it is the only way through when auto is blocked. */
     + (c?.behind ? ' · <button class="up" id="ver-upd">update</button>'
@@ -11560,6 +11587,8 @@ function drawVersion(){
   if (b) b.onclick = () => { VER.dismissed = false; drawUpdBar(); };
   const q = document.getElementById('ver-quit');
   if (q) q.onclick = verQuit;
+  const inst = document.getElementById('ver-install');
+  if (inst) inst.onclick = pwaInstall;
   drawUpdBar();
 }
 
@@ -11625,6 +11654,159 @@ document.getElementById('upd-go').onclick = verUpdate;
 document.getElementById('upd-later').onclick = () => {
   VER.dismissed = true; drawUpdBar();
 };
+/* ---------- installing ----------
+
+   Two jobs: register the worker, and keep hold of the install prompt so it can
+   be offered from the rail instead of relying on a browser menu item most
+   people never open.
+
+   Registration is guarded on a secure context because that is what service
+   workers require, and localhost counts as one -- so this works for the local
+   install and for a real deployment, and quietly does nothing over plain http
+   to an IP address rather than throwing on every load. */
+const PWA = { prompt: null, installed: false, sw: null };
+
+if ('serviceWorker' in navigator && (window.isSecureContext || location.hostname === 'localhost')) {
+  navigator.serviceWorker.register('/sw.js', { scope: '/' })
+    .then(reg => { PWA.sw = reg; })
+    /* A failed registration is not worth a banner: everything works without
+       one, it is only the offline shell and the install prompt that do not. */
+    .catch(err => console.warn('[pwa] service worker did not register:', err.message));
+
+  /* When the auto-updater has restarted the server into new code, the cached
+     shell is last build's. Dropped before the reload rather than after, so the
+     reload that follows fetches the new document. */
+  window.addEventListener('cc-updated', () => {
+    try { navigator.serviceWorker.controller?.postMessage('cc-drop-shell'); } catch { /* no worker */ }
+  });
+}
+
+/* Chrome fires this once, and only when it considers the app installable. It
+   has to be captured, because after this event the only way to trigger the
+   install is a browser menu. */
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  PWA.prompt = e;
+  drawVersion();
+});
+window.addEventListener('appinstalled', () => {
+  PWA.prompt = null;
+  PWA.installed = true;
+  drawVersion();
+  banner('Installed. It will open in its own window from now on.', 'ok');
+});
+
+/* Already running as an installed app, so there is nothing to offer. */
+const standalone = () => window.matchMedia('(display-mode: standalone)').matches
+  || window.matchMedia('(display-mode: window-controls-overlay)').matches
+  || window.navigator.standalone === true;
+
+async function pwaInstall(){
+  if (!PWA.prompt) return;
+  const p = PWA.prompt;
+  /* Single use. Calling prompt() twice on the same event throws. */
+  PWA.prompt = null;
+  drawVersion();
+  try {
+    await p.prompt();
+    const { outcome } = await p.userChoice;
+    if (outcome !== 'accepted') {
+      banner('Not installed. The browser will offer it again later, or use its own Install option.');
+    }
+  } catch (err) {
+    banner('Could not open the install prompt: ' + err.message);
+  }
+}
+
+/* ---------- can we reach the server? ----------
+
+   The worker serves a cached shell when the server cannot be reached, which is
+   right and also dangerous: a dashboard that renders with no data looks a great
+   deal like a dashboard reporting that there is no data. So it is said out loud.
+
+   NOT navigator.onLine. That reports whether the machine has a network
+   interface, which is a different question and usually the wrong one here:
+
+     - the likeliest failure by far is the local server not running, and that
+       does not change onLine at all, so the bar would never appear for the one
+       case it is most needed
+     - and it stays true on a connected machine with no route out, measured:
+       with Chrome's network emulation set to offline and every request failing,
+       navigator.onLine still read true
+
+   So the signal is a request to our own origin either working or not. The
+   events are kept as a hint to re-check immediately rather than as the answer. */
+const REACH = { ok: true, since: Date.now() };
+
+function markReach(ok){
+  if (REACH.ok === ok) return;
+  REACH.ok = ok;
+  REACH.since = Date.now();
+  drawOffline();
+  /* Coming back is worth a reload of the data, since everything on screen was
+     frozen at whatever the last good response said. */
+  if (ok) { try { load(); } catch { /* not booted yet */ } }
+}
+
+function drawOffline(){
+  let el = document.getElementById('cc-offline');
+  if (REACH.ok) { if (el) el.remove(); return; }
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'cc-offline';
+    el.className = 'offbar';
+    document.body.appendChild(el);
+  }
+  el.textContent = 'Cannot reach Command Center — nothing below is being refreshed, '
+    + 'and every figure is as old as the last response. '
+    + (location.hostname === 'localhost' || location.hostname === '127.0.0.1'
+      ? 'If it is running locally, check it is still started.'
+      : 'Check your connection.');
+}
+
+/* One probe, cheap, and the only thing that decides the bar. /api/health is
+   unauthenticated and does no work. */
+async function probeReach(){
+  try {
+    const r = await fetch('/api/health', { cache: 'no-store' });
+    markReach(r.ok);
+  } catch { markReach(false); }
+}
+/* The browser's own events are a prompt to check, not the verdict. */
+window.addEventListener('online', probeReach);
+window.addEventListener('offline', probeReach);
+/* And on a timer, because a server that stops does not fire an event. Slow: the
+   section polls will usually notice first, and this is the backstop. */
+setInterval(probeReach, 30_000);
+probeReach();
+
+/* Every request the app already makes is evidence, and it is better evidence
+   than a probe: it is free, it happens constantly, and it fails for exactly the
+   reasons that matter. Wrapped once here rather than at every call site. */
+(function watchReach(){
+  const real = window.fetch;
+  window.fetch = async (...args) => {
+    try {
+      const res = await real(...args);
+      /* A response of any status means the server answered. A 500 is not
+         unreachable. */
+      markReach(true);
+      return res;
+    } catch (err) {
+      /* Only our own origin counts. A blocked third-party font says nothing
+         about whether Command Center is up. */
+      let ours = true;
+      try {
+        const u = new URL(typeof args[0] === 'string' ? args[0] : args[0].url, location.href);
+        ours = u.origin === location.origin;
+      } catch { /* treat an unparseable input as ours */ }
+      /* An aborted request is a request we cancelled, not a failure. */
+      if (ours && err.name !== 'AbortError') markReach(false);
+      throw err;
+    }
+  };
+})();
+
 verLoad();
 /* Once an hour was plenty when a human pressed the button. It is not, now that
    the server restarts on its own: the page would keep drawing the old build's
