@@ -2220,6 +2220,11 @@ main{min-width:0;display:flex;flex-direction:column}
 /* ---- toasts ---- */
 .toasts{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:80;
   display:flex;flex-direction:column;gap:8px;align-items:center}
+/* A toast is now the fallback for any view without a banner of its own, so it
+   has to be able to carry bad news as well as good. Both keep the text, so the
+   colour is not doing the work on its own. */
+.toast.ok{border-color:rgba(53,208,165,.45);color:var(--jade)}
+.toast.bad{border-color:rgba(224,90,74,.5);color:var(--rust);max-width:min(520px,90vw)}
 .toast{background:var(--panel2);border:1px solid var(--edge2);border-radius:10px;padding:9px 14px;
   font-size:12.5px;color:var(--text);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);animation:rise .28s}
 @keyframes rise{from{opacity:0;transform:translateY(10px)}}
@@ -2508,6 +2513,22 @@ main{min-width:0;display:flex;flex-direction:column}
   display:flex;align-items:center;justify-content:center}
 .ytalert b{display:block;font-size:13px;color:var(--amber);font-weight:600}
 .ytalert p{margin:3px 0 0;font-size:12px;color:var(--dim);line-height:1.5}
+/* The action, in the alert that asks for it. */
+.ytalert-do{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin-top:10px}
+.ytalert-do .btn{border-color:rgba(224,138,74,.5);color:var(--amber)}
+.ytalert-do .btn:hover{background:rgba(224,138,74,.12)}
+.ytalert-do span{font-size:11.5px;color:var(--dimmer);line-height:1.45}
+
+/* A chip that DOES something. Same size and shape as .chip so a row of them
+   still lines up, but it reads as pressable: a pointer, a hover, and a focus
+   ring. The old version was a <span> styled like a status label, which is
+   exactly what it looked like and exactly why nobody pressed it. */
+.chipbtn{font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;padding:3px 8px;border-radius:5px;cursor:pointer;
+  background:rgba(224,90,74,.1);border:1px solid rgba(224,90,74,.45);
+  color:var(--rust);transition:background .12s,border-color .12s}
+.chipbtn:hover{background:rgba(224,90,74,.2);border-color:var(--rust)}
+.chipbtn:disabled{opacity:.55;cursor:default}
 
 /* ---- the chart panel ---- */
 .ytchips{display:flex;gap:7px;flex-wrap:wrap;padding:13px 17px 0}
@@ -3689,6 +3710,64 @@ function step2(key){
   document.getElementById(isImap ? 'ib-email' : 'ib-label').focus();
 }
 
+/* Start an OAuth grant in a window of its own.
+
+   It used to be window.location, which replaced the dashboard with the
+   provider's consent screen. In a tab that is rude. In the app window it is
+   worse: Chrome --app has no tab strip, no address bar and no back button, so
+   for the duration of the grant the app has simply become Google, and a
+   half-finished grant leaves you with no way back at all.
+
+   The popup carries popup=1, and the callback answers it with a page that
+   posts a message here and closes itself instead of redirecting.
+
+   Popup blockers are the reason for the fallback. This is only ever called
+   from a click, so a blocker should not fire -- but if it does, navigating is
+   still better than a button that silently does nothing. */
+function startGrant(provider, { label, color, why } = {}){
+  const url = '/connect/' + encodeURIComponent(provider)
+    + '?popup=1'
+    + (label ? '&label=' + encodeURIComponent(label) : '')
+    + (color ? '&color=' + encodeURIComponent(color) : '');
+
+  const w = window.open(url, 'cc_connect_' + provider,
+    'width=560,height=760,noopener=no,noreferrer=no');
+  if (!w) {
+    banner('Your browser blocked the sign-in window, so it is opening here instead.');
+    window.location = url.replace('?popup=1', '?');
+    return null;
+  }
+  try { w.focus(); } catch { /* some window managers refuse */ }
+  GRANT_WAIT = { provider, why: why || null, at: Date.now() };
+  return w;
+}
+
+/* What the popup is expected to report back. Nulled once handled, so a stray
+   second message cannot re-banner. */
+let GRANT_WAIT = null;
+
+/* Same origin only, and the shape is checked before anything is read out of
+   it: this listener is reachable by any page that gets a handle on this
+   window. */
+window.addEventListener('message', ev => {
+  if (ev.origin !== window.location.origin) return;
+  const m = ev.data;
+  if (!m || m.source !== 'cc-connect' || !m.data) return;
+  const d = m.data;
+  GRANT_WAIT = null;
+  closeModal();
+  if (d.ok) {
+    banner('Connected ' + (d.what || d.provider), 'ok');
+    /* Both, because the account list feeds the rail and the platform payload
+       feeds whichever view is open. */
+    load();
+    if (typeof loadSocialView === 'function') loadSocialView();
+    if (typeof loadSocial === 'function') loadSocial();
+  } else {
+    banner(d.error || 'The connection failed.');
+  }
+});
+
 async function saveAccount(){
   const label = document.getElementById('ib-label').value.trim();
   const errEl = document.getElementById('ib-err');
@@ -3702,9 +3781,7 @@ async function saveAccount(){
      is picked there — one grant covers mail and calendar, so there is no second
      step for the calendar, and a Meta grant names its discovered Pages itself. */
   if (NEW.provider !== 'imap') {
-    window.location = '/connect/' + encodeURIComponent(NEW.provider)
-      + '?label=' + encodeURIComponent(label)
-      + '&color=' + encodeURIComponent(NEW.color);
+    startGrant(NEW.provider, { label, color: NEW.color });
     return true;
   }
 
@@ -5849,6 +5926,24 @@ function drawSocial(){
   body.querySelectorAll('[data-solink]').forEach(b => b.onclick = () =>
     window.open(b.dataset.solink, '_blank', 'noopener'));
   body.querySelectorAll('[data-soconnect]').forEach(b => b.onclick = () => soConnectProvider(b.dataset.soconnect));
+  /* Reconnecting skips the name-and-colour sheet: the account already exists
+     and the grant only needs to refresh its tokens. Accounts are keyed by the
+     provider's own id, so signing in as the same channel updates that row
+     rather than adding one. */
+  body.querySelectorAll('[data-soreconnect]').forEach(b => b.onclick = () => {
+    const grant = b.dataset.soreconnect;
+    const cfg = PROVIDERS_CFG[grant];
+    if (cfg && cfg.configured === false) {
+      banner(cfg.setupHint || grant + ' is not configured on the server.');
+      return;
+    }
+    b.disabled = true;
+    b.textContent = 'Opening…';
+    startGrant(grant, { why: 'reconnect' });
+    /* Re-enabled rather than left dead: the window may be closed without
+       finishing, and then the button has to work again. */
+    setTimeout(() => { b.disabled = false; b.textContent = 'Reconnect'; }, 4000);
+  });
   body.querySelectorAll('[data-sometric]').forEach(b => b.onclick = () => {
     SO.metric[b.dataset.plat] = b.dataset.sometric; drawSocial();
   });
@@ -6057,15 +6152,20 @@ function wireBrush(root){
   });
 }
 
-function toast(msg){
+/* kind: undefined | 'ok' | 'bad'.
+
+   An error gets a longer dwell than a confirmation, because 2.6 seconds is
+   enough to register "saved" and not enough to read why something failed. */
+function toast(msg, kind){
   const host = document.getElementById('so-toasts');
   if (!host) return;
   const el = document.createElement('div');
-  el.className = 'toast';
+  el.className = 'toast' + (kind ? ' ' + kind : '');
   el.textContent = msg;
   host.appendChild(el);
+  const dwell = kind === 'bad' ? 7000 : 2600;
   setTimeout(() => { el.style.transition = 'opacity .3s, transform .3s'; el.style.opacity = '0';
-    el.style.transform = 'translateY(8px)'; setTimeout(() => el.remove(), 320); }, 2600);
+    el.style.transform = 'translateY(8px)'; setTimeout(() => el.remove(), 320); }, dwell);
 }
 
 /* Everything on screen, as CSV. The table twin already makes each value
@@ -7143,6 +7243,13 @@ function oneDashboard(d, key){
      A figure nobody can trust is worse than no figure, so it goes first. */
   const broken = (d.accounts || []).filter(a => a.status !== 'ok');
   const failed = (d.accounts || []).filter(a => a.lastPullFailed);
+  /* The button lives in the alert as well as in the channel list.
+
+     The first version of this said "reconnect from the channel list at the
+     bottom" and the channel list had no reconnect control in it -- an
+     instruction pointing at something that did not exist, three screens away
+     from where it was read. */
+  const grantOf = d.grant || SO_GRANT[d.provider] || 'youtube';
   const alert = (broken.length || failed.length)
     ? '<div class="ytalert">'
       + '<div class="ytalert-i" aria-hidden="true">!</div>'
@@ -7151,8 +7258,14 @@ function oneDashboard(d, key){
         : 'The last pull failed') + '</b>'
       + '<p>Everything below is the last data that arrived, not what YouTube holds now'
       + (d.cachedAt ? ' — read ' + escS(agoOf(d.cachedAt)) : '') + '. '
-      + escS((broken.length ? broken : failed).map(a => a.label).join(', '))
-      + '. Reconnect from the channel list at the bottom.</p></div></div>'
+      + escS((broken.length ? broken : failed).map(a => a.label).join(', ')) + '.</p>'
+      + '<div class="ytalert-do">'
+      + '<button class="btn" data-soreconnect="' + escS(grantOf) + '">Reconnect'
+      + (broken.length > 1 ? ' channels' : '') + '</button>'
+      + '<span>Opens ' + escS(PROV_UI[grantOf]?.name || grantOf)
+      + ' in a new window. Signing in again refreshes whichever channel you pick;'
+      + ' repeat for the second one.</span>'
+      + '</div></div></div>'
     : '';
 
   /* ---------- four tiles ----------
@@ -7555,7 +7668,15 @@ function accountsFooter(d){
     + d.accounts.map(a =>
         '<div class="soacct" style="--c:' + a.color + '"><span class="sdot"></span><b>' + escS(a.label) + '</b>'
         + '<span>' + escS(a.handle) + '</span>'
-        + (a.status !== 'ok' ? '<span class="chip rust">Reauth</span>' : '')
+        /* A BUTTON, not a chip.
+           This said "Reauth" in red and did nothing, while the banner above it
+           told you to reconnect from this list. There was no reconnect control
+           anywhere on the page. */
+        + (a.status !== 'ok'
+          ? '<button class="chipbtn rust" data-soreconnect="' + escS(grant) + '"'
+            + ' title="Opens ' + escS(PROV_UI[grant]?.name || grant)
+            + ' in a new window. Pick this account to refresh it.">Reconnect</button>'
+          : '')
         + (a.lastPollError ? '<span class="chip rust" title="' + escS(a.lastPollError) + '">Last pull failed</span>' : '')
         + '<span class="mono">pulled ' + fmt(a.lastRun) + '</span></div>').join('')
     /* Connecting again adds a row rather than replacing one: accounts are keyed
@@ -15536,11 +15657,22 @@ function banner(text, kind){
   for (const el of targets) el.hidden = true;
   if (!text) return;
 
-  const el = document.getElementById(BANNERS[activeView()])
-    /* A view with no banner of its own still gets its errors seen rather than
-       swallowed: the Inbox's is the fallback and is at least reachable. */
-    || document.getElementById(BANNERS.inbox);
-  if (!el) return;
+  const el = document.getElementById(BANNERS[activeView()]);
+  if (!el) {
+    /* No banner on this view, so it becomes a toast.
+
+       The fallback used to be the Inbox's banner, on the reasoning that it is
+       "at least reachable". It is not: ib-banner lives inside <section
+       id="v-inbox">, which is display:none whenever any other view is open. So
+       every message raised from Social, Tasks, Properties or Systems -- every
+       connect error, every "not configured" hint, every failed save -- was
+       written into a hidden element and seen by nobody.
+
+       #so-toasts is fixed to the viewport and belongs to no view, which is the
+       property the fallback actually needed. */
+    toast(text, kind === 'ok' ? 'ok' : 'bad');
+    return;
+  }
 
   el.textContent = text;
   el.hidden = false;

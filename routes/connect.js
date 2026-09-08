@@ -150,7 +150,12 @@ export function connectRoutes({ env, auth, secret }){
       s: state,
       v: verifier,
       label: safeLabel(req.query.label) || p.label,
-      color: safeColor(req.query.color)
+      color: safeColor(req.query.color),
+      /* Rides in the cookie with the label, so the callback knows whether to
+         redirect a whole dashboard or close a window and tell its opener. It
+         is not in the state parameter for the same reason the label is not:
+         nothing that need not appear in a provider's logs should. */
+      popup: req.query.popup === '1'
     }, { secure: isSecure(req) });
 
     res.redirect(p.authorizeUrl(env, {
@@ -160,6 +165,34 @@ export function connectRoutes({ env, auth, secret }){
     }));
   });
 
+  /* What a popup gets instead of a redirect.
+
+     It tells the opener what happened, closes, and if closing is refused --
+     which a window script did not open is -- says so rather than sitting there
+     looking broken. targetOrigin is this origin, not '*': the message names an
+     account that was just connected and there is no reason to broadcast it. */
+  const popupDone = (res, payload) => {
+    const json = JSON.stringify(payload);
+    res.set('Content-Type', 'text/html; charset=utf-8').send(
+      '<!doctype html><meta charset="utf-8"><title>'
+      + (payload.error ? 'Connection failed' : 'Connected') + '</title>'
+      + '<style>body{margin:0;height:100vh;display:grid;place-items:center;'
+      + 'font:14px/1.5 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;'
+      + 'background:#0b0d14;color:#c9cede;text-align:center;padding:24px}'
+      + 'b{display:block;font-size:16px;color:#eceef3;margin-bottom:6px}'
+      + 'small{color:#7b8296}</style>'
+      + '<div><b>' + (payload.error ? 'Could not connect' : 'Connected')
+      + '</b><span>' + (payload.error ? String(payload.error) : String(payload.what || ''))
+      + '</span><br><small id="s">You can close this window.</small></div>'
+      + '<script>(function(){var d=' + json + ';'
+      + 'try{if(window.opener&&!window.opener.closed)'
+      + 'window.opener.postMessage({source:"cc-connect",data:d},window.location.origin);}catch(e){}'
+      + 'setTimeout(function(){try{window.close();}catch(e){}'
+      /* If it is still here a moment later, closing was refused. */
+      + 'setTimeout(function(){var s=document.getElementById("s");'
+      + 'if(s)s.textContent="Close this window to go back.";},400);},700);})();<\/script>');
+  };
+
   r.get('/oauth/callback/:provider', auth.require, async (req, res) => {
     const name = req.params.provider;
     const p = PROVIDERS[name];
@@ -168,11 +201,16 @@ export function connectRoutes({ env, auth, secret }){
     /* Errors return to the view the connection was started from, so a failed
        Meta grant reports itself on Social rather than on the Inbox. */
     const view = (p.feeds || []).includes('social') ? 'social' : 'inbox';
+    /* Read before anything can fail, because the two pre-flight failures --
+       state mismatch and no code -- are exactly the ones that must still close
+       the popup rather than leave it showing a redirect the opener never sees. */
+    const inPopup = readPending(req, secret)?.popup === true;
     const fail = msg => {
       /* Recorded before redirecting: the two pre-flight failures (state mismatch,
          no code) never reach the try block below, and they are exactly the ones
          that look like "nothing happened" from the browser. */
       recordConnect(name, msg).catch(() => {});
+      if (inPopup) return popupDone(res, { ok: false, provider: name, view, error: msg });
       return res.redirect(`/#${view}?error=` + encodeURIComponent(msg));
     };
     if (req.query.error) {
@@ -241,13 +279,16 @@ export function connectRoutes({ env, auth, secret }){
         ? `${assets.length} ${assets.length === 1 ? 'account' : 'accounts'}`
         : (record.email || p.label);
       await recordConnect(name, null);
+      if (inPopup) return popupDone(res, { ok: true, provider: name, view, what });
       res.redirect(`/#${view}?connected=` + encodeURIComponent(what));
     } catch (err) {
       console.error(`[connect:${name}]`, err.message);
       /* err.message, not the prettied banner text: the provider's own words are
          what identify a disabled API or a channel-less Google account. */
       await recordConnect(name, err.message);
-      res.redirect(`/#${view}?error=` + encodeURIComponent(`${p.label} connection failed: ${err.message}`));
+      const msg = `${p.label} connection failed: ${err.message}`;
+      if (inPopup) return popupDone(res, { ok: false, provider: name, view, error: msg });
+      res.redirect(`/#${view}?error=` + encodeURIComponent(msg));
     }
   });
 
