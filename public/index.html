@@ -2441,6 +2441,179 @@ main{min-width:0;display:flex;flex-direction:column}
 .seg .acur{font-style:normal;font-size:8.5px;letter-spacing:.1em;opacity:.6;margin-left:6px}
 .seg button.on .acur{opacity:.85}
 
+/* ---------- the combined YouTube dashboard ----------
+
+   What made the old three-tab version look thrown together was not any single
+   thing, it was the absence of a system. Four observations, each fixed here:
+
+   ONE PANEL SHAPE. There were three: .stat, .kpi and .vwrap, with different
+   radii, different padding and different header treatments, sitting next to
+   each other. Everything on this screen is a .ytpanel with one radius, one
+   border and one header.
+
+   ONE GRID. Cards were emitted as .grid.g4 and .grid.g21 and .siggrid, which
+   is three different column systems on one page. This is one twelve-column
+   grid; a panel says how many it wants.
+
+   HEADINGS DO NOT SHOUT. Small mono uppercase was used for captions, table
+   headers, sub-labels and pill text alike -- so a caption competed with a
+   column header and nothing had rank. Uppercase mono is now reserved for
+   column headers and the one eyebrow above a panel title.
+
+   BREATHING ROOM. 12px gaps between 6px-radius cards inside 14px-padded
+   parents read as a bin of tiles. The gap is 14px, panels are 12px, and there
+   is real space between a heading and its content. */
+
+/* align-items:start, and it matters. The default is stretch, so the chart
+   panel was pulled to the height of the taller right-hand column: measured at
+   724px tall around 506px of content, which is 218px of empty panel under the
+   brush strip. Two columns of different heights is what the content actually
+   is. */
+.ytgrid{display:grid;gap:14px;align-items:start;
+  grid-template-columns:repeat(12,minmax(0,1fr));margin:14px 0}
+.ytgrid .span2{grid-column:span 7}
+.ytcol{grid-column:span 5;display:flex;flex-direction:column;gap:14px;min-width:0}
+.ytgrid .span3{grid-column:1/-1}
+@media(max-width:1180px){
+  .ytgrid .span2,.ytcol{grid-column:1/-1}
+}
+
+/* .viz goes on every panel and on the tile band, because the eight validated
+   series hues are declared on .viz and nowhere else. Without it hueFor()
+   returns var(--s2) into a subtree where --s2 does not exist, and the value
+   resolves to nothing: the channel swatches were computing to
+   rgba(0,0,0,0) -- present, sized, and completely invisible. */
+.ytpanel{background:var(--panel);border:1px solid var(--edge);border-radius:12px;
+  min-width:0;overflow:hidden;display:flex;flex-direction:column}
+
+/* One header shape everywhere: title, one line of provenance under it, controls
+   pushed right. The provenance line is where "28 days, Aug 4 to Sep 1" lives,
+   so a reader never has to guess what a number covers. */
+.ytph{display:flex;align-items:flex-start;gap:12px;padding:15px 17px 0}
+.ytph h3{margin:0;font-size:14px;font-weight:600;letter-spacing:-.01em;color:var(--cream)}
+.ytph p{margin:3px 0 0;font-size:11.5px;color:var(--dimmer);line-height:1.45}
+.ytph .grow{flex:1}
+.ytph .fsearch{flex:0 1 190px;min-width:120px}
+
+.ytnote{margin:0;padding:0 17px 15px;font-size:11.5px;color:var(--dimmer);line-height:1.5}
+
+/* ---- the stale-data alert ----
+   Amber, not red: the data is old, which is a caveat, not a failure. Red is
+   for something that has actually broken. It sits above the numbers it
+   qualifies because underneath them it was ignored for weeks. */
+.ytalert{display:flex;gap:13px;align-items:flex-start;margin:14px 0 0;padding:13px 16px;
+  border-radius:12px;background:rgba(224,138,74,.09);border:1px solid rgba(224,138,74,.32)}
+.ytalert-i{width:19px;height:19px;flex:none;border-radius:50%;margin-top:1px;
+  background:var(--amber);color:#2a1a06;font-weight:700;font-size:12px;
+  display:flex;align-items:center;justify-content:center}
+.ytalert b{display:block;font-size:13px;color:var(--amber);font-weight:600}
+.ytalert p{margin:3px 0 0;font-size:12px;color:var(--dim);line-height:1.5}
+
+/* ---- the chart panel ---- */
+.ytchips{display:flex;gap:7px;flex-wrap:wrap;padding:13px 17px 0}
+.ytplot{padding:6px 8px 0;min-height:0}
+.ytplot .vwrap{background:none;border:0;border-radius:0}
+.ytplot .vempty{padding:44px 20px}
+
+/* The metric chips. A filled dot when on, a hollow ring when off -- the state
+   is legible without relying on the fill colour alone. */
+.mchip{display:inline-flex;align-items:center;gap:7px;background:var(--ink2);
+  border:1px solid var(--edge);border-radius:999px;padding:6px 12px 6px 10px;
+  font-size:11.5px;color:var(--dim);cursor:pointer;transition:border-color .13s,color .13s}
+.mchip:hover{border-color:var(--edge2);color:var(--text)}
+.mchip i{width:7px;height:7px;border-radius:50%;flex:none;
+  border:1.5px solid var(--dimmer);background:transparent}
+.mchip.on{border-color:var(--brass);color:var(--cream);background:rgba(198,160,90,.08)}
+.mchip.on i{background:var(--brass);border-color:var(--brass)}
+
+/* A smaller segmented control, for inside a panel header where the full-size
+   one dominated the title it sat beside. */
+.seg.sm button{padding:5px 10px;font-size:10px}
+
+/* ---- subscribers by channel ----
+   The whole of the old Audience tab. It was a 500px chart of two flat lines;
+   the readings are what matter and there are two of them. */
+.ytchan{list-style:none;margin:0;padding:13px 17px 15px;display:flex;flex-direction:column;gap:2px}
+.ytchan li{display:flex;align-items:center;gap:10px;padding:8px 0;
+  border-bottom:1px solid var(--edge)}
+.ytchan li:last-child{border-bottom:0}
+.ytchan .sw{width:8px;height:8px;border-radius:50%;flex:none}
+.ytchan .l{flex:1;min-width:0;font-size:12.5px;color:var(--text);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ytchan .v{font-family:var(--ff-display);font-size:17px;font-weight:500;color:var(--cream);
+  font-variant-numeric:tabular-nums}
+.ytchan .m{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.06em;
+  min-width:62px;text-align:right;color:var(--dimmer)}
+.ytchan .m.up{color:var(--jade)}
+.ytchan .m.down{color:var(--rust)}
+
+/* ---- the videos table ----
+   Its own table rather than .vtable, which was styled for a dense numeric grid
+   and gave a 60-character video title the same 90px it gave a share count. */
+.ytscroll{overflow-x:auto;margin-top:12px}
+.yttable{width:100%;border-collapse:collapse;min-width:660px}
+.yttable thead th{position:sticky;top:0;background:var(--panel);z-index:1;
+  padding:9px 14px;text-align:left;font-family:var(--ff-mono);font-size:9px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--dimmer);font-weight:500;
+  border-bottom:1px solid var(--edge2);white-space:nowrap}
+.yttable thead th.num{text-align:right}
+.yttable thead th.sortable{cursor:pointer;user-select:none}
+.yttable thead th.sortable:hover{color:var(--text)}
+.yttable thead th.on{color:var(--brass)}
+.yttable .caret{margin-left:5px;font-size:7px}
+.yttable tbody tr{border-bottom:1px solid var(--edge);cursor:pointer}
+.yttable tbody tr:last-child{border-bottom:0}
+.yttable tbody tr:hover{background:var(--panel2)}
+.yttable td{padding:11px 14px;font-size:12.5px;color:var(--text);vertical-align:middle}
+.yttable td.num{text-align:right;font-variant-numeric:tabular-nums;
+  font-family:var(--ff-mono);font-size:11.5px;color:var(--dim)}
+/* The title gets the room. It is the only column anyone reads as language. */
+.yttable td.t{max-width:430px}
+.yttable td.t .tt{display:block;color:var(--cream);line-height:1.4}
+.yttable td.t .sub{display:block;margin-top:2px;font-size:11px;color:var(--dimmer)}
+.yttable td.w{white-space:nowrap;color:var(--dimmer);font-size:11.5px}
+/* vs average is the one column that carries a judgement, so it is the one
+   allowed a colour -- and it keeps the number, so the colour is not the
+   message on its own. */
+.yttable td.idx{color:var(--dim)}
+.yttable td.idx.good{color:var(--jade)}
+.yttable td.idx.poor{color:var(--rust)}
+
+.ytpage{display:flex;align-items:center;gap:8px;padding:12px 17px;
+  border-top:1px solid var(--edge);font-size:11.5px;color:var(--dimmer)}
+.ytpage .grow{flex:1}
+.ytpage .tgl:disabled{opacity:.35;cursor:default}
+
+/* ---- one panel shape, including the two this view borrows ----
+
+   mixPanel and insights are shared with Meta and X, so they still return the
+   older .vwrap shape: a different radius, a drop shadow, 18px padding and a
+   15px heading, against .ytpanel's 12px radius, no shadow, 17px and 14px.
+   Side by side that reads as two designs on one screen, which is most of what
+   made the old version look assembled rather than designed.
+
+   Overridden here rather than by rewriting those two functions, because the
+   other platforms are still using them unchanged and this is a scoped
+   restatement, not a fork. */
+.ytcol .vwrap,.ytgrid .vwrap{border-radius:12px;box-shadow:none;margin-bottom:0;
+  border-color:var(--edge);background:var(--panel)}
+.ytcol .vhead2,.ytgrid .vhead2{padding:15px 17px 0;align-items:flex-start}
+.ytcol .vhead2 h3,.ytgrid .vhead2 h3{font-size:14px;letter-spacing:-.01em}
+/* The mono uppercase "28 DAYS" beside a heading was the same weight and
+   treatment as a table column header, so a caption and a header looked
+   equally important. Demoted to the provenance line every other panel uses. */
+.ytcol .vhead2 .sub,.ytgrid .vhead2 .sub{font-family:inherit;font-size:11.5px;
+  letter-spacing:0;text-transform:none;color:var(--dimmer)}
+.ytcol .vbody,.ytgrid .vbody{padding:14px 17px 16px}
+.ytcol .mixrow,.ytgrid .mixrow{border-bottom-style:solid}
+.ytcol .mixrow:last-child,.ytgrid .mixrow:last-child{border-bottom:0}
+
+/* The insight list, which had a dashed rule between every row and a mono
+   uppercase eyebrow -- eight horizontal lines in a 300px panel. One rule
+   between items, none at the ends. */
+.ytcol .ins,.ytgrid .ins{border-bottom-style:solid}
+.ytcol .ins:last-child,.ytgrid .ins:last-child{border-bottom:0}
+
 /* ---------- ads dashboard ---------- */
 .adsflags{display:flex;flex-direction:column;gap:1px;margin-bottom:14px}
 .adsflag{display:flex;align-items:flex-start;gap:10px;padding:11px 15px;background:var(--panel);
@@ -5425,6 +5598,10 @@ const SO = { view:'overview', metaTab:'facebook', range:'28', metric:{}, fetchin
      split:   plot one series PER ACCOUNT instead of one summed series
      table:   the table twin, so no value is reachable only by hovering */
   section:'performance', acct:'all', split:false, table:false, q:'', chartKind:'bar',
+  /* allTime: show every video we hold rather than only those published in the
+     window. Off by default, and the panel header says which it is -- the old
+     Videos tab did this unconditionally while captioning it "last 28 days". */
+  allTime:false,
   /* compare: draw the preceding window as a ghost and put a delta on every tile
      zoom:    [startIndex, endIndex] from the brush strip, or null
      metrics: charted metrics; more than one becomes small multiples, because
@@ -5535,6 +5712,9 @@ function soTabs(){
   const defs = SO_SECTIONS[SO.view];
   if (!defs) return '';
   const active = SO.view === 'meta' ? SO.metaTab : SO.section;
+  /* Nothing to switch between on a combined view, and a tab strip with one
+     live tab is furniture. */
+  if (SO.view === 'youtube') return '';
   return viewTabs(defs.map(([k, label]) => [k, label, '']), active, 'data-sosection');
 }
 
@@ -5686,6 +5866,17 @@ function drawSocial(){
   });
   body.querySelectorAll('[data-sotable]').forEach(b => b.onclick = () => {
     SO.table = !SO.table; drawSocial();
+  });
+  body.querySelectorAll('[data-soalltime]').forEach(b => b.onclick = () => {
+    SO.allTime = !SO.allTime;
+    /* Page 1, because page 4 of the windowed list is nowhere in the full one. */
+    SO.page = 0;
+    drawSocial();
+  });
+  /* The videos tile is a shortcut to the table it counts. */
+  body.querySelectorAll('[data-scrollto]').forEach(b => b.onclick = () => {
+    document.getElementById(b.dataset.scrollto)
+      ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
   body.querySelectorAll('[data-sokind]').forEach(b => b.onclick = () => {
     SO.chartKind = b.dataset.sokind; drawSocial();
@@ -6408,6 +6599,51 @@ function windowOf(rows, days, offset){
 
 const RANGE_N = () => Number(SO.range) || 28;
 
+/* ---------- follower counts ----------
+
+   A follower count is a LEVEL, so it is never summed across days -- but it must
+   be summed across accounts, because two channels' subscribers do add up.
+
+   Getting that wrong is what made the Performance tile read 3 while the two
+   channels held 3 and 374. The old code sorted every account's rows together by
+   day and took the last one, so the answer was whichever account happened to be
+   written last on the newest day: 3 or 374, never 377, and unstable between
+   renders. The same bug was fixed in lib/agent-metrics.js months ago and never
+   here, which is exactly the kind of thing splitting one view into three tabs
+   hides.
+
+   `then` is each account's own EARLIEST reading in the window, so the delta
+   compares like with like. Comparing account A's oldest reading against account
+   B's newest, which is what the old code did, is not a trend. */
+function followerLevels(rows, accounts){
+  const per = [];
+  for (const a of accounts) {
+    const mine = rows
+      .filter(r => r.account === a.id && r.followers != null)
+      .sort((x, y) => String(x.day) < String(y.day) ? -1 : 1);
+    if (!mine.length) continue;
+    per.push({
+      account: a,
+      now: Number(mine[mine.length - 1].followers),
+      then: Number(mine[0].followers),
+      readings: mine.length,
+      series: mine.map(r => Number(r.followers)),
+      asOf: String(mine[mine.length - 1].day).slice(0, 10)
+    });
+  }
+  const now = per.length ? per.reduce((n, x) => n + x.now, 0) : null;
+  const then = per.length ? per.reduce((n, x) => n + x.then, 0) : null;
+  return {
+    per,
+    now,
+    then,
+    /* A delta needs at least two readings from at least one account; a single
+       reading is a level, not a trend. */
+    move: (now != null && then && per.some(x => x.readings > 1)) ? ((now - then) / then) * 100 : null,
+    readings: per.reduce((n, x) => n + x.readings, 0)
+  };
+}
+
 /* Accounts for a platform payload, in a stable order so hues stay put. */
 const acctsOf = d => (d.accounts || []).slice().sort((a, b) => a.id < b.id ? -1 : 1);
 
@@ -6488,6 +6724,30 @@ function filterBar(d, key, { metrics = [], showSplit = true, showSearch = false 
     + '</div>';
 }
 
+
+/* ---------- videos ----------
+
+   ONE filter, used by the tiles, the chart and the table, so they cannot
+   disagree about how many videos there are.
+
+   The window bound is the whole point. The old Videos tab filtered by account
+   and by the search box and by nothing else, so it showed every video the
+   server returned -- 180 days of them -- under a tile reading "last 28 days".
+   The row at the top was published in May 2024.
+
+   SO.allTime opts out deliberately and the header says so when it is on. Two
+   years of back catalogue is genuinely useful; it is only a lie when it is
+   labelled as the last 28 days. */
+function videosFor(d, axis){
+  const inWin = new Set(axis);
+  const q = SO.q.trim().toLowerCase();
+  return (d.posts || []).filter(pp => {
+    if (SO.acct !== 'all' && pp.account !== SO.acct) return false;
+    if (!SO.allTime && !inWin.has(String(pp.publishedAt || '').slice(0, 10))) return false;
+    if (q && !String(pp.title).toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
 
 /* ---------- what changed ----------
    Anomalies against the account's OWN baseline, never against an industry
@@ -6602,6 +6862,10 @@ function platformView(key){
   if (!d) return '<div class="card flush"><div class="empty"><b>Loading ' + escS(label) + '…</b></div></div>';
   if (d.error) return '<div class="card flush"><div class="empty"><b>Could not load</b><small>' + escS(d.error) + '</small></div></div>';
   if (!d.connected) return connectCard(key, d);
+  /* YouTube is one dashboard. The other platforms keep their three sections
+     until they are given the same treatment -- the split is not wrong for them
+     yet, because they do not have the same three-way contradiction. */
+  if (key === 'youtube') return oneDashboard(d, key);
   if (SO.section === 'content') return contentSection(d, key);
   if (SO.section === 'audience') return audienceSection(d, key);
   return performanceSection(d, key);
@@ -6791,7 +7055,10 @@ function performanceSection(d, key){
       axis, series: mkSeries(picked[0], 0), ghosts: SO.compare ? mkSeries(picked[0], 1) : [],
       title: (available.find(a => a.k === picked[0]) || {}).label || picked[0],
       sub: RANGE_N() + ' days' + (SO.compare ? ' · dashed is the prior period' : ''),
-      height: 268, extra: kindSeg,
+      /* No extra: kindSeg here. It is already in the panel header six pixels
+         above, and rendering it in both places put the same three buttons on
+         screen twice. */
+      height: 268,
       note: SO.split ? 'One line per account. A gap is a day that account published nothing — not a zero.' : '' });
   }
 
@@ -6822,6 +7089,306 @@ function performanceSection(d, key){
     +   '<div class="col">' + mixPanel(d, zRows, accounts) + insights(d, key, zRows, prevRows) + '</div>'
     + '</div>'
     + accountsFooter(d);
+}
+
+/* ============ ONE DASHBOARD ============
+
+   Performance, Videos and Audience on one screen.
+
+   Three tabs meant three answers to the same question, and nobody comparing
+   them: Views read 592 on one and 829 on another, Videos 19 and 29,
+   Subscribers 3 while the two channels held 3 and 374. Every one of those is
+   fixed above, in shared helpers, because the fix belongs where the number is
+   computed rather than in whichever tab was looked at last.
+
+   The order is the order the questions get asked. How is it doing, and against
+   what. What moved. Which channel. What did we publish. What is broken.
+
+   Reach and engagement rate are NOT here. YouTube publishes no unique-reach
+   figure, so both were permanently em-dashes -- two of eight tiles, a quarter
+   of the band, saying nothing forever. The fact that they cannot exist is worth
+   stating once, in the notes at the bottom, not reserving a quarter of the
+   headline space for. */
+function oneDashboard(d, key){
+  const words = SO_WORDS[key] || SO_WORDS.facebook;
+  const accounts = acctsOf(d);
+  const rows = rowsFor(d, key, 0);
+  const prevRows = SO.compare ? rowsFor(d, key, 1) : [];
+  const full = axisOf(rows);
+  let axis = full;
+  if (SO.zoom && axis.length) {
+    const [a, b] = SO.zoom;
+    axis = axis.slice(Math.max(0, a), Math.min(axis.length, b + 1));
+  }
+  const inAxis = new Set(axis);
+  const zRows = rows.filter(r => inAxis.has(String(r.day).slice(0, 10)));
+
+  const sum = (rs, m) => rs.reduce((n, r) => n + (r[m] || 0), 0);
+  const has = m => rows.some(r => r[m] != null);
+  const val = m => has(m) ? sum(zRows, m) : null;
+  const prevVal = m => prevRows.some(r => r[m] != null) ? sum(prevRows, m) : null;
+  const pctMove = (a, b) => (a == null || b == null || !b) ? null : ((a - b) / b) * 100;
+
+  const views = val('views'), inter = val('interactions');
+  const subs = followerLevels(zRows, accounts);
+  const videos = videosFor(d, axis);
+
+  /* ---------- is the data even current? ----------
+
+     This used to live at the very bottom of the page, in the accounts list,
+     while the header showed a green dot and "Data as of Sep 8". Both channels
+     were failing to pull and needing re-authentication, and the only place that
+     said so was below three screens of charts drawn from the stale numbers.
+
+     A figure nobody can trust is worse than no figure, so it goes first. */
+  const broken = (d.accounts || []).filter(a => a.status !== 'ok');
+  const failed = (d.accounts || []).filter(a => a.lastPullFailed);
+  const alert = (broken.length || failed.length)
+    ? '<div class="ytalert">'
+      + '<div class="ytalert-i" aria-hidden="true">!</div>'
+      + '<div><b>' + escS(broken.length
+        ? (broken.length === 1 ? 'One channel needs reconnecting' : broken.length + ' channels need reconnecting')
+        : 'The last pull failed') + '</b>'
+      + '<p>Everything below is the last data that arrived, not what YouTube holds now'
+      + (d.cachedAt ? ' — read ' + escS(agoOf(d.cachedAt)) : '') + '. '
+      + escS((broken.length ? broken : failed).map(a => a.label).join(', '))
+      + '. Reconnect from the channel list at the bottom.</p></div></div>'
+    : '';
+
+  /* ---------- four tiles ----------
+     Clicking one charts it. One accent across the band: a different hue per
+     tile would imply the four are a series, and they are not. */
+  const charted = m => SO.metrics.length === 1 && SO.metrics[0] === m;
+  const sparkOf = m => {
+    const by = new Map();
+    for (const r of zRows) if (r[m] != null) by.set(String(r.day).slice(0, 10), (by.get(String(r.day).slice(0, 10)) || 0) + r[m]);
+    return axis.map(dd => by.get(dd)).filter(v => v != null).slice(-14);
+  };
+  const tile = (m, label, value, opts) =>
+    '<div data-kpimetric="' + m + '" style="cursor:pointer">'
+    + kpi(label, value, Object.assign({ color: hueFor(key), sel: charted(m) }, opts)) + '</div>';
+
+  const vsPrior = 'vs prior ' + RANGE_N() + 'd';
+  /* .viz again, and the sparklines take the SERIES hue rather than --brass.
+
+     --brass is #7C6CFF, an indigo chrome accent; the views series draws in
+     --s1, #3987e5. So the Views tile carried an indigo sparkline directly above
+     a blue Views chart of the same numbers. One metric, one colour. */
+  const band = '<div class="kpis grid g4 viz">'
+    + tile('views', 'Views', views == null ? '—' : compact(views), {
+        delta: SO.compare ? pctMove(views, prevVal('views')) : null,
+        deltaLabel: views == null ? 'not published' : vsPrior,
+        prev: SO.compare && prevVal('views') != null ? 'prev ' + compact(prevVal('views')) : '',
+        spark: sparkOf('views'), na: views == null })
+    + tile('interactions', 'Interactions', inter == null ? '—' : compact(inter), {
+        delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
+        deltaLabel: inter == null ? 'not published' : 'likes and comments',
+        prev: SO.compare && prevVal('interactions') != null ? 'prev ' + compact(prevVal('interactions')) : '',
+        spark: sparkOf('interactions'), na: inter == null })
+    /* Summed across channels, which is the fix. The caption says so, because
+       377 against a channel page reading 374 needs one word of explanation. */
+    + tile('followers', words.followers, subs.now == null ? '—' : compact(subs.now), {
+        delta: subs.move,
+        deltaLabel: subs.per.length > 1 ? 'across ' + subs.per.length + ' channels'
+          : subs.readings > 1 ? 'across ' + RANGE_N() + 'd' : 'single reading',
+        spark: subs.per.length === 1 ? subs.per[0].series.slice(-14) : null,
+        na: subs.now == null })
+    + '<div data-scrollto="yt-videos" style="cursor:pointer">'
+    + kpi(words.posts + ' published', String(videos.length), {
+        deltaLabel: SO.allTime ? 'every video held' : 'published in this window',
+        color: hueFor(key) })
+    + '</div>'
+    + '</div>';
+
+  /* ---------- the chart ---------- */
+  const available = (SO_METRICS[key] || []).filter(m => has(m.k));
+  const picked = (SO.metrics.length ? SO.metrics : ['views']).filter(m => available.some(a => a.k === m));
+  const use = picked.length ? picked : (available[0] ? [available[0].k] : []);
+
+  const mkSeries = (m, off) => {
+    const src = off ? prevRows : rows;
+    const ax = off ? axisOf(prevRows) : axis;
+    return SO.split && accounts.length > 1
+      ? seriesByAccount(src, ax, m, accounts, accounts.length > 3 ? 'line' : SO.chartKind)
+      : [{ id: key + ':' + m + (off ? ':prev' : ''), label: (available.find(a => a.k === m) || {}).label || m,
+           color: hueFor(key), kind: off ? 'line' : SO.chartKind,
+           dash: !!off, values: seriesTotal(src, ax, m) }];
+  };
+
+  const chips = available.map(m =>
+    '<button class="mchip' + (use.includes(m.k) ? ' on' : '') + '" data-someta="' + m.k + '">'
+    + '<i></i>' + escS(m.label) + '</button>').join('')
+    + (accounts.length > 1
+      ? '<button class="mchip' + (SO.split ? ' on' : '') + '" data-sosplit="1"><i></i>Split by channel</button>'
+      : '');
+
+  /* ONE segmented control for the chart shape.
+
+     There were two, stacked six pixels apart: kindSeg was rendered into the
+     panel header AND passed to vizChart as its extra, so the same three buttons
+     appeared twice and either copy worked. */
+  const kindSeg = '<div class="seg sm">'
+    + [['bar', 'Bars'], ['line', 'Line'], ['area', 'Area']].map(([k2, l]) =>
+      '<button class="' + (SO.chartKind === k2 ? 'on' : '') + '" data-sokind="' + k2 + '">' + l + '</button>').join('')
+    + '</div>';
+
+  let charts;
+  if (!axis.length) {
+    charts = '<div class="vempty"><b>No data pulled yet</b>'
+      + 'Connected, but nothing has been fetched. Use <b>Fetch now</b>, or wait for the next scheduled pull.</div>';
+  } else if (SO.table) {
+    const all = use.flatMap(m => mkSeries(m, 0));
+    charts = vizTable(axis, all);
+  } else if (use.length > 1) {
+    charts = use.map(m => vizChart({
+      axis, series: mkSeries(m, 0), ghosts: SO.compare ? mkSeries(m, 1) : [],
+      title: (available.find(a => a.k === m) || {}).label || m,
+      sub: 'own scale', height: 128 })).join('');
+  } else if (use.length) {
+    charts = vizChart({
+      axis, series: mkSeries(use[0], 0), ghosts: SO.compare ? mkSeries(use[0], 1) : [],
+      /* Taller than the old 268 and deliberately so: the right-hand column of
+         mix, channels and insights runs to about 720px, and a 250px plot left a
+         two-hundred-pixel hole beside it. A chart is also the one thing on this
+         page that gets better with height. */
+      title: '', sub: '', height: 330,
+      note: SO.split ? 'One line per channel. A gap is a day that channel published nothing — not a zero.' : '' });
+  } else {
+    charts = '<div class="vempty"><b>Nothing to chart</b>Pick a metric above.</div>';
+  }
+
+  const signal = '<section class="ytpanel viz span2">'
+    + '<header class="ytph"><div><h3>Daily ' + escS(use.map(m =>
+        String((available.find(a => a.k === m) || {}).label || m).toLowerCase()).join(' and ') || 'figures') + '</h3>'
+    + '<p>' + axis.length + ' days · ' + escS(dayLabel(axis[0] || '')) + ' → ' + escS(dayLabel(axis[axis.length - 1] || ''))
+    + (SO.compare ? ' · dashed is the prior period' : '') + '</p></div>'
+    + '<span class="grow"></span>' + (axis.length && !SO.table ? kindSeg : '') + '</header>'
+    + '<div class="ytchips">' + chips + '</div>'
+    + '<div class="ytplot">' + charts + '</div>'
+    + (full.length > 6 ? brushStrip(rows, full) : '')
+    + '</section>';
+
+  /* ---------- per-channel, which is the whole of the old Audience tab ----------
+     Two flat readings did not need a 500px chart of their own. */
+  const chanRows = subs.per.length
+    ? subs.per.slice().sort((a, b) => b.now - a.now).map(x => {
+        const mv = x.readings > 1 && x.then ? ((x.now - x.then) / x.then) * 100 : null;
+        return '<li><i class="sw" style="background:' + hueFor(x.account.id) + '"></i>'
+          + '<span class="l">' + escS(x.account.label) + '</span>'
+          + '<span class="v num">' + escS(compact(x.now)) + '</span>'
+          + '<span class="m ' + (mv == null ? 'flat' : Math.abs(mv) < 0.5 ? 'flat' : mv > 0 ? 'up' : 'down') + '">'
+          + (mv == null ? (x.readings > 1 ? '=' : 'one reading')
+            : (Math.abs(mv) < 0.5 ? '=' : (mv > 0 ? '▲' : '▼') + ' ' + Math.abs(mv).toFixed(1) + '%'))
+          + '</span></li>';
+      }).join('')
+    : '';
+
+  const channels = subs.per.length
+    ? '<section class="ytpanel viz"><header class="ytph"><div><h3>' + escS(words.followers) + ' by channel</h3>'
+      + '<p>latest reading each, ' + escS(dayLabel(subs.per[0].asOf)) + '</p></div></header>'
+      + '<ul class="ytchan">' + chanRows + '</ul>'
+      + (subs.per.length > 1
+        ? '<p class="ytnote">The tile above is these added together. A channel page shows only its own.</p>'
+        : '')
+      + '</section>'
+    : '';
+
+  /* ---------- videos ---------- */
+  const rank = 'views';
+  const SORTS2 = {
+    views: pp => pp.views || 0, interactions: pp => pp.interactions || 0,
+    shares: pp => pp.shares || 0,
+    published: pp => new Date(pp.publishedAt || 0).getTime(),
+    title: pp => String(pp.title).toLowerCase()
+  };
+  const sk = SORTS2[SO.sort.key] ? SO.sort.key : rank;
+  const sorted = videos.slice().sort((a, b) => {
+    const x = SORTS2[sk](a), y = SORTS2[sk](b);
+    return (x < y ? -1 : x > y ? 1 : 0) * SO.sort.dir;
+  });
+  const avgViews = sorted.length ? sorted.reduce((n, pp) => n + (pp.views || 0), 0) / sorted.length : 0;
+  const per = 8;
+  const pages = Math.max(1, Math.ceil(sorted.length / per));
+  SO.page = Math.max(0, Math.min(SO.page, pages - 1));
+  const page = sorted.slice(SO.page * per, SO.page * per + per);
+  const acctName = id => (d.accounts || []).find(a => a.id === id)?.label || '';
+  const th2 = (col, label, cls) => '<th class="sortable' + (sk === col ? ' on' : '') + (cls ? ' ' + cls : '')
+    + '" data-postsort="' + col + '">' + escS(label)
+    + '<span class="caret">' + (sk === col ? (SO.sort.dir < 0 ? '▼' : '▲') : '') + '</span></th>';
+
+  const videoTable = '<section class="ytpanel viz span3" id="yt-videos">'
+    + '<header class="ytph"><div><h3>' + escS(words.postTitle) + '</h3>'
+    + '<p>' + sorted.length + ' '
+    + escS(SO.allTime ? 'in total, every date we hold' : 'published in this window')
+    + (SO.q ? ' · matching “' + escS(SO.q) + '”' : '') + '</p></div>'
+    + '<span class="grow"></span>'
+    /* The escape hatch, labelled. Two years of back catalogue is useful; it is
+       only a lie when it is captioned "last 28 days". */
+    + '<button class="tgl' + (SO.allTime ? ' on' : '') + '" data-soalltime="1">'
+    + '<span class="box">' + (SO.allTime ? '✓' : '') + '</span>All time</button>'
+    + '<input class="fsearch" id="so-q" placeholder="Search titles…" value="' + escS(SO.q) + '">'
+    + '</header>'
+    + (sorted.length
+      ? '<div class="ytscroll"><table class="yttable"><thead><tr>'
+        + th2('title', 'Video') + th2('published', 'Published')
+        + th2('views', 'Views', 'num') + th2('interactions', 'Interactions', 'num')
+        + th2('shares', 'Shares', 'num')
+        + '<th class="num">vs average</th></tr></thead><tbody>'
+        + page.map(pp => {
+            const idx = avgViews ? (pp.views || 0) / avgViews : null;
+            const tone = idx == null ? '' : idx >= 1.15 ? ' good' : idx <= 0.8 ? ' poor' : '';
+            return '<tr data-postopen="' + escS(pp.permalink || pp.title) + '">'
+              + '<td class="t"><span class="tt">' + escS(pp.title) + '</span>'
+              + (SO.acct === 'all' && acctName(pp.account)
+                ? '<span class="sub">' + escS(acctName(pp.account)) + '</span>' : '')
+              + '</td>'
+              + '<td class="w">' + escS(pp.when) + '</td>'
+              + '<td class="num">' + escS(compact(pp.views)) + '</td>'
+              + '<td class="num">' + escS(compact(pp.interactions)) + '</td>'
+              + '<td class="num">' + escS(compact(pp.shares)) + '</td>'
+              + '<td class="num idx' + tone + '">' + (idx == null ? '—' : idx.toFixed(2) + '×') + '</td></tr>';
+          }).join('')
+        + '</tbody></table></div>'
+        + (pages > 1 ? '<footer class="ytpage"><span>Page ' + (SO.page + 1) + ' of ' + pages + '</span>'
+          + '<span class="grow"></span>'
+          + '<button class="tgl" data-postpage="-1"' + (SO.page === 0 ? ' disabled' : '') + '>Previous</button>'
+          + '<button class="tgl" data-postpage="1"' + (SO.page >= pages - 1 ? ' disabled' : '') + '>Next</button>'
+          + '</footer>' : '')
+      : '<div class="vempty"><b>No videos ' + (SO.q ? 'match that search' : 'in this window') + '</b>'
+        + (SO.q ? 'Clear the search, or turn on All time.'
+          : 'Nothing was published in these ' + RANGE_N() + ' days. Turn on All time to see the back catalogue.') + '</div>')
+    + '</section>';
+
+  /* One right-hand column, not two.
+
+     The first attempt gave the chart 7 columns and then TWO five-column
+     siblings, which is 17 of a 12-column grid -- so the second wrapped onto a
+     new row, took five columns and left the other seven blank. Four hundred
+     pixels of empty panel beside a list of insights. */
+  return filterBar(d, key, { metrics: [], showSearch: false })
+    + alert
+    + band
+    + '<div class="ytgrid">'
+    +   signal
+    +   '<div class="ytcol">'
+    +     mixPanel(d, zRows, accounts)
+    +     channels
+    +     insights(d, key, zRows, prevRows)
+    +   '</div>'
+    + '</div>'
+    + videoTable
+    + accountsFooter(d);
+}
+
+/* How long ago, in words. */
+function agoOf(iso){
+  const t = Date.parse(iso);
+  if (!isFinite(t)) return 'at an unknown time';
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 60) return mins + ' minutes ago';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 36) return hrs + ' hours ago';
+  return Math.round(hrs / 24) + ' days ago';
 }
 
 /* A 46px overview of the whole window with the current selection lit. Drag to
