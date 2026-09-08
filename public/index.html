@@ -407,6 +407,164 @@ main{min-width:0;display:flex;flex-direction:column}
 .ldmore .btn{padding:5px 14px;font-size:12px}
 .ldmore .btn[disabled]{opacity:.55;cursor:default}
 .ldmore .bad{color:var(--rust)}
+/* ---- the comment section over the video ----
+
+   Deliberately close to YouTube's own layout, because that is where these
+   comments are read everywhere else and a different arrangement of the same
+   information is a thing to relearn for no gain. 40px avatar, handle and age on
+   one line, body under it, like and Reply beneath that, replies indented once
+   behind a toggle. */
+body.ycmlock{overflow:hidden}
+.ycmwrap{
+  position:fixed;inset:0;z-index:70;background:rgba(0,0,0,.72);
+  display:flex;align-items:center;justify-content:center;padding:24px;
+  backdrop-filter:blur(2px);
+}
+.ycmpanel{
+  position:relative;width:min(960px,100%);max-height:92vh;
+  display:flex;flex-direction:column;overflow:hidden;
+  background:var(--panel);border:1px solid var(--edge2);
+  border-radius:var(--r-lg);box-shadow:0 24px 70px rgba(0,0,0,.6);
+}
+.ycmx{
+  position:absolute;top:8px;right:10px;z-index:2;
+  width:30px;height:30px;border-radius:50%;border:0;cursor:pointer;
+  background:rgba(0,0,0,.55);color:#fff;font-size:20px;line-height:1;
+}
+.ycmx:hover{background:rgba(0,0,0,.8)}
+
+/* 16:9, and never taller than half the panel: the comments are the point and a
+   full-height player would push every one of them below the fold. */
+.ycmplayer{position:relative;width:100%;background:#000;flex:none}
+.ycmplayer::before{content:"";display:block;padding-top:56.25%}
+.ycmplayer iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+@media(min-height:760px){.ycmplayer{max-height:none}}
+
+.ycmnoplay{padding:22px 20px;background:var(--ink2);border-bottom:1px solid var(--edge)}
+.ycmnoplay b{display:block;font-size:15px;color:var(--cream)}
+.ycmnoplay p{margin:6px 0 12px;font-size:12.5px;color:var(--dim);max-width:60ch;line-height:1.5}
+
+.ycmscroll{overflow:auto;padding:0 20px 22px;flex:1;min-height:0}
+.ycmhead{padding:15px 0 10px;border-bottom:1px solid var(--edge)}
+.ycmhead h3{font-size:16px;color:var(--cream);font-variation-settings:'wght' 600;margin:0}
+.ycmhead a{font-size:12px;color:var(--dim);text-decoration:none;
+  border-bottom:1px solid var(--edge)}
+.ycmhead a:hover{color:var(--brass);border-color:var(--brass)}
+
+.ycmbar{display:flex;align-items:center;gap:16px;padding:16px 0 10px;flex-wrap:wrap}
+.ycmbar h4{margin:0;font-size:15px;color:var(--cream);font-variation-settings:'wght' 600}
+.ycmsort{display:flex;align-items:center;gap:2px}
+.ycmsort svg{width:16px;height:16px;fill:var(--dim);margin-right:5px}
+.ycmsort button{
+  background:none;border:0;cursor:pointer;font-family:inherit;font-size:12.5px;
+  color:var(--dim);padding:3px 8px;border-radius:999px;
+}
+.ycmsort button:hover{background:var(--panel2);color:var(--cream)}
+.ycmsort button.on{color:var(--cream);background:var(--panel2)}
+.ycmpart{margin-left:auto;font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
+
+/* ---- the boxes ---- */
+.ycmboxrow{display:grid;grid-template-columns:32px minmax(0,1fr);gap:12px;align-items:start}
+.ycmnew{padding:6px 0 14px;border-bottom:1px solid var(--edge);margin-bottom:6px}
+.ycmnew textarea,.ycmbox textarea{
+  width:100%;background:none;border:0;border-bottom:1px solid var(--edge);
+  padding:5px 0 7px;color:var(--cream);font-family:inherit;font-size:13.5px;
+  line-height:1.5;resize:none;overflow:hidden;
+}
+.ycmnew textarea::placeholder,.ycmbox textarea::placeholder{color:var(--dimmer)}
+.ycmnew textarea:focus,.ycmbox textarea:focus{outline:none;border-bottom-color:var(--cream)}
+.ycmboxbar{display:flex;align-items:center;gap:8px;margin-top:9px}
+.ycmflat{
+  background:none;border:0;cursor:pointer;font-family:inherit;font-size:12.5px;
+  color:var(--dim);padding:6px 12px;border-radius:999px;
+}
+.ycmflat:hover{background:var(--panel2);color:var(--cream)}
+.ycmgo{
+  background:var(--brass);border:0;border-radius:999px;cursor:pointer;
+  font-family:inherit;font-size:12.5px;color:#0b0b12;padding:6px 15px;
+  font-variation-settings:'wght' 600;
+}
+.ycmgo:hover{filter:brightness(1.08)}
+.ycmgo[disabled]{background:var(--panel2);color:var(--dimmer);cursor:default;filter:none}
+.ycmbox{margin-top:10px}
+
+/* ---- one comment ---- */
+.ycmlist{padding-top:6px}
+.ycmthread{padding:6px 0}
+/* The comment that was clicked, marked for as long as the modal is open. A
+   reader who opened a specific reply from the list needs to find it again in a
+   section of twenty. */
+.ycmthread.focus > .ycmit > .ycmbod{
+  border-left:2px solid var(--brass);padding-left:11px;margin-left:-13px;
+}
+.ycmit{display:grid;grid-template-columns:40px minmax(0,1fr);gap:14px;padding:9px 0}
+.ycmit.reply{grid-template-columns:32px minmax(0,1fr);gap:12px}
+.ycmit.pending{opacity:.6}
+.ycmav{
+  width:40px;height:40px;border-radius:50%;flex:none;
+  background:var(--panel2) center/cover no-repeat;border:1px solid var(--edge);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--ff-display);font-size:16px;color:var(--dim);
+}
+.ycmav.sm{width:32px;height:32px;font-size:13px}
+.ycmav.me{background:var(--brass);color:#0b0b12;border-color:transparent}
+.ycmbod{min-width:0}
+.ycmwho{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ycmwho b{font-size:13px;color:var(--cream);font-variation-settings:'wght' 550}
+.ycmwhen{font-size:12px;color:var(--dim)}
+.ycmpend{font-size:11px;color:var(--dimmer);font-family:var(--ff-mono)}
+.ycmtext{font-size:13.5px;line-height:1.55;color:var(--cream);margin-top:3px;
+  white-space:pre-wrap;word-break:break-word}
+/* The leading handle on a reply, which is how a flat reply list stays
+   readable. Blue because that is what it is everywhere else. */
+.ycmmention{color:#3ea6ff}
+.ycmacts{display:flex;align-items:center;gap:4px;margin-top:5px}
+.ycmlike{
+  display:inline-flex;align-items:center;gap:6px;background:none;border:0;
+  cursor:pointer;color:var(--dim);font-family:inherit;font-size:12px;
+  padding:5px 8px;border-radius:999px;
+}
+.ycmlike svg{width:17px;height:17px;fill:currentColor}
+.ycmlike:hover{background:var(--panel2);color:var(--cream)}
+.ycmlike.on{color:var(--brass)}
+.ycmlike.flat{cursor:default}
+.ycmlike.flat:hover{background:none;color:var(--dim)}
+.ycmreply{
+  background:none;border:0;cursor:pointer;font-family:inherit;font-size:12.5px;
+  color:var(--dim);padding:5px 11px;border-radius:999px;
+  font-variation-settings:'wght' 550;
+}
+.ycmreply:hover{background:var(--panel2);color:var(--cream)}
+.ycmtag{
+  background:none;border:0;cursor:pointer;font-family:var(--ff-mono);font-size:12px;
+  color:var(--dimmer);padding:5px 9px;border-radius:999px;
+}
+.ycmtag:hover{background:var(--panel2);color:var(--cream)}
+.ycmtag.on{color:var(--brass)}
+.ycmtags{display:inline-flex;flex-wrap:wrap;gap:4px;align-items:center}
+
+/* ---- replies ---- */
+.ycmreplies{margin-left:54px;position:relative}
+.ycmtoggle{
+  display:inline-flex;align-items:center;gap:6px;background:none;border:0;
+  cursor:pointer;color:#3ea6ff;font-family:inherit;font-size:12.5px;
+  padding:5px 10px;border-radius:999px;font-variation-settings:'wght' 550;
+}
+.ycmtoggle:hover{background:rgba(62,166,255,.12)}
+.ycmtoggle svg{width:18px;height:18px;fill:currentColor;transition:transform .13s}
+.ycmtoggle svg.down{transform:rotate(180deg)}
+.ycmnote{font-size:11.5px;color:var(--dimmer);margin:4px 0 0 44px;line-height:1.45}
+.ycmnote.locked{margin:0 0 12px;padding:10px 0;color:var(--dim);font-size:12.5px;
+  border-bottom:1px solid var(--edge)}
+
+@media(max-width:700px){
+  .ycmwrap{padding:0}
+  .ycmpanel{max-height:100vh;border-radius:0;border:0;width:100%}
+  .ycmscroll{padding:0 14px 18px}
+  .ycmreplies{margin-left:24px}
+  .ycmit{grid-template-columns:32px minmax(0,1fr);gap:10px}
+  .ycmav{width:32px;height:32px;font-size:13px}
+}
 .reader{min-height:380px;max-height:672px;overflow:hidden;display:flex;flex-direction:column}
 
 #ib-list{padding:8px;display:flex;flex-direction:column;gap:6px}
@@ -9155,8 +9313,11 @@ function ibxItem(it){
 function ibxReader(){
   if (!IBX.sel) {
     return '<div class="empty"><b>Nothing open</b>'
-      + '<small>Pick a ' + escS(IBX.kind) + ' on the left. Opening one loads the whole '
-      + (IBX.kind === 'message' ? 'conversation' : 'comment history') + '.</small></div>';
+      + '<small>Pick a ' + escS(IBX.kind) + ' on the left. '
+      + (IBX.kind === 'message'
+        ? 'Opening one loads the whole conversation.'
+        : 'Opening one shows the video with its whole comment section.')
+      + '</small></div>';
   }
   const t = IBX.threads.find(x => x.id === IBX.sel);
   const head = '<div class="ibxhead">'
@@ -9319,9 +9480,13 @@ function ibxWire(body){
      the same helper the platform dashboards use rather than by a copy. */
   wireReconnect(body);
   body.querySelectorAll('[data-ibmore]').forEach(b => b.onclick = () => ibxLoad({ more: true }));
+  /* A comment opens the whole comment section over its video; a DM opens the
+     side pane, which is the right shape for a conversation and has no video to
+     sit above it. */
   body.querySelectorAll('[data-ibopen]').forEach(b => {
-    b.onclick = () => ibxOpen(b.dataset.ibopen);
-    b.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); ibxOpen(b.dataset.ibopen); } };
+    const go = () => (IBX.kind === 'comment' ? ycmOpen(b.dataset.ibopen) : ibxOpen(b.dataset.ibopen));
+    b.onclick = go;
+    b.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
   });
   body.querySelectorAll('[data-ibclose]').forEach(b => b.onclick = () => {
     IBX.sel = null; IBX.items = []; IBX.picker = null; ibxDraw();
@@ -9418,6 +9583,592 @@ document.addEventListener('keydown', e => {
   if (!IBX.sel) return;
   IBX.sel = null; IBX.items = []; ibxDraw();
 });
+
+/* ---------- the comment section, as a modal over the video ----------
+
+   Clicking a comment opens the video it is on, with the whole comment section
+   under the player: every top-level comment we hold, replies nested under
+   their parent, and a reply box that opens inline.
+
+   Why the whole section rather than the one thread that was clicked: a comment
+   on its own is not readable. "How does 720p matter lol" means nothing without
+   the comment above it, and the video is the context for both. The list stays
+   one row per thread, which is the right shape for triage; this is the right
+   shape for reading and answering.
+
+   Why a modal rather than a route: the list behind it keeps its scroll
+   position, its filters and its selection, and closing returns to exactly the
+   row that was clicked. A route would rebuild all of that.
+
+   The player is a plain YouTube embed. It is the only way to watch the video
+   without leaving, and the alternative -- a thumbnail linking out -- puts the
+   reader in another tab where they lose the comment they were answering. */
+
+const YCM = {
+  open: false,
+  platform: null,
+  parent: null,        /* { id, title, link, videoId, account } */
+  threads: [],         /* [{ thread, items }] */
+  total: 0, held: 0,
+  caps: null,
+  busy: false, err: null,
+  /* Which top-level comment the reply box is under, by thread id, and the
+     draft in it. One box at a time, like YouTube. */
+  replyTo: null, replyDraft: '', sending: false,
+  /* The new top-level comment box at the top. */
+  newDraft: '', newOpen: false,
+  /* Threads whose replies are hidden. YouTube shows replies collapsed behind a
+     count; this starts them OPEN because the reason for opening this modal is
+     usually to read a specific reply, and then remembers what was collapsed. */
+  collapsed: new Set(),
+  sort: 'top',         /* top | newest */
+  /* The thread that was clicked, so it can be scrolled to and marked. */
+  focus: null,
+  /* Which thread's tag picker is open. Tagging lives here because a comment
+     no longer opens the side pane -- it opens this -- and a tag is triage that
+     has to stay reachable wherever comments are actually read. */
+  tagOpen: null
+};
+
+const ycmSorts = {
+  top: (a, b) => (b.items[0]?.likes || 0) - (a.items[0]?.likes || 0)
+    || String(b.items[0]?.at || '').localeCompare(String(a.items[0]?.at || '')),
+  newest: (a, b) => String(b.items[0]?.at || '').localeCompare(String(a.items[0]?.at || ''))
+};
+
+async function ycmOpen(threadId){
+  const row = IBX.threads.find(t => t.id === threadId);
+  if (!row?.from?.id) {
+    /* No parent means a DM, which has no video and no section. */
+    return ibxOpen(threadId);
+  }
+  YCM.open = true;
+  YCM.platform = row.platform;
+  YCM.focus = threadId;
+  YCM.busy = true; YCM.err = null;
+  YCM.threads = []; YCM.parent = null;
+  YCM.replyTo = null; YCM.replyDraft = ''; YCM.newDraft = ''; YCM.newOpen = false;
+  ycmDraw();
+
+  /* Read locally and on the server, the same bargain the side pane makes. */
+  if (row.unread) {
+    row.unread = false;
+    IBX.unreadCount = Math.max(0, IBX.unreadCount - 1);
+    post('/api/social/inbox/thread/' + encodeURIComponent(threadId) + '/read',
+      { read: true }).catch(() => {});
+  }
+
+  try {
+    const out = await api('/api/social/inbox/parent?platform=' + encodeURIComponent(row.platform)
+      + '&parent=' + encodeURIComponent(row.from.id));
+    YCM.parent = out.parent;
+    YCM.threads = out.threads || [];
+    YCM.total = out.total || 0;
+    YCM.held = out.held || 0;
+    YCM.caps = out.caps || IBX.caps;
+  } catch (err) {
+    YCM.err = err.body?.detail || err.message || 'could not open that video';
+  } finally {
+    YCM.busy = false;
+    ycmDraw();
+    /* The comment that was clicked, brought into view. Without this, opening a
+       reply from halfway down a long section lands at the top and the reader
+       has to find it again. */
+    const el = document.querySelector('.ycmthread.focus');
+    if (el) el.scrollIntoView({ block: 'center' });
+  }
+}
+
+function ycmClose(){
+  YCM.open = false;
+  YCM.threads = [];
+  YCM.parent = null;
+  YCM.replyTo = null;
+  YCM.replyDraft = '';
+  /* The iframe goes with the modal, which is what stops the video playing. */
+  ycmDraw();
+}
+
+const ycmCan = verb => Boolean(YCM.caps?.can?.[verb]);
+
+/* Replying pre-fills the mention, and on YouTube that is not a nicety.
+
+   The Data API can only reply to a TOP-LEVEL comment: parentId must be the
+   thread, and a reply to a reply lands in the same flat list under it. So
+   addressing a specific person is done exactly the way YouTube's own client
+   does it, by putting their handle at the front -- without it a reply three
+   deep reads as a reply to the wrong person.
+
+   The handle is used where there is one, because @handle is a real mention on
+   YouTube and Instagram. A display name is not, and Facebook takes no mention
+   tags on a Page comment at all, so there it is plain text either way. */
+function ycmMentionFor(item){
+  const name = String(item?.author?.name || '').trim();
+  if (!name) return '';
+  return (/^@/.test(name) ? name : '@' + name) + ' ';
+}
+
+function ycmReplyTo(threadId, itemId){
+  const t = YCM.threads.find(x => x.thread.id === threadId);
+  const item = t?.items.find(i => i.id === itemId) || t?.items[0];
+  YCM.replyTo = { thread: threadId, item: itemId || null };
+  YCM.replyDraft = ycmMentionFor(item);
+  YCM.err = null;
+  ycmDraw();
+  const box = document.getElementById('ycm-reply');
+  if (box) {
+    box.focus();
+    /* Caret after the mention, not before it: the mention is a given and the
+       reader is writing what follows. */
+    try { box.setSelectionRange(box.value.length, box.value.length); } catch { /* fine */ }
+  }
+}
+
+async function ycmSendReply(){
+  const text = YCM.replyDraft.trim();
+  if (!text || !YCM.replyTo || YCM.sending) return;
+  YCM.sending = true; YCM.err = null; ycmDraw();
+  const target = YCM.replyTo.thread;
+  try {
+    await post('/api/social/inbox/thread/' + encodeURIComponent(target) + '/reply', { text });
+    YCM.replyTo = null; YCM.replyDraft = '';
+    await ycmReload();
+    ibxLoad();
+  } catch (err) {
+    YCM.err = err.body?.detail || err.message || 'that reply did not send';
+  } finally {
+    YCM.sending = false; ycmDraw();
+  }
+}
+
+async function ycmPostNew(){
+  const text = YCM.newDraft.trim();
+  if (!text || YCM.sending || !YCM.parent) return;
+  YCM.sending = true; YCM.err = null; ycmDraw();
+  try {
+    await post('/api/social/inbox/comment', {
+      account: YCM.parent.account, parent: YCM.parent.id, text
+    });
+    YCM.newDraft = ''; YCM.newOpen = false;
+    await ycmReload();
+    ibxLoad();
+  } catch (err) {
+    YCM.err = err.body?.detail || err.message || 'that comment did not post';
+  } finally {
+    YCM.sending = false; ycmDraw();
+  }
+}
+
+async function ycmReload(){
+  if (!YCM.parent) return;
+  try {
+    const out = await api('/api/social/inbox/parent?platform=' + encodeURIComponent(YCM.platform)
+      + '&parent=' + encodeURIComponent(YCM.parent.id));
+    YCM.threads = out.threads || [];
+    YCM.total = out.total || 0;
+    YCM.held = out.held || 0;
+  } catch (err) {
+    YCM.err = err.body?.detail || err.message || 'could not re-read the comments';
+  }
+}
+
+async function ycmLike(threadId, itemId, on){
+  const t = YCM.threads.find(x => x.thread.id === threadId);
+  const it = t?.items.find(i => i.id === itemId);
+  if (it) { it.likedByUs = on; it.likes = Math.max(0, it.likes + (on ? 1 : -1)); ycmDraw(); }
+  try {
+    await post('/api/social/inbox/thread/' + encodeURIComponent(threadId) + '/react',
+      { item: itemId, on });
+  } catch (err) {
+    if (it) { it.likedByUs = !on; it.likes = Math.max(0, it.likes + (on ? -1 : 1)); }
+    YCM.err = err.body?.detail || err.message || 'that like did not stick';
+    ycmDraw();
+  }
+}
+
+/* ---------- drawing ---------- */
+
+const ycmAv = (item, cls) =>
+  '<div class="ycmav' + (cls ? ' ' + cls : '') + '"'
+  + (item?.author?.avatar ? ' style="background-image:url(' + escS(item.author.avatar) + ')"' : '')
+  + '>' + (item?.author?.avatar ? '' : escS(ibxInitial(item?.author?.name))) + '</div>';
+
+/* A leading @handle is drawn as a mention rather than as text, which is what
+   makes a three-deep reply readable at a glance. Only at the start, and only
+   one: highlighting every @ in a body would light up half of some comments. */
+function ycmBody(text){
+  const s = String(text || '');
+  const m = /^(@[\w.\-]+)(\s|$)/.exec(s);
+  if (!m) return escS(s);
+  return '<span class="ycmmention">' + escS(m[1]) + '</span>' + escS(s.slice(m[1].length));
+}
+
+function ycmItem(threadId, it, { isReply = false } = {}){
+  const canReply = ycmCan('reply');
+  const canReact = ycmCan('react');
+  return '<div class="ycmit' + (isReply ? ' reply' : '') + (it.pending ? ' pending' : '') + '"'
+    + ' data-ycmitem="' + escS(it.id) + '">'
+    + ycmAv(it, isReply ? 'sm' : '')
+    + '<div class="ycmbod">'
+    +   '<div class="ycmwho"><b>' + escS(it.mine ? 'You' : it.author.name) + '</b>'
+    +     '<span class="ycmwhen">' + escS(ibxAgo(it.at)) + '</span>'
+    +     (it.pending ? '<span class="ycmpend">posting…</span>' : '') + '</div>'
+    +   '<div class="ycmtext">' + ycmBody(it.body) + '</div>'
+    +   '<div class="ycmacts">'
+    +     (canReact
+        ? '<button class="ycmlike' + (it.likedByUs ? ' on' : '') + '"'
+          + ' data-ycmlike="' + escS(it.id) + '" data-ycmthread="' + escS(threadId) + '"'
+          + ' data-ycmon="' + (it.likedByUs ? '0' : '1') + '"'
+          + ' title="' + (it.likedByUs ? 'Remove your like' : 'Like this comment') + '">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21h4V9H2v12zm19-9h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 5 7.59 11.59C7.22 11.95 7 12.45 7 13v6c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1c0-1.1-.9-2-2-2z"/></svg>'
+          + (it.likes ? '<span>' + it.likes + '</span>' : '') + '</button>'
+        : (it.likes
+            ? '<span class="ycmlike flat" title="' + escS(ycmCan('react') ? '' : (YCM.caps?.why?.react || '')) + '">'
+              + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 21h4V9H2v12zm19-9h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 5 7.59 11.59C7.22 11.95 7 12.45 7 13v6c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-1c0-1.1-.9-2-2-2z"/></svg>'
+              + '<span>' + it.likes + '</span></span>'
+            : ''))
+    +     (canReply
+        ? '<button class="ycmreply" data-ycmreplyto="' + escS(threadId) + '"'
+          + ' data-ycmreplyitem="' + escS(it.id) + '">Reply</button>'
+        : '')
+    +     (isReply ? '' : ycmTagButton(threadId))
+    +   '</div>'
+    +   (!isReply && YCM.tagOpen === threadId ? ycmTagPicker(threadId) : '')
+    +   (YCM.replyTo && YCM.replyTo.thread === threadId && YCM.replyTo.item === it.id
+        ? ycmReplyBox() : '')
+    + '</div></div>';
+}
+
+/* Tags, on the thread rather than on a comment.
+
+   Local labels, and the picker says so every time it opens. They used to live
+   in the side pane, which a comment no longer reaches -- clicking one opens
+   this modal -- so they moved here rather than quietly disappearing. Triage
+   has to be reachable from wherever the thing being triaged is read.
+
+   Suggestions come from what has actually been used on this platform, plus
+   four that cover most of what anyone reaches for first. */
+function ycmTagButton(threadId){
+  const t = YCM.threads.find(x => x.thread.id === threadId);
+  const n = (t?.thread.tags || []).length;
+  return '<button class="ycmtag' + (n ? ' on' : '') + '" data-ycmtag="' + escS(threadId) + '"'
+    + ' title="A label kept in this dashboard, not sent to the platform">#'
+    + (n ? ' ' + n : '') + '</button>'
+    + (n ? '<span class="ycmtags">' + (t.thread.tags || []).map(x =>
+        '<span class="ibxtag">' + escS(x) + '</span>').join('') + '</span>' : '');
+}
+
+function ycmTagPicker(threadId){
+  const t = YCM.threads.find(x => x.thread.id === threadId);
+  const on = new Set(t?.thread.tags || []);
+  const suggestions = [...new Set([...(IBX.tagsInUse || []),
+    'follow up', 'lead', 'spam', 'answered'])];
+  return '<div class="ibxpick tags">'
+    + '<p>Labels kept in this dashboard. They are not sent to '
+    + escS(SO_PLAT_LABEL[YCM.platform] || YCM.platform)
+    + ' — no platform here lets an app label a conversation.</p>'
+    + suggestions.map(x => '<button class="' + (on.has(x) ? 'on' : '') + '"'
+      + ' data-ycmtoggletag="' + escS(x) + '" data-ycmtagthread="' + escS(threadId) + '">'
+      + (on.has(x) ? '✓ ' : '') + escS(x) + '</button>').join('')
+    + '</div>';
+}
+
+/* Optimistic, and reverted on failure rather than left looking saved. */
+async function ycmSetTags(threadId, tags){
+  const entry = YCM.threads.find(x => x.thread.id === threadId);
+  const row = IBX.threads.find(x => x.id === threadId);
+  const before = entry ? (entry.thread.tags || []).slice() : [];
+  if (entry) entry.thread.tags = tags;
+  if (row) row.tags = tags;
+  ycmDraw();
+  try {
+    const out = await post('/api/social/inbox/thread/' + encodeURIComponent(threadId) + '/tags',
+      { tags });
+    if (entry) entry.thread.tags = out.tags || tags;
+    if (row) row.tags = out.tags || tags;
+    ibxTagList();
+  } catch (err) {
+    if (entry) entry.thread.tags = before;
+    if (row) row.tags = before;
+    YCM.err = err.body?.detail || err.message || 'those tags did not save';
+  }
+  ycmDraw();
+}
+
+function ycmReplyBox(){
+  return '<div class="ycmbox">'
+    + '<div class="ycmboxrow">'
+    +   '<div class="ycmav sm me">' + escS(ibxInitial(YCM.caps?.accounts?.[0]?.label || 'You')) + '</div>'
+    +   '<textarea id="ycm-reply" rows="1" placeholder="Reply…">' + escS(YCM.replyDraft) + '</textarea>'
+    + '</div>'
+    + '<div class="ycmboxbar">'
+    +   '<span class="grow"></span>'
+    +   '<button class="ycmflat" data-ycmcancel="1">Cancel</button>'
+    +   '<button class="ycmgo" data-ycmsend="1"'
+    +     (YCM.sending || !YCM.replyDraft.trim() ? ' disabled' : '') + '>'
+    +     (YCM.sending ? 'Replying…' : 'Reply') + '</button>'
+    + '</div></div>';
+}
+
+function ycmThread(entry){
+  const t = entry.thread;
+  const items = entry.items.slice();
+  const top = items[0];
+  const replies = items.slice(1);
+  if (!top) return '';
+  const hidden = YCM.collapsed.has(t.id);
+  /* count is the platform's total for the thread; items is what is held. When
+     they disagree the toggle says the platform's number, because that is the
+     number the reader is comparing against the video. */
+  const nReplies = Math.max(replies.length, (t.count || 1) - 1);
+
+  return '<div class="ycmthread' + (YCM.focus === t.id ? ' focus' : '') + '"'
+    + ' data-ycmt="' + escS(t.id) + '">'
+    + ycmItem(t.id, top)
+    + (nReplies
+      ? '<div class="ycmreplies' + (hidden ? ' hidden' : '') + '">'
+        + '<button class="ycmtoggle" data-ycmcollapse="' + escS(t.id) + '">'
+        + '<svg viewBox="0 0 24 24" aria-hidden="true" class="' + (hidden ? 'down' : 'up') + '">'
+        + '<path d="M12 8l6 6H6z"/></svg>'
+        + (hidden ? (nReplies + ' repl' + (nReplies === 1 ? 'y' : 'ies')) : 'Hide replies')
+        + '</button>'
+        + (hidden ? ''
+          : replies.map(r => ycmItem(t.id, r, { isReply: true })).join('')
+            + (replies.length < nReplies
+              ? '<p class="ycmnote">' + (nReplies - replies.length) + ' more on '
+                + escS(SO_PLAT_LABEL[YCM.platform] || YCM.platform)
+                + ' than are held here.</p>'
+              : ''))
+        + '</div>'
+      : '')
+    /* The reply box for a thread whose target item is gone (a reply that was
+       deleted) still has to land somewhere. */
+    + (YCM.replyTo && YCM.replyTo.thread === t.id
+        && !items.some(i => i.id === YCM.replyTo.item)
+      ? ycmReplyBox() : '')
+    + '</div>';
+}
+
+function ycmPlayer(){
+  const p = YCM.parent;
+  if (!p) return '';
+  if (p.videoId) {
+    /* enablejsapi is not set and no player API is loaded: this is a plain
+       embed, and the modal closing is what stops playback because the iframe
+       goes with it. */
+    return '<div class="ycmplayer">'
+      + '<iframe src="https://www.youtube.com/embed/' + escS(p.videoId) + '?rel=0"'
+      + ' title="' + escS(p.title || 'Video') + '"'
+      + ' allow="accelerometer; autoplay; clipboard-write; encrypted-media; picture-in-picture"'
+      + ' allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>'
+      + '</div>';
+  }
+  /* Facebook and Instagram have no embed that works without their SDK and a
+     public post, so the post is linked rather than framed. Saying so beats an
+     empty black rectangle. */
+  return '<div class="ycmnoplay">'
+    + '<b>' + escS(p.title || 'This post') + '</b>'
+    + '<p>' + escS(SO_PLAT_LABEL[YCM.platform] || YCM.platform)
+    + ' has no embeddable player for a Page post, so it opens on the platform.</p>'
+    + (p.link ? '<a class="btn" href="' + escS(p.link) + '" target="_blank" rel="noopener">Open the post</a>' : '')
+    + '</div>';
+}
+
+function ycmView(){
+  if (!YCM.open) return '';
+  const p = YCM.parent;
+  const sorted = YCM.threads.slice().sort(ycmSorts[YCM.sort] || ycmSorts.top);
+
+  return '<div class="ycmwrap" data-ycmbackdrop="1">'
+    + '<div class="ycmpanel" role="dialog" aria-modal="true" aria-label="Comments">'
+    +   '<button class="ycmx" data-ycmclose="1" title="Close (Esc)" aria-label="Close">×</button>'
+    +   ycmPlayer()
+    +   '<div class="ycmscroll">'
+    +     (p
+        ? '<div class="ycmhead">'
+          + '<h3>' + escS(p.title || 'Untitled') + '</h3>'
+          + (p.link
+            ? '<a href="' + escS(p.link) + '" target="_blank" rel="noopener">Open on '
+              + escS(SO_PLAT_LABEL[YCM.platform] || YCM.platform) + '</a>'
+            : '')
+          + '</div>'
+        : '')
+    +     (YCM.err ? '<div class="err">' + escS(YCM.err) + '</div>' : '')
+    +     (YCM.busy
+        ? '<div class="empty"><b>Reading the comments…</b></div>'
+        : '<div class="ycmbar">'
+          + '<h4>' + YCM.total.toLocaleString() + ' Comment' + (YCM.total === 1 ? '' : 's') + '</h4>'
+          + '<div class="ycmsort">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18v2H3V6zm0 5h12v2H3v-2zm0 5h6v2H3v-2z"/></svg>'
+          + [['top', 'Top'], ['newest', 'Newest']].map(([k, l]) =>
+              '<button class="' + (YCM.sort === k ? 'on' : '') + '" data-ycmsort="' + k + '">'
+              + l + '</button>').join('')
+          + '</div>'
+          + (YCM.held < YCM.total
+            ? '<span class="ycmpart">' + YCM.held + ' held here</span>' : '')
+          + '</div>'
+          + (ycmCan('post')
+            ? '<div class="ycmnew' + (YCM.newOpen ? ' open' : '') + '">'
+              + '<div class="ycmboxrow">'
+              + '<div class="ycmav sm me">'
+              + escS(ibxInitial(YCM.caps?.accounts?.[0]?.label || 'You')) + '</div>'
+              + '<textarea id="ycm-new" rows="1" placeholder="Add a comment...">'
+              + escS(YCM.newDraft) + '</textarea>'
+              + '</div>'
+              + (YCM.newOpen
+                ? '<div class="ycmboxbar"><span class="grow"></span>'
+                  + '<button class="ycmflat" data-ycmnewcancel="1">Cancel</button>'
+                  + '<button class="ycmgo" data-ycmpost="1"'
+                  + (YCM.sending || !YCM.newDraft.trim() ? ' disabled' : '') + '>'
+                  + (YCM.sending ? 'Posting…' : 'Comment') + '</button></div>'
+                : '')
+              + '</div>'
+            : '<p class="ycmnote locked">' + escS(YCM.caps?.why?.post
+                || 'This connection cannot post a comment.') + '</p>')
+          + (sorted.length
+            ? '<div class="ycmlist">' + sorted.map(ycmThread).join('') + '</div>'
+            : '<div class="empty"><b>No comments held for this '
+              + (p?.videoId ? 'video' : 'post') + '</b></div>'))
+    +   '</div>'
+    + '</div></div>';
+}
+
+/* Its own element, outside #so-body, so drawing the list behind it does not
+   tear down the iframe and restart the video. */
+let ycmEl = null;
+function ycmDraw(){
+  if (!ycmEl) {
+    ycmEl = document.createElement('div');
+    ycmEl.id = 'ycm-root';
+    document.body.appendChild(ycmEl);
+  }
+  /* The player is replaced only when the video changes. Re-rendering the same
+     iframe src would reload the video on every keystroke in the reply box. */
+  const wantVideo = YCM.open ? (YCM.parent?.videoId || YCM.parent?.id || '') : '';
+  const sameVideo = ycmEl.dataset.video === wantVideo && YCM.open && ycmEl.firstChild;
+
+  const active = document.activeElement;
+  const keep = active && (active.id === 'ycm-reply' || active.id === 'ycm-new')
+    ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+  const scrolled = ycmEl.querySelector('.ycmscroll');
+  const scrollTop = scrolled ? scrolled.scrollTop : null;
+
+  if (sameVideo) {
+    /* Only the part below the player. */
+    const host = ycmEl.querySelector('.ycmscroll');
+    if (host) {
+      const tmp = document.createElement('div');
+      tmp.innerHTML = ycmView();
+      const fresh = tmp.querySelector('.ycmscroll');
+      if (fresh) host.innerHTML = fresh.innerHTML;
+    } else {
+      ycmEl.innerHTML = ycmView();
+    }
+  } else {
+    ycmEl.innerHTML = ycmView();
+    ycmEl.dataset.video = wantVideo;
+  }
+
+  document.body.classList.toggle('ycmlock', YCM.open);
+  ycmWire();
+
+  const back = ycmEl.querySelector('.ycmscroll');
+  if (back && scrollTop != null && sameVideo) back.scrollTop = scrollTop;
+  if (keep) {
+    const el = document.getElementById(keep.id);
+    if (el) { el.focus(); try { el.setSelectionRange(keep.start, keep.end); } catch { /* fine */ } }
+  }
+}
+
+function ycmWire(){
+  if (!ycmEl) return;
+  const root = ycmEl;
+  root.querySelectorAll('[data-ycmclose]').forEach(b => b.onclick = ycmClose);
+  root.querySelectorAll('[data-ycmbackdrop]').forEach(b => b.onclick = e => {
+    /* Only the backdrop itself, not anything inside the panel. */
+    if (e.target === b) ycmClose();
+  });
+  root.querySelectorAll('[data-ycmsort]').forEach(b => b.onclick = () => {
+    YCM.sort = b.dataset.ycmsort; ycmDraw();
+  });
+  root.querySelectorAll('[data-ycmcollapse]').forEach(b => b.onclick = () => {
+    const id = b.dataset.ycmcollapse;
+    if (YCM.collapsed.has(id)) YCM.collapsed.delete(id); else YCM.collapsed.add(id);
+    ycmDraw();
+  });
+  root.querySelectorAll('[data-ycmreplyto]').forEach(b => b.onclick = () =>
+    ycmReplyTo(b.dataset.ycmreplyto, b.dataset.ycmreplyitem));
+  root.querySelectorAll('[data-ycmcancel]').forEach(b => b.onclick = () => {
+    YCM.replyTo = null; YCM.replyDraft = ''; ycmDraw();
+  });
+  root.querySelectorAll('[data-ycmsend]').forEach(b => b.onclick = ycmSendReply);
+  root.querySelectorAll('[data-ycmtag]').forEach(b => b.onclick = () => {
+    const id = b.dataset.ycmtag;
+    YCM.tagOpen = YCM.tagOpen === id ? null : id;
+    if (YCM.tagOpen && !(IBX.tagsInUse || []).length) ibxTagList();
+    ycmDraw();
+  });
+  root.querySelectorAll('[data-ycmtoggletag]').forEach(b => b.onclick = () => {
+    const id = b.dataset.ycmtagthread, tag = b.dataset.ycmtoggletag;
+    const entry = YCM.threads.find(x => x.thread.id === id);
+    const on = new Set(entry?.thread.tags || []);
+    if (on.has(tag)) on.delete(tag); else on.add(tag);
+    ycmSetTags(id, [...on]);
+  });
+  root.querySelectorAll('[data-ycmlike]').forEach(b => b.onclick = () =>
+    ycmLike(b.dataset.ycmthread, b.dataset.ycmlike, b.dataset.ycmon === '1'));
+
+  const reply = root.querySelector('#ycm-reply');
+  if (reply) {
+    ycmGrow(reply);
+    reply.oninput = () => {
+      YCM.replyDraft = reply.value;
+      ycmGrow(reply);
+      const go = root.querySelector('[data-ycmsend]');
+      if (go) go.disabled = YCM.sending || !YCM.replyDraft.trim();
+    };
+    reply.onkeydown = e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ycmSendReply(); }
+      if (e.key === 'Escape') { YCM.replyTo = null; YCM.replyDraft = ''; ycmDraw(); }
+    };
+  }
+
+  const fresh = root.querySelector('#ycm-new');
+  if (fresh) {
+    ycmGrow(fresh);
+    fresh.onfocus = () => { if (!YCM.newOpen) { YCM.newOpen = true; ycmDraw(); } };
+    fresh.oninput = () => {
+      YCM.newDraft = fresh.value;
+      ycmGrow(fresh);
+      const go = root.querySelector('[data-ycmpost]');
+      if (go) go.disabled = YCM.sending || !YCM.newDraft.trim();
+    };
+    fresh.onkeydown = e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ycmPostNew(); }
+      if (e.key === 'Escape') { YCM.newOpen = false; YCM.newDraft = ''; ycmDraw(); }
+    };
+  }
+  root.querySelectorAll('[data-ycmnewcancel]').forEach(b => b.onclick = () => {
+    YCM.newOpen = false; YCM.newDraft = ''; ycmDraw();
+  });
+  root.querySelectorAll('[data-ycmpost]').forEach(b => b.onclick = ycmPostNew);
+}
+
+/* A one-line box that grows with the text, capped. A fixed three-row textarea
+   for a four-word reply is most of the panel spent on nothing. */
+function ycmGrow(el){
+  el.style.height = 'auto';
+  el.style.height = Math.min(160, el.scrollHeight) + 'px';
+}
+
+/* Escape closes the modal before the side pane, because it is on top. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !YCM.open) return;
+  const t = e.target;
+  if (t && (t.id === 'ycm-reply' || t.id === 'ycm-new')) return;
+  e.stopPropagation();
+  ycmClose();
+}, true);
 
 /* ================= TASKS =================
 

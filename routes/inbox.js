@@ -15,7 +15,7 @@ import express from 'express';
 import { guarded } from './guard.js';
 import { accountsFor } from '../lib/accounts.js';
 import {
-  INBOX_PLATFORMS, capabilities, listThreads, loadThread, markThreadRead,
+  INBOX_PLATFORMS, capabilities, listThreads, loadThread, loadParent, markThreadRead,
   mentionable, reply, postComment, react, postTargets, syncInbox, inboxHealth,
   tagThread, tagsInUse
 } from '../lib/social-inbox.js';
@@ -86,6 +86,22 @@ export function inboxRoutes({ auth }){
       const out = await loadThread(req.params.id, { fresh: String(req.query.fresh || '') === '1' });
       if (!out) return res.status(404).json({ error: 'no such thread' });
       res.json({ ...out, mentionable: await mentionable(req.params.id) });
+    }));
+
+  /* A whole comment section: every thread held under one video or post, which
+     is what the reader is opening when they click a comment. */
+  r.get('/api/social/inbox/parent', auth.require,
+    guarded('api/social/inbox/parent', async (req, res) => {
+      const platform = platformOf(req.query.platform);
+      const parentId = String(req.query.parent || '');
+      if (!platform || !parentId) {
+        return res.status(400).json({ error: 'platform and parent are both required' });
+      }
+      const ids = (await accountsFor('social'))
+        .filter(a => a.provider === platform).map(a => a.id);
+      const out = await loadParent({ platform, parentId, accountIds: ids });
+      if (!out) return res.status(404).json({ error: 'nothing held under that post' });
+      res.json({ ...out, caps: (await capabilities())[platform] || null });
     }));
 
   r.post('/api/social/inbox/thread/:id/read', auth.require, json,
