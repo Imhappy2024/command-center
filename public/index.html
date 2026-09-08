@@ -448,14 +448,23 @@ body.ycmlock{overflow:hidden}
 .ycmplayer iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 @media(min-height:760px){.ycmplayer{max-height:none}}
 
-/* Meta's own frames. Both are light-themed and neither takes a colour, so they
-   sit on white rather than fighting the panel -- pretending otherwise would
-   mean a dark border round a white box. Height is fixed because both plugins
-   size themselves and neither reports it back across the origin. */
-.ycmembed{background:#fff;border-bottom:1px solid var(--edge);overflow:hidden;flex:none}
-.ycmembed iframe{display:block;width:100%;border:0}
-.ycmembed.ig iframe{height:min(620px,62vh)}
-.ycmembed.fb iframe{height:min(560px,58vh)}
+/* The post, drawn in this dashboard's theme.
+
+   Black behind the media because a photo of unknown aspect ratio needs
+   somewhere to sit, and black is what every media viewer uses -- a panel-grey
+   letterbox reads as a rendering fault. object-fit:contain rather than cover:
+   this is somebody's post, and cropping it to fill a box is editing it. */
+.ycmpost{flex:none;border-bottom:1px solid var(--edge);background:var(--ink2)}
+.ycmpostmedia{background:#000;display:flex;align-items:center;justify-content:center;
+  max-height:min(560px,58vh)}
+.ycmpostmedia img,.ycmpostmedia video{display:block;max-width:100%;
+  max-height:min(560px,58vh);object-fit:contain}
+.ycmalbum{display:flex;gap:5px;padding:9px 16px 0}
+.ycmalbum span{width:36px;height:36px;border-radius:6px;flex:none;
+  background:var(--panel2) center/cover no-repeat;border:1px solid var(--edge)}
+.ycmalbum span.on{border-color:var(--brass)}
+.ycmpostfoot{display:flex;gap:16px;padding:10px 16px;flex-wrap:wrap;
+  font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer)}
 .ycmnoplay{padding:22px 20px;background:var(--ink2);border-bottom:1px solid var(--edge)}
 /* ---- the message inbox, shaped like Messenger ----
 
@@ -11284,35 +11293,59 @@ function ycmPlayer(){
       + ' allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>'
       + '</div>';
   }
-  /* Instagram: /embed on the permalink. Works for a reel and for a feed post,
-     needs no SDK and no token, and sizes itself to the media. */
-  if (YCM.platform === 'instagram' && p.link) {
-    const base = String(p.link).split('?')[0].replace(/\/+$/, '');
-    return '<div class="ycmembed ig">'
-      + '<iframe src="' + escS(base) + '/embed/captioned/" title="' + escS(p.title || 'Instagram post') + '"'
-      + ' loading="lazy" scrolling="no" allowtransparency="true"'
-      + ' referrerpolicy="strict-origin-when-cross-origin"></iframe>'
+  /* Facebook and Instagram posts are DRAWN here, not framed.
+
+     Both platforms publish an embed iframe and both are light-only: Meta
+     exposes no colour scheme for either, so a dark dashboard ends up with a
+     white rectangle in the middle of it. Worse, Facebook's post plugin renders
+     a profile-picture change as a circle on white -- Facebook's own design,
+     showing through the frame, with nothing this app can do about it from the
+     outside.
+
+     Everything needed to draw the post is already in the response the comment
+     sync makes, so it is drawn: the picture or the video, the caption, the
+     counts, and a link out. Same information, this theme, and no third-party
+     iframe watching the reader. */
+  const m = p.media;
+  if (!m || (!m.image && !m.video && !(m.album || []).length)) {
+    return '<div class="ycmnoplay">'
+      + '<b>' + escS(p.title || 'This post') + '</b>'
+      + '<p>' + (p.link
+        ? 'No picture was stored for this one. A re-sync will pick it up.'
+        : 'No permalink was stored for this one. A re-sync will pick it up.') + '</p>'
+      + (p.link ? '<a class="btn" href="' + escS(p.link) + '" target="_blank" rel="noopener">'
+        + 'Open on ' + escS(SO_PLAT_LABEL[YCM.platform] || YCM.platform) + '</a>' : '')
       + '</div>';
   }
 
-  /* Facebook: the Post plugin. show_text carries the caption, so the frame is
-     the post rather than just its photo. */
-  if (YCM.platform === 'facebook' && p.link) {
-    const src = 'https://www.facebook.com/plugins/post.php?href='
-      + encodeURIComponent(p.link) + '&show_text=true&width=500';
-    return '<div class="ycmembed fb">'
-      + '<iframe src="' + escS(src) + '" title="' + escS(p.title || 'Facebook post') + '"'
-      + ' loading="lazy" scrolling="no" frameborder="0" allowfullscreen="true"'
-      + ' allow="clipboard-write; encrypted-media; picture-in-picture; web-share"'
-      + ' referrerpolicy="strict-origin-when-cross-origin"></iframe>'
-      + '</div>';
-  }
+  /* A video plays here; an album is a strip. A reel's mp4 is only loaded when
+     it is asked for, hence the poster and preload=none -- opening a comment
+     should not pull down thirty megabytes. */
+  const frame = m.video
+    ? '<video controls preload="none"' + (m.image ? ' poster="' + escS(m.image) + '"' : '')
+      + ' src="' + escS(m.video) + '"></video>'
+    : '<img src="' + escS(m.image) + '" alt="' + escS(p.title || 'post') + '" loading="lazy">';
 
-  /* No permalink stored, which happens on an older synced row. */
-  return '<div class="ycmnoplay">'
-    + '<b>' + escS(p.title || 'This post') + '</b>'
-    + '<p>No permalink was stored for this one, so there is nothing to embed. '
-    + 'A re-sync will pick it up.</p>'
+  const album = (m.album || []).length > 1
+    ? '<div class="ycmalbum">' + m.album.map((a, i) =>
+      '<span class="' + (i === 0 ? 'on' : '') + '"'
+      + (a.image ? ' style="background-image:url(' + escS(a.image) + ')"' : '') + '></span>').join('')
+      + '</div>'
+    : '';
+
+  const count = (n, one, many) => n == null ? ''
+    : '<span>' + n.toLocaleString() + ' ' + (n === 1 ? one : many) + '</span>';
+
+  return '<div class="ycmpost">'
+    + '<div class="ycmpostmedia">' + frame + '</div>'
+    + album
+    + '<div class="ycmpostfoot">'
+    +   count(m.likes, 'like', 'likes')
+    +   count(m.comments, 'comment', 'comments')
+    +   count(m.shares, 'share', 'shares')
+    +   (m.at ? '<span>' + escS(new Date(m.at).toLocaleDateString(undefined,
+          { month: 'short', day: 'numeric', year: 'numeric' })) + '</span>' : '')
+    + '</div>'
     + '</div>';
 }
 

@@ -446,3 +446,12 @@ CREATE TABLE IF NOT EXISTS whop_links (
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS whop_links_created ON whop_links (created_at DESC);
+
+/* The post a comment thread hangs under, as media rather than as a link.
+
+   Facebook's post plugin and Instagram's /embed are both light-only iframes,
+   and Facebook renders a profile-picture change inside one as a circle on
+   white. Framing either means handing a corner of the screen to somebody
+   else's theme. Everything needed to draw the post here is already in the
+   response the comment sync makes, so it is kept. */
+ALTER TABLE social_threads ADD COLUMN IF NOT EXISTS parent_media JSONB NOT NULL DEFAULT '{}';

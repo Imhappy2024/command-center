@@ -748,7 +748,13 @@ export async function pageComments(token, pageId, { since = null, posts = 25 } =
   let feed;
   try {
     ({ data: feed } = await call(token, `/${pageId}/posts`, {
-      fields: `id,message,story,created_time,permalink_url,`
+      /* full_picture and the attachment give us the post itself, which is what
+         lets the dashboard draw it in its own theme instead of framing
+         Facebook's light-only post plugin. reactions and comments summaries
+         are the counts the card shows. */
+      fields: `id,message,story,created_time,permalink_url,full_picture,`
+        + `attachments{media_type,type,url,title,description,media{image{src,width,height},source}},`
+        + `shares,reactions.summary(total_count).limit(0),`
         + `comments.filter(toplevel).order(reverse_chronological).limit(50)`
         + `{${COMMENT_FIELDS},comments.limit(25){${COMMENT_FIELDS}}}`,
       limit: posts
@@ -761,6 +767,28 @@ export async function pageComments(token, pageId, { since = null, posts = 25 } =
   const threads = [];
   for (const p of feed?.data || []) {
     const title = (p.message || p.story || '').replace(/\s+/g, ' ').trim();
+
+    /* Enough to draw the post here, in this dashboard's own theme.
+
+       Facebook's post plugin is light-only -- Meta publishes no colour scheme
+       for it -- and it renders a profile-picture change as a circle on white.
+       That is Facebook's own design showing through an iframe, not a choice
+       this app made, and the only way out of it is to stop framing their page
+       and draw the post from its parts. */
+    const att = p.attachments?.data?.[0] || {};
+    const media = {
+      kind: /video/i.test(att.media_type || att.type || '') ? 'video' : 'image',
+      image: p.full_picture || att.media?.image?.src || null,
+      video: att.media?.source || null,
+      width: att.media?.image?.width || null,
+      height: att.media?.image?.height || null,
+      story: p.story || null,
+      at: p.created_time || null,
+      likes: p.reactions?.summary?.total_count ?? null,
+      comments: p.comments?.summary?.total_count ?? null,
+      shares: p.shares?.count ?? null
+    };
+
     for (const c of p.comments?.data || []) {
       const items = [fbCommentOut(c, { threadId: c.id, pageId })];
       for (const r of c.comments?.data || []) {
@@ -776,6 +804,7 @@ export async function pageComments(token, pageId, { since = null, posts = 25 } =
         parentId: p.id,
         parentTitle: title || 'A post with no caption',
         parentLink: p.permalink_url || null,
+        parentMedia: media,
         totalItems: items.length,
         canReply: true,
         items
@@ -827,7 +856,9 @@ export async function igComments(token, igId, { since = null, media = 25, userna
   let feed;
   try {
     ({ data: feed } = await call(token, `/${igId}/media`, {
-      fields: 'id,caption,timestamp,permalink,media_type,comments_count,'
+      fields: 'id,caption,timestamp,permalink,media_type,media_product_type,'
+        + 'media_url,thumbnail_url,like_count,comments_count,'
+        + 'children{media_type,media_url,thumbnail_url},'
         + 'comments.limit(50){id,text,timestamp,like_count,username,from{id,username},'
         + 'replies.limit(25){id,text,timestamp,like_count,username,from{id,username}}}',
       limit: media
@@ -860,6 +891,24 @@ export async function igComments(token, igId, { since = null, media = 25, userna
         parentId: m.id,
         parentTitle: title || (m.media_type === 'VIDEO' ? 'A reel with no caption' : 'A post with no caption'),
         parentLink: m.permalink || null,
+        /* The media itself, so the post draws here rather than inside
+           Instagram's light-only /embed frame. A video carries a poster as
+           well, because media_url on a reel is an mp4 that should not
+           autoload just because somebody opened a comment. */
+        parentMedia: {
+          kind: m.media_type === 'VIDEO' ? 'video'
+            : m.media_type === 'CAROUSEL_ALBUM' ? 'album' : 'image',
+          image: m.media_type === 'VIDEO' ? (m.thumbnail_url || null) : (m.media_url || null),
+          video: m.media_type === 'VIDEO' ? (m.media_url || null) : null,
+          album: (m.children?.data || []).slice(0, 10).map(ch => ({
+            kind: ch.media_type === 'VIDEO' ? 'video' : 'image',
+            image: ch.media_type === 'VIDEO' ? (ch.thumbnail_url || null) : (ch.media_url || null),
+            video: ch.media_type === 'VIDEO' ? (ch.media_url || null) : null
+          })),
+          at: m.timestamp || null,
+          likes: m.like_count ?? null,
+          comments: m.comments_count ?? null
+        },
         totalItems: items.length,
         canReply: true,
         items
