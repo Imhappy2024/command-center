@@ -1920,6 +1920,20 @@ body.ycmlock{overflow:hidden}
 
 /* ---- checkout links ---- */
 
+/* Three short values a row. At full dashboard width the price and the copy
+   button end up a screen away from the name they belong to. */
+.wpwrap{max-width:780px;margin:0 auto}
+
+/* The pricing dialog opens from inside the new-product dialog, so it has to
+   paint over it. Source order already does this; the z-index says so out loud
+   in case either moves. */
+#wp-price{z-index:78}
+
+/* `.btn` has no disabled state of its own, and Create spends most of its life
+   in one — an unnamed product cannot be created. */
+#wp-create:disabled{opacity:.38;cursor:not-allowed}
+#wp-create:disabled:hover{background:var(--cream);color:var(--ink2);border-color:var(--cream)}
+
 /* Rows, not cards. A product here is a name, a price and a link — three short
    values that line up better than they tile. */
 .wplist{display:flex;flex-direction:column;gap:1px;background:var(--edge);
@@ -3878,6 +3892,23 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div class="mbody"><div class="autos" style="grid-template-columns:1fr 1fr;margin-bottom:0" id="cl-platforms"></div></div>
     <div class="mfoot"><span style="flex:1;font-size:11.5px;color:var(--dimmer)">Connect there, then reopen this dialog and the account appears.</span>
       <button class="btn primary" id="cl-openopus">Open OpusClip</button></div>
+  </div>
+</div>
+
+<!-- whop: new product.
+
+     Before the pricing dialog in the document on purpose. The two share a
+     z-index, so source order is what decides which one paints on top, and the
+     pricing dialog opens from inside this one. -->
+<div class="mwrap" id="wp-new">
+  <div class="mbox narrow">
+    <div class="mhead"><div style="flex:1"><h3>New product</h3>
+      <p>The name and the price. Everything else can be set in Whop later.</p></div>
+      <button class="xbtn" data-mclose="wp-new">&times;</button></div>
+    <div class="mbody" id="wp-newbody"></div>
+    <div class="mfoot"><span style="flex:1"></span>
+      <button class="tgl" data-mclose="wp-new">Cancel</button>
+      <button class="btn primary" id="wp-create" disabled>Create product</button></div>
   </div>
 </div>
 
@@ -17709,18 +17740,22 @@ async function loadWhop(){
 }
 
 function whopSystem(){
+  /* A list of three short values does not want the full width of a dashboard,
+     so the whole section is capped and centred rather than each panel. */
+  const wrap = html => '<div class="wpwrap">' + html + '</div>';
+
   if (WP.configured === false) {
-    return '<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
+    return wrap('<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
       + '<span class="tx"><b>Whop is not configured.</b> Set <span class="wpmono">WHOP_API_KEY</span> on the '
-      + 'server to an Account API key from your Whop dashboard settings, then reload.</span></div></div></div>';
+      + 'server to an Account API key from your Whop dashboard settings, then reload.</span></div></div></div>');
   }
-  if (!WP.loaded) return '<div class="vwrap viz"><div class="vempty"><b>Loading…</b></div></div>';
+  if (!WP.loaded) return wrap('<div class="vwrap viz"><div class="vempty"><b>Loading…</b></div></div>');
   if (WP.error) {
-    return '<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
+    return wrap('<div class="vwrap viz"><div class="vbody"><div class="insrow"><span class="sev bad">!</span>'
       + '<span class="tx"><b>Whop could not be reached.</b> ' + escS(WP.error) + '</span></div>'
-      + '<div style="margin-top:12px"><button class="tgl" data-wpreload="1">Try again</button></div></div></div>';
+      + '<div style="margin-top:12px"><button class="tgl" data-wpreload="1">Try again</button></div></div></div>');
   }
-  return WP.creating ? whopForm() : whopList();
+  return wrap(whopList());
 }
 
 function whopList(){
@@ -17759,20 +17794,40 @@ function whopList(){
     + 'on it yet — add one in Whop and it appears here.</p></div></div>';
 }
 
-function whopForm(){
+/* ---- the new-product dialog ---- */
+
+function openWhopNew(){
+  WP.form = wpBlankForm();
+  WP.creating = true;
+  drawWhopNew();
+  document.getElementById('wp-new').classList.add('on');
+  document.getElementById('wp-name')?.focus();
+}
+
+function closeWhopNew(){
+  WP.creating = false;
+  WP.form = null;
+  WP.draft = null;
+  document.getElementById('wp-price')?.classList.remove('on');
+  document.getElementById('wp-new')?.classList.remove('on');
+}
+
+/* Redrawn whole whenever the shape changes, because switching between free and
+   paid adds and removes a field. The name input is the one thing bound without
+   a redraw -- see wireWhopNew. */
+function drawWhopNew(){
   const f = WP.form;
+  const box = document.getElementById('wp-newbody');
+  if (!box || !f) return;
   const paid = f.access === 'paid';
 
-  return '<div class="vwrap viz"><div class="vhead2"><h3>New product</h3>'
-    + '<span class="grow"></span><button class="tgl" data-wpcancel="1">Cancel</button></div>'
-    + '<div class="vbody" style="max-width:560px">'
-
-    + '<div class="fld"><label for="wp-name">Name</label>'
+  box.innerHTML =
+      '<div class="fld"><label for="wp-name">Name</label>'
     + '<input type="text" id="wp-name" maxlength="80" placeholder="Basic access" '
     + 'value="' + escS(f.title) + '" autocomplete="off">'
     + '<div class="hint">The name buyers see on the checkout page. Up to 80 characters.</div></div>'
 
-    + '<div class="fld"><label>Pricing</label>'
+    + '<div class="fld" style="margin-bottom:0"><label>Pricing</label>'
     + '<div class="wpchoice">'
     +   '<button class="wpopt' + (paid ? '' : ' on') + '" data-wpaccess="free">'
     +     '<span class="dot"></span><span class="lbl">Free access</span></button>'
@@ -17784,11 +17839,33 @@ function whopForm(){
           + '<span class="v">' + escS(wpPlanLabel(f.plan)) + '</span><span class="ch">&rsaquo;</span></button>'
           + '<div class="hint">Click to set one-time or recurring.</div>'
         : '<div class="hint">Anyone with the link joins for free. Whop still records the membership.</div>')
-    + '</div>'
+    + '</div>';
 
-    + '<button class="bigbtn accent" id="wp-create"' + (f.title.trim() && !WP.busy ? '' : ' disabled') + '>'
-    + (WP.busy ? 'Creating…' : 'Create product') + '</button>'
-    + '</div></div>';
+  wireWhopNew(box);
+  syncWhopCreate();
+}
+
+/* The footer button sits outside the body drawWhopNew redraws, so its state is
+   set rather than re-rendered. */
+function syncWhopCreate(){
+  const go = document.getElementById('wp-create');
+  if (!go) return;
+  go.disabled = !(WP.form?.title || '').trim() || WP.busy;
+  go.textContent = WP.busy ? 'Creating…' : 'Create product';
+}
+
+function wireWhopNew(box){
+  box.querySelectorAll('[data-wpaccess]').forEach(b => b.onclick = () => {
+    WP.form.access = b.dataset.wpaccess; drawWhopNew();
+  });
+  box.querySelectorAll('[data-wpopenprice]').forEach(b => b.onclick = openWhopPrice);
+
+  const name = box.querySelector('#wp-name');
+  if (!name) return;
+  /* Bound without a redraw so the caret stays put; the only thing that depends
+     on it is whether Create is enabled. */
+  name.oninput = () => { WP.form.title = name.value; syncWhopCreate(); };
+  name.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); createWhopProduct(); } };
 }
 
 /* ---- the pricing dialog ---- */
@@ -17853,10 +17930,10 @@ function drawWhopPrice(){
 
 async function createWhopProduct(){
   const f = WP.form;
-  const title = f.title.trim();
+  const title = (f?.title || '').trim();
   if (!title || WP.busy) return;
 
-  WP.busy = true; drawSystems();
+  WP.busy = true; syncWhopCreate();
   try {
     const body = f.access === 'free'
       ? { title, access: 'free' }
@@ -17865,8 +17942,7 @@ async function createWhopProduct(){
     const out = await post('/api/systems/whop/products', body);
 
     WP.busy = false;
-    WP.creating = false;
-    WP.form = wpBlankForm();
+    closeWhopNew();
     /* Put it at the top straight away. The list is re-fetched underneath, but
        the row should be there the moment the dialog closes. */
     WP.products = [out.product, ...WP.products.filter(p => p.id !== out.product.id)];
@@ -17876,7 +17952,7 @@ async function createWhopProduct(){
     loadWhop();
   } catch (err) {
     WP.busy = false;
-    drawSystems();
+    syncWhopCreate();
     toast(err.message || 'Could not create the product.', 'bad');
   }
 }
@@ -17912,37 +17988,14 @@ function showWhopMade(product, note){
   document.getElementById('wp-made').classList.add('on');
 }
 
+/* The section holds the list and nothing else — the form and the price are
+   dialogs, wired where they are drawn. */
 function wireWhop(root){
   root.querySelectorAll('[data-wpreload]').forEach(b => b.onclick = () => {
     WP.loaded = false; WP.error = null; drawSystems(); loadWhop();
   });
-  root.querySelectorAll('[data-wpnew]').forEach(b => b.onclick = () => {
-    WP.form = wpBlankForm(); WP.creating = true; drawSystems();
-    document.getElementById('wp-name')?.focus();
-  });
-  root.querySelectorAll('[data-wpcancel]').forEach(b => b.onclick = () => {
-    WP.creating = false; WP.form = null; drawSystems();
-  });
-  root.querySelectorAll('[data-wpaccess]').forEach(b => b.onclick = () => {
-    WP.form.access = b.dataset.wpaccess; drawSystems();
-  });
-  root.querySelectorAll('[data-wpopenprice]').forEach(b => b.onclick = openWhopPrice);
+  root.querySelectorAll('[data-wpnew]').forEach(b => b.onclick = openWhopNew);
   root.querySelectorAll('[data-wpcopy]').forEach(b => b.onclick = () => wpCopy(b.dataset.wpcopy, 'Product URL'));
-
-  const name = root.querySelector('#wp-name');
-  const go = root.querySelector('#wp-create');
-  if (name) {
-    /* Bound without a redraw so the caret stays put; the one thing the button
-       needs from it is whether there is a name at all. */
-    name.oninput = () => {
-      WP.form.title = name.value;
-      if (go) go.disabled = !name.value.trim() || WP.busy;
-    };
-    name.onkeydown = e => {
-      if (e.key === 'Enter') { e.preventDefault(); createWhopProduct(); }
-    };
-  }
-  if (go) go.onclick = createWhopProduct;
 }
 
 function wireSystems(root){
@@ -19340,7 +19393,7 @@ window.addEventListener('hashchange', () => {
 function sysBack(){
   clearInterval(SY.poll); SY.poll = null;
   SY.open = null; SY.project = null; SY.clips = []; SY.picked.clear();
-  WP.creating = false; WP.form = null;
+  closeWhopNew();
   drawSystems();
   /* The section header is above the fold once an automation has been open and
      the page has been scrolled, so going back to a grid the reader cannot see
@@ -19356,11 +19409,16 @@ document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', (
 document.querySelectorAll('[data-mclose]').forEach(b => b.onclick = () => {
   const id = b.dataset.mclose;
   if (id === 'cl-player') closePlayer();
+  /* Not just a hidden dialog: closing the form drops the draft price with it,
+     so a reopened form does not inherit a price nobody set. */
+  else if (id === 'wp-new') closeWhopNew();
   else document.getElementById(id)?.classList.remove('on');
 });
 document.querySelectorAll('.mwrap').forEach(w => w.addEventListener('click', e => {
   if (e.target !== w) return;
-  if (w.id === 'cl-player') closePlayer(); else w.classList.remove('on');
+  if (w.id === 'cl-player') closePlayer();
+  else if (w.id === 'wp-new') closeWhopNew();
+  else w.classList.remove('on');
 }));
 /* Whop dialogs. Done writes the draft back into the form and closes; Cancel and
    the × leave the form untouched, which is the whole reason draft is a copy. */
@@ -19368,8 +19426,9 @@ document.getElementById('wp-pricedone').onclick = () => {
   if (WP.draft && WP.form) WP.form.plan = { ...WP.draft };
   WP.draft = null;
   document.getElementById('wp-price').classList.remove('on');
-  drawSystems();
+  drawWhopNew();
 };
+document.getElementById('wp-create').onclick = createWhopProduct;
 /* Zeroes the amount and leaves the shape of the plan alone. Whop's own dialog
    deletes the pricing option here, but there is only ever one on this form, so
    deleting it would leave the field with nothing to show. */
@@ -19378,14 +19437,15 @@ document.getElementById('wp-pricereset').onclick = () => {
   drawWhopPrice();
 };
 
-/* Escape closes whichever of the two Whop dialogs is open, price first — it is
-   the one that can sit on top. Neither applies anything on the way out. */
+/* Escape closes the topmost open Whop dialog, in the order they stack. Nothing
+   is applied on the way out — that is what Done and Create are for. */
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
   const price = document.getElementById('wp-price');
-  const made = document.getElementById('wp-made');
   if (price?.classList.contains('on')) { WP.draft = null; price.classList.remove('on'); return; }
-  if (made?.classList.contains('on')) made.classList.remove('on');
+  const made = document.getElementById('wp-made');
+  if (made?.classList.contains('on')) { made.classList.remove('on'); return; }
+  if (document.getElementById('wp-new')?.classList.contains('on')) closeWhopNew();
 });
 document.getElementById('wp-madecopy').onclick = () => {
   const url = WP.made?.url;

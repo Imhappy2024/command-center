@@ -322,6 +322,12 @@ Wraps [Whop](https://docs.whop.com/api-reference). A name and a price go in, a
 checkout link comes out, and the list shows every product on the account with
 its price and a copy button.
 
+Three dialogs, stacked in that order: **New product** takes the name and whether
+access is free or paid, **Pricing option** sets one-time or recurring on top of
+it, and the confirmation hands back the URL. The section itself only ever holds
+the list, which is capped and centred — a name, a price and an icon do not want
+the full width of a dashboard.
+
 ```
 name + price ──► POST /products ──► prod_xxx
                        │
