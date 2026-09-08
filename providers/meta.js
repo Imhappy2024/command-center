@@ -1130,3 +1130,72 @@ export async function markConversationRead(token, { pageId, recipientId }){
     return { ok: false, error: err.message };
   }
 }
+
+/* Sending a file: a photo, a voice note, a video, anything.
+
+   Two different mechanisms, because the two platforms genuinely differ.
+
+     Facebook  multipart/form-data straight to the Send API. The bytes go up
+               with the request and Meta hosts them. No public URL needed,
+               which matters because this dashboard has nowhere to put one.
+     Instagram URL only. Instagram's messaging API will not take an upload; it
+               fetches the media from a URL you give it, so a file picked off
+               somebody's desktop cannot be sent unless this app is reachable
+               from the internet and serves it. That refusal is explicit rather
+               than a confusing 400 from Graph.
+
+   Node's own FormData and Blob are used rather than a multipart library: the
+   whole job is one field with a filename, and a dependency for that is a
+   dependency to keep updated forever. */
+const SEND_KINDS = new Set(['image', 'audio', 'video', 'file']);
+
+export async function sendAttachment(token, {
+  pageId, recipientId, kind, filename, mime, bytes, url = null, platform = 'facebook'
+}){
+  if (!SEND_KINDS.has(kind)) throw new Error(`${kind} is not a kind of attachment Meta accepts.`);
+  if (!recipientId) throw new Error('No recipient on that conversation.');
+
+  /* By URL, when there is one. Documented for image, audio, video and file, and
+     it is the only route Instagram offers -- so a pasted GIF link works on both
+     platforms with the same call. */
+  if (url) {
+    const j = await post(token, `/${pageId}/messages`, {
+      recipient: JSON.stringify({ id: recipientId }),
+      message: JSON.stringify({ attachment: { type: kind, payload: { url } } })
+    });
+    return { externalId: j.message_id || null, kind, url };
+  }
+
+  if (platform === 'instagram') {
+    throw new Error('Instagram will not accept an uploaded file: its messaging API fetches '
+      + 'media from a public URL instead, and this dashboard has no public address to '
+      + 'serve one from. Paste a link to the file, or send it from the Instagram app.');
+  }
+
+  const form = new FormData();
+  form.set('recipient', JSON.stringify({ id: recipientId }));
+  form.set('message', JSON.stringify({
+    attachment: { type: kind, payload: { is_reusable: false } }
+  }));
+  form.set('filedata', new Blob([bytes], { type: mime || 'application/octet-stream' }),
+    filename || 'upload');
+  form.set('access_token', token);
+
+  const res = await fetch(`${GRAPH}/${pageId}/messages`, { method: 'POST', body: form });
+  const json = await res.json().catch(() => null);
+  if (!res.ok || json?.error) {
+    const e = json?.error || {};
+    if (/outside of allowed window|outside the allowed window/i.test(e.message || '')) {
+      throw new Error('Meta will not deliver this: more than 24 hours have passed since their '
+        + 'last message, and outside that window a Page can only send with an approved '
+        + 'message tag.');
+    }
+    const err = new Error(`Meta ${res.status}: ${e.message || res.statusText}`);
+    err.code = e.code;
+    throw inboxError(err, {
+      need: platform === 'instagram' ? 'instagram_manage_messages' : 'pages_messaging',
+      what: 'Sending an attachment'
+    });
+  }
+  return { externalId: json.message_id || null, attachmentId: json.attachment_id || null, kind };
+}

@@ -17,6 +17,7 @@ import { accountsFor } from '../lib/accounts.js';
 import {
   INBOX_PLATFORMS, capabilities, listThreads, loadThread, loadParent, markThreadRead,
   mentionable, reply, postComment, react, postTargets, syncInbox, inboxHealth,
+  sendAttachment,
   tagThread, tagsInUse
 } from '../lib/social-inbox.js';
 
@@ -116,6 +117,47 @@ export function inboxRoutes({ auth }){
       if (!text) return res.status(400).json({ error: 'A reply cannot be empty.' });
       try {
         res.json({ ok: true, ...await reply(req.params.id, text) });
+      } catch (err) {
+        res.status(err.status || 502).json({
+          error: err.message, needsScope: err.needsScope || null
+        });
+      }
+    }));
+
+  /* A file into a conversation.
+
+     Base64 in a JSON body rather than multipart, because parsing multipart
+     means a dependency and this is one field with a filename. The 12mb limit
+     is on this route alone -- the rest of the API stays at 256kb, and a body
+     cap that generous everywhere is a way to be knocked over.
+
+     8MB of file, which is Meta's own photo limit and comfortably more than a
+     voice note. Base64 inflates by a third, hence 12mb of JSON. */
+  r.post('/api/social/inbox/thread/:id/attach', auth.require,
+    express.json({ limit: '12mb' }),
+    guarded('api/social/inbox/attach', async (req, res) => {
+      const { kind, filename, mime, data, url } = req.body || {};
+      if (!kind) return res.status(400).json({ error: 'What kind of attachment?' });
+      if (!data && !url) return res.status(400).json({ error: 'Nothing to send.' });
+
+      let bytes = null;
+      if (data) {
+        try {
+          bytes = Buffer.from(String(data).replace(/^data:[^;]*;base64,/, ''), 'base64');
+        } catch {
+          return res.status(400).json({ error: 'That file did not decode.' });
+        }
+        if (bytes.length > 8 * 1024 * 1024) {
+          return res.status(413).json({
+            error: `That file is ${(bytes.length / 1048576).toFixed(1)}MB. Meta's limit is 8MB.`
+          });
+        }
+      }
+
+      try {
+        res.json({ ok: true, ...await sendAttachment(req.params.id, {
+          kind, filename, mime, bytes, url: url || null
+        }) });
       } catch (err) {
         res.status(err.status || 502).json({
           error: err.message, needsScope: err.needsScope || null

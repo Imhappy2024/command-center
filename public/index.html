@@ -448,7 +448,249 @@ body.ycmlock{overflow:hidden}
 .ycmplayer iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 @media(min-height:760px){.ycmplayer{max-height:none}}
 
+/* Meta's own frames. Both are light-themed and neither takes a colour, so they
+   sit on white rather than fighting the panel -- pretending otherwise would
+   mean a dark border round a white box. Height is fixed because both plugins
+   size themselves and neither reports it back across the origin. */
+.ycmembed{background:#fff;border-bottom:1px solid var(--edge);overflow:hidden;flex:none}
+.ycmembed iframe{display:block;width:100%;border:0}
+.ycmembed.ig iframe{height:min(620px,62vh)}
+.ycmembed.fb iframe{height:min(560px,58vh)}
 .ycmnoplay{padding:22px 20px;background:var(--ink2);border-bottom:1px solid var(--edge)}
+/* ---- the message inbox, shaped like Messenger ----
+
+   Three panes at 340 / flexible / 320, which is roughly Messenger's own split
+   and holds up because the middle is the only one that needs to breathe. The
+   panes are separate cards rather than one, so each scrolls on its own -- the
+   thing that makes a message app feel like one is that the list does not move
+   when the conversation does. */
+.mgr{
+  display:grid;grid-template-columns:340px minmax(0,1fr);gap:10px;
+  height:calc(100vh - 168px);min-height:520px;
+}
+.mgr.withside{grid-template-columns:320px minmax(0,1fr) 300px}
+.mgpane{
+  background:var(--panel);border:1px solid var(--edge);border-radius:var(--r-lg);
+  display:flex;flex-direction:column;min-width:0;overflow:hidden;box-shadow:var(--shadow);
+}
+
+/* ---- chats ---- */
+.mghead{display:flex;align-items:center;gap:8px;padding:14px 15px 10px}
+.mghead h3{font-size:19px;color:var(--cream);font-variation-settings:'wght' 700;margin:0}
+.mgicon{
+  width:32px;height:32px;border-radius:50%;border:0;cursor:pointer;flex:none;
+  background:var(--panel2);color:var(--dim);display:flex;align-items:center;justify-content:center;
+}
+.mgicon svg{width:17px;height:17px;fill:currentColor}
+.mgicon:hover{background:var(--edge);color:var(--cream)}
+.mgicon.on{color:var(--brass)}
+.mgicon[disabled]{opacity:.5;cursor:default}
+
+.mgsearch{display:flex;align-items:center;gap:8px;margin:0 12px 10px;
+  background:var(--ink2);border-radius:999px;padding:7px 13px}
+.mgsearch span{display:flex;flex:none}
+.mgsearch svg{width:15px;height:15px;fill:var(--dimmer)}
+.mgsearch input{flex:1;min-width:0;background:none;border:0;color:var(--cream);
+  font-family:inherit;font-size:13px;outline:none}
+.mgsearch input::placeholder{color:var(--dimmer)}
+
+.mgpills{display:flex;gap:6px;padding:0 12px 8px;overflow-x:auto}
+.mgpills button{
+  flex:none;background:var(--ink2);border:0;border-radius:999px;cursor:pointer;
+  font-family:inherit;font-size:12.5px;color:var(--dim);padding:5px 13px;
+}
+.mgpills button:hover{background:var(--edge);color:var(--cream)}
+.mgpills button.on{background:rgba(124,108,255,.16);color:var(--brass)}
+
+.mgrows{flex:1;overflow:auto;padding:0 8px 8px;display:flex;flex-direction:column;gap:2px}
+.mgrow{
+  display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:11px;align-items:center;
+  padding:8px 9px;border-radius:10px;cursor:pointer;
+}
+.mgrow:hover{background:var(--panel2)}
+.mgrow.on{background:rgba(124,108,255,.13)}
+.mgrow:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+.mgrowmid{min-width:0}
+.mgrowtop{display:flex;align-items:baseline;gap:8px}
+.mgrowtop b{font-size:13.5px;color:var(--dim);font-variation-settings:'wght' 550;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mgrow.unread .mgrowtop b{color:var(--cream);font-variation-settings:'wght' 700}
+.mgwhen{margin-left:auto;flex:none;font-size:11px;color:var(--dimmer)}
+.mgrowsnip{font-size:12.5px;color:var(--dimmer);margin-top:2px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mgrow.unread .mgrowsnip{color:var(--dim)}
+.mgdot{width:9px;height:9px;border-radius:50%;background:var(--brass);flex:none}
+.mgmore{padding:8px;border-top:1px solid var(--edge);text-align:center}
+
+.mgav{
+  width:48px;height:48px;border-radius:50%;flex:none;
+  background:var(--panel2) center/cover no-repeat;border:1px solid var(--edge);
+  display:flex;align-items:center;justify-content:center;
+  font-family:var(--ff-display);font-size:18px;color:var(--dim);
+}
+.mgav.sm{width:28px;height:28px;font-size:12px}
+.mgav.big{width:74px;height:74px;font-size:27px}
+.mgav.blank{background:none;border:0}
+
+/* ---- the conversation ---- */
+.mgthreadhead{display:flex;align-items:center;gap:11px;padding:10px 14px;
+  border-bottom:1px solid var(--edge)}
+.mgwho{min-width:0}
+.mgwho b{display:block;font-size:14px;color:var(--cream);
+  font-variation-settings:'wght' 600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mgwho span{font-size:11.5px;color:var(--dimmer)}
+.mgbody{flex:1;overflow:auto;padding:14px 16px 10px;display:flex;flex-direction:column;gap:2px}
+.empty-main .empty{margin:auto}
+
+.mgintro{text-align:center;padding:18px 10px 26px;display:flex;
+  flex-direction:column;align-items:center;gap:8px}
+.mgintro b{font-size:16px;color:var(--cream);font-variation-settings:'wght' 600}
+.mgintro p{font-size:12px;color:var(--dimmer);margin:0}
+.mgday{text-align:center;margin:12px 0 6px}
+.mgday span{font-size:11px;color:var(--dimmer);background:var(--panel2);
+  border-radius:999px;padding:3px 11px}
+.mgfound{font-size:11.5px;color:var(--dimmer);text-align:center;padding:4px 0 10px}
+
+/* One turn. The avatar sits on the LAST bubble of a run, which is where
+   Messenger puts it, so a burst of four reads as one person speaking once. */
+.mgline{display:grid;grid-template-columns:28px minmax(0,1fr);gap:8px;
+  align-items:flex-end;margin-top:2px}
+.mgline.mine{grid-template-columns:minmax(0,1fr);justify-items:end}
+.mgline.first{margin-top:10px}
+.mgbubwrap{max-width:76%;min-width:0}
+.mgline.mine .mgbubwrap{display:flex;flex-direction:column;align-items:flex-end}
+.mgbub{
+  background:var(--panel2);border:1px solid var(--edge);color:var(--cream);
+  padding:8px 13px;border-radius:18px;font-size:13.5px;line-height:1.45;
+  overflow-wrap:anywhere;word-break:break-word;white-space:pre-wrap;
+}
+.mgline.mine .mgbub{background:#0a7cff;border-color:#0a7cff;color:#fff}
+.mgline:not(.first):not(.mine) .mgbub{border-top-left-radius:6px}
+.mgline:not(.last):not(.mine) .mgbub{border-bottom-left-radius:6px}
+.mgline.mine:not(.first) .mgbub{border-top-right-radius:6px}
+.mgline.mine:not(.last) .mgbub{border-bottom-right-radius:6px}
+.mgbub.empty{color:var(--dimmer);font-style:italic}
+.mgline.pending .mgbub{opacity:.65}
+.mgmeta{font-size:10.5px;color:var(--dimmer);margin:3px 6px 0}
+.mgimg{display:block;margin-top:6px}
+.mgimg img{max-width:240px;border-radius:12px;display:block}
+.mgsticker{max-width:120px;display:block;margin-top:4px}
+.mgbub audio{margin-top:6px;height:34px;max-width:230px}
+.mgfile{display:inline-flex;align-items:center;gap:6px;margin-top:6px;font-size:12px}
+.mgfile svg{width:14px;height:14px;fill:currentColor;flex:none}
+
+/* ---- the composer ---- */
+.mgcomp{border-top:1px solid var(--edge);padding:9px 12px 11px}
+.mgcomp.locked p{margin:0;padding:5px 2px;font-size:12.5px;color:var(--dim);line-height:1.5}
+.mgcomprow{display:flex;align-items:flex-end;gap:4px}
+.mgtool{
+  width:34px;height:34px;flex:none;border:0;border-radius:50%;cursor:pointer;
+  background:none;color:var(--brass);display:flex;align-items:center;justify-content:center;
+}
+.mgtool svg{width:20px;height:20px;fill:currentColor}
+.mgtool:hover{background:var(--panel2)}
+.mgtool.on{background:rgba(124,108,255,.16)}
+/* Recording. Red, and pulsing, because it is the one control here that is
+   consuming something while you are not looking at it. */
+.mgtool.rec{color:var(--rust);background:rgba(255,90,69,.14);animation:mgpulse 1.2s infinite}
+@keyframes mgpulse{50%{opacity:.55}}
+
+.mginput{
+  flex:1;min-width:0;display:flex;align-items:flex-end;gap:4px;
+  background:var(--ink2);border-radius:18px;padding:4px 6px 4px 14px;
+}
+.mginput textarea{
+  flex:1;min-width:0;background:none;border:0;resize:none;overflow:hidden;
+  color:var(--cream);font-family:inherit;font-size:13.5px;line-height:1.45;
+  padding:6px 0;max-height:120px;
+}
+.mginput textarea:focus{outline:none}
+.mginput textarea::placeholder{color:var(--dimmer)}
+.mgemoji{width:30px;height:30px;flex:none;border:0;border-radius:50%;cursor:pointer;
+  background:none;color:var(--brass);display:flex;align-items:center;justify-content:center}
+.mgemoji svg{width:19px;height:19px;fill:currentColor}
+.mgemoji:hover{background:var(--panel2)}
+.mgemoji.on{background:rgba(124,108,255,.16)}
+.mgsend{
+  width:34px;height:34px;flex:none;border:0;border-radius:50%;cursor:pointer;
+  background:none;color:var(--brass);display:flex;align-items:center;justify-content:center;
+}
+.mgsend svg{width:20px;height:20px;fill:currentColor}
+.mgsend:hover{background:var(--panel2)}
+.mgsend[disabled]{color:var(--dimmer);cursor:default;background:none}
+
+.mgwarn{font-size:11.5px;color:var(--amber,#d9a441);line-height:1.5;
+  background:rgba(217,164,65,.09);border:1px solid rgba(217,164,65,.22);
+  border-radius:8px;padding:8px 11px;margin-bottom:9px}
+.mgrec{font-size:11.5px;color:var(--dimmer);padding:6px 4px 0;
+  font-family:var(--ff-mono)}
+.mgflat{background:none;border:0;cursor:pointer;font-family:inherit;font-size:12px;
+  color:var(--dim);padding:4px 9px;border-radius:999px}
+.mgflat:hover{background:var(--panel2);color:var(--cream)}
+
+.mgpicker{
+  background:var(--ink2);border:1px solid var(--edge);border-radius:12px;
+  padding:10px 12px;margin-bottom:9px;max-height:230px;overflow:auto;
+}
+.mgpicker p{margin:0 0 9px;font-size:11.5px;color:var(--dimmer);line-height:1.5}
+.mggroup h5{margin:6px 0 5px;font-size:10px;letter-spacing:.11em;text-transform:uppercase;
+  color:var(--dimmer);font-family:var(--ff-mono);font-weight:400}
+.mggrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(32px,1fr));gap:2px}
+.mggrid button{background:none;border:0;cursor:pointer;font-size:19px;line-height:1;
+  padding:4px;border-radius:7px}
+.mggrid button:hover{background:var(--panel2)}
+.mggrid.big{grid-template-columns:repeat(auto-fill,minmax(48px,1fr))}
+.mggrid.big button{font-size:30px;padding:7px}
+.mgurlrow{display:flex;gap:7px}
+.mgurlrow input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--edge);
+  border-radius:8px;padding:7px 10px;color:var(--cream);font-family:inherit;font-size:12.5px}
+.mgurlrow input:focus{outline:none;border-color:var(--brass)}
+.mgspin{width:14px;height:14px;border-radius:50%;display:inline-block;
+  border:2px solid var(--edge2);border-top-color:var(--brass);animation:mgspin .7s linear infinite}
+@keyframes mgspin{to{transform:rotate(360deg)}}
+
+/* ---- the profile pane ---- */
+.mgside{overflow:auto}
+.mgprofile{text-align:center;padding:20px 14px 12px;display:flex;
+  flex-direction:column;align-items:center;gap:7px}
+.mgprofile b{font-size:15px;color:var(--cream);font-variation-settings:'wght' 600}
+.mgprofile p{margin:0;font-size:11.5px;color:var(--dimmer)}
+.mgcircles{display:flex;justify-content:center;gap:16px;padding:4px 10px 16px}
+.mgcircle{background:none;border:0;cursor:pointer;font-family:inherit;font-size:11px;
+  color:var(--dim);display:flex;flex-direction:column;align-items:center;gap:5px}
+.mgcircle span{width:36px;height:36px;border-radius:50%;background:var(--panel2);
+  display:flex;align-items:center;justify-content:center}
+.mgcircle svg{width:17px;height:17px;fill:currentColor}
+.mgcircle:hover span{background:var(--edge)}
+.mgcircle.on{color:var(--brass)}
+.mgcircle.on span{background:rgba(124,108,255,.16)}
+.mgfind{padding:0 14px 12px}
+.mgfind input{width:100%;background:var(--ink2);border:1px solid var(--edge);
+  border-radius:999px;padding:7px 13px;color:var(--cream);font-family:inherit;font-size:12.5px}
+.mgfind input:focus{outline:none;border-color:var(--brass)}
+.mgsect{border-top:1px solid var(--edge);padding:10px 14px}
+.mgsect summary{cursor:pointer;font-size:12.5px;color:var(--cream);
+  font-variation-settings:'wght' 550;list-style:none;padding:3px 0}
+.mgsect summary::-webkit-details-marker{display:none}
+.mgnone{font-size:11.5px;color:var(--dimmer);margin:7px 0 2px;line-height:1.45}
+.mgmedia{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:9px}
+.mgmedia a{aspect-ratio:1;border-radius:8px;background:var(--panel2) center/cover no-repeat;
+  display:flex;align-items:center;justify-content:center}
+.mgmedia a.doc svg{width:18px;height:18px;fill:var(--dimmer)}
+.mglinks{list-style:none;margin:9px 0 0;padding:0;display:flex;flex-direction:column;gap:5px}
+.mglinks a{font-size:11.5px;color:var(--dim);text-decoration:none;word-break:break-all}
+.mglinks a:hover{color:var(--brass)}
+
+@media(max-width:1200px){
+  .mgr.withside{grid-template-columns:300px minmax(0,1fr)}
+  .mgr.withside .mgside{display:none}
+}
+@media(max-width:820px){
+  .mgr,.mgr.withside{grid-template-columns:minmax(0,1fr);height:auto}
+  .mgr .mglist{max-height:340px}
+  .mgr .mgmain{min-height:60vh}
+  .mgbubwrap{max-width:88%}
+}
 .ycmnoplay b{display:block;font-size:15px;color:var(--cream)}
 .ycmnoplay p{margin:6px 0 12px;font-size:12.5px;color:var(--dim);max-width:60ch;line-height:1.5}
 
@@ -8923,8 +9165,13 @@ const IBX = {
   draft: '', sending: false, err: null, busy: false, syncing: false,
   /* The new-comment composer: which post it goes under, or null when closed. */
   compose: null, targets: [], tagsInUse: [],
-  /* Which popover is open: 'mention' | 'tag' | null. */
-  picker: null
+  /* Which popover is open: 'tag' | null. */
+  picker: null,
+
+  /* The Messenger panes. side is the profile column, panel is the sticker or
+     GIF sheet, emoji is the picker, find is the in-conversation search. */
+  side: true, panel: null, emoji: false, linkDraft: '',
+  find: '', findOpen: false, sidePick: null, attaching: null, health: []
 };
 
 const IBX_PLATFORMS = [
@@ -9163,6 +9410,22 @@ function ibxTabs(){
 
    Only the verbs that matter for what is on screen: the reason Instagram DMs
    need App Review is not worth saying while reading YouTube comments. */
+/* What the last sync said about THIS platform, for the empty states.
+
+   The Instagram case is why this exists: instagram_manage_messages is granted,
+   the conversations edge answers 200 with an empty list, and "no messages" is
+   then indistinguishable from a switch being off in the Instagram app. The sync
+   makes that comparison against the Page inbox and records what it found; this
+   is the only place it gets read back to a person. */
+function ibxSyncNote(what){
+  const mine = (IBX.accounts || []).map(a => a.id);
+  const note = (IBX.health || [])
+    .filter(h => mine.includes(h.account))
+    .flatMap(h => h.notes || [])
+    .find(n => n.what === what && n.error);
+  return note ? note.error : null;
+}
+
 function ibxCapBar(){
   if (!IBX.caps) return '';
   const needed = IBX.kind === 'message' ? ['messages'] : ['read', 'reply', 'post', 'react'];
@@ -9276,9 +9539,12 @@ function ibxList(){
         + '<small>' + escS(ibxWhy(IBX.kind === 'message' ? 'messages' : 'read')
           || 'This connection cannot read them.') + '</small></div>';
     }
+    /* What the last sync actually found, which is the difference between
+       "nobody has commented" and "the platform would not hand it over". */
+    const note = ibxSyncNote(IBX.kind === 'message' ? 'messages' : 'comments');
     return '<div class="empty"><b>No ' + escS(IBX.kind) + 's yet</b>'
-      + '<small>Nothing has arrived on ' + escS(ibxPlat().label)
-      + ' since the last sync. <b>Sync now</b> checks again.</small></div>';
+      + '<small>' + escS(note || ('Nothing has arrived on ' + ibxPlat().label
+          + ' since the last sync. Sync now checks again.')) + '</small></div>';
   }
   return IBX.threads.map(ibxRow).join('');
 }
@@ -9306,41 +9572,24 @@ function ibxComposer(){
       (IBX.kind === 'message' ? ibxWhy('messages') : ibxWhy('reply'))
       || 'This connection cannot reply here.') + '</p></div>';
   }
-  const mentionNote = IBX.platform === 'facebook'
-    ? 'A mention posts as plain text on Facebook: the API takes no mention tags on '
-      + 'a Page comment, so @Name will not become a link.'
-    : IBX.platform === 'instagram'
-      ? 'An @handle becomes a real mention on Instagram.'
-      : 'An @handle becomes a real mention on YouTube.';
+  /* No Mention button.
 
+     It inserted "@Name " at the caret, which is a keystroke saved and a control
+     spent. Where a mention matters -- answering somebody three deep in a
+     comment thread -- the reply box in the video modal fills it in already,
+     without being asked. Typing @ still works, because it is just text. */
   return '<div class="ibxcomp">'
     + '<textarea id="ibx-draft" rows="3" placeholder="'
     + escS(IBX.kind === 'message' ? 'Write a message…' : 'Write a reply…')
     + '">' + escS(IBX.draft) + '</textarea>'
-    + (IBX.picker === 'mention' ? ibxMentionPicker() : '')
     + '<div class="ibxcbar">'
-    +   '<button class="tgl' + (IBX.picker === 'mention' ? ' on' : '') + '" data-ibpick="mention"'
-    +     ' title="' + escS(mentionNote) + '">@ Mention</button>'
     +   '<span class="grow"></span>'
-    +   '<span class="ibxhint">' + escS(mentionNote) + '</span>'
     +   '<button class="btn" data-ibsend="1"'
     +     (IBX.sending || !IBX.draft.trim() ? ' disabled' : '') + '>'
     +     (IBX.sending ? 'Sending…' : IBX.kind === 'message' ? 'Send' : 'Reply') + '</button>'
     + '</div></div>';
 }
 
-function ibxMentionPicker(){
-  if (!IBX.mentions.length) {
-    return '<div class="ibxpick"><p>Nobody else has written in this thread yet. '
-      + 'A mention only resolves for someone already in the conversation — none of '
-      + 'these platforms lets an app search for people.</p></div>';
-  }
-  return '<div class="ibxpick">'
-    + IBX.mentions.map(m => '<button data-ibmention="' + escS(m.name) + '">'
-      + '<span class="ibxav sm">' + escS(ibxInitial(m.name)) + '</span>'
-      + escS(m.name) + '</button>').join('')
-    + '</div>';
-}
 
 function ibxTagPicker(){
   const on = new Set(IBX.threadTags);
@@ -9479,6 +9728,21 @@ function ibxCompose(){
 }
 
 function inboxView(){
+  /* Messages are a message app and get a message app's shape: three panes, the
+     list on the left, the conversation in the middle, the person on the right.
+     Comments are not conversations with one person and keep the list plus the
+     video modal, which is the shape that suits them.
+
+     The toolbar goes with it for messages: search, the unread filter, the
+     account switch and Sync all live inside the chat pane now, where Messenger
+     puts them, rather than in a strip above three cards. */
+  if (IBX.kind === 'message') {
+    return ibxTabs()
+      + ibxCapBar()
+      + (IBX.err ? '<div class="err">' + escS(IBX.err) + '</div>' : '')
+      + msgrView();
+  }
+
   return ibxTabs()
     + ibxCapBar()
     + (IBX.err ? '<div class="err">' + escS(IBX.err) + '</div>' : '')
@@ -9507,8 +9771,15 @@ function ibxDraw(){
   /* The caret, kept across the repaint. Losing it mid-sentence is the single
      most annoying thing a live-updating composer can do. */
   const active = document.activeElement;
-  const keep = active && (active.id === 'ibx-draft' || active.id === 'ibx-comptext' || active.id === 'ibx-q')
+  const keep = active && (active.id === 'ibx-draft' || active.id === 'ibx-comptext'
+      || active.id === 'ibx-q' || active.id === 'mg-url' || active.id === 'mg-find')
     ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
+
+  const prevBody = document.getElementById('mg-body');
+  if (prevBody) {
+    ibxScrollTop = prevBody.scrollTop;
+    ibxAtBottom = prevBody.scrollHeight - prevBody.scrollTop - prevBody.clientHeight < 160;
+  }
 
   body.innerHTML = inboxView();
   ibxWire(body);
@@ -9524,7 +9795,23 @@ function ibxDraw(){
     const el = document.getElementById(keep.id);
     if (el) { el.focus(); try { el.setSelectionRange(keep.start, keep.end); } catch { /* not a text field */ } }
   }
+  /* A message list opens at the bottom, like every message app. Restored to
+     where it was on a repaint unless it was already at the newest, so typing
+     does not yank somebody out of the history they are reading. */
+  if (IBX.kind === 'message') {
+    const b = document.getElementById('mg-body');
+    if (b) {
+      if (ibxScrollTop != null && !ibxAtBottom) b.scrollTop = ibxScrollTop;
+      else b.scrollTop = b.scrollHeight;
+    }
+  }
 }
+
+/* Remembered across a redraw. The composer repaints on every keystroke and the
+   body goes with it, so without this the conversation jumps to the bottom
+   halfway through a sentence. */
+let ibxScrollTop = null;
+let ibxAtBottom = true;
 
 function ibxInsertAtCaret(text){
   const el = document.getElementById('ibx-draft');
@@ -9538,6 +9825,10 @@ function ibxInsertAtCaret(text){
 }
 
 function ibxWire(body){
+  /* The Messenger panes bring their own controls -- the tools, the pickers, the
+     profile pane -- and share the rest (rows, sync, load more) with the comment
+     list. Wired first so a shared attribute bound below still wins. */
+  if (IBX.kind === 'message') msgrWire(body);
   body.querySelectorAll('[data-ibplat]').forEach(b => b.onclick = () => {
     IBX.platform = b.dataset.ibplat;
     /* A platform that has no messages must not open on its Messages tab. */
@@ -9586,7 +9877,18 @@ function ibxWire(body){
 
   const draft = body.querySelector('#ibx-draft');
   if (draft) {
-    draft.oninput = () => { IBX.draft = draft.value; ibxSendState(); };
+    if (IBX.kind === 'message') {
+      draft.style.height = 'auto';
+      draft.style.height = Math.min(120, draft.scrollHeight) + 'px';
+    }
+    draft.oninput = () => {
+      IBX.draft = draft.value;
+      if (IBX.kind === 'message') {
+        draft.style.height = 'auto';
+        draft.style.height = Math.min(120, draft.scrollHeight) + 'px';
+      }
+      ibxSendState();
+    };
     /* Enter sends, Shift+Enter is a newline. The same bargain the reply box on
        the Leads view makes. */
     draft.onkeydown = e => {
@@ -9600,12 +9902,7 @@ function ibxWire(body){
     if (IBX.picker === 'tag' && !IBX.tagsInUse.length) ibxTagList();
     ibxDraw();
   });
-  body.querySelectorAll('[data-ibmention]').forEach(b => b.onclick = () => {
-    const name = b.dataset.ibmention;
-    /* Instagram and YouTube handles already carry the @. */
-    ibxInsertAtCaret((/^@/.test(name) ? name : '@' + name) + ' ');
-    IBX.picker = null;
-  });
+
   body.querySelectorAll('[data-ibtoggletag]').forEach(b => b.onclick = () => {
     const t = b.dataset.ibtoggletag;
     const on = new Set(IBX.threadTags);
@@ -9668,6 +9965,610 @@ document.addEventListener('keydown', e => {
   if (!IBX.sel) return;
   IBX.sel = null; IBX.items = []; ibxDraw();
 });
+
+/* ================= THE MESSAGE INBOX, SHAPED LIKE MESSENGER =================
+
+   Three panes, because that is what Messenger is and what anyone opening this
+   already knows how to use: chats on the left, the conversation in the middle,
+   the person on the right. Copying a layout people use daily is not a lack of
+   imagination; it is the whole reason they will not have to learn this one.
+
+   What is deliberately NOT copied is anything Meta's API cannot back. Every
+   control below either does the thing or says what it needs. Specifically:
+
+     voice note   MediaRecorder in the browser, uploaded as an audio
+                  attachment. Works on Facebook. Instagram takes no upload.
+     file/photo   same path. 8MB, which is Meta's own photo limit.
+     GIF          sends by URL, which the Send API documents for image, audio,
+                  video and file -- so a pasted Giphy or Tenor link works on
+                  BOTH platforms. There is no search because that needs a
+                  Tenor or Giphy key, and the panel says so rather than
+                  showing an empty grid.
+     sticker      Meta publishes no sticker catalogue to apps at all. There is
+                  nothing to draw a picker from, so the button offers the big
+                  emoji people actually use stickers for, and says why.
+     emoji        entirely local. Works everywhere, always.
+
+   The 24-hour rule sits over all of it: outside a day since their last
+   message, Meta refuses anything but an approved message tag. The composer
+   says so before you type rather than after you press send. */
+
+const MSGR_EMOJI = {
+  'Smileys': '😀 😃 😄 😁 😆 😅 🤣 😂 🙂 🙃 😉 😊 😇 🥰 😍 🤩 😘 😗 😚 😙 🥲 😋 😛 😜 🤪 😝 🤗 🤭 🤔 🤨 😐 😑 😶 😏 😒 🙄 😬 😮‍💨 🤥 😌 😔 😪 🤤 😴 😷 🤒 🤕 🥴 😵 🤯 🤠 🥳 😎 🤓 🧐',
+  'Gestures': '👍 👎 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 👇 ☝️ 👋 🤚 🖐️ ✋ 🖖 👏 🙌 🫶 👐 🤲 🤝 🙏 💪 🦾 ✍️ 💅',
+  'Hearts': '❤️ 🧡 💛 💚 💙 💜 🖤 🤍 🤎 💔 ❣️ 💕 💞 💓 💗 💖 💘 💝 💟 ♥️',
+  'Work': '✅ ❌ ⚠️ 🔥 ⭐ 🎉 🎊 🚀 📈 📉 💰 💸 🧾 📅 ⏰ 📌 📎 🔗 📞 📧 💬 🗓️ ✏️ 📝 🔍 💡 ⚡ 🏆 🎯 🤝',
+  'Faces': '😢 😭 😤 😠 😡 🤬 😳 🥺 😨 😰 😥 😓 🤗 🫡 🫠 🤡 💀 👻 🙈 🙉 🙊'
+};
+/* The ones people reach for as a "sticker": one big glyph, sent on its own. */
+const MSGR_BIG = '👍 ❤️ 😂 🎉 🔥 👏 💯 🙏 😮 😢 🤝 ✅';
+
+/* Recording state lives outside IBX: a MediaRecorder and a MediaStream are not
+   data, they are open hardware, and putting them in a redraw-on-every-keystroke
+   object invites somebody to clone it. */
+const MSGR_REC = { rec: null, stream: null, chunks: [], startedAt: 0, timer: null };
+
+const msgrHasSide = () => IBX.side !== false;
+
+/* Is Meta's 24-hour window still open on this thread?
+
+   Their clock, not ours: it runs from the last message THEY sent. Inside it a
+   Page may reply freely; outside it Meta refuses everything but an approved
+   tag, and the refusal reads like a bug in this app unless something warned
+   first. */
+function msgrWindow(){
+  const theirs = IBX.items.filter(i => !i.mine && i.at);
+  if (!theirs.length) return { open: false, reason: 'nothing received' };
+  const last = Math.max(...theirs.map(i => Date.parse(i.at) || 0));
+  const hours = (Date.now() - last) / 3600_000;
+  return { open: hours < 24, hours, last };
+}
+
+function msgrAvatar(who, cls){
+  const url = who?.avatar;
+  return '<div class="mgav' + (cls ? ' ' + cls : '') + '"'
+    + (url ? ' style="background-image:url(' + escS(url) + ')"' : '') + '>'
+    + (url ? '' : escS(ibxInitial(who?.name))) + '</div>';
+}
+
+/* ---------- the chat list ---------- */
+
+function msgrRow(t){
+  return '<div class="mgrow' + (t.unread ? ' unread' : '') + (IBX.sel === t.id ? ' on' : '')
+    + '" data-ibopen="' + escS(t.id) + '" tabindex="0">'
+    + msgrAvatar(t.with)
+    + '<div class="mgrowmid">'
+    +   '<div class="mgrowtop"><b>' + escS(t.with.name) + '</b>'
+    +     '<span class="mgwhen">' + escS(ibxAgo(t.lastAt)) + '</span></div>'
+    +   '<div class="mgrowsnip">' + (t.lastFrom === 'us' ? 'You: ' : '')
+    +     escS(t.snippet || 'No messages') + '</div>'
+    +   (t.tags?.length
+        ? '<div class="ibxtags">' + t.tags.map(x =>
+            '<span class="ibxtag">' + escS(x) + '</span>').join('') + '</div>'
+        : '')
+    + '</div>'
+    + (t.unread ? '<span class="mgdot"></span>' : '')
+    + '</div>';
+}
+
+function msgrList(){
+  const rows = IBX.threads.length
+    ? IBX.threads.map(msgrRow).join('')
+    : '<div class="empty"><b>' + (IBX.busy ? 'Reading…' : 'No conversations') + '</b>'
+      + (IBX.busy ? '' : '<small>' + escS(msgrWhyEmpty()) + '</small>') + '</div>';
+
+  return '<div class="mgpane mglist">'
+    + '<div class="mghead">'
+    +   '<h3>Chats</h3>'
+    +   '<span class="grow"></span>'
+    +   '<button class="mgicon" data-ibsync="1" title="Sync now"'
+    +     (IBX.syncing ? ' disabled' : '') + '>' + (IBX.syncing ? msgrSpinner() : msgrIcon('refresh')) + '</button>'
+    + '</div>'
+    + '<div class="mgsearch"><span>' + msgrIcon('search') + '</span>'
+    +   '<input id="ibx-q" placeholder="Search Messenger" value="' + escS(IBX.q) + '"></div>'
+    + '<div class="mgpills">'
+    +   '<button class="' + (IBX.unreadOnly ? '' : 'on') + '" data-ibunread="all">All</button>'
+    +   '<button class="' + (IBX.unreadOnly ? 'on' : '') + '" data-ibunread="unread">Unread'
+    +     (IBX.unreadCount ? ' ' + IBX.unreadCount : '') + '</button>'
+    +   (IBX.accounts.length > 1
+        ? IBX.accounts.map(a => '<button class="' + (IBX.account === a.id ? 'on' : '') + '"'
+            + ' data-ibacct="' + escS(a.id) + '">' + escS(a.label) + '</button>').join('')
+        : '')
+    + '</div>'
+    + '<div class="mgrows" id="ibx-list">' + rows + '</div>'
+    + (IBX.hasMore
+      ? '<div class="mgmore"><button class="mgflat" data-ibmore="1"'
+        + (IBX.busy ? ' disabled' : '') + '>'
+        + (IBX.busy ? 'Loading…' : 'Load older') + '</button></div>'
+      : '')
+    + '</div>';
+}
+
+/* Why the list is empty, in the words of the thing to do about it.
+
+   The Instagram case is the one that matters: the permission IS granted and
+   the conversations edge answers 200 with an empty list, so "no conversations"
+   is indistinguishable from a switch being off. The sync records that
+   comparison; this reads it back. */
+function msgrWhyEmpty(){
+  const note = ibxSyncNote('messages');
+  if (note) return note;
+  if (!ibxCan('messages')) return ibxWhy('messages') || 'This connection cannot read messages.';
+  if (IBX.q.trim() || IBX.unreadOnly) return 'Nothing matches. Clear the search and the filter.';
+  return 'Nothing has arrived on ' + ibxPlat().label + ' since the last sync.';
+}
+
+/* ---------- the conversation ---------- */
+
+function msgrBubble(it, prev, next){
+  /* Grouped the way Messenger groups: consecutive messages from the same side
+     within five minutes lose their avatar and tuck their corners, so a burst
+     of four reads as one turn rather than four. */
+  const near = (a, b) => a && b && a.mine === b.mine
+    && Math.abs((Date.parse(a.at) || 0) - (Date.parse(b.at) || 0)) < 5 * 60_000;
+  const first = !near(prev, it);
+  const last = !near(it, next);
+
+  const atts = (it.attachments || []).map(a => {
+    if (a.kind === 'image' && a.url) {
+      return '<a href="' + escS(a.url) + '" target="_blank" rel="noopener" class="mgimg">'
+        + '<img src="' + escS(a.url) + '" alt="' + escS(a.name || 'image') + '" loading="lazy"></a>';
+    }
+    if (a.kind === 'audio' && a.url) {
+      return '<audio controls preload="none" src="' + escS(a.url) + '"></audio>';
+    }
+    if (a.kind === 'sticker' && a.url) {
+      return '<img class="mgsticker" src="' + escS(a.url) + '" alt="sticker" loading="lazy">';
+    }
+    return '<span class="mgfile">' + msgrIcon('file') + escS(a.name || a.kind || 'attachment')
+      + (a.url ? ' <a href="' + escS(a.url) + '" target="_blank" rel="noopener">open</a>' : '')
+      + '</span>';
+  }).join('');
+
+  const body = it.body ? escS(it.body) : '';
+  return '<div class="mgline' + (it.mine ? ' mine' : '')
+    + (first ? ' first' : '') + (last ? ' last' : '') + (it.pending ? ' pending' : '') + '">'
+    + (it.mine ? '' : (last ? msgrAvatar(it.author, 'sm') : '<div class="mgav sm blank"></div>'))
+    + '<div class="mgbubwrap">'
+    +   (body || atts
+        ? '<div class="mgbub"' + (it.at ? ' title="' + escS(new Date(it.at).toLocaleString()) + '"' : '') + '>'
+          + body + atts + '</div>'
+        : '<div class="mgbub empty">(no content)</div>')
+    +   (last ? '<div class="mgmeta">' + escS(ibxAgo(it.at))
+          + (it.pending ? ' · sending' : '') + '</div>' : '')
+    + '</div></div>';
+}
+
+function msgrThreadBody(){
+  if (IBX.loadingThread) return '<div class="empty"><b>Reading the conversation…</b></div>';
+  if (!IBX.items.length) return '<div class="empty"><b>Nothing in this conversation</b></div>';
+
+  const t = IBX.threads.find(x => x.id === IBX.sel);
+  const find = (IBX.find || '').trim().toLowerCase();
+  const items = find
+    ? IBX.items.filter(i => String(i.body || '').toLowerCase().includes(find))
+    : IBX.items;
+
+  /* The card Messenger puts at the top of a thread: who this is, before the
+     first message. It is the answer to "who am I talking to" without opening
+     the profile pane. */
+  const intro = find ? '' : '<div class="mgintro">'
+    + msgrAvatar(t?.with, 'big')
+    + '<b>' + escS(t?.with.name || 'Conversation') + '</b>'
+    + '<p>' + escS(ibxPlat().label) + (t?.count ? ' · ' + t.count + ' messages' : '') + '</p>'
+    + '</div>';
+
+  let out = '';
+  let day = '';
+  items.forEach((it, i) => {
+    const d = it.at ? new Date(it.at).toDateString() : '';
+    if (d && d !== day) {
+      day = d;
+      out += '<div class="mgday"><span>' + escS(
+        new Date(it.at).toLocaleDateString(undefined,
+          { weekday: 'short', month: 'short', day: 'numeric' })) + '</span></div>';
+    }
+    out += msgrBubble(it, items[i - 1], items[i + 1]);
+  });
+
+  return intro
+    + (find
+      ? '<div class="mgfound">' + items.length + ' of ' + IBX.items.length
+        + ' mention “' + escS(find) + '”</div>'
+      : '')
+    + out;
+}
+
+function msgrIcon(name){
+  const paths = {
+    refresh: 'M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6a5.94 5.94 0 0 1 4.22 1.78L13 11h7V4z',
+    search: 'M15.5 14h-.79l-.28-.27A6.47 6.47 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16a6.47 6.47 0 0 0 4.23-1.57l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z',
+    mic: 'M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11z',
+    image: 'M21 19V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2zM8.5 13.5l2.5 3 3.5-4.5 4.5 6H5z',
+    sticker: 'M12 2a10 10 0 1 0 10 10h-6a4 4 0 0 1-4 4 4 4 0 0 1-4-4 4 4 0 0 1 4-4V2z',
+    gif: 'M21 6H3a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h18a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1zM8.5 13.5H10v.9a2.2 2.2 0 0 1-2 .6 2.6 2.6 0 0 1-2.5-3 2.6 2.6 0 0 1 2.6-3 2.4 2.4 0 0 1 2 1l-1 .8a1.2 1.2 0 0 0-1-.5 1.4 1.4 0 0 0-1.3 1.6A1.4 1.4 0 0 0 8.2 13a1.4 1.4 0 0 0 .3 0zM12.6 15h-1.3V9h1.3zm5.4-4.7h-2.3v1h2v1.2h-2V15H14.4V9H18z',
+    emoji: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm-3.5 7A1.5 1.5 0 1 1 7 10.5 1.5 1.5 0 0 1 8.5 9zm7 0A1.5 1.5 0 1 1 14 10.5 1.5 1.5 0 0 1 15.5 9zM12 18a5.5 5.5 0 0 1-5-3.2h10A5.5 5.5 0 0 1 12 18z',
+    send: 'M2.01 21 23 12 2.01 3 2 10l15 2-15 2z',
+    file: 'M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9z',
+    info: 'M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z',
+    close: 'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
+    tag: 'M21.41 11.58 12.41 2.58A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.84zM6.5 8A1.5 1.5 0 1 1 8 6.5 1.5 1.5 0 0 1 6.5 8z',
+    stop: 'M6 6h12v12H6z'
+  };
+  return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="' + (paths[name] || '') + '"/></svg>';
+}
+const msgrSpinner = () => '<span class="mgspin"></span>';
+
+/* ---------- the composer ---------- */
+
+function msgrComposer(){
+  if (!ibxCan('messages')) {
+    return '<div class="mgcomp locked"><p>' + escS(ibxWhy('messages')
+      || 'This connection cannot send messages.') + '</p></div>';
+  }
+  const win = msgrWindow();
+  const shut = !win.open && win.reason !== 'nothing received';
+
+  return '<div class="mgcomp">'
+    + (shut
+      ? '<div class="mgwarn">Meta’s 24-hour window has closed on this conversation — '
+        + 'their last message was ' + Math.floor(win.hours / 24) + ' day'
+        + (Math.floor(win.hours / 24) === 1 ? '' : 's') + ' ago. A Page can only send inside '
+        + 'that window without an approved message tag, so anything below will be refused '
+        + 'by Meta rather than by this app.</div>'
+      : '')
+    + (IBX.panel ? msgrPanel() : '')
+    + (IBX.emoji ? msgrEmojiPicker() : '')
+    + '<div class="mgcomprow">'
+    +   msgrTool('mic', MSGR_REC.rec ? 'stop' : 'mic',
+          MSGR_REC.rec ? 'Stop and send' : 'Record a voice note', MSGR_REC.rec ? 'rec' : '')
+    +   msgrTool('file', 'image', 'Send a photo or file')
+    +   msgrTool('sticker', 'sticker', 'Stickers', IBX.panel === 'sticker' ? 'on' : '')
+    +   msgrTool('gif', 'gif', 'Send a GIF', IBX.panel === 'gif' ? 'on' : '')
+    +   '<div class="mginput">'
+    +     '<textarea id="ibx-draft" rows="1" placeholder="Aa">' + escS(IBX.draft) + '</textarea>'
+    +     '<button class="mgemoji' + (IBX.emoji ? ' on' : '') + '" data-mgemoji="1"'
+    +       ' title="Emoji">' + msgrIcon('emoji') + '</button>'
+    +   '</div>'
+    +   '<button class="mgsend" data-ibsend="1" title="Send"'
+    +     (IBX.sending || !IBX.draft.trim() ? ' disabled' : '') + '>'
+    +     (IBX.sending ? msgrSpinner() : msgrIcon('send')) + '</button>'
+    +   '<input type="file" id="mg-file" hidden'
+    +     ' accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.csv,.txt">'
+    + '</div>'
+    + (MSGR_REC.rec
+      ? '<div class="mgrec">Recording <span id="mg-rectime">0:00</span>'
+        + ' · <button class="mgflat" data-mgreccancel="1">Cancel</button></div>'
+      : '')
+    + (IBX.attaching ? '<div class="mgrec">Sending ' + escS(IBX.attaching) + '…</div>' : '')
+    + '</div>';
+}
+
+const msgrTool = (key, icon, title, cls) =>
+  '<button class="mgtool' + (cls ? ' ' + cls : '') + '" data-mgtool="' + key + '"'
+  + ' title="' + escS(title) + '" aria-label="' + escS(title) + '">' + msgrIcon(icon) + '</button>';
+
+function msgrEmojiPicker(){
+  return '<div class="mgpicker">'
+    + Object.entries(MSGR_EMOJI).map(([group, set]) =>
+      '<div class="mggroup"><h5>' + escS(group) + '</h5><div class="mggrid">'
+      + set.split(' ').filter(Boolean).map(e =>
+        '<button data-mgemo="' + escS(e) + '">' + e + '</button>').join('')
+      + '</div></div>').join('')
+    + '</div>';
+}
+
+/* The GIF and sticker panels, which are honest about what Meta gives an app.
+
+   A GIF sends perfectly well by URL -- the Send API documents payload.url for
+   image, audio, video and file -- so pasting a Giphy or Tenor link works on
+   both platforms today. What is missing is SEARCH, which needs a Tenor or
+   Giphy key this deployment does not have, and an empty search box that never
+   returns anything would be worse than saying so.
+
+   Stickers are different: Meta publishes no sticker catalogue to apps at all,
+   so there is nothing a picker could be built from. The big emoji below are
+   what a sticker is used for nine times in ten, and they send as a message. */
+function msgrPanel(){
+  if (IBX.panel === 'sticker') {
+    return '<div class="mgpicker">'
+      + '<p>Meta publishes no sticker catalogue to apps, so there is nothing here to pick '
+      + 'from. These send as a message on its own, which is what a sticker mostly is.</p>'
+      + '<div class="mggrid big">'
+      + MSGR_BIG.split(' ').filter(Boolean).map(e =>
+        '<button data-mgbig="' + escS(e) + '">' + e + '</button>').join('')
+      + '</div></div>';
+  }
+  return '<div class="mgpicker">'
+    + '<p>Paste a GIF link and it sends as one. Searching Giphy or Tenor needs an API key, '
+    + 'which this deployment has not been given, so there is no grid to browse.</p>'
+    + '<div class="mgurlrow">'
+    + '<input id="mg-url" placeholder="https://media.giphy.com/…/giphy.gif" value="'
+    + escS(IBX.linkDraft || '') + '">'
+    + '<button class="mgflat" data-mgsendurl="1">Send</button>'
+    + '</div></div>';
+}
+
+/* ---------- the profile pane ---------- */
+
+function msgrSide(){
+  const t = IBX.threads.find(x => x.id === IBX.sel);
+  if (!t) return '';
+  const media = IBX.items.flatMap(i => (i.attachments || [])
+    .filter(a => a.url).map(a => ({ ...a, at: i.at })));
+  /* Links, pulled out of what was actually said. Messenger has this panel and
+     it is the one part of it that earns its space in a work inbox: the link
+     somebody sent three weeks ago is findable without scrolling to it. */
+  const links = [...new Set(IBX.items.flatMap(i =>
+    String(i.body || '').match(/https?:\/\/[^\s<>"']+/g) || []))].slice(0, 40);
+
+  const circle = (key, icon, label, on) =>
+    '<button class="mgcircle' + (on ? ' on' : '') + '" data-mgside="' + key + '">'
+    + '<span>' + msgrIcon(icon) + '</span>' + escS(label) + '</button>';
+
+  return '<div class="mgpane mgside">'
+    + '<div class="mgprofile">'
+    +   msgrAvatar(t.with, 'big')
+    +   '<b>' + escS(t.with.name) + '</b>'
+    +   '<p>' + escS(ibxPlat().label) + '</p>'
+    + '</div>'
+    + '<div class="mgcircles">'
+    +   circle('find', 'search', 'Search', Boolean(IBX.find))
+    +   circle('tag', 'tag', 'Tags', Boolean(t.tags?.length))
+    +   circle('unread', 'info', 'Unread', false)
+    + '</div>'
+    + (IBX.find != null && IBX.findOpen
+      ? '<div class="mgfind"><input id="mg-find" placeholder="Find in conversation"'
+        + ' value="' + escS(IBX.find || '') + '"></div>'
+      : '')
+    + (IBX.sidePick === 'tag' ? msgrTagPicker(t) : '')
+    + msgrSection('Media and files', media.length
+      ? '<div class="mgmedia">' + media.map(a => a.kind === 'image'
+        ? '<a href="' + escS(a.url) + '" target="_blank" rel="noopener"'
+          + ' style="background-image:url(' + escS(a.url) + ')"></a>'
+        : '<a href="' + escS(a.url) + '" target="_blank" rel="noopener" class="doc">'
+          + msgrIcon('file') + '</a>').join('') + '</div>'
+      : '<p class="mgnone">Nothing shared in what is held here.</p>')
+    + msgrSection('Links', links.length
+      ? '<ul class="mglinks">' + links.map(u =>
+        '<li><a href="' + escS(u) + '" target="_blank" rel="noopener">'
+        + escS(u.replace(/^https?:\/\//, '').slice(0, 46)) + '</a></li>').join('') + '</ul>'
+      : '<p class="mgnone">No links in this conversation.</p>')
+    + '</div>';
+}
+
+function msgrTagPicker(t){
+  const on = new Set(t.tags || []);
+  const suggestions = [...new Set([...(IBX.tagsInUse || []),
+    'follow up', 'lead', 'spam', 'answered'])];
+  return '<div class="ibxpick tags">'
+    + '<p>Labels kept in this dashboard. Meta has no API to label a conversation, '
+    + 'so these never reach Messenger.</p>'
+    + suggestions.map(x => '<button class="' + (on.has(x) ? 'on' : '') + '"'
+      + ' data-ibtoggletag="' + escS(x) + '">' + (on.has(x) ? '✓ ' : '') + escS(x)
+      + '</button>').join('')
+    + '</div>';
+}
+
+const msgrSection = (title, body) =>
+  '<details class="mgsect" open><summary>' + escS(title) + '</summary>' + body + '</details>';
+
+/* ---------- the whole view ---------- */
+
+function msgrView(){
+  const t = IBX.threads.find(x => x.id === IBX.sel);
+  const main = !IBX.sel
+    ? '<div class="mgpane mgmain empty-main"><div class="empty">'
+      + '<b>Pick a conversation</b><small>Messages arrive on the sync; '
+      + 'replies go straight to Meta.</small></div></div>'
+    : '<div class="mgpane mgmain">'
+      + '<div class="mgthreadhead">'
+      +   msgrAvatar(t?.with, 'sm')
+      +   '<div class="mgwho"><b>' + escS(t?.with.name || '') + '</b>'
+      +     '<span>' + escS(ibxPlat().label) + '</span></div>'
+      +   '<span class="grow"></span>'
+      +   '<button class="mgicon' + (msgrHasSide() ? ' on' : '') + '" data-mgtoggleside="1"'
+      +     ' title="Conversation details">' + msgrIcon('info') + '</button>'
+      +   '<button class="mgicon" data-ibclose="1" title="Close (Esc)">'
+      +     msgrIcon('close') + '</button>'
+      + '</div>'
+      + '<div class="mgbody" id="mg-body">' + msgrThreadBody() + '</div>'
+      + msgrComposer()
+      + '</div>';
+
+  return '<div class="mgr' + (IBX.sel && msgrHasSide() ? ' withside' : '') + '">'
+    + msgrList() + main + (IBX.sel && msgrHasSide() ? msgrSide() : '')
+    + '</div>';
+}
+
+/* ---------- sending ---------- */
+
+async function msgrSendFile(file, kind){
+  if (!IBX.sel || !file) return;
+  IBX.attaching = file.name || kind; IBX.err = null; ibxDraw();
+  try {
+    const data = await new Promise((res, rej) => {
+      const r = new FileReader();
+      r.onload = () => res(String(r.result).split(',')[1] || '');
+      r.onerror = () => rej(new Error('that file could not be read'));
+      r.readAsDataURL(file);
+    });
+    await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/attach',
+      { kind, filename: file.name || (kind + '.bin'), mime: file.type, data });
+    await ibxOpen(IBX.sel);
+    ibxLoad();
+  } catch (err) {
+    IBX.err = err.body?.detail || err.message || 'that attachment did not send';
+  } finally {
+    IBX.attaching = null; ibxDraw();
+  }
+}
+
+async function msgrSendUrl(url, kind){
+  const clean = String(url || '').trim();
+  if (!clean || !IBX.sel) return;
+  if (!/^https?:\/\//i.test(clean)) {
+    IBX.err = 'That needs to be a full https link to the file itself.';
+    ibxDraw(); return;
+  }
+  IBX.attaching = 'link'; IBX.err = null; ibxDraw();
+  try {
+    await post('/api/social/inbox/thread/' + encodeURIComponent(IBX.sel) + '/attach',
+      { kind, url: clean });
+    IBX.linkDraft = ''; IBX.panel = null;
+    await ibxOpen(IBX.sel);
+    ibxLoad();
+  } catch (err) {
+    IBX.err = err.body?.detail || err.message || 'that link did not send';
+  } finally {
+    IBX.attaching = null; ibxDraw();
+  }
+}
+
+/* A voice note.
+
+   The container is whichever of these the browser will actually record; Meta
+   accepts several and rejects the rest, and its rejection is passed through
+   rather than guessed at. Chrome gives audio/webm;codecs=opus, which Messenger
+   does accept. */
+async function msgrRecord(){
+  if (MSGR_REC.rec) return msgrStopRecording(true);
+  if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+    IBX.err = 'This browser has no microphone recording, so a voice note cannot be made here.';
+    return ibxDraw();
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const type = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
+      .find(t => MediaRecorder.isTypeSupported?.(t)) || '';
+    const rec = new MediaRecorder(stream, type ? { mimeType: type } : undefined);
+    MSGR_REC.rec = rec; MSGR_REC.stream = stream; MSGR_REC.chunks = [];
+    MSGR_REC.startedAt = Date.now();
+    rec.ondataavailable = e => { if (e.data?.size) MSGR_REC.chunks.push(e.data); };
+    rec.start();
+    /* The counter ticks without redrawing the composer, so the caret and the
+       draft survive a recording. */
+    MSGR_REC.timer = setInterval(() => {
+      const el = document.getElementById('mg-rectime');
+      if (!el) return;
+      const s = Math.floor((Date.now() - MSGR_REC.startedAt) / 1000);
+      el.textContent = Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+    }, 500);
+    ibxDraw();
+  } catch (err) {
+    IBX.err = err.name === 'NotAllowedError'
+      ? 'The microphone was blocked. Allow it for this site and try again.'
+      : 'The microphone could not be opened: ' + err.message;
+    ibxDraw();
+  }
+}
+
+function msgrStopRecording(send){
+  const rec = MSGR_REC.rec;
+  if (!rec) return;
+  clearInterval(MSGR_REC.timer);
+  const done = new Promise(res => { rec.onstop = res; });
+  try { rec.stop(); } catch { /* already stopped */ }
+  MSGR_REC.stream?.getTracks().forEach(t => t.stop());
+
+  done.then(async () => {
+    const chunks = MSGR_REC.chunks.slice();
+    const type = rec.mimeType || 'audio/webm';
+    MSGR_REC.rec = null; MSGR_REC.stream = null; MSGR_REC.chunks = [];
+    ibxDraw();
+    if (!send || !chunks.length) return;
+    const ext = /mp4/.test(type) ? 'm4a' : /ogg/.test(type) ? 'ogg' : 'webm';
+    const blob = new Blob(chunks, { type });
+    await msgrSendFile(new File([blob], 'voice-note.' + ext, { type }), 'audio');
+  });
+}
+
+/* ---------- wiring ---------- */
+
+function msgrWire(body){
+  body.querySelectorAll('[data-mgtool]').forEach(b => b.onclick = () => {
+    const k = b.dataset.mgtool;
+    if (k === 'mic') return msgrRecord();
+    if (k === 'file') return document.getElementById('mg-file')?.click();
+    IBX.panel = IBX.panel === k ? null : k;
+    IBX.emoji = false;
+    ibxDraw();
+  });
+  body.querySelectorAll('[data-mgreccancel]').forEach(b => b.onclick = () => msgrStopRecording(false));
+
+  const file = body.querySelector('#mg-file');
+  if (file) file.onchange = () => {
+    const f = file.files?.[0];
+    if (!f) return;
+    const kind = /^image\//.test(f.type) ? 'image'
+      : /^video\//.test(f.type) ? 'video'
+      : /^audio\//.test(f.type) ? 'audio' : 'file';
+    msgrSendFile(f, kind);
+    file.value = '';
+  };
+
+  body.querySelectorAll('[data-mgemoji]').forEach(b => b.onclick = () => {
+    IBX.emoji = !IBX.emoji; IBX.panel = null; ibxDraw();
+  });
+  body.querySelectorAll('[data-mgemo]').forEach(b => b.onclick = () => {
+    ibxInsertAtCaret(b.dataset.mgemo);
+  });
+  /* A big emoji goes on its own, immediately, which is how a sticker behaves. */
+  body.querySelectorAll('[data-mgbig]').forEach(b => b.onclick = async () => {
+    IBX.draft = b.dataset.mgbig;
+    IBX.panel = null;
+    await ibxSend();
+  });
+  body.querySelectorAll('[data-mgsendurl]').forEach(b => b.onclick = () => {
+    const el = document.getElementById('mg-url');
+    msgrSendUrl(el ? el.value : IBX.linkDraft, 'image');
+  });
+  const url = body.querySelector('#mg-url');
+  if (url) {
+    url.oninput = () => { IBX.linkDraft = url.value; };
+    url.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); msgrSendUrl(url.value, 'image'); } };
+  }
+
+  body.querySelectorAll('[data-mgtoggleside]').forEach(b => b.onclick = () => {
+    IBX.side = !msgrHasSide(); ibxDraw();
+  });
+  body.querySelectorAll('[data-mgside]').forEach(b => b.onclick = () => {
+    const k = b.dataset.mgside;
+    if (k === 'find') { IBX.findOpen = !IBX.findOpen; if (!IBX.findOpen) IBX.find = ''; }
+    else if (k === 'tag') { IBX.sidePick = IBX.sidePick === 'tag' ? null : 'tag'; if (IBX.sidePick && !(IBX.tagsInUse || []).length) ibxTagList(); }
+    else if (k === 'unread') {
+      const id = IBX.sel;
+      const row = IBX.threads.find(x => x.id === id);
+      if (row) { row.unread = true; IBX.unreadCount += 1; }
+      post('/api/social/inbox/thread/' + encodeURIComponent(id) + '/read', { read: false })
+        .catch(() => {});
+      IBX.sel = null; IBX.items = [];
+    }
+    ibxDraw();
+  });
+  const find = body.querySelector('#mg-find');
+  if (find) find.oninput = () => {
+    IBX.find = find.value;
+    const host = document.getElementById('mg-body');
+    if (host) host.innerHTML = msgrThreadBody();
+  };
+
+  /* The pills are the same two states the old toggle held. */
+  body.querySelectorAll('[data-ibunread]').forEach(b => b.onclick = () => {
+    IBX.unreadOnly = b.dataset.ibunread === 'unread';
+    ibxLoad();
+  });
+}
+
+/* The conversation is pinned to the bottom, like every message app. Only when
+   it is already near the bottom, so reading history is not yanked away by an
+   incoming message. */
+function msgrScroll(force){
+  const el = document.getElementById('mg-body');
+  if (!el) return;
+  const near = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+  if (force || near) el.scrollTop = el.scrollHeight;
+}
 
 /* ---------- the comment section, as a modal over the video ----------
 
@@ -10048,14 +10949,35 @@ function ycmPlayer(){
       + ' allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>'
       + '</div>';
   }
-  /* Facebook and Instagram have no embed that works without their SDK and a
-     public post, so the post is linked rather than framed. Saying so beats an
-     empty black rectangle. */
+  /* Instagram: /embed on the permalink. Works for a reel and for a feed post,
+     needs no SDK and no token, and sizes itself to the media. */
+  if (YCM.platform === 'instagram' && p.link) {
+    const base = String(p.link).split('?')[0].replace(/\/+$/, '');
+    return '<div class="ycmembed ig">'
+      + '<iframe src="' + escS(base) + '/embed/captioned/" title="' + escS(p.title || 'Instagram post') + '"'
+      + ' loading="lazy" scrolling="no" allowtransparency="true"'
+      + ' referrerpolicy="strict-origin-when-cross-origin"></iframe>'
+      + '</div>';
+  }
+
+  /* Facebook: the Post plugin. show_text carries the caption, so the frame is
+     the post rather than just its photo. */
+  if (YCM.platform === 'facebook' && p.link) {
+    const src = 'https://www.facebook.com/plugins/post.php?href='
+      + encodeURIComponent(p.link) + '&show_text=true&width=500';
+    return '<div class="ycmembed fb">'
+      + '<iframe src="' + escS(src) + '" title="' + escS(p.title || 'Facebook post') + '"'
+      + ' loading="lazy" scrolling="no" frameborder="0" allowfullscreen="true"'
+      + ' allow="clipboard-write; encrypted-media; picture-in-picture; web-share"'
+      + ' referrerpolicy="strict-origin-when-cross-origin"></iframe>'
+      + '</div>';
+  }
+
+  /* No permalink stored, which happens on an older synced row. */
   return '<div class="ycmnoplay">'
     + '<b>' + escS(p.title || 'This post') + '</b>'
-    + '<p>' + escS(SO_PLAT_LABEL[YCM.platform] || YCM.platform)
-    + ' has no embeddable player for a Page post, so it opens on the platform.</p>'
-    + (p.link ? '<a class="btn" href="' + escS(p.link) + '" target="_blank" rel="noopener">Open the post</a>' : '')
+    + '<p>No permalink was stored for this one, so there is nothing to embed. '
+    + 'A re-sync will pick it up.</p>'
     + '</div>';
 }
 
