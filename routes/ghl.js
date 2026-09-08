@@ -267,11 +267,25 @@ export function ghlRoutes({ env, auth, live = null }){
        for it. */
     try {
       const ing = await ingestStatus();
-      const bad = (ing.entities || []).filter(e => e.status === 'error');
-      if (bad.length) {
+      /* CURRENT failures only.
+
+         This used to warn on any entity whose last row ended in an error,
+         however old, and merely soften the wording when everything else had
+         synced past it. That put a red line above the leads list every day for
+         eighteen days about a run that the pipeline had already moved on from,
+         with no error text and nothing to do about it -- which is how a banner
+         stops being read, taking the next real one with it.
+
+         ingestStatus() already draws the distinction: `failing` counts only the
+         entities the pipeline has NOT since run past. The stale history is
+         still on the ingest marker in the header for anyone who wants it. */
+      const bad = (ing.entities || []).filter(e =>
+        e.status === 'error'
+        && (!e.at || !ing.newestOk || new Date(e.at).getTime() >= new Date(ing.newestOk).getTime()));
+
+      if (ing.failing > 0 && bad.length) {
         /* Name the entity and say when. A bare count tells the reader something
-           is wrong and nothing about what, which leaves them with a red line
-           they cannot act on and eventually stop seeing. */
+           is wrong and nothing about what. */
         const first = bad[0];
         const days = first.at
           ? Math.floor((Date.now() - new Date(first.at).getTime()) / 86_400_000) : null;
@@ -281,13 +295,7 @@ export function ghlRoutes({ env, auth, live = null }){
         const rest = bad.length > 1 ? ' (and ' + (bad.length - 1) + ' more)' : '';
 
         warnings.push({ account: 'ghl:ingest', label: 'GHL ingest',
-          stale: ing.failing === 0,
-          error: ing.failing === 0
-            /* Everything else has synced since, so this is history rather than a
-               fault: worth being able to see, not worth an alarm. */
-            ? first.entity + ' last failed' + when + why + rest
-              + ', but every other entity has synced since.'
-            : first.entity + ' failed' + when + why + rest + '.' });
+          error: first.entity + ' failed' + when + why + rest + '.' });
       }
     } catch { /* the panel is a nicety; never fail a read over it */ }
 

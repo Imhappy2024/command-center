@@ -203,6 +203,14 @@ main{min-width:0;display:flex;flex-direction:column}
 @keyframes ldpulse{50%{opacity:.35}}
 .vhead h1{font-size:26px;font-variation-settings:'wdth' 112,'wght' 700;color:var(--cream);letter-spacing:-.01em}
 .vhead p{font-size:13px;color:var(--dim);margin-top:3px;max-width:56ch}
+/* Leads is the one view where the header competes with the thing it labels.
+   Everywhere else the page below is a dashboard and a 26px title is fine;
+   here it is a conversation, and the title, its stat line and the stage row
+   together were taking about 150px off the top of the reading area. The
+   sub-account name is also in the rail, lit, two inches to the left. */
+#v-leads .vhead{margin-bottom:10px;align-items:center}
+#v-leads .vhead h1{font-size:19px;letter-spacing:0}
+#v-leads .vhead p{font-size:12px;margin-top:1px}
 
 .grid{display:grid;gap:14px}
 .g2{grid-template-columns:repeat(2,1fr)}
@@ -566,6 +574,23 @@ body.ycmlock{overflow:hidden}
   .ycmav{width:32px;height:32px;font-size:13px}
 }
 .reader{min-height:380px;max-height:672px;overflow:hidden;display:flex;flex-direction:column}
+/* The conversation pane, given the room the stage cards and the big title gave
+   back. A fixed 672px was most of the reason long threads felt cramped: it is
+   a viewport now, so a tall screen gets a tall conversation.
+
+   26% for the list rather than 32%. It holds a name, a stage chip and a
+   one-line snippet; the pane beside it holds the actual content. The gutter
+   can still be dragged and its --split wins, because it is set inline. */
+/* The 26% default is set by makeSplitter below, not here: it writes --split as
+   an INLINE style on the wrapper, so any rule in this sheet loses to it. A CSS
+   rule that can never win is worse than no rule, because the next reader
+   believes it. */
+#ld-wrap .reader{max-height:calc(100vh - 215px);min-height:420px}
+#ld-wrap.split .maillist{max-height:calc(100vh - 215px)}
+/* Actions on the composer row, and the same row standing alone under Details. */
+.chanrow .grow{flex:1}
+.chanrow .ldacts{margin-top:0}
+.chanrow.standalone{padding:10px 14px;border-top:1px solid var(--edge)}
 
 #ib-list{padding:8px;display:flex;flex-direction:column;gap:6px}
 /* ---- Comments & Messages ----
@@ -1066,18 +1091,15 @@ body.ycmlock{overflow:hidden}
 .synced .d{width:6px;height:6px;border-radius:50%;background:var(--dimmer);transition:background .2s}
 .synced.flash .d{background:var(--jade)}
 
-.stagebar{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:2px}
-.stg{
-  background:var(--panel);border:1px solid var(--edge);border-radius:8px;cursor:pointer;flex:none;
-  padding:9px 13px;text-align:left;color:inherit;transition:.14s;min-width:96px;
+/* One line where eight cards used to be. The .stg rules are gone with them. */
+.stagebar{display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.stagefilter{
+  background:var(--ink2);border:1px solid var(--edge);border-radius:7px;color:var(--text);
+  font-family:var(--ff-mono);font-size:10.5px;letter-spacing:.05em;
+  padding:6px 9px;cursor:pointer;outline:0;max-width:340px;
 }
-.stg:hover{border-color:var(--edge2)}
-.stg.on{background:var(--panel2);border-color:var(--brass)}
-.stg .k{font-family:var(--ff-mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;color:var(--dimmer)}
-.stg.on .k{color:var(--brass)}
-.stg .n{font-size:18px;color:var(--dim);margin-top:4px;font-variation-settings:'wdth' 114,'wght' 700}
-.stg.on .n{color:var(--cream)}
-.stg .v{font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer);margin-top:1px}
+.stagefilter:focus{border-color:var(--brass)}
+.stgsum{font-family:var(--ff-mono);font-size:10.5px;color:var(--brass)}
 
 #ld-list{padding:8px;display:flex;flex-direction:column;gap:6px}
 .lstage{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;
@@ -1087,16 +1109,19 @@ body.ycmlock{overflow:hidden}
 .lstage.hot{color:var(--brass);border-color:rgba(124,108,255,.18);background:rgba(124,108,255,.10)}
 
 /* detail pane */
-.ldhead{padding:16px 18px 14px;border-bottom:1px solid var(--edge)}
+.ldhead{padding:12px 16px 11px;border-bottom:1px solid var(--edge)}
 .ldtop{display:flex;align-items:flex-start;gap:12px}
 .ldtop .av{width:38px;height:38px;border-radius:10px;flex:none;display:flex;align-items:center;
   justify-content:center;font-family:var(--ff-mono);font-size:12px;color:var(--ink2);background:var(--c)}
 .ldwho{flex:1;min-width:0}
-.ldwho h2{font-size:16px;color:var(--cream);font-variation-settings:'wdth' 108,'wght' 700;line-height:1.3}
-.ldwho .meta{font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer);margin-top:3px}
-.ldval{text-align:right;flex:none}
-.ldval b{display:block;font-family:var(--ff-mono);font-size:14px;color:var(--brass)}
-.ldval small{font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer)}
+.ldwho h2{font-size:16px;color:var(--cream);font-variation-settings:'wdth' 108,'wght' 700;
+  line-height:1.3;display:flex;align-items:baseline;gap:9px;flex-wrap:wrap}
+.ldwho .meta{font-family:var(--ff-mono);font-size:10.5px;color:var(--dimmer);margin-top:2px}
+/* Beside the name, not in the far corner. Mono and brass so it reads as a
+   figure rather than as part of the name it sits next to. */
+.ldval{font-family:var(--ff-mono);font-size:13px;color:var(--brass);
+  font-variation-settings:'wght' 400;letter-spacing:0}
+.ldval.none{font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer)}
 /* The close, top-right of the conversation header. Big enough to hit, quiet
    enough not to compete with the lead's name beside it. */
 .ldclose{margin-left:auto;align-self:flex-start;background:none;border:0;
@@ -1117,8 +1142,20 @@ body.ycmlock{overflow:hidden}
 .ldtab:hover{color:var(--text)}
 .ldtab.on{color:var(--cream);border-bottom-color:var(--brass)}
 
-.thread{padding:16px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:12px}
-.bub{max-width:78%;border-radius:11px;padding:10px 13px;font-size:13px;line-height:1.6}
+.thread{padding:14px 16px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:9px}
+/* Wider and smaller, both deliberately.
+
+   78% of a narrow pane is a column about forty characters across, and these
+   are transactional emails: a booking confirmation runs to eight lines in it
+   and an unsubscribe URL runs off the side. 92% and 12.5px roughly doubles
+   what is on screen at once.
+
+   overflow-wrap:anywhere is the actual formatting fix. A GHL email body
+   carries bare tracking URLs two hundred characters long with no spaces in
+   them, and word-break alone will not break inside a URL -- so the bubble grew
+   past its own container and the text ran under the edge of the pane. */
+.bub{max-width:92%;border-radius:11px;padding:8px 12px;font-size:12.5px;line-height:1.55;
+  overflow-wrap:anywhere;word-break:break-word}
 .bub .ch{display:flex;align-items:center;gap:6px;margin-bottom:5px;
   font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.11em;text-transform:uppercase}
 .bub.in{align-self:flex-start;background:var(--panel2);border:1px solid var(--edge);color:var(--text)}
@@ -5116,27 +5153,53 @@ const escL = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>'
 
    Counts come from the server, over every opportunity in the location, not from
    the capped lead list in the browser. */
+/* The stage filter.
+
+   This was a row of cards, one per stage, each 96px wide and about 90 pixels
+   tall -- eight of them across the top of the view, holding a count and a
+   value apiece. As a dashboard that is defensible; above a conversation it is
+   ninety pixels of the reading area spent on numbers that are also in the
+   header line, and the messages were being read through what was left.
+
+   So it is a filter, which is what it was actually used as. The counts and
+   values did not have to be lost to shrink it: they are in the option labels
+   and beside the control. */
 function drawStages(){
   const box = document.getElementById('ld-stages');
   const pool = LEADS.filter(l => l.loc === ldLoc());
 
-  const cell = (key, label, count, val) =>
-    '<button class="stg' + (LD.stage === key ? ' on' : '') + '" data-stage="' + escL(key) + '">'
-    + '<div class="k">' + escL(label) + '</div><div class="n">' + count + '</div>'
-    + '<div class="v">' + (val ? money(val) : '\u2014') + '</div></button>';
-
-  const all = cell('all', 'All', pool.length,
-    pool.reduce((s, l) => s + l.value, 0));
-
   /* Demo mode has no server to count for it, so it counts what it invented. */
   const counted = CAL.demo
-    ? STAGES.map(s => {
-        const set = pool.filter(l => l.stageName === s.name);
-        return { ...s, count: set.length, value: set.reduce((n, l) => n + l.value, 0) };
+    ? STAGES.map(st => {
+        const set = pool.filter(l => l.stageName === st.name);
+        return { ...st, count: set.length, value: set.reduce((n, l) => n + l.value, 0) };
       })
     : STAGES;
 
-  box.innerHTML = all + counted.map(s => cell(s.name, s.name, s.count, s.value)).join('');
+  const allCount = pool.length;
+  const allValue = pool.reduce((n, l) => n + l.value, 0);
+  const opt = (key, label, count, val) =>
+    '<option value="' + escL(key) + '"' + (LD.stage === key ? ' selected' : '') + '>'
+    + escL(label) + '  ·  ' + count + (val ? '  ·  ' + money(val) : '')
+    + '</option>';
+
+  const picked = LD.stage === 'all' ? null : counted.find(st => st.name === LD.stage);
+  const shownValue = picked ? picked.value : allValue;
+
+  box.innerHTML = '<span class="flabel">Stage</span>'
+    + '<select class="stagefilter" id="ld-stagefilter">'
+    +   opt('all', 'All stages', allCount, allValue)
+    +   counted.map(st => opt(st.name, st.name, st.count, st.value)).join('')
+    + '</select>'
+    + (shownValue
+      ? '<span class="stgsum">' + escL(money(shownValue)) + ' in '
+        + (picked ? escL(picked.name.toLowerCase()) : 'pipeline') + '</span>'
+      : '')
+    + (LD.stage === 'all' ? ''
+      : '<button class="tgl" data-stage="all">Clear</button>');
+
+  const sel = document.getElementById('ld-stagefilter');
+  if (sel) sel.onchange = () => { LD.stage = sel.value; LD.sel = null; drawLeads(); };
   box.querySelectorAll('[data-stage]').forEach(b => b.onclick = () => {
     LD.stage = b.dataset.stage; LD.sel = null; drawLeads();
   });
@@ -5486,12 +5549,17 @@ function drawLeadDetail(){
   const head =
     '<div class="ldhead"><div class="ldtop">'
       + '<span class="av" style="--c:' + loc.color + '">' + escL(initials(l.name)) + '</span>'
-      + '<span class="ldwho"><h2>' + escL(l.name) + '</h2>'
-        + '<div class="meta">' + escL(l.phone) + '  \u00b7  ' + escL(l.email) + '</div>'
-        + '<div class="meta" style="color:' + loc.color + '">' + escL(loc.name) + '</div></span>'
-      + '<span class="ldval"><b>' + (l.hasOpportunity === false ? '—' : money(l.value))
-      + '</b><small>' + (l.hasOpportunity === false ? 'No opportunity' : 'Opportunity')
-      + '</small></span>'
+      /* The value reads as part of the name now, not as a figure parked in the
+         far corner. It is the second thing anyone wants after who this is, and
+         at the other end of a 700px header it was being read as unrelated. */
+      + '<span class="ldwho"><h2>' + escL(l.name)
+        + '<span class="ldval' + (l.hasOpportunity === false ? ' none' : '') + '"'
+        + ' title="' + (l.hasOpportunity === false
+            ? 'No opportunity in GHL' : 'Opportunity value') + '">'
+        + (l.hasOpportunity === false ? 'No opportunity' : money(l.value))
+        + '</span></h2>'
+        + '<div class="meta">' + escL(l.phone) + '  \u00b7  ' + escL(l.email)
+        + '  \u00b7  <span style="color:' + loc.color + '">' + escL(loc.name) + '</span></div></span>'
       /* There was no way out of a conversation once it was open. Picking a
          different lead replaced it and changing the location filter cleared it,
          but nothing said "I am done reading this" -- so the list stayed
@@ -5499,7 +5567,17 @@ function drawLeadDetail(){
       + '<button class="ldclose" data-lclose="1" title="Close (Esc)"'
       + ' aria-label="Close this conversation">×</button>'
     + '</div>'
-    + '<div class="ldacts">'
+    + '</div></div>';
+
+  /* The stage control, Create task and Open in GHL.
+
+     They were a row directly under the lead's name, which put three controls
+     between the header and the conversation and pushed the first message
+     further down a pane that was already short. They belong at the bottom,
+     level with SMS and Email: everything that ACTS on the lead on one line,
+     everything that identifies the lead in the header. */
+  const acts =
+    '<div class="ldacts">'
       /* A stage belongs to an opportunity, not to a person. Most leads are
          contacts who were never put into a pipeline, and for those there is
          nothing in GHL to move — so the control says that rather than offering a
@@ -5530,7 +5608,7 @@ function drawLeadDetail(){
          dashboard. The number is in the header, selectable, two lines up. */
       + '<button class="btn" data-lact="task">Create task</button>'
       + '<button class="btn" data-lact="ghl">Open in GHL</button>'
-    + '</div></div>';
+    + '</div>';
 
   const tabs = '<div class="ldtabs">'
     + '<button class="ldtab' + (LD.tab === 'thread' ? ' on' : '') + '" data-ltab="thread">Conversation</button>'
@@ -5582,7 +5660,8 @@ function drawLeadDetail(){
       + '<div class="composer">'
         + '<div class="chanrow">' + CHANNELS.map(c =>
             '<button class="chan' + (LD.channel === c.k ? ' on' : '') + '" data-chan="' + c.k + '">'
-            + c.label + '</button>').join('') + '</div>'
+            + c.label + '</button>').join('')
+          + '<span class="grow"></span>' + acts + '</div>'
         /* The channel switches the form. Email needs a header set; SMS and
            WhatsApp do not, and showing Subject on an SMS would be a field that
            goes nowhere \u2014 GHL only reads it on an Email send. */
@@ -5621,7 +5700,10 @@ function drawLeadDetail(){
       + f('GHL ID', l.ghlId)
       + '</div>'
       + detailSections(l)
-      + '</div>';
+      + '</div>'
+      /* The Details tab has no composer to hang them on, and losing the stage
+         control when you switch tabs would be worse than a second row. */
+      + '<div class="chanrow standalone"><span class="grow"></span>' + acts + '</div>';
   }
 
   el.innerHTML = head + tabs + body;
@@ -6150,7 +6232,10 @@ document.getElementById('ld-refresh').onclick = async e => {
   } finally { FORCE_FULL = false; b.textContent = 'Refresh'; b.disabled = false; }
 };
 
-makeSplitter('ld-wrap', 'ld-gutter', 34);
+/* 26, down from 34. The list holds a name, a stage chip and a one-line
+   snippet; the pane beside it holds the messages, which are the reason anyone
+   opened the view. Still draggable, and double-click comes back here. */
+makeSplitter('ld-wrap', 'ld-gutter', 26);
 
 
 /* ================= SOCIAL =================
