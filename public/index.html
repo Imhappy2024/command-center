@@ -6262,6 +6262,33 @@ async function loadSocialView(){
   drawSocial();
 }
 
+/* The Reconnect buttons, wired in one place.
+
+   Every one of them lives inside #so-body, and this used to be bound inline in
+   drawSocial() below the render -- which the Comments & Messages branch skips,
+   because it returns as soon as it has drawn itself. The capability panel there
+   is almost entirely made of Reconnect buttons, and every one of them was
+   inert. One function, called from both. */
+function wireReconnect(root){
+  root.querySelectorAll('[data-soreconnect]').forEach(b => b.onclick = () => {
+    const grant = b.dataset.soreconnect;
+    const cfg = PROVIDERS_CFG[grant];
+    if (cfg && cfg.configured === false) {
+      banner(cfg.setupHint || grant + ' is not configured on the server.');
+      return;
+    }
+    const was = b.textContent;
+    b.disabled = true;
+    b.textContent = 'Opening…';
+    startGrant(grant, { why: 'reconnect' });
+    /* Re-enabled rather than left dead: the window may be closed without
+       finishing, and then the button has to work again. Restored to its own
+       label rather than to the word Reconnect -- these say 'Reconnect Meta'
+       and 'Reconnect channels' as well as 'Reconnect'. */
+    setTimeout(() => { b.disabled = false; b.textContent = was; }, 4000);
+  });
+}
+
 function drawSocial(){
   const body = document.getElementById('so-body');
   const sub  = document.getElementById('so-sub');
@@ -6360,20 +6387,7 @@ function drawSocial(){
      and the grant only needs to refresh its tokens. Accounts are keyed by the
      provider's own id, so signing in as the same channel updates that row
      rather than adding one. */
-  body.querySelectorAll('[data-soreconnect]').forEach(b => b.onclick = () => {
-    const grant = b.dataset.soreconnect;
-    const cfg = PROVIDERS_CFG[grant];
-    if (cfg && cfg.configured === false) {
-      banner(cfg.setupHint || grant + ' is not configured on the server.');
-      return;
-    }
-    b.disabled = true;
-    b.textContent = 'Opening…';
-    startGrant(grant, { why: 'reconnect' });
-    /* Re-enabled rather than left dead: the window may be closed without
-       finishing, and then the button has to work again. */
-    setTimeout(() => { b.disabled = false; b.textContent = 'Reconnect'; }, 4000);
-  });
+  wireReconnect(body);
   body.querySelectorAll('[data-sometric]').forEach(b => b.onclick = () => {
     SO.metric[b.dataset.plat] = b.dataset.sometric; drawSocial();
   });
@@ -9301,6 +9315,9 @@ function ibxWire(body){
     IBX.unreadOnly = !IBX.unreadOnly; ibxLoad();
   });
   body.querySelectorAll('[data-ibsync]').forEach(b => b.onclick = ibxSync);
+  /* The capability panel is mostly Reconnect buttons, and they are wired by
+     the same helper the platform dashboards use rather than by a copy. */
+  wireReconnect(body);
   body.querySelectorAll('[data-ibmore]').forEach(b => b.onclick = () => ibxLoad({ more: true }));
   body.querySelectorAll('[data-ibopen]').forEach(b => {
     b.onclick = () => ibxOpen(b.dataset.ibopen);
