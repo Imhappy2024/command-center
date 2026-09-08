@@ -752,6 +752,13 @@ main{min-width:0;display:flex;flex-direction:column}
 .ldval{text-align:right;flex:none}
 .ldval b{display:block;font-family:var(--ff-mono);font-size:14px;color:var(--brass)}
 .ldval small{font-family:var(--ff-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--dimmer)}
+/* The close, top-right of the conversation header. Big enough to hit, quiet
+   enough not to compete with the lead's name beside it. */
+.ldclose{margin-left:auto;align-self:flex-start;background:none;border:0;
+  color:var(--dimmer);font-size:20px;line-height:1;cursor:pointer;padding:2px 6px;
+  border-radius:6px;transition:color .12s,background .12s}
+.ldclose:hover{color:var(--cream);background:var(--panel2)}
+
 .ldacts{display:flex;gap:5px;margin-top:12px;flex-wrap:wrap;align-items:center}
 .stagesel{background:var(--ink2);border:1px solid var(--edge);border-radius:7px;color:var(--text);
   font-family:var(--ff-mono);font-size:10px;letter-spacing:.07em;text-transform:uppercase;
@@ -4557,11 +4564,20 @@ const CACHE_READY = (async () => {
     try { drawLeads(); } catch { /* the view may not be mounted yet */ }
   }
 })();
+/* SMS and Email only.
+
+   WhatsApp and Facebook were offered as reply channels and could not really be
+   used: both send as the connected asset rather than as anything selectable,
+   both need the channel provisioned on the sub-account in GHL, and there was
+   nothing on screen to say whether it was. A reply box that may or may not have
+   a delivery path is worse than one channel fewer.
+
+   Inbound WhatsApp and Facebook messages still RENDER in the thread -- they are
+   part of the conversation and dropping them would hide what a lead said. It is
+   only the reply side that is gone. */
 const CHANNELS = [
   { k:'sms',   label:'SMS' },
-  { k:'email', label:'Email' },
-  { k:'wa',    label:'WhatsApp' },
-  { k:'fb',    label:'FB' }
+  { k:'email', label:'Email' }
 ];
 
 const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms', from:null,
@@ -5091,6 +5107,12 @@ function drawLeadDetail(){
       + '<span class="ldval"><b>' + (l.hasOpportunity === false ? '—' : money(l.value))
       + '</b><small>' + (l.hasOpportunity === false ? 'No opportunity' : 'Opportunity')
       + '</small></span>'
+      /* There was no way out of a conversation once it was open. Picking a
+         different lead replaced it and changing the location filter cleared it,
+         but nothing said "I am done reading this" -- so the list stayed
+         half-covered by a thread nobody was looking at. Escape works too. */
+      + '<button class="ldclose" data-lclose="1" title="Close (Esc)"'
+      + ' aria-label="Close this conversation">×</button>'
     + '</div>'
     + '<div class="ldacts">'
       /* A stage belongs to an opportunity, not to a person. Most leads are
@@ -5114,7 +5136,12 @@ function drawLeadDetail(){
                 + escL(s.name) + '</option>').join('')
             : '<option selected>' + escL(l.stageName || 'No stage') + '</option>')
       + '</select>'
-      + '<button class="btn" data-lact="call">Call</button>'
+      /* No Call button.
+
+         It was a tel: link, which is honest as far as it goes -- but on a
+         desktop browser a tel: link either does nothing or hands the number to
+         whatever app claimed the protocol, and neither is dialling from the
+         dashboard. The number is in the header, selectable, two lines up. */
       + '<button class="btn" data-lact="task">Create task</button>'
       + '<button class="btn" data-lact="ghl">Open in GHL</button>'
     + '</div></div>';
@@ -5290,6 +5317,11 @@ function drawLeadDetail(){
     }
   });
 
+  el.querySelectorAll('[data-lclose]').forEach(b => b.onclick = () => {
+    LD.sel = null;
+    drawLeads();
+  });
+
   el.querySelectorAll('[data-lact]').forEach(b => b.onclick = async () => {
     const a = b.dataset.lact;
     if (a === 'send') {
@@ -5360,14 +5392,6 @@ function drawLeadDetail(){
     /* These four used to flip their own label and flash "Saved" while doing
        nothing at all. Two of them can be made real without an endpoint; the other
        two say plainly that they are not built rather than claiming success. */
-
-    if (a === 'call') {
-      if (!l.phone) return banner('No phone number on this contact in GHL.');
-      /* A tel: link is the honest version of a Call button. Click-to-call would
-         need the location's telephony provider, which the API does not expose. */
-      window.location.href = 'tel:' + l.phone.replace(/[^\d+]/g, '');
-      return;
-    }
 
     if (a === 'ghl') {
       if (!l.contactId) return banner('This lead has no contact record in GHL to open.');
@@ -8148,6 +8172,21 @@ document.addEventListener('keydown', e => {
   if (jump) { SO.view = jump; SO.section = 'performance'; SO.zoom = null; drawSocial(); loadSocialView(); }
 });
 
+
+/* Escape closes the open conversation.
+
+   Scoped to the Leads view being on screen and to not typing, so it cannot
+   steal the key from the search box -- which has its own Escape for clearing
+   the query and is checked first by virtue of being on the input itself. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!document.getElementById('v-leads')?.classList.contains('on')) return;
+  const t = e.target;
+  if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+  if (!LD.sel) return;
+  LD.sel = null;
+  drawLeads();
+});
 
 /* ================= TASKS =================
 
