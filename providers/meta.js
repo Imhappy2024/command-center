@@ -787,6 +787,9 @@ export async function pageComments(token, pageId, { since = null, posts = 25 } =
     const lb = b.items[b.items.length - 1].createdAt || '';
     return la < lb ? 1 : la > lb ? -1 : 0;
   });
+  /* How many posts were looked at, so the caller can tell "no comments" apart
+     from "no posts to have comments on". */
+  threads.postsSeen = (feed?.data || []).length;
   return threads;
 }
 
@@ -868,8 +871,13 @@ export async function igComments(token, igId, { since = null, media = 25, userna
     const lb = b.items[b.items.length - 1].createdAt || '';
     return la < lb ? 1 : la > lb ? -1 : 0;
   });
-  /* Non-throwing evidence that the read was silently partial. */
-  threads.missingText = counted > 0 && read === 0 ? counted : 0;
+  /* Non-throwing evidence that the read was silently partial, plus what was
+     looked at -- the caller needs to tell "no comments" apart from "comments
+     exist and Instagram would not hand them over". */
+  threads.missingText = counted > read ? counted - read : 0;
+  threads.mediaSeen = (feed?.data || []).length;
+  threads.counted = counted;
+  threads.read = read;
   return threads;
 }
 
