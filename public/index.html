@@ -2909,7 +2909,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   <!-- LEADS -->
   <section class="view" id="v-leads">
     <div class="vhead">
-      <div><h1 id="ld-title">All locations</h1><p id="ld-sub">Reading from Supabase…</p></div>
+      <div><h1 id="ld-title">Leads</h1><p id="ld-sub">Reading from Supabase…</p></div>
       <div style="display:flex;gap:8px;align-items:center">
         <!-- Searches every lead in scope, not the page on screen: the list is
              capped at the most recently active few hundred and the one you are
@@ -4166,7 +4166,7 @@ function toggleDemo(){
   CAL.demo = !CAL.demo;
   CAL.hidden.clear(); CAL.sel = null; CAL.anchor = new Date();
   IB.folder = 'open'; IB.open = null;
-  LD.loc = 'all'; LD.stage = 'all'; LD.sel = null;
+  LD.loc = null; LD.stage = 'all'; LD.sel = null;
   COUNTS = null; PER = {};
 
   if (CAL.demo) {
@@ -4580,7 +4580,14 @@ const CHANNELS = [
   { k:'email', label:'Email' }
 ];
 
-const LD = { loc:'all', stage:'all', sel:null, tab:'thread', channel:'sms', from:null,
+/* Which sub-account is open.
+
+   There is no "All locations" any more, so this is always one real location id
+   -- but it starts null because LOCATIONS has not loaded when this runs, and
+   choosing before they arrive would mean choosing wrongly. ldLoc() resolves it,
+   and everything that reads a location goes through there rather than testing
+   for a sentinel. */
+const LD = { loc:null, stage:'all', sel:null, tab:'thread', channel:'sms', from:null,
   /* The search term, and whether a server round trip for it is in flight. The
      local filter is instant against what is loaded; the server call finds the
      rest, and both write into the same list. */
@@ -4631,7 +4638,7 @@ function ldMatches(l, term){
 function ldVisible(){
   const term = LD.q.trim();
   return LEADS.filter(l =>
-    (LD.loc === 'all' || l.loc === LD.loc) &&
+    l.loc === ldLoc() &&
     (LD.stage === 'all' || l.stageName === LD.stage) &&
     (term.length < 2 || ldMatches(l, term)));
 }
@@ -4649,7 +4656,7 @@ function ldSearchLater(){
     LD.qBusy = true; drawLeadSearch();
     try {
       const out = await api('/api/ghl/leads?q=' + encodeURIComponent(term)
-        + (LD.loc === 'all' ? '' : '&location=' + encodeURIComponent(LD.loc)));
+        + (ldLoc() ? '&location=' + encodeURIComponent(ldLoc()) : ''));
       /* A slower earlier request must not overwrite a later one's results. */
       if (seq !== LD.qSeq) return;
       mergeLeads(out.leads || []);
@@ -4698,10 +4705,13 @@ function drawLeadSubnav(){
 
      No marker and no tooltip: there is no per-location sync state any more.
      A location is here because the pipeline ingested it. */
-  const total = LOCATIONS.reduce((n, l) => n + (l.leads || 0), 0);
+  /* No "All locations" row.
 
-  let html = row('all', 'All locations', total, 'linear-gradient(135deg,#D9A441,#4E9E7E)');
-  html += '<div class="subhead">Sub-accounts</div>';
+     It was the default and the only entry that was not a sub-account, and with
+     it gone the "Sub-accounts" heading went too: the list is now nothing but
+     sub-accounts, so a heading saying so is labelling the obvious. */
+  ldLoc();
+  let html = '';
   html += LOCATIONS.length
     ? LOCATIONS.map(l => row(l.id, l.name, l.leads,
         l.color, false,
@@ -4721,6 +4731,23 @@ function drawLeadSubnav(){
   });
 }
 
+/* The open sub-account, always a real one.
+
+   It repairs itself, which matters more than it looks: 'all' was the default
+   for a long time and is still sitting in remembered state, in the route, and
+   in anything that stored a filter. A stale 'all' resolves to a real location
+   rather than to a view that no longer exists.
+
+   Biggest first, so the default is the sub-account most likely to be wanted
+   and is stable rather than alphabetical. */
+function ldLoc(){
+  if (!LOCATIONS.length) return null;
+  if (!LOCATIONS.some(l => l.id === LD.loc)) {
+    LD.loc = LOCATIONS.slice().sort((a, b) => (b.leads || 0) - (a.leads || 0))[0].id;
+  }
+  return LD.loc;
+}
+
 /* ---------- render ---------- */
 const escL = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
@@ -4735,7 +4762,7 @@ const escL = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>'
    the capped lead list in the browser. */
 function drawStages(){
   const box = document.getElementById('ld-stages');
-  const pool = LEADS.filter(l => LD.loc === 'all' || l.loc === LD.loc);
+  const pool = LEADS.filter(l => l.loc === ldLoc());
 
   const cell = (key, label, count, val) =>
     '<button class="stg' + (LD.stage === key ? ' on' : '') + '" data-stage="' + escL(key) + '">'
@@ -4785,7 +4812,7 @@ function emptyPipeline(){
       + 'script and the n8n webhooks, not in this dashboard.</small></div>';
   }
 
-  const pool = LEADS.filter(l => LD.loc === 'all' || l.loc === LD.loc);
+  const pool = LEADS.filter(l => l.loc === ldLoc());
 
   /* Leads exist, opportunities do not. Not a failure and not an empty CRM: a
      sub-account whose contacts have never been put into a pipeline. Worth saying
@@ -4827,13 +4854,15 @@ function drawLeadList(){
     el.innerHTML = searching
       ? '<div class="empty"><b>Nothing matches "' + escL(LD.q.trim()) + '"</b>'
         + '<small>' + (LD.qBusy ? 'Still checking the rest of the database…'
-            : 'Searched every lead' + (LD.loc === 'all' ? '' : ' in this sub-account')
+            : 'Searched every lead in this sub-account'
               + ' by name, email, phone, tag, owner and source.') + '</small></div>'
       : emptyPipeline();
     return;
   }
 
-  const showLoc = LD.loc === 'all';
+  /* Every row belongs to the open sub-account now, so naming it on each
+     row is repeating the sub-menu. */
+  const showLoc = false;
   /* Tone from GHL's status, which is the fact, rather than from a stage name
      this dashboard would have to guess the meaning of. */
   const toneOf = l => l.status === 'won' ? 'won'
@@ -5126,7 +5155,8 @@ function drawLeadDetail(){
           : '') + '>'
       /* GHL's real stages for this location, by id. A stage with no id — which
          is what a card folded across pipelines has — cannot be a target, so
-         "All locations" offers only the current stage until one is picked. */
+         a lead whose stage came from a fold keeps that stage as its only
+         option. */
       + (l.hasOpportunity === false
           ? '<option selected>No opportunity</option>'
           : STAGES.some(s => s.id)
@@ -5466,8 +5496,8 @@ function drawLeadHeader(){
     el.innerHTML = '<span class="d"></span>Reading Supabase';
   }
   document.getElementById('ld-title').textContent =
-    LD.loc === 'all' ? 'All locations' : (locById(LD.loc) || {}).name || 'Leads';
-  const pool = LEADS.filter(l => LD.loc === 'all' || l.loc === LD.loc);
+    (locById(ldLoc()) || {}).name || 'Leads';
+  const pool = LEADS.filter(l => l.loc === ldLoc());
   /* Open by GHL's status, not by a stage name \u2014 "Closed Won" sits at status open
      in this data, so the label and the fact disagree. */
   const open = pool.filter(l => l.hasOpportunity && !isClosed(l));
@@ -5477,9 +5507,13 @@ function drawLeadHeader(){
      integration when it just means nobody has been put into a pipeline. */
   const inPipeline = pool.filter(l => l.hasOpportunity);
   /* The location's own total, not the length of a capped list. */
-  const totalLeads = LD.loc === 'all'
-    ? LOCATIONS.reduce((n, l) => n + (l.leads || 0), 0)
-    : (locById(LD.loc) || {}).leads || pool.length;
+  /* The sub-account's OWN lead count, from ghl_location, not the length of the
+     capped list. That distinction is the whole reason this line exists: the
+     list holds at most a page of leads and saying "1,000" when the sub-account
+     has 4,643 is the kind of number somebody plans against.
+
+     pool.length is the fallback only when ghl_location carries no count. */
+  const totalLeads = (locById(ldLoc()) || {}).leads || pool.length;
 
   document.getElementById('ld-sub').textContent = LOCATIONS.length
     ? totalLeads.toLocaleString() + ' leads \u00b7 '
@@ -5509,7 +5543,7 @@ mountLeadSubnav();
 async function loadStages(){
   if (CAL.demo) return;
   try {
-    const q = LD.loc === 'all' ? '' : '?location=' + encodeURIComponent(LD.loc);
+    const q = ldLoc() ? '?location=' + encodeURIComponent(ldLoc()) : '';
     const out = await api('/api/ghl/stages' + q);
     STAGES = out.stages || [];
   } catch {
