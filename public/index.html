@@ -5683,7 +5683,32 @@ let POSTS = [];
 
 /* view: overview | youtube | meta | x. metaTab: facebook | instagram | meta_ads.
    metric: the series each platform chart is showing, remembered per platform. */
-const SO = { view:'overview', metaTab:'facebook', range:'28', metric:{}, fetching:false,
+/* Which platform Social opens on.
+
+   There is no overview any more -- it was a third rendering of figures the
+   platform views already show, assembled from a different aggregate, and that
+   is exactly the shape that had the YouTube tabs disagreeing with each other
+   in three places earlier today.
+
+   Chosen by what is connected rather than hardcoded. Opening on YouTube when
+   only Meta is connected is a blank screen for no reason, and the first
+   platform with a healthy account is a better guess than any constant. */
+function firstLivePlatform(){
+  const order = ['youtube', 'meta', 'x'];
+  for (const v of order) {
+    const keys = SO_VIEW_KEYS[v] || [];
+    if ((SOCIAL || []).some(a => keys.includes(a.provider) && a.status === 'ok')) return v;
+  }
+  /* Nothing healthy: anything connected at all, so its Reconnect button is
+     reachable rather than hidden behind a platform nobody would click. */
+  for (const v of order) {
+    const keys = SO_VIEW_KEYS[v] || [];
+    if ((SOCIAL || []).some(a => keys.includes(a.provider))) return v;
+  }
+  return 'youtube';
+}
+
+const SO = { view:'youtube', metaTab:'facebook', range:'28', metric:{}, fetching:false,
   /* Which section of a platform dashboard is open, and how it is sliced.
      section: performance | content | audience
      acct:    'all' or one account id — every platform view, not just ads
@@ -5718,7 +5743,7 @@ let PLAT = {};
 /* Which sign-in produces which platform rows. One Meta grant feeds three. */
 const SO_GRANT = { facebook:'meta', instagram:'meta', meta_ads:'meta', youtube:'youtube', x:'x' };
 const SO_VIEW_KEYS = { youtube:['youtube'], x:['x'], meta:['facebook','instagram','meta_ads'] };
-const SO_VIEW_LABEL = { overview:'Overview', youtube:'YouTube', meta:'Meta', x:'X' };
+const SO_VIEW_LABEL = { youtube:'YouTube', meta:'Meta', x:'X' };
 const platByK = k => PLATFORMS.find(p => p.k === k);
 
 /* Escapes anything interpolated into the HTML these views build as strings.
@@ -5824,10 +5849,10 @@ function drawSocialSubnav(){
     return acc.every(a => a.status === 'ok') ? 'ok' : 'warn';
   };
 
+  /* Three platforms, no overview, and no "Platforms" heading over a list of
+     three things that are obviously platforms. */
   soSubEl.innerHTML =
-    row('overview', 'Overview', SOCIAL.filter(s => s.status === 'ok').length, 'linear-gradient(135deg,var(--yt),var(--ig) 52%,var(--fb))')
-    + '<div class="subhead">Platforms</div>'
-    + row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube))
+    row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube))
     + row('meta',    'Meta',    0, 'var(--fb)', state(SO_VIEW_KEYS.meta))
     + row('x',       'X',       0, 'var(--xx)', state(SO_VIEW_KEYS.x));
 
@@ -5869,30 +5894,12 @@ function drawSocial(){
 
   drawSocialSubnav();
   routeSync('social');
-  title.textContent = SO.view === 'overview' ? 'Social' : SO_VIEW_LABEL[SO.view];
+  /* An overview left over in the route or in localStorage lands on a platform
+     rather than on a view that no longer exists. */
+  if (SO.view === 'overview' || !SO_VIEW_KEYS[SO.view]) SO.view = firstLivePlatform();
+  title.textContent = SO_VIEW_LABEL[SO.view] || 'Social';
 
-  if (SO.view === 'overview') {
-    fetchBtn.hidden = true;
-    connectBtn.hidden = false;
-    connectBtn.textContent = '+ Connect account';
-    connectBtn.onclick = soConnect;
-    drawSchedule(null);
-    if (!SOCIAL.length) {
-      sub.textContent = 'No accounts connected.';
-      body.innerHTML = '<div class="card flush"><div class="empty"><b>No social accounts connected</b>'
-        + '<small>Pick a platform in the sub-menu to connect it. One Meta sign-in covers your Facebook Page, '
-        + 'Instagram and ad account; YouTube and X connect separately.</small>'
-        + '<button class="btn primary" id="so-empty-connect" style="margin-top:4px">+ Connect account</button>'
-        + '</div></div>';
-      const e = document.getElementById('so-empty-connect');
-      if (e) e.onclick = soConnect;
-    } else {
-      const live = SOCIAL.filter(s => s.status === 'ok');
-      sub.textContent = live.length + ' of ' + SOCIAL.length + ' accounts live · '
-        + num(live.reduce((s, a) => s + a.followers, 0)) + ' total following';
-      body.innerHTML = audienceTab() + '<div style="height:14px"></div>' + contentTab();
-    }
-  } else {
+  {
     /* An empty platform offers Connect inside its empty state. A connected one
        still needs the button: one YouTube channel does not mean one channel is
        all there is, and hiding it made a second channel — or a second ad
@@ -6275,7 +6282,7 @@ function closePost(){
 /* ---------- command palette ---------- */
 const SO_CMDS = () => {
   const c = [];
-  for (const [id, label] of [['overview','Overview'],['youtube','YouTube'],['meta','Meta'],['x','X']]) {
+  for (const [id, label] of [['youtube','YouTube'],['meta','Meta'],['x','X']]) {
     c.push({ g:'Go to', n:label, run:() => { SO.view = id; SO.section = 'performance'; SO.zoom = null; drawSocial(); loadSocialView(); } });
   }
   for (const [id, label] of [['performance','Performance'],['content','Content'],['audience','Audience']]) {
@@ -7717,84 +7724,11 @@ function metaView(){
   return SO.metaTab === 'meta_ads' ? adsView() : platformView(SO.metaTab);
 }
 
-/* Recovered. The Meta Ads rewrite replaced a span that ran from adsView to the
-   connect-sheet comment, and audienceTab, contentTab and escS all lived inside
-   it. They are unchanged from before that cut — Overview is the one view that
-   still renders from the aggregate arrays rather than a per-platform payload. */
-function audienceTab(){
-  const cards = PLATFORMS.map(p => {
-    const a = SOCIAL.find(s => s.platform === p.k);
-    if (!p.ok) {
-      return '<div class="pcard dim" style="--c:' + p.color + '">'
-        + '<div class="ptop"><span class="pname">' + p.label + '</span>'
-        + '<span class="chip rust" style="font-size:8.5px">API closed</span></div>'
-        + '<div class="v" style="color:var(--dimmer)">\u2014</div>'
-        + '<div class="lbl">Not available</div>'
-        + '<div class="d" style="color:var(--dimmer);line-height:1.55">Metrics need Community Management '
-        + 'API approval, which requires a live technical sign-off.</div>'
-        + '<button class="btn" style="margin-top:10px;width:100%" data-solink="https://www.linkedin.com/feed/">'
-        + 'Open LinkedIn</button></div>';
-    }
-    if (!a) {
-      return '<div class="pcard dim" style="--c:' + p.color + '">'
-        + '<div class="ptop"><span class="pname">' + p.label + '</span>'
-        + '<span class="chip" style="font-size:8.5px">Not connected</span></div>'
-        + '<div class="v" style="color:var(--dimmer)">\u2014</div>'
-        + '<div class="lbl">' + p.via + '</div></div>';
-    }
-    const dead = a.status !== 'ok';
-    return '<div class="pcard' + (dead ? ' dim' : '') + '" style="--c:' + p.color + '">'
-      + '<div class="ptop"><span class="pname">' + p.label + '</span>'
-      + (dead ? '<span class="chip rust" style="font-size:8.5px">Reauth</span>'
-              : '<span class="chip" style="font-size:8.5px">' + escS(a.handle) + '</span>') + '</div>'
-      + '<div class="v">' + num(a.followers) + '</div>'
-      + '<div class="lbl">Followers</div>'
-      + '<div class="d">' + delta(a.followerDelta) + ' in ' + SO.range + 'd</div>'
-      + '<div class="sub2">'
-        + '<div><b>' + num(a.reach) + '</b><small>Reach</small></div>'
-        + '<div><b>' + num(a.views) + '</b><small>Views</small></div>'
-        + '<div><b>' + a.engagement.toFixed(2) + '%</b><small>Eng. rate</small></div>'
-      + '</div></div>';
-  }).join('');
-
-  return '<div class="notice"><b>Reading these numbers.</b> Reach counts unique accounts, '
-    + 'views counts every appearance including repeats, so views is always larger. Impressions no longer '
-    + 'exists: Meta folded it into views in April 2025, and any tool still showing it is relabelling '
-    + 'the same data. Engagement rate here is interactions divided by reach, not by followers.</div>'
-    + '<div class="grid g3" style="margin-bottom:14px">' + cards + '</div>'
-    + '<div class="card flush"><div class="cardhead"><h3>Where messages go</h3>'
-    + '<span class="eyebrow">By design</span></div>'
-    + '<div style="padding:15px 18px;font-size:12.5px;color:var(--dim);line-height:1.7">'
-    + 'Facebook Page and Instagram DMs are threads with a counterparty and a reply box, which is the same '
-    + 'shape as email. They land in the Inbox as two more accounts instead of a second messaging UI here. '
-    + 'YouTube has no DMs at all, only comments, which show under Content.'
-    + '</div></div>';
-}
-
-function contentTab(){
-  if (!POSTS.length) {
-    return '<div class="card flush"><div class="empty"><b>No content yet</b>'
-      + '<small>Posts from every connected account appear here, ranked by the metric that '
-      + 'actually predicts growth.</small></div></div>';
-  }
-  return '<div class="notice">Ranked by <b>shares per reach</b> rather than likes. '
-    + 'Shares move content into feeds that likes never reach, which is why it predicts growth '
-    + 'and a like count does not.</div>'
-    + '<div class="card flush"><div class="cardhead"><h3>Top posts</h3>'
-    + '<span class="eyebrow">Last ' + SO.range + ' days</span></div>'
-    + '<table class="tbl"><thead><tr><th>Post</th><th class="r">Reach</th><th class="r">Views</th>'
-    + '<th class="r">Shares</th><th class="r">Share rate</th></tr></thead><tbody>'
-    + POSTS.slice().sort((a, b) => (b.shares / b.reach) - (a.shares / a.reach)).map(p => {
-        const pl = platByK(p.platform);
-        return '<tr><td><span class="name"><span class="miniplat" style="--c:' + pl.color + '"></span>'
-        + escS(p.title) + '</span><span class="sm">' + pl.label + ' \u00b7 ' + escS(p.when) + '</span></td>'
-        + '<td class="r mono">' + num(p.reach) + '</td>'
-        + '<td class="r mono">' + num(p.views) + '</td>'
-        + '<td class="r mono">' + p.shares + '</td>'
-        + '<td class="r mono" style="color:var(--brass)">' + (p.shares / p.reach * 100).toFixed(2) + '%</td></tr>';
-      }).join('')
-    + '</tbody></table></div>';
-}
+/* audienceTab and contentTab lived here and are gone with the Social
+   overview, which was their only caller. They rendered a per-platform summary
+   from the aggregate SOCIAL array while every platform view renders the same
+   figures from its own payload -- two computations of one number, which is
+   the shape that had the YouTube tabs disagreeing in three places. */
 
 function adsView(){
   const d = PLAT.meta_ads;
@@ -8209,7 +8143,8 @@ document.addEventListener('keydown', e => {
   }
   if (typing) return;
   if (!document.getElementById('v-social')?.classList.contains('on')) return;
-  const jump = { '1':'overview', '2':'youtube', '3':'meta', '4':'x' }[e.key];
+  /* 1-2-3 rather than 2-3-4. The gap at 1 was the overview. */
+  const jump = { '1':'youtube', '2':'meta', '3':'x' }[e.key];
   if (jump) { SO.view = jump; SO.section = 'performance'; SO.zoom = null; drawSocial(); loadSocialView(); }
 });
 
@@ -15695,8 +15630,7 @@ function openAddAccount(){
 routeRegister('tasks', () => TK.view, v => { TK.view = v; drawTasks(); });
 routeRegister('systems', () => SY.open || '', v => { SY.open = v; drawSystems(); });
 routeRegister('social',
-  () => SO.view === 'overview' ? 'overview'
-    : SO.view + '/' + (SO.view === 'meta' ? SO.metaTab : SO.section),
+  () => SO.view + '/' + (SO.view === 'meta' ? SO.metaTab : SO.section),
   v => {
     const [view, section] = v.split('/');
     SO.view = view;
