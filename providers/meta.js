@@ -432,9 +432,34 @@ export async function igSeries(token, igId, { since, until }){
   };
 }
 
+/* The same shape the comment sync stores on a thread, built from a media node.
+   One shape means the modal draws a post the same way whether it was reached
+   through its comments or through the top-posts table. */
+export function igMediaOf(m){
+  const video = m.media_type === 'VIDEO';
+  return {
+    kind: video ? 'video' : m.media_type === 'CAROUSEL_ALBUM' ? 'album' : 'image',
+    image: video ? (m.thumbnail_url || null) : (m.media_url || null),
+    video: video ? (m.media_url || null) : null,
+    album: (m.children?.data || []).slice(0, 10).map(ch => ({
+      kind: ch.media_type === 'VIDEO' ? 'video' : 'image',
+      image: ch.media_type === 'VIDEO' ? (ch.thumbnail_url || null) : (ch.media_url || null),
+      video: ch.media_type === 'VIDEO' ? (ch.media_url || null) : null
+    })),
+    at: m.timestamp || null,
+    likes: m.like_count ?? null,
+    comments: m.comments_count ?? null
+  };
+}
+
 export async function igPosts(token, igId, { limit = 25 } = {}){
+  /* media_url, thumbnail_url and children ride along on the request that was
+     already being made. A reel's mp4 is media_url and its poster frame is
+     thumbnail_url; for a still they are the other way round, which is what
+     igMediaOf sorts out. */
   const { data } = await call(token, `/${igId}/media`, {
-    fields: 'id,caption,permalink,timestamp,media_type',
+    fields: 'id,caption,permalink,timestamp,media_type,media_url,thumbnail_url,'
+      + 'like_count,comments_count,children{id,media_type,media_url,thumbnail_url}',
     limit
   });
 
@@ -458,6 +483,7 @@ export async function igPosts(token, igId, { limit = 25 } = {}){
       title: (m.caption || '(no caption)').replace(/\s+/g, ' ').trim().slice(0, 120),
       permalink: m.permalink || null,
       publishedAt: m.timestamp || null,
+      media: igMediaOf(m),
       reach: stats.reach ?? null,
       views: stats.views ?? null,
       shares: stats.shares ?? null,
@@ -475,7 +501,7 @@ export async function igPosts(token, igId, { limit = 25 } = {}){
    down with it. So the expansion is attempted, and if Meta rejects the metric
    the same request is repeated without it — posts listed, reach null. Two calls
    in the worst case rather than twenty-six. */
-const POST_FIELDS = 'id,message,permalink_url,created_time,shares';
+const POST_FIELDS = 'id,message,permalink_url,created_time,shares,full_picture';
 const POST_INSIGHT = 'insights.metric(post_impressions_unique){values}';
 
 export async function pagePosts(token, pageId, { limit = 25 } = {}){
@@ -498,6 +524,12 @@ export async function pagePosts(token, pageId, { limit = 25 } = {}){
       externalId: String(p.id),
       title: (p.message || '(no text)').replace(/\s+/g, ' ').trim().slice(0, 120),
       permalink: p.permalink_url || null,
+      /* A Page post has no single media_url. full_picture is the one image
+         Meta reliably attaches, and it is what the post plugin itself shows. */
+      media: p.full_picture
+        ? { kind: 'image', image: p.full_picture, video: null, album: [],
+            at: p.created_time || null }
+        : null,
       publishedAt: p.created_time || null,
       reach: Number(reachMetric?.values?.[0]?.value) || null,
       /* Page-level views are not exposed per post; only reach survived the
@@ -797,7 +829,7 @@ export async function pageComments(token, pageId, { since = null, posts = 25 } =
   /* Deduplicated before the cap, not after: one person who commented forty
      times would otherwise spend forty of the eighty. */
   const wanted = [...new Set(missing)].slice(0, FACE_CAP);
-  if (wanted.length) await faces(token, wanted, who);
+  if (wanted.length) await faces(token, wanted, who, { scope: 'facebook' });
 
   for (const p of feed?.data || []) {
     const title = (p.message || p.story || '').replace(/\s+/g, ' ').trim();
@@ -1116,24 +1148,39 @@ function msgOut(m, { threadId, selfIds, faces = new Map() }){
 
 /* The face and the name behind a scoped id.
 
-   A conversation gives a participant an id, a name and nothing to look at, and
-   a message's `from` gives less than that -- picture is not a field on a
-   messaging participant, and asking for one there fails the WHOLE request and
-   takes the conversation list with it. The picture lives on the User Profile
-   API instead: the person's own node, read with the Page token, which is the
-   documented way and the only one that works.
+   A conversation gives a participant an id and a name, and for most people that
+   name is the literal string "Facebook user" -- Meta's own placeholder, not
+   ours. There is nothing to look at either. `picture` requested as a subfield
+   of participants is not an error and is not a picture: Graph drops it from the
+   response without comment.
 
-   One request per person per pass, cached, because the same handful of people
-   recur across forty conversations. Failure is not fatal -- an initial in a
-   circle is what was there before and is still true.
+   The documented route is the User Profile API, the person's own node read with
+   the Page token. Whether it answers is a property of the APP, not of the
+   grant or the person:
 
-   Two attempts, narrowing, for the same reason it is done on the Instagram
-   side: Graph refuses the whole request over one unknown field, and the two
-   platforms do not name these fields alike. Instagram scoped ids carry name
-   and username; Messenger ones carry first_name and last_name. */
-async function faces(token, ids, cache = new Map()){
+     (#3) Application does not have the capability to make this API call.
+
+   is what an app without Advanced Access gets for every id, every field
+   combination, and for /{id}/picture too. No permission on the consent screen
+   changes it; app review does. So the first refusal of that shape closes the
+   door for the rest of the process rather than paying one request per person
+   per sync to be told the same thing -- and a restart re-opens it, which is
+   what makes this cost nothing on the day the review lands.
+
+   Two field lists, narrowing, because the platforms do not name these alike:
+   Instagram scoped ids carry name and username, Messenger ones first_name and
+   last_name. */
+const profileGate = new Map();
+const noCapability = err => err?.code === 3
+  || /does not have the capability/i.test(String(err?.message || ''));
+
+async function faces(token, ids, cache = new Map(), { scope = 'facebook' } = {}){
+  if (profileGate.get(scope) === false) return cache;
+
   const want = [...new Set(ids.filter(Boolean).map(String))].filter(id => !cache.has(id));
-  await Promise.all(want.map(async id => {
+  if (!want.length) return cache;
+
+  const one = async id => {
     for (const fields of ['name,username,profile_pic', 'first_name,last_name,profile_pic',
                           'first_name,last_name']) {
       try {
@@ -1142,13 +1189,32 @@ async function faces(token, ids, cache = new Map()){
           || [p.first_name, p.last_name].filter(Boolean).join(' ')
           || (p.username ? '@' + p.username : null);
         cache.set(id, { name: name || null, avatar: p.profile_pic || null });
-        return;
-      } catch { /* try the narrower set */ }
+        return null;
+      } catch (err) {
+        if (noCapability(err)) return err;
+        /* Meta will not hand over a profile for everyone: somebody who blocked
+           the Page, a deleted account, a thread older than the grant. Those are
+           about the person, so the next person is still worth asking. */
+      }
     }
-    /* Meta will not hand over a profile for everyone: somebody who blocked the
-       Page, a deleted account, a thread older than the grant. */
     cache.set(id, null);
-  }));
+    return null;
+  };
+
+  /* One first, then the rest. A capability refusal on the first is the cheapest
+     possible way to learn the door is shut -- but it is not the only way to
+     learn it, because the first person can just as easily be a deleted account,
+     which says nothing about the app. So the fan-out is checked too. */
+  const refused = [await one(want[0])];
+  if (!refused[0]) refused.push(...await Promise.all(want.slice(1).map(one)));
+
+  const shut = refused.find(Boolean);
+  if (shut) {
+    profileGate.set(scope, false);
+    console.warn(`[meta:faces] ${scope}: profiles are closed to this app `
+      + `(${shut.message}). Names and pictures will be whatever the conversation `
+      + `itself carries until the app has Advanced Access.`);
+  }
   return cache;
 }
 
@@ -1193,7 +1259,7 @@ export async function conversations(token, { pageId, platform = 'facebook', igId
   await faces(token, convs.flatMap(c => [
     ...(c.participants?.data || []).map(p => p.id),
     ...(c.messages?.data || []).map(m => m.from?.id)
-  ]).filter(id => id && !selfIds.has(String(id))), seen);
+  ]).filter(id => id && !selfIds.has(String(id))), seen, { scope: platform });
 
   return convs.map(c => {
     const people = c.participants?.data || [];
@@ -1209,7 +1275,11 @@ export async function conversations(token, { pageId, platform = 'facebook', igId
       parentTitle: null,
       parentLink: null,
       withId: them.id || null,
-      withName: them.name || theirFace?.name
+      /* "Facebook user" is what Meta returns where it will not say who
+         somebody is. It is a placeholder wearing the shape of a name, so a
+         real one from the profile beats it rather than losing to it. */
+      withName: (them.name && them.name !== 'Facebook user' ? them.name : null)
+        || theirFace?.name || them.name
         || (them.username ? '@' + them.username : 'Unknown'),
       withAvatar: theirFace?.avatar || null,
       totalItems: Number(c.message_count) || items.length,

@@ -455,3 +455,12 @@ CREATE INDEX IF NOT EXISTS whop_links_created ON whop_links (created_at DESC);
    else's theme. Everything needed to draw the post here is already in the
    response the comment sync makes, so it is kept. */
 ALTER TABLE social_threads ADD COLUMN IF NOT EXISTS parent_media JSONB NOT NULL DEFAULT '{}';
+
+/* The picture or the video, so a post can be opened and played without a
+   comment having been synced first.
+
+   It used to live only on social_threads.parent_media, which the COMMENT sync
+   writes — so a post nobody had commented on had no media anywhere, and the
+   top-posts table could show a row it could not open. The poller already lists
+   the media to get its insights; this is the same response, kept. */
+ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS media JSONB;

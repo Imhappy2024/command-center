@@ -2034,6 +2034,21 @@ body.ycmlock{overflow:hidden}
   border:1px solid var(--edge2);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px}
 .bulkbar .cnt2{font-size:13px;color:var(--cream);font-variation-settings:'wght' 600}
 
+/* The play affordance on a top-posts row. Sits in the title cell rather than
+   in a column of its own: a column would be six pixels of button and forty of
+   header, and the thing it opens is the post the title names. */
+.yttable tr.watchable .t{position:relative;padding-left:34px}
+.postplay{position:absolute;left:8px;top:50%;transform:translateY(-50%);
+  width:22px;height:22px;border-radius:50%;border:1px solid var(--edge2);
+  background:var(--panel2);color:var(--dim);cursor:pointer;display:grid;place-items:center;
+  padding:0;opacity:0;transition:opacity var(--t-fast) var(--ease),
+    color var(--t-fast) var(--ease),border-color var(--t-fast) var(--ease)}
+.postplay svg{width:11px;height:11px;fill:currentColor;margin-left:1px}
+.yttable tr.watchable:hover .postplay,.postplay:focus-visible{opacity:1}
+.postplay:hover{color:var(--brass);border-color:var(--brass)}
+/* Touch has no hover, so there it is simply always there. */
+@media (hover:none){.postplay{opacity:1}}
+
 /* ---- checkout links ---- */
 
 /* Three short values a row. At full dashboard width the price and the copy
@@ -7534,6 +7549,15 @@ function drawSocial(){
   body.querySelectorAll('[data-postopen]').forEach(b => b.onclick = () => {
     openPost(SO.view === 'meta' ? SO.metaTab : SO.view, b.dataset.postopen);
   });
+  /* A post opens the comment section, the same modal a comment opens. The
+     stats drawer is still there on the button in the row — the two answer
+     different questions and the reader picks. */
+  body.querySelectorAll('[data-postwatch]').forEach(b => b.onclick = e => {
+    e.stopPropagation();
+    ycmOpenParent(b.dataset.postplat, b.dataset.postwatch, {
+      seed: { title: b.dataset.posttitle || null, link: b.dataset.postlink || null }
+    });
+  });
   /* A tile is the fastest way to change what the chart shows, so it charts it.
      A ratio has no daily series of its own and says so rather than doing
      nothing. */
@@ -9111,8 +9135,23 @@ function oneDashboard(d, key){
         + page.map(pp => {
             const idx = avgViews ? (pp.views || 0) / avgViews : null;
             const tone = idx == null ? '' : idx >= 1.15 ? ' good' : idx <= 0.8 ? ' poor' : '';
-            return '<tr data-postopen="' + escS(pp.permalink || pp.title) + '">'
-              + '<td class="t"><span class="tt">' + escS(pp.title) + '</span>'
+            /* Only where there is a comment section to open. X has no
+               comments in this app and YouTube's own player needs the video
+               id, which is what external_id is there too. */
+            const watchable = pp.externalId && ['instagram', 'facebook', 'youtube'].includes(key);
+            return '<tr data-postopen="' + escS(pp.permalink || pp.title) + '"'
+              + (watchable ? ' class="watchable"' : '') + '>'
+              + '<td class="t">'
+              + (watchable
+                ? '<button class="postplay" title="Open the post and its comments"'
+                  + ' aria-label="Open the post and its comments"'
+                  + ' data-postwatch="' + escS(pp.externalId) + '"'
+                  + ' data-postplat="' + escS(key) + '"'
+                  + ' data-posttitle="' + escS(pp.title) + '"'
+                  + ' data-postlink="' + escS(pp.permalink || '') + '">'
+                  + '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>'
+                : '')
+              + '<span class="tt">' + escS(pp.title) + '</span>'
               + (SO.acct === 'all' && acctName(pp.account)
                 ? '<span class="sub">' + escS(acctName(pp.account)) + '</span>' : '')
               + '</td>'
@@ -11508,13 +11547,6 @@ async function ycmOpen(threadId){
     /* No parent means a DM, which has no video and no section. */
     return ibxOpen(threadId);
   }
-  YCM.open = true;
-  YCM.platform = row.platform;
-  YCM.focus = threadId;
-  YCM.busy = true; YCM.err = null;
-  YCM.threads = []; YCM.parent = null;
-  YCM.replyTo = null; YCM.replyDraft = ''; YCM.newDraft = ''; YCM.newOpen = false;
-  ycmDraw();
 
   /* Read locally and on the server, the same bargain the side pane makes. */
   if (row.unread) {
@@ -11524,24 +11556,55 @@ async function ycmOpen(threadId){
       { read: true }).catch(() => {});
   }
 
+  await ycmOpenParent(row.platform, row.from.id, { focus: threadId });
+}
+
+/* The same modal, opened by the post rather than by one of its comments.
+
+   This is what the top-posts table uses: a row there knows its platform and
+   its media id, and nothing about whether anyone has commented. Everything
+   below the player is identical either way, which is the point — there is one
+   comment section in this app, not two.
+
+   `seed` carries what the caller already knows. It is only used to fill the
+   header while the request is in flight; the response replaces it. */
+async function ycmOpenParent(platform, parentId, { focus = null, seed = null } = {}){
+  if (!platform || !parentId) return;
+  YCM.open = true;
+  YCM.platform = platform;
+  YCM.focus = focus;
+  YCM.busy = true; YCM.err = null;
+  YCM.threads = [];
+  YCM.parent = seed ? { id: parentId, platform, ...seed } : null;
+  YCM.total = 0; YCM.held = 0;
+  YCM.replyTo = null; YCM.replyDraft = ''; YCM.newDraft = ''; YCM.newOpen = false;
+  ycmDraw();
+
   try {
-    const out = await api('/api/social/inbox/parent?platform=' + encodeURIComponent(row.platform)
-      + '&parent=' + encodeURIComponent(row.from.id));
+    const out = await api('/api/social/inbox/parent?platform=' + encodeURIComponent(platform)
+      + '&parent=' + encodeURIComponent(parentId));
     YCM.parent = out.parent;
     YCM.threads = out.threads || [];
     YCM.total = out.total || 0;
     YCM.held = out.held || 0;
     YCM.caps = out.caps || IBX.caps;
   } catch (err) {
-    YCM.err = err.body?.detail || err.message || 'could not open that video';
+    /* 404 here means the post is not in social_posts either — it predates the
+       poller's window, or it belongs to an account this dashboard cannot see.
+       Say which, rather than "could not open that video". */
+    YCM.err = err.status === 404
+      ? 'Nothing is held for this post yet. Run a sync, or open it on the platform.'
+      : (err.body?.detail || err.message || 'could not open that post');
   } finally {
     YCM.busy = false;
     ycmDraw();
     /* The comment that was clicked, brought into view. Without this, opening a
        reply from halfway down a long section lands at the top and the reader
        has to find it again. */
-    const el = document.querySelector('.ycmthread.focus');
-    if (el) el.scrollIntoView({ block: 'center' });
+    if (focus) {
+      const el = document.querySelector('.ycmthread.focus');
+      if (el) el.scrollIntoView({ block: 'center' });
+    }
   }
 }
 

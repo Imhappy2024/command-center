@@ -563,7 +563,9 @@ export function socialRoutes({ env, auth }){
       }));
 
       const { rows: prows } = await query(
-        `SELECT account_id, title, permalink, published_at, reach, views, shares, interactions
+        `SELECT account_id, external_id, title, permalink, published_at,
+                (media IS NOT NULL) AS has_media,
+                reach, views, shares, interactions
            FROM social_posts
           WHERE account_id = ANY($1)
             AND published_at >= (now() - ($2::int || ' days')::interval)
@@ -572,6 +574,11 @@ export function socialRoutes({ env, auth }){
         [ids, days]);
       posts = prows.map(p2 => ({
         account: p2.account_id,
+        /* The platform's own id. The table used to key a row by its permalink,
+           which is fine for finding it again in a local array and useless for
+           asking the platform anything about it. */
+        externalId: p2.external_id,
+        hasMedia: Boolean(p2.has_media),
         title: p2.title || '(untitled)',
         permalink: p2.permalink || null,
         when: whenLabel(p2.published_at),
