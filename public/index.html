@@ -10507,14 +10507,18 @@ function msgrList(){
     + '</div>'
     + '<div class="mgsearch"><span>' + msgrIcon('search') + '</span>'
     +   '<input id="ibx-q" placeholder="Search Messenger" value="' + escS(IBX.q) + '"></div>'
+    /* Read state only. No account toggle.
+       Instagram is reachable by two routes -- through the Page and signed in
+       directly -- and they arrive as two account rows. That is a fact about
+       how Meta's APIs are shaped, not a question anybody opening an inbox
+       wants put to them, and the two pills made it one: picking either showed
+       half the conversations, and the All beside them meant all UNREAD, so
+       there was no way back to everything.
+       Every account of the platform, always, in one list. */
     + '<div class="mgpills">'
     +   '<button class="' + (IBX.unreadOnly ? '' : 'on') + '" data-ibunread="all">All</button>'
     +   '<button class="' + (IBX.unreadOnly ? 'on' : '') + '" data-ibunread="unread">Unread'
     +     (IBX.unreadCount ? ' ' + IBX.unreadCount : '') + '</button>'
-    +   (IBX.accounts.length > 1
-        ? IBX.accounts.map(a => '<button class="' + (IBX.account === a.id ? 'on' : '') + '"'
-            + ' data-ibacct="' + escS(a.id) + '">' + escS(a.label) + '</button>').join('')
-        : '')
     + '</div>'
     + '<div class="mgrows" id="ibx-list">' + rows + '</div>'
     + (IBX.hasMore

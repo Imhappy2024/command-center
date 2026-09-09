@@ -322,65 +322,212 @@ export async function commentOnPost(token, { mediaId, text }){
    Messages.
    --------------------------------------------------------------------------- */
 
-const MSG_FIELDS = 'id,created_time,from,to,message';
+/* Everything a message can carry, and it is not just text.
+
+   A conversation full of empty bubbles is what you get from asking for
+   `message` alone: a story reply carries `story` and no text, a shared reel
+   carries `shares`, and a photo carries `attachments`. Asking only for the
+   text and rendering the silence as "(no content)" describes the request, not
+   the conversation. */
+const MSG_FIELDS = 'id,created_time,from,to,message,attachments,shares,story,is_unsupported';
+
+/* One message, with its content.
+
+   The nested expansion on a conversation returns the ids and the timestamps
+   and NOT the bodies -- which is the whole reason the first version rendered
+   empty bubbles. Each message has to be fetched. */
+async function messageDetail(token, id){
+  try {
+    return await call(token, id, { fields: MSG_FIELDS });
+  } catch {
+    /* One unreadable message must not lose the thread around it. */
+    return null;
+  }
+}
+
+function messageOut(m, { convId, igId, who = new Map() }){
+  const atts = [];
+
+  /* Photos, videos, audio and files. Instagram nests the real link a level
+     deeper than Messenger does. */
+  for (const a of m.attachments?.data || []) {
+    const url = a.image_data?.url || a.video_data?.url || a.file_url || a.url || null;
+    const kind = a.image_data ? 'image'
+      : a.video_data ? 'video'
+      : /audio/i.test(a.mime_type || '') ? 'audio' : 'file';
+    atts.push({ kind, name: a.name || null, url });
+  }
+
+  /* A shared post or reel. The link is the post; the thumbnail is what makes
+     it recognisable at a glance. */
+  for (const sh of m.shares?.data || []) {
+    atts.push({ kind: 'share', name: sh.name || null, url: sh.link || null });
+  }
+
+  /* A story reply or mention: the thing being replied to is a story, and
+     without this the message reads as blank. */
+  if (m.story) {
+    atts.push({
+      kind: 'story',
+      name: m.story.mention ? 'mentioned you in a story' : 'replied to a story',
+      url: m.story.link || null
+    });
+  }
+
+  /* Said plainly rather than left blank. Instagram marks what it will not
+     render through the API -- voice notes and some effects -- and an empty
+     bubble is a worse answer than naming it. */
+  const body = m.message || '';
+  const note = body || atts.length ? '' : (m.is_unsupported
+    ? '[a message type Instagram does not send through the API]'
+    : '');
+
+  return {
+    externalId: m.id,
+    threadExternalId: convId,
+    replyTo: null,
+    authorId: m.from?.id || null,
+    /* The profile first, the handle second. Instagram shows a display name
+       everywhere it shows a person, and so should this. */
+    authorName: nameOf(who.get(String(m.from?.id)), m.from?.username)
+      || m.from?.name || 'Unknown',
+    authorAvatar: who.get(String(m.from?.id))?.avatar || null,
+    mine: Boolean(m.from?.id && String(m.from.id) === String(igId)),
+    body: body || note,
+    likes: 0,
+    likedByUs: false,
+    createdAt: m.created_time || null,
+    attachments: atts
+  };
+}
+
+/* Who somebody is, rather than what they are called in a URL.
+
+   A conversation's participants come back as an id and a username, so the
+   inbox showed @thekashanddashshow where Instagram itself shows "The Kash &
+   Dash Show" with a face beside it. The display name and the picture are on
+   the profile, which is a separate lookup per person.
+
+   Cached for the life of the call, because a sync reads forty conversations
+   and the same handful of people recur across them -- and because a display
+   name is not worth a request twice in one pass. Failure is not fatal: a
+   missing profile falls back to the handle, which is what was there before. */
+async function profiles(token, ids, cache){
+  const want = [...new Set(ids.filter(Boolean).map(String))]
+    .filter(id => !cache.has(id));
+  await Promise.all(want.map(async id => {
+    /* Two attempts, narrowing. Graph refuses the WHOLE request for one
+       unknown field, so if profile_pic is not available on this account type
+       the name would be lost with it -- and the name is the part that
+       matters. */
+    for (const fields of ['id,name,username,profile_pic', 'id,name,username']) {
+      try {
+        const p = await call(token, id, { fields });
+        cache.set(id, {
+          name: p.name || null,
+          username: p.username || null,
+          avatar: p.profile_pic || null
+        });
+        return;
+      } catch { /* try the narrower set */ }
+    }
+    /* Instagram will not hand over a profile for everyone -- a deleted
+       account, or somebody who has never messaged this one. The handle is
+       still true, and it is what the caller falls back to. */
+    cache.set(id, null);
+  }));
+  return cache;
+}
+
+/* The best name available: what Instagram shows, then the handle, then
+   nothing pretending to be a name. */
+const nameOf = (p, username) =>
+  (p && p.name) || (username ? '@' + username : null)
+  || (p && p.username ? '@' + p.username : null);
 
 /* Conversations, and the messages inside them.
 
-   Two calls per thread rather than one for everything, because this API caps a
-   conversation at its 20 most recent messages and will not return them from
-   the list edge. The cap is Instagram's; it is passed through rather than
-   papered over, and the UI already knows how to say "N on the platform, M held
-   here". */
-export async function conversations(token, { igId, limit = 40 } = {}){
+   Three shapes of call, because the API needs all three: the conversation
+   list, then each conversation's message ids, then each message. The last one
+   is why `detail` exists -- fetching twenty messages for forty conversations
+   is eight hundred requests, so a sync takes only enough to fill the list
+   preview and opening a thread asks for the rest.
+
+   Instagram caps a conversation at its 20 most recent messages. That cap is
+   its own; it is passed through rather than papered over, and the thread view
+   already says how many are held. */
+export async function conversations(token, { igId, limit = 40, detail = 6 } = {}){
   const list = await call(token, 'me/conversations', {
     platform: 'instagram',
     fields: 'id,updated_time',
     limit
   });
 
+  /* One profile cache for the whole pass. */
+  const who = new Map();
   const out = [];
+
   for (const c of list?.data || []) {
-    let msgs = [];
+    let ids = [];
     let people = [];
     try {
       const full = await call(token, c.id, {
-        fields: `participants,messages.limit(20){${MSG_FIELDS}}`
+        fields: 'participants,messages.limit(20){id,created_time}'
       });
-      msgs = full?.messages?.data || [];
+      ids = (full?.messages?.data || []).map(m => m.id).filter(Boolean);
       people = full?.participants?.data || [];
     } catch {
       /* One unreadable thread must not lose the rest of the inbox. */
     }
 
-    const them = people.find(p => String(p.id) !== String(igId)) || people[0] || {};
-    const items = msgs.map(m => ({
-      externalId: m.id,
-      threadExternalId: c.id,
-      replyTo: null,
-      authorId: m.from?.id || null,
-      authorName: m.from?.username ? '@' + m.from.username : (m.from?.name || 'Unknown'),
-      authorAvatar: null,
-      mine: Boolean(m.from?.id && String(m.from.id) === String(igId)),
-      body: m.message || '',
-      likes: 0,
-      likedByUs: false,
-      createdAt: m.created_time || null,
-      attachments: []
-    })).sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
+    /* Newest first is how Instagram returns them, and the newest are the ones
+       worth spending calls on. */
+    const wanted = ids.slice(0, Math.max(1, detail));
+    const full = await Promise.all(wanted.map(id => messageDetail(token, id)));
+    const msgs = full.filter(Boolean);
 
+    /* Names and faces for everybody who appears in this conversation, in one
+       go, before the messages are shaped. */
+    await profiles(token, [
+      ...people.map(p => p.id),
+      ...msgs.map(m => m.from?.id)
+    ], who);
+
+    const items = msgs
+      .map(m => messageOut(m, { convId: c.id, igId, who }))
+      .sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
+
+    const them = people.find(p => String(p.id) !== String(igId)) || people[0] || {};
+    const themProfile = who.get(String(them.id));
     out.push({
       externalId: c.id,
       parentKind: null, parentId: null, parentTitle: null, parentLink: null,
       withId: them.id || null,
-      withName: them.username ? '@' + them.username : (them.name || 'Unknown'),
-      /* The platform gives no total, so what is held is what is known. */
-      totalItems: items.length,
+      /* "The Kash & Dash Show", not @thekashanddashshow — Instagram shows the
+         display name everywhere it shows a person, and the handle is only what
+         is left when there is no profile to read. */
+      withName: nameOf(themProfile, them.username) || them.name || 'Unknown',
+      withAvatar: themProfile?.avatar || null,
+      /* What the conversation HAS, against what was fetched. */
+      totalItems: ids.length,
       unread: false,
       canReply: true,
       items
     });
   }
   return out;
+}
+
+/* Every message Instagram will give for one conversation, for when it is
+   opened. Twenty is the platform's own ceiling. */
+export async function conversationMessages(token, { convId, igId }){
+  const full = await call(token, convId, { fields: 'messages.limit(20){id,created_time}' });
+  const ids = (full?.messages?.data || []).map(m => m.id).filter(Boolean);
+  const msgs = (await Promise.all(ids.map(id => messageDetail(token, id)))).filter(Boolean);
+  const who = await profiles(token, msgs.map(m => m.from?.id), new Map());
+  return msgs
+    .map(m => messageOut(m, { convId, igId, who }))
+    .sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
 }
 
 export async function sendMessage(token, { igId, recipientId, text }){

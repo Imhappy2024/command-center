@@ -49,11 +49,16 @@ export function inboxRoutes({ auth }){
     }
     const kind = kindOf(req.query.kind);
 
-    const mine = (await accountsFor('social')).filter(a => inboxPlatformOf(a.provider) === platform);
+    /* The account list comes from capabilities(), not from a second filter of
+       its own. capabilities() drops a Page-derived Instagram row that a direct
+       sign-in has replaced, and computing the list twice in two places is how
+       one of them ends up showing an account the other has retired. */
+    const caps = (await capabilities())[platform] || null;
+    const mine = caps?.accounts || [];
     if (!mine.length) {
       return res.json({
         threads: [], total: 0, unreadCount: 0, offset: 0, hasMore: false,
-        accounts: [], notice: `No ${platform} account is connected.`
+        accounts: [], caps, notice: `No ${platform} account is connected.`
       });
     }
     /* ?account= narrows to one; otherwise every account of this platform. */
@@ -70,11 +75,7 @@ export function inboxRoutes({ auth }){
       limit: req.query.limit,
       offset: req.query.offset
     });
-    res.json({
-      ...out,
-      accounts: mine.map(a => ({ id: a.id, label: a.label, status: a.status, color: a.color })),
-      caps: (await capabilities())[platform] || null
-    });
+    res.json({ ...out, accounts: mine, caps });
   }));
 
   /* One thread and its items.
