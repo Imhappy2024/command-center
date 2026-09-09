@@ -1930,8 +1930,9 @@ body.ycmlock{overflow:hidden}
 /* ---- checkout links ---- */
 
 /* Three short values a row. At full dashboard width the price and the copy
-   button end up a screen away from the name they belong to. */
-.wpwrap{max-width:780px;margin:0 auto}
+   button end up a screen away from the name they belong to — but 780 was mean
+   with it, and a long product name has to fit on one line. */
+.wpwrap{max-width:1040px;margin:0 auto}
 
 /* The pricing dialog opens from inside the new-product dialog, so it has to
    paint over it. Source order already does this; the z-index says so out loud
@@ -1945,10 +1946,18 @@ body.ycmlock{overflow:hidden}
 
 /* Rows, not cards. A product here is a name, a price and a link — three short
    values that line up better than they tile. */
+/* No overflow:hidden here, though it is the obvious way to keep the rows inside
+   the rounded border — it also clips the copy tooltip, which sits above the row
+   it belongs to. The rows round their own outer corners instead. */
 .wplist{display:flex;flex-direction:column;gap:1px;background:var(--edge);
-  border:1px solid var(--edge);border-radius:var(--r-md);overflow:hidden}
-.wprow{display:flex;align-items:center;gap:12px;background:var(--panel);padding:13px 15px;transition:background .13s}
-.wprow:hover{background:var(--panel2)}
+  border:1px solid var(--edge);border-radius:var(--r-md)}
+.wprow{position:relative;display:flex;align-items:center;gap:12px;background:var(--panel);
+  padding:13px 15px;transition:background .13s}
+.wprow:first-child{border-radius:calc(var(--r-md) - 1px) calc(var(--r-md) - 1px) 0 0}
+.wprow:last-child{border-radius:0 0 calc(var(--r-md) - 1px) calc(var(--r-md) - 1px)}
+.wprow:only-child{border-radius:calc(var(--r-md) - 1px)}
+/* Lifted while hovered so its tooltip is not painted over by the row below. */
+.wprow:hover{background:var(--panel2);z-index:2}
 .wprow .nm{flex:1;min-width:0;font-size:13.5px;color:var(--cream);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
