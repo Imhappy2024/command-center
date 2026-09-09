@@ -698,22 +698,13 @@ export function socialRoutes({ env, auth }){
       }
     });
 
-  /* Meta verifies a subscription by echoing hub.challenge back. Answering it
-     correctly costs nothing and means the subscription can be set up before the
-     event handler exists. */
-  r.get('/webhooks/meta', (req, res) => {
-    const token = env.META_WEBHOOK_VERIFY_TOKEN;
-    if (!token) return res.sendStatus(503);
-    if (req.query['hub.mode'] === 'subscribe' && req.query['hub.verify_token'] === token) {
-      return res.status(200).send(String(req.query['hub.challenge'] || ''));
-    }
-    res.sendStatus(403);
-  });
+  /* The Meta webhook receiver moved to routes/webhooks.js, which verifies the
+     signature and triggers a targeted sync.
 
-  /* Still 501. This is a metrics build with no subscriptions, and answering 200
-     would tell Meta a receiver exists when none does. */
-  r.post('/webhooks/meta', express.json({ limit: '1mb' }), (req, res) =>
-    res.status(501).json({ error: 'Meta webhook receiver not built yet.' }));
+     The stub that used to sit here answered the handshake and then 501'd every
+     event, which is worse than having no endpoint at all: Meta verifies
+     successfully, starts delivering, gets a 501 each time, retries, and
+     eventually disables the subscription by itself. */
 
   return r;
 }
