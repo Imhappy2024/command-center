@@ -4652,6 +4652,31 @@ function step2(key){
   document.getElementById('ib-save').textContent = isImap ? 'Connect account' : `Continue to ${ui.name}`;
   document.getElementById('ib-label').placeholder = PLACEHOLDER[key] || 'Connection';
 
+  /* The redirect URI this server will actually send, shown before the round
+     trip rather than after it fails.
+
+     Every redirect failure so far has been one byte out -- http where https
+     was required, a trailing slash, the wrong last segment -- and the
+     provider error says only "Invalid redirect_uri", which names none of
+     that. Printing the exact string turns a guessing loop into a copy.
+
+     The http warning is not decoration: Instagram Business Login refuses a
+     non-HTTPS redirect outright, so a localhost PUBLIC_URL can never complete
+     that grant no matter what is registered. */
+  const note = document.getElementById('ib-sheetnote');
+  const cfg = PROVIDERS_CFG[key] || {};
+  if (note && cfg.redirectUri) {
+    const insecure = !String(cfg.redirectUri).startsWith('https://');
+    note.innerHTML = 'Register this exact redirect URI with ' + escS(ui.name)
+      + ', character for character:<br><code class="mono">' + escS(cfg.redirectUri)
+      + '</code>'
+      + (insecure
+        ? '<br><b>This is not https.</b> Set PUBLIC_URL to the deployed address; '
+          + 'Instagram refuses a non-HTTPS redirect and localhost can never complete '
+          + 'the sign-in.'
+        : '');
+  }
+
   drawSwatches(); updatePreview();
   document.getElementById(isImap ? 'ib-email' : 'ib-label').focus();
 }

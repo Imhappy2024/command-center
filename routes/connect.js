@@ -88,7 +88,14 @@ export function connectRoutes({ env, auth, secret }){
             feeds: p.feeds,
             blurb: p.blurb || null,
             configured: isConfigured(name, env),
-            setupHint: p.setupHint
+            setupHint: p.setupHint,
+            /* The exact URI this server will send, so it can be copied into
+               the provider rather than reconstructed by hand. Every redirect
+               failure so far has been a byte that did not match -- an http
+               where https was required, a trailing slash, the wrong last
+               segment -- and none of them is guessable from the error, which
+               says only "Invalid redirect_uri". */
+            redirectUri: p.oauth ? redirectUri(req, env, name) : null
           }])
       ),
       accounts: await listAccounts()
