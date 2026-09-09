@@ -7047,12 +7047,18 @@ function drawSocial(){
     const connected = soAccountsFor(keys).length > 0;
     const grant = SO_GRANT[keys[0]];
 
-    /* On the inbox, Fetch now means sync the comments rather than the metrics,
-       and there is nothing to add -- accounts are connected on the platform
-       views. Handled before the metrics wiring below rather than after it, so
-       the two do not both bind the same button. */
+    /* On the inbox, Fetch now means sync the comments rather than the metrics.
+
+       Connect is NOT hidden here any more, and hiding it was a real mistake:
+       the comment about accounts being connected on the platform views was
+       true for Meta and false for the direct Instagram login, which is only
+       reachable through the provider list. So there was a connector nobody
+       could get to. It opens the list rather than jumping to one provider,
+       because from this view there is more than one right answer. */
     if (SO.view === 'inbox') {
-      connectBtn.hidden = true;
+      connectBtn.hidden = false;
+      connectBtn.textContent = '+ Connect';
+      connectBtn.onclick = () => openModal('social');
       fetchBtn.hidden = false;
       fetchBtn.textContent = IBX.syncing ? 'Syncing…' : 'Sync now';
       fetchBtn.disabled = IBX.syncing;
@@ -9682,13 +9688,27 @@ function ibxSyncNote(what){
   return note ? note.error : null;
 }
 
+/* Is the direct Instagram login connected?
+
+   Two providers land on the Instagram tab and they are not interchangeable:
+   the Page route depends on a switch inside the Instagram app, the direct one
+   does not. So when Instagram has nothing to show, whether the direct route
+   exists is the single most useful thing to tell somebody. */
+const ibxHasDirectIg = () => (IBX.caps?.accounts || [])
+  .some(a => String(a.id).startsWith('instagram_login:'));
+
 function ibxCapBar(){
   if (!IBX.caps) return '';
   const needed = IBX.kind === 'message' ? ['messages'] : ['read', 'reply', 'post', 'react'];
   const missing = needed.filter(v => !ibxCan(v) && ibxWhy(v));
   const reconnect = IBX.caps.needsReconnect || [];
 
-  if (!missing.length && !reconnect.length) return '';
+  /* The Instagram offer stands on its own, because the usual case for it is a
+     grant where nothing is missing and nothing needs reconnecting -- every
+     permission granted, and Instagram still handing back an empty list. */
+  const offerDirect = IBX.platform === 'instagram' && !ibxHasDirectIg();
+
+  if (!missing.length && !reconnect.length && !offerDirect) return '';
 
   /* Which grant to send them to. Facebook and Instagram are one Meta sign-in. */
   const grant = IBX.platform === 'youtube' ? 'youtube' : 'meta';
@@ -9711,6 +9731,15 @@ function ibxCapBar(){
         + escS(PROV_UI[grant]?.name || grant) + '</button>'
         + '<span>Opens ' + escS(PROV_UI[grant]?.name || grant) + ' in a new window. '
         + 'Sign in again and the missing permissions are granted on the consent screen.</span>'
+        + '</div>'
+      : '')
+    + (offerDirect
+      ? '<div class="ytalert-do">'
+        + '<button class="btn" data-ibdirect="1">Connect Instagram directly</button>'
+        + '<span>A second, separate sign-in — as the Instagram account rather than '
+        + 'through the Page. It is the route that does not depend on Instagram’s '
+        + '<b>Connected tools</b> switch, which is what leaves the Page route '
+        + 'returning an empty list. Both can be connected at once.</span>'
         + '</div>'
       : '')
     + '</div></div>';
@@ -10108,6 +10137,11 @@ function ibxWire(body){
     IBX.unreadOnly = !IBX.unreadOnly; ibxLoad();
   });
   body.querySelectorAll('[data-ibsync]').forEach(b => b.onclick = ibxSync);
+  /* The direct Instagram sign-in. soConnectProvider jumps straight to the
+     provider step, which is what is wanted here: there is exactly one thing
+     this button means. */
+  body.querySelectorAll('[data-ibdirect]').forEach(b => b.onclick = () =>
+    soConnectProvider('instagram_login'));
   /* The capability panel is mostly Reconnect buttons, and they are wired by
      the same helper the platform dashboards use rather than by a copy. */
   wireReconnect(body);
