@@ -7554,9 +7554,7 @@ function drawSocial(){
      different questions and the reader picks. */
   body.querySelectorAll('[data-postwatch]').forEach(b => b.onclick = e => {
     e.stopPropagation();
-    ycmOpenParent(b.dataset.postplat, b.dataset.postwatch, {
-      seed: { title: b.dataset.posttitle || null, link: b.dataset.postlink || null }
-    });
+    ycmOpenParent(b.dataset.postplat, b.dataset.postwatch);
   });
   /* A tile is the fastest way to change what the chart shows, so it charts it.
      A ratio has no daily series of its own and says so rather than doing
@@ -9146,9 +9144,7 @@ function oneDashboard(d, key){
                 ? '<button class="postplay" title="Open the post and its comments"'
                   + ' aria-label="Open the post and its comments"'
                   + ' data-postwatch="' + escS(pp.externalId) + '"'
-                  + ' data-postplat="' + escS(key) + '"'
-                  + ' data-posttitle="' + escS(pp.title) + '"'
-                  + ' data-postlink="' + escS(pp.permalink || '') + '">'
+                  + ' data-postplat="' + escS(key) + '">'
                   + '<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></button>'
                 : '')
               + '<span class="tt">' + escS(pp.title) + '</span>'
@@ -11566,16 +11562,20 @@ async function ycmOpen(threadId){
    below the player is identical either way, which is the point — there is one
    comment section in this app, not two.
 
-   `seed` carries what the caller already knows. It is only used to fill the
-   header while the request is in flight; the response replaces it. */
-async function ycmOpenParent(platform, parentId, { focus = null, seed = null } = {}){
+   The parent is left null until the response lands, rather than seeded with
+   what the row already knows. ycmDraw keys the player on the parent id and
+   skips rebuilding it when that has not changed — which is what keeps a video
+   playing while the comments refresh underneath. Seeding the id turns that
+   optimisation against itself: the placeholder drawn before the fetch has the
+   right id and the wrong media, so the real post never replaced it. */
+async function ycmOpenParent(platform, parentId, { focus = null } = {}){
   if (!platform || !parentId) return;
   YCM.open = true;
   YCM.platform = platform;
   YCM.focus = focus;
   YCM.busy = true; YCM.err = null;
   YCM.threads = [];
-  YCM.parent = seed ? { id: parentId, platform, ...seed } : null;
+  YCM.parent = null;
   YCM.total = 0; YCM.held = 0;
   YCM.replyTo = null; YCM.replyDraft = ''; YCM.newDraft = ''; YCM.newOpen = false;
   ycmDraw();
@@ -12018,7 +12018,12 @@ function ycmDraw(){
   }
   /* The player is replaced only when the video changes. Re-rendering the same
      iframe src would reload the video on every keystroke in the reply box. */
-  const wantVideo = YCM.open ? (YCM.parent?.videoId || YCM.parent?.id || '') : '';
+  /* Keyed on the media as well as the id. Two parents can share an id across a
+     reload — the same post before and after its picture is known — and the
+     player has to be rebuilt for the second one. */
+  const wantVideo = YCM.open
+    ? (YCM.parent?.videoId || YCM.parent?.id || '') + (YCM.parent?.media ? ':m' : '')
+    : '';
   const sameVideo = ycmEl.dataset.video === wantVideo && YCM.open && ycmEl.firstChild;
 
   const active = document.activeElement;
