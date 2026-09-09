@@ -8293,14 +8293,80 @@ function seriesTotal(rows, axis, metric){
    hiding one in the legend never recolours the others. */
 function seriesByAccount(rows, axis, metric, accounts, kind){
   return accounts.map(a => {
-    const by = new Map();
-    for (const r of rows) {
-      if (r.account !== a.id || r[metric] == null) continue;
-      by.set(String(r.day).slice(0, 10), Number(r[metric]));
-    }
+    const mine = rows.filter(r => r.account === a.id);
     return { id: a.id, label: a.label, color: hueFor(a.id), kind,
-      values: axis.map(d => by.has(d) ? by.get(d) : null) };
+      values: SO_LEVELS.has(metric)
+        ? seriesDelta(mine, axis, metric)
+        : seriesTotal(mine, axis, metric) };
   });
+}
+
+/* ---------------------------------------------------------------------------
+   Levels vs flows.
+
+   Views and interactions are flows: a row's value is what happened that day,
+   and summing days is the right thing to do with them.
+
+   Followers is a level. The row says how many followers the account HAS on
+   that day, not how many it gained. Charted raw under a panel headed "Daily
+   followers" it drew a flat bar at the account's total on every single day —
+   two followers read as two a day, which across a 28-day window claims
+   fifty-six. The KPI tile already knew this and took the newest reading; the
+   chart did not.
+   --------------------------------------------------------------------------- */
+
+const SO_LEVELS = new Set(['followers']);
+
+const soLevelLabel = label => label + ' gained';
+
+/* Day-over-day change in a level: per account, then summed.
+
+   Never summed first. Levels added together and then differenced turn an
+   account that simply has no reading on one day into the whole audience
+   leaving and coming back the next.
+
+   The first day an account is seen is null rather than 0. There is nothing
+   before it to subtract, so the gain is unknown, and 0 would be a claim the
+   data does not support. Where readings skip days the whole change lands on
+   the later day: that is where it was observed, and nothing says when inside
+   the gap it happened.
+
+   A day is null only when no account has a known change for it — one account's
+   missing first reading does not blank out the others. */
+function seriesDelta(rows, axis, metric){
+  const gain = new Map();
+  for (const id of new Set(rows.map(r => r.account ?? '\u0000all'))) {
+    const seen = rows
+      .filter(r => (r.account ?? '\u0000all') === id && r[metric] != null)
+      .map(r => ({ day: String(r.day).slice(0, 10), v: Number(r[metric]) }))
+      .sort((x, y) => x.day < y.day ? -1 : x.day > y.day ? 1 : 0);
+    let prev = null;
+    for (const cur of seen) {
+      if (prev != null) gain.set(cur.day, (gain.get(cur.day) || 0) + (cur.v - prev));
+      prev = cur.v;
+    }
+  }
+  return axis.map(d => gain.has(d) ? gain.get(d) : null);
+}
+
+/* Net change across the window, for the readouts that would otherwise sum a
+   level. Last reading minus first, per account, added up. Null when nothing
+   was read at all — distinct from 0, which means read and unchanged. */
+function levelNet(rows, metric){
+  const by = new Map();
+  for (const r of rows) {
+    if (r[metric] == null) continue;
+    const id = r.account ?? '\u0000all';
+    const day = String(r.day).slice(0, 10);
+    let e = by.get(id);
+    if (!e) { e = { firstDay: null, lastDay: null, first: 0, last: 0 }; by.set(id, e); }
+    if (e.firstDay === null || day < e.firstDay) { e.firstDay = day; e.first = Number(r[metric]); }
+    if (e.lastDay === null || day > e.lastDay) { e.lastDay = day; e.last = Number(r[metric]); }
+  }
+  if (!by.size) return null;
+  let n = 0;
+  for (const e of by.values()) n += e.last - e.first;
+  return n;
 }
 
 /* The filter row. One row, above everything it scopes — never inside a card,
@@ -8501,6 +8567,24 @@ function platformView(key){
 /* Platforms on the combined dashboard. X is not here: see platformView. */
 const ONE_DASH = new Set(['youtube', 'facebook', 'instagram']);
 
+/* "Daily followers" was the wrong words for the wrong numbers. What the chart
+   can honestly show for a level is the gain, so that is what the titles say —
+   and a mixed selection draws one plot per metric anyway, so each gets its
+   own. */
+const soSeriesLabel = (available, m) => {
+  const base = (available.find(a => a.k === m) || {}).label || m;
+  return SO_LEVELS.has(m) ? soLevelLabel(base) : base;
+};
+const soChartTitle = soSeriesLabel;
+function soPanelTitle(available, use){
+  if (!use.length) return 'Daily figures';
+  const words = use.map(m => String((available.find(a => a.k === m) || {}).label || m).toLowerCase());
+  if (use.every(m => SO_LEVELS.has(m))) return cap(words.join(' and ') + ' gained per day');
+  if (use.some(m => SO_LEVELS.has(m))) return 'Daily figures';
+  return 'Daily ' + words.join(' and ');
+}
+const cap = t => t.charAt(0).toUpperCase() + t.slice(1);
+
 const SO_METRICS = {
   youtube:   [{k:'views',label:'Views'},{k:'interactions',label:'Interactions'},{k:'followers',label:'Subscribers'}],
   x:         [{k:'views',label:'Views'},{k:'interactions',label:'Interactions'},{k:'followers',label:'Followers'}],
@@ -8629,9 +8713,13 @@ function performanceSection(d, key){
       return seriesByAccount(src, ax, metric, accounts, accounts.length > 3 ? 'line' : SO.chartKind);
     }
     const idx = picked.indexOf(metric);
-    return [{ id: 'm-' + metric + (offset ? '-p' : ''), label: (available.find(a => a.k === metric) || {}).label || metric,
+    const base = (available.find(a => a.k === metric) || {}).label || metric;
+    const lvl = SO_LEVELS.has(metric);
+    return [{ id: 'm-' + metric + (offset ? '-p' : ''),
+      label: lvl ? soLevelLabel(base) : base,
       color: VIZ_SLOTS[(idx < 0 ? 0 : idx) % VIZ_SLOTS.length],
-      kind: offset ? 'line' : SO.chartKind, values: seriesTotal(src, ax, metric) }];
+      kind: offset ? 'line' : SO.chartKind,
+      values: lvl ? seriesDelta(src, ax, metric) : seriesTotal(src, ax, metric) }];
   };
 
   const kindSeg = '<div class="seg"><button class="' + (SO.chartKind === 'bar' ? 'on' : '') + '" data-sokind="bar">Bars</button>'
@@ -8648,18 +8736,28 @@ function performanceSection(d, key){
         const pv = SO.compare ? prevRows.filter(r => r.account === a.id).reduce((n, r) => n + (r[picked[0]] || 0), 0) : null;
         return { label: a.label, color: hueFor(a.id), total: t, move: (pv ? ((t - pv) / pv) * 100 : null) };
       })
-    : picked.map((m, i) => ({
-        label: (available.find(a => a.k === m) || {}).label || m,
-        color: VIZ_SLOTS[i % VIZ_SLOTS.length],
-        total: sum(zRows, m),
-        move: SO.compare ? pctMove(sum(zRows, m), prevVal(m)) : null
-      }));
+    : picked.map((m, i) => {
+        /* A level's readout is the net change across the window, not the sum
+           of every day's total — which for followers was the audience counted
+           once per day. */
+        const lvl = SO_LEVELS.has(m);
+        const base = (available.find(a => a.k === m) || {}).label || m;
+        const now = lvl ? levelNet(zRows, m) : sum(zRows, m);
+        const was = !SO.compare ? null : lvl ? levelNet(prevRows, m) : prevVal(m);
+        return {
+          label: lvl ? soLevelLabel(base) : base,
+          color: VIZ_SLOTS[i % VIZ_SLOTS.length],
+          total: now,
+          move: pctMove(now, was)
+        };
+      });
 
   const readout = '<div class="readout">' + roItems.map(it => {
     const mv = it.move;
     const chipCls = mv == null ? 'flat' : Math.abs(mv) < 0.5 ? 'flat' : mv > 0 ? 'up' : 'down';
     return '<div class="ro"><div class="k" style="color:' + it.color + '">' + escS(it.label) + '</div>'
-      + '<div class="v">' + escS(compact(it.total))
+      + '<div class="v">' + escS(it.total == null ? '\u2014'
+          : (it.total > 0 && SO_LEVELS.has(picked[0]) && !SO.split ? '+' : '') + compact(it.total))
       + (mv == null ? '' : '<span class="chip2 ' + chipCls + '">'
           + (Math.abs(mv) < 0.5 ? '=' : mv > 0 ? '▲' : '▼') + ' ' + Math.abs(mv).toFixed(1) + '%</span>')
       + '</div></div>';
@@ -8678,12 +8776,12 @@ function performanceSection(d, key){
     /* Small multiples — one plot per metric, each on its own scale. */
     charts = picked.map(m => vizChart({
       axis, series: mkSeries(m, 0), ghosts: SO.compare ? mkSeries(m, 1) : [],
-      title: (available.find(a => a.k === m) || {}).label || m,
+      title: soChartTitle(available, m),
       sub: 'own scale', height: 130 })).join('');
   } else {
     charts = vizChart({
       axis, series: mkSeries(picked[0], 0), ghosts: SO.compare ? mkSeries(picked[0], 1) : [],
-      title: (available.find(a => a.k === picked[0]) || {}).label || picked[0],
+      title: soChartTitle(available, picked[0]),
       sub: RANGE_N() + ' days' + (SO.compare ? ' · dashed is the prior period' : ''),
       /* No extra: kindSeg here. It is already in the panel header six pixels
          above, and rendering it in both places put the same three buttons on
@@ -8870,9 +8968,11 @@ function oneDashboard(d, key){
     const ax = off ? axisOf(prevRows) : axis;
     return SO.split && accounts.length > 1
       ? seriesByAccount(src, ax, m, accounts, accounts.length > 3 ? 'line' : SO.chartKind)
-      : [{ id: key + ':' + m + (off ? ':prev' : ''), label: (available.find(a => a.k === m) || {}).label || m,
+      : [{ id: key + ':' + m + (off ? ':prev' : ''),
+           label: soSeriesLabel(available, m),
            color: hueFor(key), kind: off ? 'line' : SO.chartKind,
-           dash: !!off, values: seriesTotal(src, ax, m) }];
+           dash: !!off,
+           values: SO_LEVELS.has(m) ? seriesDelta(src, ax, m) : seriesTotal(src, ax, m) }];
   };
 
   /* data-mchip, not data-someta: that is the attribute the click handler
@@ -8914,7 +9014,7 @@ function oneDashboard(d, key){
   } else if (use.length > 1) {
     charts = use.map(m => vizChart({
       axis, series: mkSeries(m, 0), ghosts: SO.compare ? mkSeries(m, 1) : [],
-      title: (available.find(a => a.k === m) || {}).label || m,
+      title: soChartTitle(available, m),
       sub: 'own scale', height: 128 })).join('');
   } else if (use.length) {
     charts = vizChart({
@@ -8931,8 +9031,7 @@ function oneDashboard(d, key){
   }
 
   const signal = '<section class="ytpanel viz span2">'
-    + '<header class="ytph"><div><h3>Daily ' + escS(use.map(m =>
-        String((available.find(a => a.k === m) || {}).label || m).toLowerCase()).join(' and ') || 'figures') + '</h3>'
+    + '<header class="ytph"><div><h3>' + escS(soPanelTitle(available, use)) + '</h3>'
     + '<p>' + axis.length + ' days · ' + escS(dayLabel(axis[0] || '')) + ' → ' + escS(dayLabel(axis[axis.length - 1] || ''))
     + (SO.compare ? ' · dashed is the prior period' : '') + '</p></div>'
     + '<span class="grow"></span>' + (axis.length && !SO.table ? kindSeg : '') + '</header>'
