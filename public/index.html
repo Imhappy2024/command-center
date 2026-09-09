@@ -1363,8 +1363,12 @@ body.ycmlock{overflow:hidden}
   background:repeating-linear-gradient(to bottom,var(--panel2) 0 1px,transparent 1px 46px)}
 .tgcol:last-child{border-right:0}
 .tgcol.weekend{background-color:var(--ink2);background-image:repeating-linear-gradient(to bottom,var(--panel2) 0 1px,transparent 1px 46px)}
-.now{position:absolute;left:0;right:0;height:1px;background:var(--rust);z-index:4}
-.now::before{content:"";position:absolute;left:-3px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--rust)}
+/* The line across today's column. Named for the grid it belongs to, because
+   as a bare .now it was a landmine: the maturity wall marks a past-due year
+   with the same word, inherited position:absolute and left/right:0 from here,
+   and stretched two of its bars across the whole chart on top of the others. */
+.tgnow{position:absolute;left:0;right:0;height:1px;background:var(--rust);z-index:4}
+.tgnow::before{content:"";position:absolute;left:-3px;top:-3px;width:7px;height:7px;border-radius:50%;background:var(--rust)}
 
 .ev{
   position:absolute;border-radius:5px;padding:4px 7px;overflow:hidden;cursor:pointer;
@@ -2034,6 +2038,10 @@ body.ycmlock{overflow:hidden}
   border:1px solid var(--edge2);border-radius:var(--r-md);padding:10px 14px;margin-bottom:14px}
 .bulkbar .cnt2{font-size:13px;color:var(--cream);font-variation-settings:'wght' 600}
 
+/* A tile with no trend to draw. Its content is spread to the card's own
+   height rather than stacked at the top with the slack below. */
+.kpi.nospark{padding-bottom:16px}
+
 /* The play affordance on a top-posts row. Sits in the title cell rather than
    in a column of its own: a column would be six pixels of button and forty of
    header, and the thing it opens is the post the title names. */
@@ -2681,12 +2689,20 @@ body.ycmlock{overflow:hidden}
   background:linear-gradient(180deg,var(--brass),#8A7040);transition:.28s var(--ease);
   box-shadow:0 -1px 0 rgba(255,255,255,.15) inset}
 .pryr.soon .col{background:linear-gradient(180deg,var(--amber),#A67C2E)}
-.pryr.now .col{background:linear-gradient(180deg,var(--rust),#8E5A44)}
+.pryr.past .col{background:linear-gradient(180deg,var(--rust),#8E5A44)}
 .pryr:hover .col{filter:brightness(1.2)}
 .pryr.sel .col{outline:2px solid var(--cream);outline-offset:2px}
 .pryr .amt{font-family:var(--ff-mono);font-size:10px;color:var(--text);margin-bottom:6px}
 .pryr .yl{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);margin-top:7px}
-.pryr.now .yl,.pryr.soon .yl{color:var(--text)}
+.pryr.past .yl,.pryr.soon .yl{color:var(--text)}
+/* Kept in the flow so the bar above it still lines up with its neighbours. */
+.pryr.nolabel .yl{visibility:hidden}
+/* Every lender is here, but not all at once. Unbounded, this list ran three
+   times the height of the wall beside it, and because the loans table below
+   spans both columns it could not start until the taller of the two ended --
+   so the wall sat above 826px of nothing. Scrolling the list costs a gesture;
+   the hole cost a screen. */
+.prexplist{max-height:296px;overflow-y:auto;overscroll-behavior:contain}
 .prexprow{display:grid;grid-template-columns:minmax(0,1fr) 78px;gap:10px;padding:9px 16px;
   border-bottom:1px solid var(--edge)}
 .prexprow:last-child{border-bottom:0}
@@ -5374,7 +5390,7 @@ function timeGrid(days){
   const body = days.map(d => {
     const dayEvs = laneOut(timed.filter(e => sameDay(e.start, d)));
     const now = isToday(d) && mins(new Date()) >= DAY_START*60 && mins(new Date()) <= DAY_END*60
-      ? '<div class="now" style="top:' + ((mins(new Date()) - DAY_START*60) / span * 100) + '%"></div>' : '';
+      ? '<div class="tgnow" style="top:' + ((mins(new Date()) - DAY_START*60) / span * 100) + '%"></div>' : '';
     return '<div class="tgcol' + ([0,6].includes(d.getDay()) ? ' weekend' : '') + '">' + now
       + dayEvs.map(e => {
           const top = Math.max(0, (mins(e.start) - DAY_START*60) / span * 100);
@@ -7576,6 +7592,11 @@ function drawSocial(){
   wireViz(body);
   body.querySelectorAll('[data-adsline]').forEach(b => b.onclick = () => {
     SO.adsLine = b.dataset.adsline; drawSocial();
+    /* The toggle picks which metric the second chart draws, and that chart is
+       below the fold. Three of the four also light their tile, but CPM has no
+       tile — and a control that changes something you cannot see is a control
+       that looks broken. So it brings the thing it changed into view. */
+    document.getElementById('ads-eff')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   });
   /* Same column twice reverses it; a new column starts descending, because the
      question is almost always "which is the biggest". Name is the exception. */
@@ -8162,16 +8183,25 @@ function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, sp
   } else if (deltaLabel) {
     chip = '<span class="chip2 flat">' + escS(deltaLabel) + '</span>';
   }
-  return '<div class="kpi' + (sel ? ' sel' : '') + '">'
-    + '<span class="klab">' + escS(label) + '</span>'
-    + '<div class="kval' + (na ? ' na' : '') + '">' + escS(value) + '</div>'
-    + '<div class="kfoot">' + chip
+  const foot = '<div class="kfoot">' + chip
     + (deltaLabel && delta != null ? '<span>' + escS(deltaLabel) + '</span>' : '')
     + (bench ? '<span class="kbench">' + escS(bench) + '</span>' : '')
     + (prev ? '<span class="kprev">' + escS(prev) + '</span>' : '')
-    + '</div>'
-    + '<span style="flex:1"></span>'
-    + (spark ? kpiSpark(spark, color) : '')
+    + '</div>';
+
+  /* Where the slack goes.
+
+     With a sparkline the spacer belongs above it, so the trend sits on the
+     floor of the card. Without one, the same spacer left the tile top-heavy —
+     a label, a number, a chip, and then sixty pixels of nothing, which is what
+     the Meta Ads band looked like. Sparkless tiles put the slack between the
+     number and the foot instead, so the foot lands on the floor and the card
+     reads as deliberate at whatever height its row gives it. */
+  const slack = '<span style="flex:1"></span>';
+  return '<div class="kpi' + (sel ? ' sel' : '') + (spark ? '' : ' nospark') + '">'
+    + '<span class="klab">' + escS(label) + '</span>'
+    + '<div class="kval' + (na ? ' na' : '') + '">' + escS(value) + '</div>'
+    + (spark ? foot + slack + kpiSpark(spark, color) : slack + foot)
     + '</div>';
 }
 
@@ -9455,6 +9485,22 @@ function adsView(){
   /* How many days produced nothing. Quoted in the chart note, because "the line
      has gaps" is only useful with the size of the gap attached. */
   let zeroDays = 0;
+
+  /* Which ad accounts actually have anything in this window.
+
+     Both of these are real ad accounts — act_ numbers, is_personal 0 — but one
+     of them delivered nothing here, and a chip that leads to an empty
+     dashboard is worse than no chip. It is offered only when there is
+     something behind it, and "All 2" only when there are two to add up.
+
+     A selection that stops being live (the range changed, the spend stopped)
+     falls back to all rather than showing a blank board under a chip nobody
+     can tell is stale. */
+  const hasRows = id => (ads.campaigns || []).some(c => c.account === id && (c.spend || c.results))
+    || (ads.daily || []).some(r2 => r2.account === id && (r2.spend || r2.impressions));
+  const liveAccounts = (ads.byAccount || []).filter(a => hasRows(a.id));
+  if (SO.adsAcct !== 'all' && !liveAccounts.some(a => a.id === SO.adsAcct)) SO.adsAcct = 'all';
+
   const inScope = r => SO.adsAcct === 'all' || r.account === SO.adsAcct;
   const campaigns = (ads.campaigns || []).filter(inScope);
   const dailyRows = (ads.daily || []).filter(inScope);
@@ -9553,6 +9599,7 @@ function adsView(){
     + kpi('Cost per result', money(totals.cpa), { delta: pctMove(totals.cpa, prev?.cpa), goodDown: true,
         deltaLabel: totals.cpa == null ? 'nothing has converted' : vsOr(prev?.cpa),
         bench: workingCpa != null && wasted ? money(workingCpa) + ' excluding the dead spend' : '',
+        spark: spark('cpa'), sel: SO.adsLine === 'cpa',
         color:'var(--s4)', na: totals.cpa == null })
     + '</div>'
     + '<div class="kpis grid g3">'
@@ -9563,10 +9610,12 @@ function adsView(){
         color:'var(--s6)', na: !wasted })
     + kpi('Click-through rate', pct(totals.ctr), { delta: pctMove(totals.ctr, prev?.ctr),
         deltaLabel: vsOr(prev?.ctr), bench: 'avg ' + ADS_BENCH.ctr + '%',
+        spark: spark('ctr'), sel: SO.adsLine === 'ctr',
         color:'var(--s5)', na: totals.ctr == null })
     + kpi('Peak frequency', ratio(totals.peakFrequency), {
         deltaLabel: totals.peakFrequency == null ? 'no reach recorded' : 'highest single day',
         bench: 'fatigue above ' + ADS_BENCH.frequency.toFixed(1), color:'var(--s2)',
+        spark: spark('frequency'), sel: SO.adsLine === 'frequency',
         na: totals.peakFrequency == null })
     + '</div>';
 
@@ -9619,6 +9668,7 @@ function adsView(){
       ? frame('Daily spend and ' + lineLabel.toLowerCase(), SO.range + ' days',
           vizTable(axis2, spendSeries.concat(effSeries), v => money(v)), [], '')
       : vizChart({ axis: axis2, series: spendSeries, fmt: money, title: 'Spend per day', sub: SO.range + ' days', height: 170 })
+        + '<div id="ads-eff">'
         + vizChart({ axis: axis2, series: effSeries, fmt: lineFmt,
             title: cumulative ? 'Cost per result, running' : lineLabel + ' per day',
             sub: 'own scale — never shared with spend', height: 150,
@@ -9626,7 +9676,8 @@ function adsView(){
               ? 'Running spend over running results, so it starts at the first conversion and '
                 + 'ends on the figure in the tile. A per-day version of this is mostly gaps: '
                 + zeroDays + ' of ' + series.length + ' days converted nothing.'
-              : 'A break in the line is a day with no delivery, not a value of nothing.' });
+              : 'A break in the line is a day with no delivery, not a value of nothing.' })
+        + '</div>';
 
   /* ---------- campaign table ---------- */
   const SORTS = {
@@ -9714,11 +9765,11 @@ function adsView(){
        here they genuinely differ -- USD against PHP -- which is the same fact
        that decides whether the totals may be added up at all. The act number is
        in the title for anyone who wants to match it against Ads Manager. */
-    + ((ads.byAccount || []).length > 1
+    + (liveAccounts.length > 1
         ? '<span class="sep"></span><span class="flabel">Ad account</span><div class="seg">'
           + '<button class="' + (SO.adsAcct === 'all' ? 'on' : '') + '" data-adsacct="all"'
-            + ' title="Every ad account below, added together">All ' + ads.byAccount.length + '</button>'
-          + ads.byAccount.map(a => '<button class="' + (SO.adsAcct === a.id ? 'on' : '') + '"'
+            + ' title="Every ad account below, added together">All ' + liveAccounts.length + '</button>'
+          + liveAccounts.map(a => '<button class="' + (SO.adsAcct === a.id ? 'on' : '') + '"'
               + ' data-adsacct="' + escS(a.id) + '"'
               + ' title="Ad account ' + escS(a.number || a.id) + (a.currency ? ' · bills in ' + escS(a.currency) : '') + '">'
               + escS(a.label)
@@ -10166,22 +10217,33 @@ function ibxCapBar(){
      permission granted, and Instagram still handing back an empty list. */
   const offerDirect = IBX.platform === 'instagram' && !ibxHasDirectIg();
 
-  if (!missing.length && !reconnect.length && !offerDirect) return '';
+  /* A permanent platform limit is not an alert.
+
+     YouTube has no API for liking a comment and is not going to grow one. The
+     banner said so above every video, on every visit, forever — and there is
+     nothing the reader can do about it, which is the definition of noise. The
+     controls it affects already say it in place: the composer prints its own
+     reason when it cannot post, and a verb with no endpoint has no button.
+
+     So only a grant a reconnect can repair earns a banner. `missing` is still
+     the full list — capability checks elsewhere read it — but what gets
+     announced is the part someone can act on. */
+  const actionable = missing.filter(v => /reconnect/i.test(ibxWhy(v) || ''));
+
+  if (!actionable.length && !reconnect.length && !offerDirect) return '';
 
   /* Which grant to send them to. Facebook and Instagram are one Meta sign-in. */
   const grant = IBX.platform === 'youtube' ? 'youtube' : 'meta';
-  /* A platform limit is not a permission problem and must not offer a button
-     that cannot fix it. */
-  const fixable = missing.some(v => /Reconnect/i.test(ibxWhy(v) || '')) || reconnect.length > 0;
+  const fixable = actionable.length > 0 || reconnect.length > 0;
 
   return '<div class="ytalert">'
     + '<div class="ytalert-i" aria-hidden="true">!</div>'
     + '<div><b>' + escS(reconnect.length
       ? (reconnect.length === 1 ? reconnect[0] + ' needs reconnecting'
         : reconnect.length + ' accounts need reconnecting')
-      : 'Some of this is read-only') + '</b>'
-    + missing.map(v => '<p>' + escS(ibxWhy(v)) + '</p>').join('')
-    + (reconnect.length && !missing.length
+      : 'Some of this needs reconnecting') + '</b>'
+    + actionable.map(v => '<p>' + escS(ibxWhy(v)) + '</p>').join('')
+    + (reconnect.length && !actionable.length
       ? '<p>Everything below is the last data that arrived, not what the platform holds now.</p>' : '')
     + (fixable
       ? '<div class="ytalert-do">'
@@ -14395,14 +14457,31 @@ function prDebtView(){
        to the first wall is visible rather than implied. */
     for (let y = Math.min(thisYear, keys[0]); y <= keys[keys.length - 1]; y++) span.push(y);
     const max = Math.max(...Object.values(years));
-    wall = '<div class="prwall"><div class="prwallgrid">' + span.map(y => {
+    /* A label under every bar collides with itself once the span is long, and a
+       thirty-year span is normal here: one loan running to 2056 sets the right
+       edge and the other thirty-one years come along with it. Four digits need
+       roughly twice a bar's width, so the axis is thinned to a stride that fits
+       and the last year is always kept -- an axis that stops labelling before it
+       stops is worse than a sparse one. Every bar still names itself on hover.
+
+       The amounts above the bars are thinned differently, by size rather than by
+       position: on a maturity wall the big years are the point, and $270k
+       overlapping $450k in the far corner is noise sitting on top of nothing. */
+    const every = Math.max(1, Math.ceil(span.length / 11));
+    const loud = new Set(Object.entries(years)
+      .sort((a, b) => b[1] - a[1]).slice(0, 8).map(([y]) => Number(y)));
+    wall = '<div class="prwall"><div class="prwallgrid">' + span.map((y, i) => {
       const amt = years[y] || 0;
-      const cls = y <= thisYear ? 'now' : y === thisYear + 1 ? 'soon' : '';
+      /* The last year is worth naming, but not on top of the one before it:
+         kept only when the stride left room for it. */
+      const label = i % every === 0 || (i === span.length - 1 && i % every >= 2);
+      const cls = (y <= thisYear ? 'past' : y === thisYear + 1 ? 'soon' : '')
+        + (label ? '' : ' nolabel');
       return '<button class="pryr ' + cls + (PR.year === y ? ' sel' : '') + '" data-pryear="' + y + '" '
         + 'title="' + prFull(amt) + ' maturing in ' + y + '">'
-        + '<span class="amt">' + (amt ? prMoney(amt) : '') + '</span>'
+        + '<span class="amt">' + (amt && loud.has(y) ? prMoney(amt) : '') + '</span>'
         + '<span class="col" style="height:' + (amt ? Math.max(2, amt / max * 150) : 2) + 'px"></span>'
-        + '<span class="yl">' + y + '</span></button>';
+        + '<span class="yl">' + (label ? y : '') + '</span></button>';
     }).join('') + '</div>'
       + '<p class="hint" style="margin-top:12px">Click a year to filter every view to the '
       + 'properties whose loans come due then.'
@@ -14451,7 +14530,8 @@ function prDebtView(){
     +   (wAvg ? ' · ' + (wAvg * 100).toFixed(2) + '% weighted rate' : '') + '</span></div>'
     +   wall + '</div>'
     + '<div class="card flush"><div class="cardhead"><h3>Lender exposure</h3>'
-    +   '<span class="eyebrow">' + lenders.length + ' lenders</span></div>' + exposure + '</div>'
+    +   '<span class="eyebrow">' + lenders.length + ' lenders</span></div>'
+    +   '<div class="prexplist">' + exposure + '</div></div>'
     + '<div class="card flush" style="grid-column:1/-1"><div class="cardhead"><h3>Loans</h3>'
     +   '<span class="eyebrow">soonest first</span></div>' + rows + '</div>'
     + '</div>';
