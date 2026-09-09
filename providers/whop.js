@@ -309,10 +309,14 @@ export async function resolveLink(env, plan){
 
 const SYMBOL = { usd: '$', eur: '€', gbp: '£', cad: 'CA$', aud: 'A$', php: '₱' };
 
+/* Grouped to match the browser's own formatter, so a price the server labels
+   and a price the form previews read the same. */
 export function money(amount, currency = 'usd'){
   const n = Number(amount || 0);
   const sym = SYMBOL[String(currency).toLowerCase()] || '';
-  const shown = Number.isInteger(n) ? String(n) : n.toFixed(2);
+  const shown = Number.isInteger(n)
+    ? n.toLocaleString('en-US')
+    : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return sym ? sym + shown : shown + ' ' + String(currency).toUpperCase();
 }
 

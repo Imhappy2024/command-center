@@ -15,7 +15,8 @@ import express from 'express';
 import { guarded } from './guard.js';
 import { accountsFor } from '../lib/accounts.js';
 import {
-  INBOX_PLATFORMS, capabilities, listThreads, loadThread, loadParent, markThreadRead,
+  INBOX_PLATFORMS, inboxPlatformOf, capabilities, listThreads, loadThread, loadParent,
+  markThreadRead,
   mentionable, reply, postComment, react, postTargets, syncInbox, inboxHealth,
   sendAttachment,
   tagThread, tagsInUse
@@ -48,7 +49,7 @@ export function inboxRoutes({ auth }){
     }
     const kind = kindOf(req.query.kind);
 
-    const mine = (await accountsFor('social')).filter(a => a.provider === platform);
+    const mine = (await accountsFor('social')).filter(a => inboxPlatformOf(a.provider) === platform);
     if (!mine.length) {
       return res.json({
         threads: [], total: 0, unreadCount: 0, offset: 0, hasMore: false,
@@ -99,7 +100,7 @@ export function inboxRoutes({ auth }){
         return res.status(400).json({ error: 'platform and parent are both required' });
       }
       const ids = (await accountsFor('social'))
-        .filter(a => a.provider === platform).map(a => a.id);
+        .filter(a => inboxPlatformOf(a.provider) === platform).map(a => a.id);
       const out = await loadParent({ platform, parentId, accountIds: ids });
       if (!out) return res.status(404).json({ error: 'nothing held under that post' });
       res.json({ ...out, caps: (await capabilities())[platform] || null });
@@ -195,7 +196,7 @@ export function inboxRoutes({ auth }){
       const platform = platformOf(req.query.platform);
       if (!platform) return res.status(400).json({ error: 'platform is required' });
       const ids = (await accountsFor('social'))
-        .filter(a => a.provider === platform).map(a => a.id);
+        .filter(a => inboxPlatformOf(a.provider) === platform).map(a => a.id);
       res.json({ targets: await postTargets(ids) });
     }));
 

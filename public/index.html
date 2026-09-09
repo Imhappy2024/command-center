@@ -1951,14 +1951,20 @@ body.ycmlock{overflow:hidden}
 .wprow:hover{background:var(--panel2)}
 .wprow .nm{flex:1;min-width:0;font-size:13.5px;color:var(--cream);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.wprow .pr{font-family:var(--ff-mono);font-size:11px;color:var(--dim);white-space:nowrap}
-.wprow .pr.free{color:var(--jade)}
+
+/* A price column, not a price that happens to sit before the icon: given room
+   of its own it lines up down the list instead of ragging against the button.
+   Tabular figures so the digits sit in the same columns row to row. */
+.wprow .pr{font-family:var(--ff-mono);font-size:12px;color:var(--jade);white-space:nowrap;
+  font-variant-numeric:tabular-nums;text-align:right;min-width:96px;margin-right:6px}
+.wprow .pr.none{color:var(--dimmer)}
 
 /* The link button carries its label in a tooltip rather than beside it: the
    row is already three columns wide and "Copy product URL" doubles it. */
-.wplink{position:relative;display:grid;place-items:center;background:none;border:1px solid var(--edge);
-  border-radius:8px;color:var(--dim);cursor:pointer;width:32px;height:32px;flex:none;transition:.14s}
-.wplink:hover:not(.dis){border-color:var(--brass);color:var(--brass);background:var(--panel2)}
+.wplink{position:relative;display:grid;place-items:center;background:var(--panel2);
+  border:1px solid var(--edge2);border-radius:8px;color:var(--dim);cursor:pointer;
+  width:32px;height:32px;flex:none;transition:.14s}
+.wplink:hover:not(.dis){border-color:var(--brass);color:var(--brass);background:rgba(124,108,255,.15)}
 .wplink.dis{opacity:.4;cursor:not-allowed}
 .wplink svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
@@ -4430,7 +4436,14 @@ const PROV_UI = {
   imap:      { name: 'Other (IMAP)', glyph: '@', color: '#4E9E7E', chip: 'Manual', blurb: 'Any host with an app password' },
   meta:      { name: 'Meta',         glyph: 'f', color: 'var(--fb)', chip: 'OAuth',  blurb: 'Facebook Pages, Instagram and Ads' },
   youtube:   { name: 'YouTube',      glyph: '▶', color: '#C2553F', chip: 'OAuth', blurb: 'Channel metrics and analytics' },
-  x:         { name: 'X',            glyph: 'X', color: '#8E9BA8', chip: 'OAuth',  blurb: 'Post and follower metrics' }
+  x:         { name: 'X',            glyph: 'X', color: '#8E9BA8', chip: 'OAuth',  blurb: 'Post and follower metrics' },
+  /* Instagram signed in AS Instagram, which is a second and separate
+     connection from the Meta one above. Both can be connected at once and the
+     Instagram tab reads whichever is present -- so this is listed on its own
+     rather than hidden behind Meta, because it is its own sign-in with its own
+     app credentials. */
+  instagram_login: { name: 'Instagram (direct)', glyph: '◎', color: 'var(--brass)',
+    chip: 'OAuth', blurb: 'Comments and DMs, signed in as the Instagram account itself' }
 };
 
 const SHEET_COPY = {
@@ -17395,10 +17408,14 @@ const wpBlankForm = () => ({
 
 const wpPeriod = d => WP_PERIODS.find(p => p.days === Number(d))?.label || (d + ' days');
 
+/* Grouped, because $10000 and $100000 are the same shape at a glance and this
+   is a list people scan for the number. */
 const wpMoney = (amount, currency) => {
   const n = Number(amount || 0);
   const sym = WP_SYMBOL[String(currency || 'usd').toLowerCase()] || '';
-  const shown = Number.isInteger(n) ? String(n) : n.toFixed(2);
+  const shown = Number.isInteger(n)
+    ? n.toLocaleString('en-US')
+    : n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   return sym ? sym + shown : shown + ' ' + String(currency).toUpperCase();
 };
 
@@ -17809,10 +17826,10 @@ function whopList(){
   }
 
   const rows = WP.products.map(p => {
-    const free = p.priceLabel === 'Free';
     return '<div class="wprow">'
       + '<span class="nm" title="' + escS(p.title) + '">' + escS(p.title) + '</span>'
-      + '<span class="pr' + (free ? ' free' : '') + '">' + escS(p.priceLabel || 'no price set') + '</span>'
+      + '<span class="pr' + (p.priceLabel ? '' : ' none') + '">'
+      + escS(p.priceLabel || 'no price set') + '</span>'
       + (p.url
           ? '<button class="wplink" data-wpcopy="' + escS(p.url) + '" aria-label="Copy product URL">'
             + WPICON.link + '<span class="tip">Copy product URL</span></button>'
