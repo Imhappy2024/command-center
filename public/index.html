@@ -77,6 +77,18 @@
   --ff-mono:'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   --ease:cubic-bezier(.32,.72,0,1);
 
+  /* Motion, as three durations and three curves rather than as a hundred
+     magic numbers. --t-fast is a state change you should feel and not watch
+     (a hover, a press); --t is the default; --t-slow is something arriving.
+     --ease-spring overshoots by a hair, which is what makes a dialog read as
+     placed rather than as switched on. Everything here is switched off in one
+     line by the prefers-reduced-motion rule further down. */
+  --t-fast:.13s;
+  --t:.2s;
+  --t-slow:.34s;
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --ease-spring:cubic-bezier(.34,1.42,.64,1);
+
   --rail:252px;
   --r:14px;
   --r-sm:8px; --r-md:11px; --r-lg:16px;
@@ -947,14 +959,25 @@ body.ycmlock{overflow:hidden}
   display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-top:4px;
   font-size:11.5px;color:var(--dimmer);
 }
+/* The kind is an icon rather than a word. VIDEO spelled out is four times the
+   width of the thing it labels and it sat in front of every single row, so it
+   read as a column of noise; the shape says the same in one glyph and gives
+   the title back its space. The word survives as the title attribute, which is
+   also what a screen reader gets. */
 .ibxfrom i{
-  flex:none;font-style:normal;font-family:var(--ff-mono);font-size:9px;
-  letter-spacing:.9px;text-transform:uppercase;color:var(--dimmer);
-  border:1px solid var(--edge);border-radius:4px;padding:1px 4px;
+  flex:none;display:inline-flex;align-items:center;justify-content:center;
+  color:var(--dimmer);
+}
+.ibxfrom i svg{display:block}
+/* The title is the post, not chrome. Brass separates it from the grey
+   snippet under it without shouting like the unread name above it. */
+.ibxfromt{
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  color:color-mix(in srgb,var(--brass) 78%,var(--dim));
 }
 .ibxfrom{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ibxfrom.big{font-size:12.5px;color:var(--dim);margin-top:5px}
-.ibxfrom.big a{color:var(--dim);text-decoration:none;border-bottom:1px solid var(--edge)}
+.ibxfrom.big a{color:inherit;text-decoration:none;border-bottom:1px solid var(--edge)}
 .ibxfrom.big a:hover{color:var(--brass);border-color:var(--brass)}
 
 .ibxav{
@@ -3118,8 +3141,12 @@ body.ycmlock{overflow:hidden}
 .toast.ok{border-color:rgba(143,180,140,.45);color:var(--jade)}
 .toast.bad{border-color:rgba(224,90,74,.5);color:var(--rust);max-width:min(520px,90vw)}
 .toast{background:var(--panel2);border:1px solid var(--edge2);border-radius:10px;padding:9px 14px;
-  font-size:12.5px;color:var(--text);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);animation:rise .28s}
-@keyframes rise{from{opacity:0;transform:translateY(10px)}}
+  font-size:12.5px;color:var(--text);box-shadow:0 20px 40px -20px rgba(0,0,0,.8);
+  animation:toastin var(--t-slow) var(--ease-spring)}
+/* Named apart from the view's `rise`. Both were called that, and a keyframe
+   name is global: this one is declared second, so it was the one every view
+   transition in the app actually ran. */
+@keyframes toastin{from{opacity:0;transform:translateY(10px) scale(.97)}}
 @media (prefers-reduced-motion:reduce){.toast{animation:none}.drawer{transition:none}}
 
 /* ---------- analyst agents ----------
@@ -9938,11 +9965,34 @@ function ibxToolbar(){
    which video or post the comment is on, by name, so the list answers "where
    did this come from" without being opened. A DM has no parent and gets no
    chip. */
+/* The glyph for where a comment came from. Two shapes, because there are two
+   things a comment can hang under: something you watch and something you look
+   at. Anything else keeps its word rather than borrowing a shape that would
+   claim more than we know. */
+const IBX_SRC = {
+  video: ['Video', '<svg viewBox="0 0 16 16" width="13" height="13">'
+    + '<rect x="1.1" y="3.1" width="13.8" height="9.8" rx="2.4" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.25"/>'
+    + '<path d="M6.6 5.9 10.4 8l-3.8 2.1z" fill="currentColor"/></svg>'],
+  post: ['Post', '<svg viewBox="0 0 16 16" width="13" height="13">'
+    + '<rect x="1.6" y="1.6" width="12.8" height="12.8" rx="3" fill="none" '
+    + 'stroke="currentColor" stroke-width="1.25"/>'
+    + '<circle cx="5.9" cy="6" r="1.15" fill="currentColor"/>'
+    + '<path d="M2.4 12.1 6 8.7l2.2 2.1 2.4-2.4 3 3" fill="none" stroke="currentColor" '
+    + 'stroke-width="1.25" stroke-linejoin="round"/></svg>']
+};
+function ibxSrcMark(kind){
+  const hit = IBX_SRC[kind === 'video' ? 'video' : kind === 'media' || kind === 'post' ? 'post' : ''];
+  if (!hit) return { label: String(kind || 'Post'), html: '' };
+  return { label: hit[0], html: hit[1] };
+}
+
 function ibxRow(t){
+  const mark = t.from ? ibxSrcMark(t.from.kind) : null;
   const from = t.from && (t.from.title || t.from.id)
-    ? '<span class="ibxfrom" title="' + escS(t.from.title || t.from.id) + '">'
-      + '<i>' + escS(t.from.kind === 'video' ? 'video' : t.from.kind === 'media' ? 'post' : t.from.kind) + '</i>'
-      + escS(t.from.title || t.from.id) + '</span>'
+    ? '<span class="ibxfrom" title="' + escS(mark.label + ': ' + (t.from.title || t.from.id)) + '">'
+      + '<i aria-hidden="true">' + mark.html + '</i>'
+      + '<span class="ibxfromt">' + escS(t.from.title || t.from.id) + '</span></span>'
     : '';
   return '<div class="ibxrow' + (t.unread ? ' unread' : '') + (IBX.sel === t.id ? ' on' : '')
     + '" data-ibopen="' + escS(t.id) + '" tabindex="0">'
@@ -10098,12 +10148,12 @@ function ibxReader(){
     + '<div class="ibxhl">'
     +   '<b>' + escS(t?.with.name || 'Conversation') + '</b>'
     +   (t?.from && (t.from.title || t.from.id)
-        ? '<span class="ibxfrom big">'
-          + '<i>' + escS(t.from.kind === 'video' ? 'video' : t.from.kind === 'media' ? 'post' : t.from.kind) + '</i>'
-          + (t.from.link
+        ? '<span class="ibxfrom big" title="' + escS(ibxSrcMark(t.from.kind).label) + '">'
+          + '<i aria-hidden="true">' + ibxSrcMark(t.from.kind).html + '</i>'
+          + '<span class="ibxfromt">' + (t.from.link
             ? '<a href="' + escS(t.from.link) + '" target="_blank" rel="noopener">'
               + escS(t.from.title || t.from.id) + '</a>'
-            : escS(t.from.title || t.from.id))
+            : escS(t.from.title || t.from.id)) + '</span>'
           + '</span>'
         : '')
     +   '<div class="ibxtagbar">'
@@ -10593,7 +10643,13 @@ function msgrBubble(it, prev, next){
     +     (body || atts
           ? '<div class="mgbub"' + (it.at ? ' title="' + escS(new Date(it.at).toLocaleString()) + '"' : '') + '>'
             + body + atts + '</div>'
-          : '<div class="mgbub empty">(no content)</div>')
+          /* Not '(no content)', which reads as a bug here. The message
+             arrived; the platform sent nothing in it. What it DID send is on
+             the tooltip, because an unsent message and a message type the API
+             drops are indistinguishable without it. */
+          : '<div class="mgbub empty"' + (it.emptyFields
+              ? ' title="' + escS('Instagram sent: ' + it.emptyFields) + '"' : '')
+            + '>Nothing was sent with this message</div>')
     +     msgrHoverTools(it)
     +   '</div>'
     +   (mine

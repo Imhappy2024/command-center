@@ -216,15 +216,16 @@ export async function discover(accessToken){
    Comments.
    --------------------------------------------------------------------------- */
 
-function commentOut(c, { threadId, igId, username }){
+function commentOut(c, { threadId, igId, username, faces = new Map() }){
   const who = c.from?.username || c.username || null;
+  const p = c.from?.id ? faces.get(String(c.from.id)) : null;
   return {
     externalId: c.id,
     threadExternalId: threadId || c.id,
     replyTo: threadId && threadId !== c.id ? threadId : null,
     authorId: c.from?.id || null,
-    authorName: who ? '@' + who : 'Someone on Instagram',
-    authorAvatar: null,
+    authorName: nameOf(p, who) || 'Someone on Instagram',
+    authorAvatar: p?.avatar || null,
     mine: Boolean(c.from?.id && igId && String(c.from.id) === String(igId))
       || Boolean(username && who && who.toLowerCase() === String(username).toLowerCase()),
     body: c.text || '',
@@ -249,6 +250,27 @@ export async function comments(token, { since = null, media = 25, username = nul
   const threads = [];
   let counted = 0, read = 0;
 
+  /* Names and faces for everyone who commented, resolved once for the whole
+     feed before any thread is built. A comment carries a handle and an id and
+     nothing else, so the display name and the picture are the same profile
+     lookup the conversations use, sharing one cache across both directions of
+     a person appearing as both a commenter and a sender.
+
+     Not everyone resolves. Instagram hands over a profile for people it has a
+     relationship to record, and commentOut falls back to the handle with no
+     picture for the rest, which is exactly what was shown before. */
+  const faces = new Map();
+  const commenters = [];
+  for (const m of feed?.data || []) {
+    for (const c of m.comments?.data || []) {
+      commenters.push(c.from?.id);
+      for (const r of c.replies?.data || []) commenters.push(r.from?.id);
+    }
+  }
+  if (commenters.filter(Boolean).length) {
+    await profiles(token, commenters, faces).catch(() => faces);
+  }
+
   for (const m of feed?.data || []) {
     counted += Number(m.comments_count) || 0;
     const title = String(m.caption || '').replace(/\s+/g, ' ').trim();
@@ -269,10 +291,10 @@ export async function comments(token, { since = null, media = 25, username = nul
 
     for (const c of m.comments?.data || []) {
       read++;
-      const items = [commentOut(c, { threadId: c.id, igId, username })];
+      const items = [commentOut(c, { threadId: c.id, igId, username, faces })];
       for (const r of c.replies?.data || []) {
         read++;
-        items.push(commentOut(r, { threadId: c.id, igId, username }));
+        items.push(commentOut(r, { threadId: c.id, igId, username, faces }));
       }
       items.sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
       const last = Date.parse(items[items.length - 1].createdAt || 0);
@@ -329,7 +351,33 @@ export async function commentOnPost(token, { mediaId, text }){
    carries `shares`, and a photo carries `attachments`. Asking only for the
    text and rendering the silence as "(no content)" describes the request, not
    the conversation. */
-const MSG_FIELDS = 'id,created_time,from,to,message,attachments,shares,story,is_unsupported';
+/* Three field lists, widest first.
+
+   Asking for a subfield Graph does not know on this account type fails the
+   WHOLE request, and a failed request here is a blank bubble -- so the widest
+   list is tried, and each failure steps down rather than giving up. The bare
+   forms in the middle list return Graph defaults, which carry less than the
+   expansion does but more than nothing. */
+const MSG_FIELD_SETS = [
+  'id,created_time,from,to,message,is_unsupported,'
+    + 'attachments{id,name,mime_type,size,file_url,image_data,video_data},'
+    + 'shares{id,name,link,description},story',
+  'id,created_time,from,to,message,attachments,shares,story,is_unsupported',
+  'id,created_time,from,to,message'
+];
+
+/* Which of them this account actually answers. Learned once and kept, because
+   a sync reads hundreds of messages and paying three failed requests each is
+   three hundred wasted calls against a rate limit that is per app.
+
+   Only a complaint ABOUT THE FIELDS moves it. A message that fails because it
+   was deleted says nothing about what this account supports, and demoting the
+   field list on the strength of one dead message would quietly strip the
+   attachments off every message after it. */
+let msgFieldSet = 0;
+const isFieldError = err =>
+  err?.code === 100 || /nonexisting field|Unsupported get request|unknown field/i
+    .test(String(err?.message || ''));
 
 /* One message, with its content.
 
@@ -337,12 +385,17 @@ const MSG_FIELDS = 'id,created_time,from,to,message,attachments,shares,story,is_
    and NOT the bodies -- which is the whole reason the first version rendered
    empty bubbles. Each message has to be fetched. */
 async function messageDetail(token, id){
-  try {
-    return await call(token, id, { fields: MSG_FIELDS });
-  } catch {
-    /* One unreadable message must not lose the thread around it. */
-    return null;
+  for (let i = msgFieldSet; i < MSG_FIELD_SETS.length; i++) {
+    try {
+      return await call(token, id, { fields: MSG_FIELD_SETS[i] });
+    } catch (err) {
+      if (!isFieldError(err)) break;
+      /* This account will not answer that list. Remember it, and step down. */
+      msgFieldSet = i + 1;
+    }
   }
+  /* One unreadable message must not lose the thread around it. */
+  return null;
 }
 
 function messageOut(m, { convId, igId, who = new Map() }){
@@ -351,7 +404,8 @@ function messageOut(m, { convId, igId, who = new Map() }){
   /* Photos, videos, audio and files. Instagram nests the real link a level
      deeper than Messenger does. */
   for (const a of m.attachments?.data || []) {
-    const url = a.image_data?.url || a.video_data?.url || a.file_url || a.url || null;
+    const url = a.image_data?.url || a.video_data?.url || a.file_url || a.url
+      || a.image_data?.preview_url || a.video_data?.preview_url || null;
     const kind = a.image_data ? 'image'
       : a.video_data ? 'video'
       : /audio/i.test(a.mime_type || '') ? 'audio' : 'file';
@@ -374,13 +428,21 @@ function messageOut(m, { convId, igId, who = new Map() }){
     });
   }
 
-  /* Said plainly rather than left blank. Instagram marks what it will not
-     render through the API -- voice notes and some effects -- and an empty
-     bubble is a worse answer than naming it. */
+  /* Said plainly rather than left blank. An empty bubble is the worst of the
+     available answers: it looks like our bug in every case, including the two
+     where it is not.
+
+     is_unsupported is Instagram saying so itself -- voice notes and some
+     effects. The other case is a message that came back with an id, a sender
+     and a time and nothing else, which is what an unsent message and an
+     expired story both look like from here. Which fields Instagram DID return
+     is kept on the item, because that is the only thing that tells those two
+     apart and it costs nothing to carry. */
   const body = m.message || '';
-  const note = body || atts.length ? '' : (m.is_unsupported
-    ? '[a message type Instagram does not send through the API]'
-    : '');
+  const empty = !body && !atts.length;
+  const note = !empty ? '' : (m.is_unsupported
+    ? 'Instagram does not send this kind of message through its API'
+    : 'Instagram returned no content for this message');
 
   return {
     externalId: m.id,
@@ -397,7 +459,10 @@ function messageOut(m, { convId, igId, who = new Map() }){
     likes: 0,
     likedByUs: false,
     createdAt: m.created_time || null,
-    attachments: atts
+    attachments: atts,
+    /* Only when there was nothing to show, and only the field NAMES -- enough
+       to say what Instagram sent, none of what it said. */
+    raw: empty ? { emptyFields: Object.keys(m).sort().join(',') } : null
   };
 }
 

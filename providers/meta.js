@@ -713,7 +713,7 @@ async function post(token, path, params = {}){
 const COMMENT_FIELDS = 'id,message,created_time,like_count,user_likes,parent{id},'
   + 'from{id,name,picture{url}},attachment';
 
-function fbCommentOut(c, { threadId, pageId }){
+function fbCommentOut(c, { threadId, pageId, faces = new Map() }){
   const from = c.from || {};
   return {
     externalId: c.id,
@@ -721,7 +721,11 @@ function fbCommentOut(c, { threadId, pageId }){
     replyTo: c.parent?.id || null,
     authorId: from.id || null,
     authorName: from.name || 'Someone on Facebook',
-    authorAvatar: from.picture?.data?.url || null,
+    /* Graph returns a picture either wrapped in a data envelope or bare,
+       depending on whether the subfield was expanded, and which one you get is
+       not worth predicting -- both are read. */
+    authorAvatar: from.picture?.data?.url || from.picture?.url
+      || faces.get(String(from.id))?.avatar || null,
     /* The Page replying to a comment appears as the Page. By id, because a Page
        and a person can share a name. */
     mine: Boolean(pageId && from.id && String(from.id) === String(pageId)),
@@ -765,6 +769,36 @@ export async function pageComments(token, pageId, { since = null, posts = 25 } =
 
   const cutoff = since ? Date.parse(since) : null;
   const threads = [];
+
+  /* Faces for the commenters Graph did not hand one back for inline.
+
+     picture{url} on a comment's `from` is the cheap way and it is asked for
+     first, because it rides along on a request already being made. It does not
+     always answer -- a scoped id from someone who is not connected to the Page
+     often comes back with a name and nothing else -- and for those the profile
+     node is the second try.
+
+     Capped, and deliberately. Twenty-five posts of fifty comments is more than
+     a thousand people, and spending a thousand requests on avatars would burn
+     a rate limit that is shared with everything else this app reads. The
+     newest comments are the ones on screen, so they are the ones looked up;
+     the rest keep their initial. */
+  const FACE_CAP = 80;
+  const who = new Map();
+  const missing = [];
+  for (const p of feed?.data || []) {
+    for (const c of p.comments?.data || []) {
+      for (const one of [c, ...(c.comments?.data || [])]) {
+        const f = one.from || {};
+        if (f.id && !(f.picture?.data?.url || f.picture?.url)) missing.push(f.id);
+      }
+    }
+  }
+  /* Deduplicated before the cap, not after: one person who commented forty
+     times would otherwise spend forty of the eighty. */
+  const wanted = [...new Set(missing)].slice(0, FACE_CAP);
+  if (wanted.length) await faces(token, wanted, who);
+
   for (const p of feed?.data || []) {
     const title = (p.message || p.story || '').replace(/\s+/g, ' ').trim();
 
@@ -790,9 +824,9 @@ export async function pageComments(token, pageId, { since = null, posts = 25 } =
     };
 
     for (const c of p.comments?.data || []) {
-      const items = [fbCommentOut(c, { threadId: c.id, pageId })];
+      const items = [fbCommentOut(c, { threadId: c.id, pageId, faces: who })];
       for (const r of c.comments?.data || []) {
-        items.push(fbCommentOut(r, { threadId: c.id, pageId }));
+        items.push(fbCommentOut(r, { threadId: c.id, pageId, faces: who }));
       }
       items.sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
       const last = Date.parse(items[items.length - 1].createdAt || 0);
@@ -1056,7 +1090,7 @@ export async function deleteComment(token, commentId){
 const MSG_FIELDS = 'id,message,created_time,from{id,name,email},to{data{id,name}},'
   + 'attachments{name,mime_type,image_data,file_url},sticker';
 
-function msgOut(m, { threadId, selfIds }){
+function msgOut(m, { threadId, selfIds, faces = new Map() }){
   const from = m.from || {};
   const atts = (m.attachments?.data || []).map(a => ({
     kind: a.mime_type && /^image\//.test(a.mime_type) ? 'image' : (a.mime_type || 'file'),
@@ -1069,8 +1103,8 @@ function msgOut(m, { threadId, selfIds }){
     threadExternalId: threadId,
     replyTo: null,
     authorId: from.id || null,
-    authorName: from.name || 'Unknown',
-    authorAvatar: null,
+    authorName: faces.get(String(from.id))?.name || from.name || 'Unknown',
+    authorAvatar: faces.get(String(from.id))?.avatar || null,
     mine: Boolean(from.id && selfIds.has(String(from.id))),
     body: m.message || '',
     likes: 0,
@@ -1078,6 +1112,44 @@ function msgOut(m, { threadId, selfIds }){
     createdAt: m.created_time || null,
     attachments: atts
   };
+}
+
+/* The face and the name behind a scoped id.
+
+   A conversation gives a participant an id, a name and nothing to look at, and
+   a message's `from` gives less than that -- picture is not a field on a
+   messaging participant, and asking for one there fails the WHOLE request and
+   takes the conversation list with it. The picture lives on the User Profile
+   API instead: the person's own node, read with the Page token, which is the
+   documented way and the only one that works.
+
+   One request per person per pass, cached, because the same handful of people
+   recur across forty conversations. Failure is not fatal -- an initial in a
+   circle is what was there before and is still true.
+
+   Two attempts, narrowing, for the same reason it is done on the Instagram
+   side: Graph refuses the whole request over one unknown field, and the two
+   platforms do not name these fields alike. Instagram scoped ids carry name
+   and username; Messenger ones carry first_name and last_name. */
+async function faces(token, ids, cache = new Map()){
+  const want = [...new Set(ids.filter(Boolean).map(String))].filter(id => !cache.has(id));
+  await Promise.all(want.map(async id => {
+    for (const fields of ['name,username,profile_pic', 'first_name,last_name,profile_pic',
+                          'first_name,last_name']) {
+      try {
+        const { data: p } = await call(token, `/${id}`, { fields });
+        const name = p.name
+          || [p.first_name, p.last_name].filter(Boolean).join(' ')
+          || (p.username ? '@' + p.username : null);
+        cache.set(id, { name: name || null, avatar: p.profile_pic || null });
+        return;
+      } catch { /* try the narrower set */ }
+    }
+    /* Meta will not hand over a profile for everyone: somebody who blocked the
+       Page, a deleted account, a thread older than the grant. */
+    cache.set(id, null);
+  }));
+  return cache;
 }
 
 /* Conversations for a Page, or for an Instagram account under that Page.
@@ -1112,12 +1184,23 @@ export async function conversations(token, { pageId, platform = 'facebook', igId
      lists the Page and an Instagram conversation lists the Instagram account,
      and a thread can list either depending on the edge. */
   const selfIds = new Set([String(pageId), igId ? String(igId) : null].filter(Boolean));
+  const convs = data?.data || [];
 
-  return (data?.data || []).map(c => {
+  /* Everybody who appears anywhere in this batch, looked up once, before any
+     thread is shaped -- the same person is usually a participant on one thread
+     and the sender on several messages inside it. */
+  const seen = new Map();
+  await faces(token, convs.flatMap(c => [
+    ...(c.participants?.data || []).map(p => p.id),
+    ...(c.messages?.data || []).map(m => m.from?.id)
+  ]).filter(id => id && !selfIds.has(String(id))), seen);
+
+  return convs.map(c => {
     const people = c.participants?.data || [];
     const them = people.find(p => !selfIds.has(String(p.id))) || people[0] || {};
+    const theirFace = seen.get(String(them.id));
     const items = (c.messages?.data || [])
-      .map(m => msgOut(m, { threadId: c.id, selfIds }))
+      .map(m => msgOut(m, { threadId: c.id, selfIds, faces: seen }))
       .sort((a, b) => String(a.createdAt) < String(b.createdAt) ? -1 : 1);
     return {
       externalId: c.id,
@@ -1126,7 +1209,9 @@ export async function conversations(token, { pageId, platform = 'facebook', igId
       parentTitle: null,
       parentLink: null,
       withId: them.id || null,
-      withName: them.name || (them.username ? '@' + them.username : 'Unknown'),
+      withName: them.name || theirFace?.name
+        || (them.username ? '@' + them.username : 'Unknown'),
+      withAvatar: theirFace?.avatar || null,
       totalItems: Number(c.message_count) || items.length,
       unread: Number(c.unread_count) > 0,
       canReply: true,
