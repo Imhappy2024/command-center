@@ -99,19 +99,103 @@ const longDate = value => { const d = asDate(value); return d ? fullDate(d) : ''
 
 /* GHL email bodies are HTML. A thread bubble wants text, and rendering sender
    HTML inside the dashboard would be handing a stranger the page. */
+/* HTML in, readable text out. Sender markup is never injected into the page,
+   so everything a marketing email carries has to survive as text or not at all.
+
+   What the first version dropped and this one does not:
+
+     <head>   a transactional email puts a <title>, a preheader and several
+              kilobytes of CSS in there. <style> was stripped; the rest of the
+              head was not, so the flattened body opened with the subject line
+              twice and a paragraph of "View this email in your browser".
+     <!-- --> Outlook conditional comments are the bulk of a templated email
+              and are pure markup. They came through as text.
+     &#8217;  numeric entities. Left as-is they read as literal &#8217; in the
+              middle of a word.
+     <a>      the href. A "Confirm your booking" button flattened to the three
+              words and lost the link entirely — which is the whole point of
+              the message. The URL is kept beside the text now, and only when
+              the text is not already the URL. */
 function flatten(html){
   if (!html) return '';
   return String(html)
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
-    .replace(/<\/(p|div|tr|h[1-6]|li)>/gi, '\n')
+    .replace(/<(script|style|head)[\s\S]*?<\/\1>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<a\b[^>]*\bhref\s*=\s*["']?(https?:\/\/[^"'\s>]+)[^>]*>([\s\S]*?)<\/a>/gi,
+      (m, href, text) => {
+        const label = text.replace(/<[^>]+>/g, '').trim();
+        if (!label) return ' ' + href + ' ';
+        /* Already the link, or a fragment of it: printing both is noise. */
+        if (href.includes(label) || label.includes(href)) return ' ' + href + ' ';
+        return ' ' + label + ' ' + href + ' ';
+      })
+    .replace(/<\/(p|div|tr|h[1-6]|li|table)>/gi, '\n')
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<[^>]+>/g, '')
     .replace(/&nbsp;/gi, ' ')
+    .replace(/&#(\d{1,7});/g, (m, n) => { const c = Number(n); return c > 0 && c < 0x110000 ? String.fromCodePoint(c) : m; })
+    .replace(/&#x([0-9a-f]{1,6});/gi, (m, n) => { const c = parseInt(n, 16); return c > 0 && c < 0x110000 ? String.fromCodePoint(c) : m; })
     .replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
     .replace(/[ \t]+/g, ' ')
+    .replace(/ *\n */g, '\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
+}
+
+/* Every attachment as {url, name, kind}, from whichever shape the row holds:
+   GHL's message mirror stores a bare array of URLs, the inbound webhook table
+   stores the same under another column, and some payloads carry objects. The
+   view used to receive `attachments: 3` and nothing else, so an image sent by
+   a lead was the word "3 files". */
+const IMAGE_EXT = /\.(png|jpe?g|gif|webp|bmp|svg|heic|avif)(\?|#|$)/i;
+const AUDIO_EXT = /\.(mp3|m4a|ogg|oga|wav|amr|aac)(\?|#|$)/i;
+const VIDEO_EXT = /\.(mp4|mov|webm|m4v|3gp)(\?|#|$)/i;
+
+function attachmentsOf(value){
+  const raw = Array.isArray(value) ? value : (value ? [value] : []);
+  const out = [];
+  for (const item of raw) {
+    const url = typeof item === 'string' ? item
+      : (item && (item.url || item.link || item.src || item.href)) || '';
+    if (!/^https?:\/\//i.test(String(url))) continue;
+    const clean = String(url);
+    /* The filename is the last path segment with its query cut off. GHL's
+       storage URLs carry one; a signed URL may not, and then the kind is all
+       there is to say. */
+    let name = (typeof item === 'object' && item && (item.name || item.fileName)) || '';
+    if (!name) {
+      try { name = decodeURIComponent(new URL(clean).pathname.split('/').filter(Boolean).pop() || ''); }
+      catch { name = ''; }
+    }
+    const kind = IMAGE_EXT.test(clean) ? 'image'
+      : AUDIO_EXT.test(clean) ? 'audio'
+      : VIDEO_EXT.test(clean) ? 'video' : 'file';
+    out.push({ url: clean, name: name || null, kind });
+  }
+  return out;
+}
+
+/* Inline images out of an HTML body, so a photo pasted into an email is not
+   silently deleted by flatten(). Tracking pixels and spacer GIFs are the bulk
+   of what <img> means in a marketing template, so anything that declares
+   itself one pixel wide is dropped, and the list is capped. */
+function inlineImages(html){
+  if (!html) return [];
+  const out = [];
+  const re = /<img\b([^>]*)>/gi;
+  let m;
+  while ((m = re.exec(String(html))) && out.length < 8) {
+    const tag = m[1];
+    const src = (/\bsrc\s*=\s*["']?(https?:\/\/[^"'\s>]+)/i.exec(tag) || [])[1];
+    if (!src) continue;
+    const w = Number((/\bwidth\s*=\s*["']?(\d+)/i.exec(tag) || [])[1] || 0);
+    const h = Number((/\bheight\s*=\s*["']?(\d+)/i.exec(tag) || [])[1] || 0);
+    if ((w && w <= 2) || (h && h <= 2)) continue;
+    if (out.some(x => x.url === src)) continue;
+    out.push({ url: src, name: null, kind: 'image' });
+  }
+  return out;
 }
 
 export function ghlRoutes({ env, auth, live = null }){
@@ -471,14 +555,21 @@ export function ghlRoutes({ env, auth, live = null }){
         continue;
       }
 
+      const isHtml = m.content_type === 'text/html';
+      /* Inline images come after the real attachments and only when the row
+         has none of its own — a template's logo is not a file the lead sent. */
+      const files = attachmentsOf(m.attachments);
+      const media = files.length ? files : (isHtml ? inlineImages(m.body) : []);
+
       thread.push({
         ...common,
         dir: dirOf(m.direction),
         channel: channelOf(m.message_type),
         subject: m.subject || null,
         /* Flattened, not raw HTML: sender markup is never injected into the page. */
-        body: m.content_type === 'text/html' ? flatten(m.body) : (m.body || ''),
-        attachments: Array.isArray(m.attachments) ? m.attachments.length : 0,
+        body: isHtml ? flatten(m.body) : (m.body || ''),
+        files: media,
+        attachments: media.length,
         actor: m.actor || null,
         status: m.status || null,
         /* Distinguishes a message this dashboard sent from one GHL reported. */
@@ -489,16 +580,20 @@ export function ghlRoutes({ env, auth, live = null }){
     /* Inbound webhooks arrive with no ids, so they cannot be keyed into
        ghl_message. They are real messages the thread must still show, marked so
        nobody mistakes them for reconciled history. */
-    const pending = (await pendingInbound(found.locationId, found.contactId)).map(p => ({
-      dir: 'in',
-      channel: 'other',
-      body: p.body_text || flatten(p.body),
-      day: dayLabel(p.received_at),
-      time: clockLabel(p.received_at),
-      sentAt: p.received_at,
-      unreconciled: true,
-      attachments: Array.isArray(p.attachment_urls) ? p.attachment_urls.length : 0
-    }));
+    const pending = (await pendingInbound(found.locationId, found.contactId)).map(p => {
+      const files = attachmentsOf(p.attachment_urls);
+      return {
+        dir: 'in',
+        channel: 'other',
+        body: p.body_text || flatten(p.body),
+        day: dayLabel(p.received_at),
+        time: clockLabel(p.received_at),
+        sentAt: p.received_at,
+        unreconciled: true,
+        files,
+        attachments: files.length
+      };
+    });
 
     res.json({ thread, activity, pending });
   }));
