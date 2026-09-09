@@ -135,7 +135,7 @@ const OFFLINE_HTML = `<!doctype html><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Command Center — offline</title>
 <style>
-  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0E1120;
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0E0D0C;
     color:#c9cede;font:15px/1.6 ui-sans-serif,system-ui,"Segoe UI",Roboto,sans-serif;
     padding:24px;text-align:center}
   b{display:block;font-size:19px;color:#eceef3;margin-bottom:8px;font-weight:600}
