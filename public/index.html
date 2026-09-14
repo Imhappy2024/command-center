@@ -1478,11 +1478,23 @@ body.ycmlock{overflow:hidden}
 /* Two cards above the list: what is running, and what is next. They answer
    the two questions somebody opens a calendar with, and they answer them
    without the reader scanning a day of rows to find which one is now. */
-/* Stacked. Side by side they competed for the same glance; one above the
-   other reads in the order the day happens -- what is on, then what is next. */
-.clcards{display:grid;grid-template-columns:1fr;gap:10px;padding:14px 18px 4px}
+/* Side by side, with what is running given the wider half. The next meeting
+   is a number to glance at; the one already going is the thing that needs a
+   name and a Join button read at speed.
+
+   .one is for when there is nothing running: the remaining card takes the row
+   rather than leaving a hole where the other used to be. */
+.clcards{display:grid;grid-template-columns:1.45fr 1fr;gap:10px;padding:14px 18px 4px}
+.clcards.one{grid-template-columns:1fr}
+@media(max-width:860px){.clcards{grid-template-columns:1fr}}
 .clcard{border:1px solid var(--edge);border-radius:10px;padding:13px 15px;
-  background:var(--panel2);min-width:0}
+  background:var(--panel2);min-width:0;width:100%;text-align:left;font:inherit;
+  cursor:pointer;display:block;
+  transition:border-color .13s var(--ease),transform .13s var(--ease)}
+.clcard:hover{border-color:var(--edge2);transform:translateY(-1px)}
+.clcard:focus-visible{outline:2px solid var(--brass);outline-offset:2px}
+.clcard.live:hover{border-color:color-mix(in srgb,var(--jade) 75%,transparent)}
+.clcard.soon:hover{border-color:color-mix(in srgb,var(--brass) 70%,transparent)}
 .clcard.live{border-color:color-mix(in srgb,var(--jade) 55%,transparent);
   background:color-mix(in srgb,var(--jade) 9%,var(--panel2))}
 .clcard.soon{border-color:color-mix(in srgb,var(--brass) 45%,transparent)}
@@ -4138,7 +4150,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
         <button data-v="day">Day</button><button data-v="week" class="on">Week</button><button data-v="month">Month</button>
       </div>
       <div class="seg" id="cal-mode">
-        <button data-m="grid" class="on">Grid</button><button data-m="list">List</button>
+        <button data-m="grid">Grid</button><button data-m="list" class="on">List</button>
       </div>
       <button class="btn calbell" id="cal-bell" title="Alert me when a meeting is about to start">Alerts</button>
       <div class="stepper">
@@ -5265,10 +5277,11 @@ let EVENTS = [];
    design can be judged against populated views — pressing it turns demo on,
    pressing it again reloads from the API. */
 const CAL = { view:'week', anchor:new Date(), hidden:new Set(), sel:null, demo:false,
-  /* grid or list. The same events and the same range either way -- this only
-     changes the shape they are drawn in. A month of short calls is unreadable
-     as rectangles and perfectly readable as a list. */
-  mode:'grid',
+  /* list or grid. The same events and the same range either way -- this only
+     changes the shape they are drawn in, and list is the shape people actually
+     read: a month of short calls is unreadable as rectangles, and nothing is
+     truncated to fit a column two hundred pixels wide. */
+  mode:'list',
   /* Which event the countdown is currently counting to, so the clock can tick
      the number without redrawing the block under somebody's cursor. */
   cdFor:null };
@@ -5738,11 +5751,22 @@ function monthGrid(){
    Both are always drawn, even when there is nothing running, because a card
    that appears and disappears moves everything underneath it -- and "nothing
    is running" is itself worth reading. */
+/* The two cards over the list.
+
+   Each is a button that opens the meeting, so the card is not only a status
+   light -- clicking it puts the details in the rail, the same thing clicking
+   the event itself does. The Join link inside stops the click from reaching
+   the card, because joining and reading about it are different intentions.
+
+   Nothing running draws NOTHING. A card that says "nothing is running" is a
+   row of furniture reporting the absence of news; the next meeting simply
+   moves over and takes the space. */
 function listCards(){
   const { live, next } = liveAndNext();
+  if (!live && !next) return '';
 
   const nowCard = live
-    ? '<div class="clcard live" data-ev="' + live.id + '">'
+    ? '<button class="clcard live" data-ev="' + live.id + '">'
       + '<div class="clhead"><span class="cldot"></span>Happening now</div>'
       /* No clock. Counting down the end of a meeting you are already in is
          the wrong number; that it has begun is the whole message. */
@@ -5750,26 +5774,21 @@ function listCards(){
       + '<div class="clwho">' + escC(live.title) + '</div>'
       + '<div class="clwhen">' + escC(whenLine(live)) + '</div>'
       + joinBtn(live, 'Join now')
-      + '</div>'
-    : '<div class="clcard idle">'
-      + '<div class="clhead">Happening now</div>'
-      + '<div class="clbig">Nothing running</div>'
-      + '</div>';
+      + '</button>'
+    : '';
 
   const nextCard = next
-    ? '<div class="clcard soon" data-ev="' + next.id + '">'
+    ? '<button class="clcard soon" data-ev="' + next.id + '">'
       + '<div class="clhead">Starts in</div>'
       + ticker(next.start, 'clbig')
       + '<div class="clwho">' + escC(next.title) + '</div>'
       + '<div class="clwhen">' + escC(whenLine(next)) + '</div>'
       + joinBtn(next, 'Join')
-      + '</div>'
-    : '<div class="clcard idle">'
-      + '<div class="clhead">Up next</div>'
-      + '<div class="clbig">Nothing else scheduled</div>'
-      + '</div>';
+      + '</button>'
+    : '';
 
-  return '<div class="clcards">' + nowCard + nextCard + '</div>';
+  return '<div class="clcards' + (live && next ? '' : ' one') + '">'
+    + nowCard + nextCard + '</div>';
 }
 
 function listView(days){
@@ -6134,15 +6153,7 @@ function sidePanel(){
     + (e.location ? '<small>' + linkify(e.location) + '</small>' : '')
     + '</span></div>').join('');
 
-  /* The list draws the same two facts as cards across the top of it, so the
-     rail's copy is a second answer to a question already answered on the same
-     screen. Grid keeps it: there are no cards there. */
-  return (CAL.mode === 'list' ? '' : countdownBlock())
-    + '<div class="sblock"><h4>Up next</h4>'
-    + (upcoming.length ? list(upcoming)
-       : '<div style="font-size:12px;color:var(--dimmer);line-height:1.6">Nothing left today.</div>')
-    + '</div>'
-    + '<div class="sblock"><h4>Open blocks today</h4>'
+  const blocks = '<div class="sblock"><h4>Open blocks today</h4>'
     + (gaps.length
        ? gaps.map(g => '<div class="gap"><span class="d">' + hhmm(g.from) + ' \u2013 ' + hhmm(g.to)
            + '</span><span class="len">' + (g.m >= 60 ? Math.floor(g.m/60) + 'h' + (g.m%60 ? ' ' + g.m%60 + 'm' : '') : g.m + 'm')
@@ -6150,6 +6161,22 @@ function sidePanel(){
        : '<div style="font-size:12px;color:var(--dimmer);line-height:1.6">'
          + (today.length ? 'No gaps over 45 minutes.' : 'Whole day is open.') + '</div>')
     + '</div>';
+
+  /* The list draws all of this across the top of itself -- the two cards, then
+     every event of the day as rows directly underneath. So the rail's countdown
+     AND its Up next are both second answers to questions the same screen has
+     already answered. Grid keeps both: there are no cards and no rows there,
+     only blocks in a week.
+
+     Open blocks survives either way. Nothing else on the screen works gaps out. */
+  if (CAL.mode === 'list') return blocks;
+
+  return countdownBlock()
+    + '<div class="sblock"><h4>Up next</h4>'
+    + (upcoming.length ? list(upcoming)
+       : '<div style="font-size:12px;color:var(--dimmer);line-height:1.6">Nothing left today.</div>')
+    + '</div>'
+    + blocks;
 }
 
 /* ---------- render ---------- */
