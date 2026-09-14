@@ -381,13 +381,46 @@ main{min-width:0;display:flex;flex-direction:column}
   .pipe{grid-template-columns:repeat(2,1fr)}
 }
 @media(max-width:820px){
-  .shell{grid-template-columns:1fr}
-  .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--edge)}
-  nav{display:flex;overflow-x:auto;padding:8px}
-  .navitem{grid-template-columns:auto;flex:none;padding:8px 12px}
+  /* minmax(0,1fr), not 1fr. A grid item's min-width is auto, so the rail was
+     free to grow to the width of its own content -- ten tabs, 719px of them --
+     and every view on a phone inherited that as a floor and scrolled sideways.
+     The nav scrolls inside itself only once it is allowed to be narrower than
+     what it holds. */
+  .shell{grid-template-columns:minmax(0,1fr)}
+  .rail{position:static;height:auto;border-right:0;border-bottom:1px solid var(--edge);
+    min-width:0}
+  main{min-width:0}
+  /* flex:1 and overflow-y:auto are for a tall column; on a bar they made the
+     strip stretch and every tab stretch with it. align-items:center lets a tab
+     be its own height instead of the row's. */
+  nav{display:flex;align-items:center;overflow-x:auto;overflow-y:hidden;
+    padding:6px 8px;min-width:0;flex:none;
+    scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  nav::-webkit-scrollbar{display:none}
+  /* A tab, not a row. The base rule is width:100% with a three-column grid,
+     which on a horizontal bar made every item as wide as the screen and two
+     lines tall -- one destination visible, a third of the phone spent on it.
+     Inline, auto width, and no smaller than a thumb. */
+  .navitem{display:flex;align-items:center;gap:8px;width:auto;flex:none;
+    padding:9px 13px;min-height:44px;white-space:nowrap}
   .navitem .src,.navitem .badge{display:none}
+  .navitem .label{font-size:13px}
   .navitem.on::before{left:9px;right:9px;top:auto;bottom:2px;width:auto;height:2px}
+  /* The brand is a strip on a phone, not a masthead. */
+  .brand{padding:10px 14px}
   .railfoot{display:none}
+
+  /* A thumb is not a mouse pointer. Every control that gets tapped gets a 40px
+     box: Apple asks for 44, and 40 is what these toolbars take without wrapping
+     onto a third line. Desktop is untouched -- this whole block is behind the
+     phone breakpoint, where the same controls sit under a cursor. */
+  .btn,.tgl,.stagesel,.seg button,.ubitem,.prthb,.calbell,
+  select,input[type=text],input[type=search],input[type=number]{min-height:40px}
+  .btn.ic{min-width:40px}
+  /* The command bar's input measures 16px because the box around it is the
+     target. Filling the label makes the two agree. */
+  .cmdbar{min-height:44px}
+  .cmdbar input{height:100%;min-height:0}
   .g2,.g3,.g4,.g5{grid-template-columns:1fr}
   .view{padding:18px 16px 50px}
   .clock{display:none}
@@ -4241,13 +4274,23 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
       </div>
     </div>
     <div id="pr-body"></div>
-    <div class="prscrim" id="pr-scrim"></div>
-    <aside class="prpanel" id="pr-panel" aria-hidden="true">
-      <div class="prphead" id="pr-phead"></div>
-      <div id="pr-ptools"></div>
-      <div class="prpbody" id="pr-pbody"></div>
-    </aside>
   </section>
+
+  <!-- The property slide-over lives OUTSIDE the view it belongs to, next to the
+       other full-screen overlays.
+
+       Inside it, the view is its containing block rather than the viewport, and
+       a fixed panel parked at translateX(102%) then extends that view's scroll
+       area instead of hanging off the edge of the world. On a phone that made
+       the properties page 788px wide -- 390 of content and 398 of a drawer
+       nobody had opened -- and it was the last view still scrolling sideways.
+       The social drawer was always out here, which is why it never did. -->
+  <div class="prscrim" id="pr-scrim"></div>
+  <aside class="prpanel" id="pr-panel" aria-hidden="true">
+    <div class="prphead" id="pr-phead"></div>
+    <div id="pr-ptools"></div>
+    <div class="prpbody" id="pr-pbody"></div>
+  </aside>
 
   <!-- FINANCIAL -->
   <section class="view" id="v-financial">
