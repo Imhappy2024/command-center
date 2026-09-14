@@ -237,6 +237,15 @@ export async function listEvents({ token, cal, from, to }){
       cal,
       title: e.summary,
       location: e.location,
+      /* hangoutLink is the Meet link. conferenceData carries everything else
+         Google knows about -- a Zoom add-on writes an entry point there too --
+         and the video one is the one worth a button. Neither needs asking for:
+         events.list returns the whole resource when no `fields` is set. */
+      join: e.hangoutLink
+        || (e.conferenceData?.entryPoints || [])
+          .find(p => p.entryPointType === 'video')?.uri
+        || null,
+      notes: e.description,
       attendees: (e.attendees || []).map(a => a.displayName || a.email).filter(Boolean),
       // All-day events carry start.date; timed ones carry start.dateTime.
       start: e.start?.dateTime || e.start?.date,

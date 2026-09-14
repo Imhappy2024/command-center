@@ -150,7 +150,8 @@ export async function listEvents({ token, cal, from, to }){
   const params = new URLSearchParams({
     startDateTime: from,
     endDateTime: to,
-    $select: 'id,subject,location,attendees,start,end,isAllDay',
+    $select: 'id,subject,location,attendees,start,end,isAllDay,'
+      + 'onlineMeeting,onlineMeetingUrl,isOnlineMeeting,bodyPreview',
     $orderby: 'start/dateTime',
     $top: '250'
   });
@@ -181,6 +182,12 @@ export async function listEvents({ token, cal, from, to }){
       cal,
       title: e.subject,
       location: e.location?.displayName,
+      /* Teams fills onlineMeeting.joinUrl. onlineMeetingUrl is the older
+         field and is still what some tenants populate, so both are read.
+         Anything else -- a Zoom link pasted into the invite -- comes out of
+         the body preview, which is why it is selected at all. */
+      join: e.onlineMeeting?.joinUrl || e.onlineMeetingUrl || null,
+      notes: e.bodyPreview,
       attendees: (e.attendees || [])
         .map(a => a.emailAddress?.name || a.emailAddress?.address)
         .filter(Boolean),

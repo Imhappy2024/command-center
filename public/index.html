@@ -1377,6 +1377,50 @@ body.ycmlock{overflow:hidden}
 }
 .ev:hover{background:color-mix(in srgb,var(--c) 34%,var(--ink2));z-index:5}
 .ev.on{background:color-mix(in srgb,var(--c) 46%,var(--ink2));box-shadow:0 0 0 1px var(--c)}
+
+/* Three weights, because a calendar has three kinds of thing on it and one
+   colour for all of them is what made this unreadable. Every event took its
+   colour from its ACCOUNT, and with a single account connected that is one
+   colour, so a seven-hour block of held time and a Zoom call at 09:00 drew
+   identically -- sixty gold rectangles, no foreground.
+
+   The account colour has not gone; it is the left edge, which is where an
+   identity belongs when there is only ever one of it on screen. What the FILL
+   now says is what kind of thing this is. */
+
+/* Held time: a long stretch with nobody in it and nothing to join. It is the
+   background of the day, not an appointment, so it is drawn as background --
+   hatched, unfilled, and it stops shouting over the things inside it. */
+.ev.held{
+  background:repeating-linear-gradient(135deg,
+    color-mix(in srgb,var(--c) 9%,transparent) 0 6px,
+    transparent 6px 12px);
+  border-left-color:color-mix(in srgb,var(--c) 45%,transparent);
+  border-left-style:dashed;z-index:1;
+}
+.ev.held b{color:var(--dimmer);font-variation-settings:'wght' 500}
+.ev.held small{color:var(--dimmer)}
+.ev.held:hover{background:color-mix(in srgb,var(--c) 14%,var(--ink2));z-index:5}
+
+/* A meeting you can actually join. The only thing on the grid that gets the
+   accent at full strength, which is what makes it findable at a glance. */
+.ev.meet{
+  background:color-mix(in srgb,var(--brass) 30%,var(--ink2));
+  border-left:2.5px solid var(--brass);
+  box-shadow:inset 0 1px 0 color-mix(in srgb,var(--brass) 30%,transparent);
+}
+.ev.meet:hover{background:color-mix(in srgb,var(--brass) 44%,var(--ink2))}
+.ev.meet b{color:var(--cream)}
+/* The camera, so the difference survives being read in greyscale or by
+   somebody who cannot separate brass from sage. */
+.ev .cam{position:absolute;top:4px;right:5px;width:11px;height:11px;opacity:.85}
+.ev .cam svg{width:100%;height:100%;fill:var(--brass);display:block}
+.ev.held .cam{display:none}
+
+/* Everything else: a real appointment with no link. Neutral panel, so it sits
+   between the two. */
+.ev.plain{background:var(--panel2);border-left:2.5px solid var(--c)}
+.ev.plain:hover{background:color-mix(in srgb,var(--c) 24%,var(--panel2))}
 .ev b{display:block;font-size:11px;color:var(--cream);font-variation-settings:'wght' 600;line-height:1.3;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ev small{display:block;font-family:var(--ff-mono);font-size:9px;color:var(--dim);margin-top:1px}
@@ -1403,7 +1447,60 @@ body.ycmlock{overflow:hidden}
   padding:2px 6px;font-size:10.5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   background:color-mix(in srgb,var(--c) 26%,var(--ink2));border-left:2px solid var(--c)}
 .mev:hover{background:color-mix(in srgb,var(--c) 40%,var(--ink2))}
+.mev.meet{background:color-mix(in srgb,var(--brass) 32%,var(--ink2));border-left-color:var(--brass)}
+.mev.held{background:transparent;border-left-style:dashed;color:var(--dimmer)}
+.adev.meet{background:color-mix(in srgb,var(--brass) 30%,var(--ink2));border-left-color:var(--brass)}
+.adev.held{background:transparent;border-left-style:dashed;color:var(--dimmer)}
 .mmore{font-family:var(--ff-mono);font-size:9px;color:var(--dimmer);padding-left:4px}
+
+/* The grid/list switch. A month of forty-minute calls is unreadable as
+   rectangles and perfectly readable as a list, and which one somebody wants
+   depends on the question they are asking, not on the week. */
+.cllist{padding:4px 0 10px}
+.clday{display:grid;grid-template-columns:104px minmax(0,1fr);gap:14px;
+  padding:13px 18px;border-bottom:1px solid var(--edge)}
+.clday:last-child{border-bottom:0}
+.clday.today .cllab b{color:var(--brass)}
+.cllab{position:sticky;top:0}
+.cllab b{display:block;font-size:13px;color:var(--cream);font-variation-settings:'wght' 600}
+.cllab span{display:block;font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);margin-top:2px}
+.clrow{display:grid;grid-template-columns:96px 3px minmax(0,1fr) auto;gap:11px;align-items:start;
+  padding:8px 0;border-bottom:1px solid var(--panel2);cursor:pointer;text-align:left;
+  background:none;border-left:0;border-right:0;border-top:0;width:100%}
+.clrow:last-child{border-bottom:0}
+.clrow:hover .cltitle{color:var(--cream)}
+.clrow .cltime{font-family:var(--ff-mono);font-size:11px;color:var(--dim);padding-top:2px}
+.clrow .cltime em{display:block;font-style:normal;font-size:9.5px;color:var(--dimmer);margin-top:2px}
+.clrow .clbar{align-self:stretch;border-radius:2px;background:var(--c);min-height:18px}
+.clrow.meet .clbar{background:var(--brass)}
+.clrow.held .clbar{background:color-mix(in srgb,var(--c) 35%,transparent)}
+.cltitle{font-size:13px;color:var(--dim);font-variation-settings:'wght' 500;line-height:1.35}
+.clrow.held .cltitle{color:var(--dimmer)}
+.clmeta{display:block;font-size:11px;color:var(--dimmer);margin-top:3px;line-height:1.5;
+  overflow-wrap:anywhere}
+.clmeta a,.detrow a,.upnext a{color:var(--brass);text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb,var(--brass) 40%,transparent)}
+.clmeta a:hover,.detrow a:hover,.upnext a:hover{border-bottom-color:var(--brass)}
+/* The join button is the point of the row for anything with a link in it. */
+.cljoin{display:inline-flex;align-items:center;gap:5px;flex:none;align-self:center;
+  border:1px solid var(--brass);border-radius:6px;padding:4px 10px;font-size:11.5px;
+  color:var(--brass);background:transparent;cursor:pointer;text-decoration:none;
+  transition:background .12s,color .12s}
+.cljoin:hover{background:var(--brass);color:#241A08}
+.cljoin svg{width:11px;height:11px;fill:currentColor}
+
+/* The countdown. Its own block at the top of the rail, because "how long have
+   I got" is the question people actually open a calendar to answer. */
+.cdown{padding:15px 17px;border-bottom:1px solid var(--edge)}
+.cdown .lab{font-family:var(--ff-mono);font-size:9px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dimmer)}
+.cdown .big{font-family:var(--ff-mono);font-size:27px;color:var(--brass);
+  font-variation-settings:'wght' 500;line-height:1.15;margin-top:6px;
+  font-variant-numeric:tabular-nums}
+.cdown.now .big{color:var(--jade)}
+.cdown .who{font-size:12.5px;color:var(--cream);margin-top:5px;line-height:1.4}
+.cdown .when{font-size:11px;color:var(--dimmer);margin-top:3px}
+.cdown .cljoin{margin-top:10px}
 
 /* side panel */
 .sblock{padding:15px 17px;border-bottom:1px solid var(--edge)}
@@ -3940,6 +4037,9 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
       <div class="seg" id="cal-seg">
         <button data-v="day">Day</button><button data-v="week" class="on">Week</button><button data-v="month">Month</button>
       </div>
+      <div class="seg" id="cal-mode">
+        <button data-m="grid" class="on">Grid</button><button data-m="list">List</button>
+      </div>
       <div class="stepper">
         <button class="btn ic" id="cal-prev" aria-label="Previous">‹</button>
         <button class="btn" id="cal-today">Today</button>
@@ -5063,11 +5163,76 @@ let EVENTS = [];
 /* demo starts off: the boot state is real data. The switch is still here so the
    design can be judged against populated views — pressing it turns demo on,
    pressing it again reloads from the API. */
-const CAL = { view:'week', anchor:new Date(), hidden:new Set(), sel:null, demo:false };
+const CAL = { view:'week', anchor:new Date(), hidden:new Set(), sel:null, demo:false,
+  /* grid or list. The same events and the same range either way -- this only
+     changes the shape they are drawn in. A month of short calls is unreadable
+     as rectangles and perfectly readable as a list. */
+  mode:'grid',
+  /* Which event the countdown is currently counting to, so the clock can tick
+     the number without redrawing the block under somebody's cursor. */
+  cdFor:null };
 
 const DAY_START = 6, DAY_END = 22, ROWH = 46;
 const DAYNAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+/* What KIND of thing an event is. Derived from the event itself rather than
+   configured, because nobody is going to tag six hundred calendar entries.
+
+     meet  -- there is a link to join. The only kind that gets the accent.
+     held  -- a long stretch with nobody in it and nothing to join: "NO Calls",
+              "Focus", an all-day marker. Background, not appointment.
+     plain -- a real appointment with no link.
+
+   Four hours is the line, and it moved up from three after looking at the
+   result: a three-hour open house with nobody listed is a real thing on a real
+   day, and drawing it as background was wrong. The case this exists for is the
+   seven-hour "NO Calls" band, and four hours still catches every one of those
+   while leaving genuine half-days alone. Attendees always win -- nothing with a
+   person on it is ever called held, at any length. */
+const CAL_HELD_MINUTES = 240;
+const attendeeCount = e => Array.isArray(e.attendees)
+  ? e.attendees.length : (String(e.attendees || '').trim() ? 1 : 0);
+/* The link that puts you in the meeting.
+
+   The server derives this when it normalises an event, so real data arrives
+   with it. Demo rows do not, and neither does anything cached from a payload
+   written before that existed -- and an organiser pasting a Zoom link into the
+   LOCATION field is the ordinary case, not an edge one. So it is derived here
+   as well rather than trusted to have happened upstream.
+
+   Its own regex, deliberately: LD_URL carries the /g flag and therefore carries
+   lastIndex between calls, and sharing a stateful regex across two features is
+   a bug that only shows up on the second call. */
+const JOIN_RE = /https?:\/\/[^\s<>()\[\]"']+/i;
+function joinUrl(e){
+  if (e.join) return e.join;
+  const m = JOIN_RE.exec(String(e.location || '')) || JOIN_RE.exec(String(e.notes || ''));
+  return m ? m[0].replace(/[.,;:!?]+$/, '') : null;
+}
+
+function calKind(e){
+  if (joinUrl(e)) return 'meet';
+  const mins = (e.end - e.start) / 60000;
+  if (!attendeeCount(e) && (e.allDay || mins >= CAL_HELD_MINUTES)) return 'held';
+  return 'plain';
+}
+
+/* Links in event text, clickable.
+
+   Not a second implementation: ldLinkify and ldShortUrl already do this for the
+   leads view, correctly, including the part that is easy to get wrong -- it
+   splits on the match and escapes around it, because escaping FIRST turns the &
+   in a query string into &amp; and the href stops being the same URL. A Zoom
+   link with a pwd= parameter is exactly that case, so the calendar uses the one
+   that was already right rather than a near-copy that is not. */
+const linkify = text => ldLinkify(text);
+
+const CAM_SVG = '<svg viewBox="0 0 24 24"><path d="M17 10.5V7a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-3.5l4 4v-11l-4 4z"/></svg>';
+const joinBtn = (e, label = 'Join') => joinUrl(e)
+  ? '<a class="cljoin" href="' + escC(joinUrl(e)) + '" target="_blank" rel="noopener"'
+    + ' onclick="event.stopPropagation()">' + CAM_SVG + escC(label) + '</a>'
+  : '';
 
 const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
@@ -5280,26 +5445,38 @@ function buildDemo(){
 
   const mon = mondayOf(new Date());
   const at = (dayOffset, h, m) => { const d = addDays(mon, dayOffset); d.setHours(h, m, 0, 0); return d; };
-  const ev = (cal, day, sh, sm, eh, em, title, where, who) => ({
+  /* join is the last argument because most demo rows do not have one, and the
+     ones that do are the point of the three-weight design: a call you can be
+     in, against a block of time nobody is in. */
+  const ev = (cal, day, sh, sm, eh, em, title, where, who, join) => ({
     id: 'e' + Math.random().toString(36).slice(2,8), cal, title,
-    start: at(day, sh, sm), end: at(day, eh, em), location: where || '', attendees: who || '', allDay:false
+    start: at(day, sh, sm), end: at(day, eh, em), location: where || '',
+    attendees: who || '', allDay:false, join: join || null, notes:''
   });
 
   EVENTS = [
+    /* A long stretch with nobody in it: the shape that filled the real
+       calendar and drowned everything else when every event was one colour. */
+    ev('work', 0, 6,0, 13,0, 'NO Calls \u2014 focus block', '', ''),
+    ev('work', 1, 6,0, 13,0, 'NO Calls \u2014 focus block', '', ''),
     ev('work', 0, 8,30, 9,15, 'Site walk', 'Lot 12', 'Engineer'),
     ev('work', 0, 10,0, 11,30, 'Client meeting', 'Conference room', 'Northline'),
     ev('work', 0, 13,0, 13,30, 'Bank call', 'Phone', 'Loans desk'),
-    ev('team', 0, 13,0, 14,0, 'Pipeline standup', 'Zoom', 'Full team'),
+    ev('team', 0, 13,0, 14,0, 'Pipeline standup',
+      'https://us06web.zoom.us/j/8520129193?pwd=BsaCqvbla3y8Cvbs0ySaLI7fFbxfba.1',
+      'Full team'),
     ev('work', 0, 15,30, 16,30, 'Second viewing', 'Unit 4', 'Buyer + spouse'),
     ev('personal', 0, 18,30, 20,0, 'Gym', '', ''),
-    ev('team', 1, 9,0, 9,30, 'Content review', 'Zoom', 'Marketing'),
+    ev('team', 1, 9,0, 9,30, 'Content review', 'https://meet.google.com/pcd-fdvq-dut',
+      'Marketing'),
     ev('work', 1, 14,0, 15,0, 'Contract prep', 'Office', ''),
     ev('work', 2, 9,30, 11,30, 'Photo shoot', 'Two locations', 'Photographer'),
     ev('work', 2, 12,0, 13,0, 'Lunch with referral partner', '', ''),
     ev('team', 2, 15,0, 16,30, 'Closing appointment', 'Notary', 'Both parties'),
     ev('personal', 2, 19,0, 21,0, 'Anniversary dinner', '', ''),
     ev('work', 4, 10,0, 11,0, 'Contract signing', 'Office', ''),
-    ev('team', 4, 16,0, 17,0, 'Weekly review', 'Zoom', 'Full team'),
+    ev('team', 4, 16,0, 17,0, 'Weekly review', 'Microsoft Teams Meeting', 'Full team',
+      'https://teams.microsoft.com/l/meetup-join/19%3ameeting_abc/0'),
     ev('work', 5, 9,0, 12,0, 'Open house', 'Model unit', ''),
     ev('work', 5, 14,0, 15,0, 'Walk-in viewing', '', ''),
     { id:'ad1', cal:'work', title:'Turnover week', start: addDays(mon,2), end: addDays(mon,3),
@@ -5377,7 +5554,8 @@ function timeGrid(days){
 
   const adBar = allday.length
     ? '<div class="allday"><span class="lbl">All day</span>'
-      + allday.map(e => '<button class="adev" data-ev="' + e.id + '" style="--c:' + acctById(e.cal).color + '">'
+      + allday.map(e => '<button class="adev ' + calKind(e) + '" data-ev="' + e.id + '"'
+        + ' style="--c:' + acctById(e.cal).color + '">'
         + escC(e.title) + '</button>').join('') + '</div>'
     : '';
 
@@ -5397,9 +5575,14 @@ function timeGrid(days){
           const hgt = Math.max(2.2, (mins(e.end) - mins(e.start)) / span * 100);
           const w = 100 / e._lanes, left = e._lane * w;
           const tall = (mins(e.end) - mins(e.start)) >= 45;
-          return '<button class="ev' + (CAL.sel === e.id ? ' on' : '') + '" data-ev="' + e.id + '"'
+          const kind = calKind(e);
+          return '<button class="ev ' + kind + (CAL.sel === e.id ? ' on' : '') + '"'
+            + ' data-ev="' + e.id + '"'
+            + ' title="' + escC(e.title + ' \u00b7 ' + hhmm(e.start) + '\u2013' + hhmm(e.end)
+                + (e.location ? ' \u00b7 ' + e.location : '')) + '"'
             + ' style="--c:' + acctById(e.cal).color + ';top:' + top + '%;height:' + hgt + '%;'
             + 'left:calc(' + left + '% + 2px);width:calc(' + w + '% - 4px)">'
+            + (kind === 'meet' ? '<span class="cam">' + CAM_SVG + '</span>' : '')
             + '<b>' + escC(e.title) + '</b>'
             + (tall ? '<small>' + hhmm(e.start) + ' \u2013 ' + hhmm(e.end) + '</small>' : '')
             + '</button>';
@@ -5428,7 +5611,8 @@ function monthGrid(){
     const out = d.getMonth() !== CAL.anchor.getMonth();
     return '<div class="mcell' + (out ? ' out' : '') + (isToday(d) ? ' today' : '') + '">'
       + '<span class="md">' + d.getDate() + '</span>'
-      + day.slice(0,3).map(e => '<button class="mev" data-ev="' + e.id + '" style="--c:' + acctById(e.cal).color + '">'
+      + day.slice(0,3).map(e => '<button class="mev ' + calKind(e) + '" data-ev="' + e.id + '"'
+          + ' style="--c:' + acctById(e.cal).color + '">'
           + (e.allDay ? '' : hhmm(e.start) + ' ') + escC(e.title) + '</button>').join('')
       + (day.length > 3 ? '<div class="mmore">+' + (day.length - 3) + ' more</div>' : '')
       + '</div>';
@@ -5436,19 +5620,144 @@ function monthGrid(){
   return html;
 }
 
+/* ---------- list ---------- */
+
+/* The same range the grid would draw, one row per event, grouped by day.
+
+   A grid answers "what shape is my week". A list answers "what is actually
+   happening and where do I click" -- and for that it beats the grid outright:
+   nothing is truncated to fit a column two hundred pixels wide, the location
+   is readable, and the join link is a button rather than a tooltip. */
+function listView(days){
+  const rows = days.map(d => {
+    const evs = shownEvents().filter(e => sameDay(e.start, d))
+      .sort((a, b) => (a.allDay === b.allDay) ? a.start - b.start : (a.allDay ? -1 : 1));
+    if (!evs.length) return '';
+    return '<div class="clday' + (isToday(d) ? ' today' : '') + '">'
+      + '<div class="cllab"><b>' + DAYNAMES[d.getDay()] + ' ' + d.getDate() + '</b>'
+      +   '<span>' + MONTHS[d.getMonth()].slice(0, 3).toUpperCase()
+      +     ' \u00b7 ' + evs.length + (evs.length === 1 ? ' event' : ' events') + '</span></div>'
+      + '<div>' + evs.map(e => {
+          const kind = calKind(e);
+          /* The location is where a Zoom link usually lives, so it is linkified
+             rather than printed. Notes only when there is no location to show,
+             because a whole agenda under every row is not a list any more. */
+          const where = e.location ? linkify(e.location)
+            : (e.notes ? linkify(e.notes.slice(0, 120)) : '');
+          return '<button class="clrow ' + kind + '" data-ev="' + e.id + '"'
+            + ' style="--c:' + acctById(e.cal).color + '">'
+            + '<span class="cltime">'
+            +   (e.allDay ? 'All day' : hhmm(e.start) + ' \u2013 ' + hhmm(e.end))
+            +   (e.allDay ? '' : '<em>' + dur(e.start, e.end) + '</em>') + '</span>'
+            + '<span class="clbar"></span>'
+            + '<span><span class="cltitle">' + escC(e.title) + '</span>'
+            +   (where ? '<span class="clmeta">' + where + '</span>' : '') + '</span>'
+            + joinBtn(e)
+            + '</button>';
+        }).join('') + '</div></div>';
+  }).filter(Boolean).join('');
+
+  return rows
+    ? '<div class="cllist">' + rows + '</div>'
+    : '<div class="empty"><b>Nothing in this range</b>'
+      + '<small>Step forward, or switch to the month to see further.</small></div>';
+}
+
+/* ---------- the countdown ---------- */
+
+/* The next thing worth being ready for, and how long there is.
+
+   Held time is skipped: "NO Calls" starting in nine minutes is not something
+   anybody needs a clock for, and letting it win would mean the countdown spent
+   most of the week counting down to a block of nothing. A meeting already
+   running is more useful than the one after it, so a live one wins outright. */
+function nextMeeting(){
+  const now = new Date();
+  const real = shownEvents().filter(e => !e.allDay && calKind(e) !== 'held');
+  const live = real.filter(e => e.start <= now && e.end > now)
+    .sort((a, b) => a.end - b.end)[0];
+  if (live) return { e: live, live: true };
+  const soon = real.filter(e => e.start > now).sort((a, b) => a.start - b.start)[0];
+  return soon ? { e: soon, live: false } : null;
+}
+
+/* h/m/s while it is close, and days once it is far enough away that seconds
+   are noise. */
+function countdownText(target){
+  let sec = Math.max(0, Math.round((target - new Date()) / 1000));
+  if (sec >= 86400) return Math.floor(sec / 86400) + 'd '
+    + Math.floor((sec % 86400) / 3600) + 'h';
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), ss = sec % 60;
+  const pad = n => String(n).padStart(2, '0');
+  return h ? h + ':' + pad(m) + ':' + pad(ss) : pad(m) + ':' + pad(ss);
+}
+
+function countdownBlock(){
+  const next = nextMeeting();
+  CAL.cdFor = next ? next.e.id : null;
+  if (!next) {
+    return '<div class="cdown" id="cal-countdown">'
+      + '<div class="lab">Next meeting</div>'
+      + '<div class="who" style="color:var(--dimmer)">Nothing else scheduled.</div></div>';
+  }
+  const { e, live } = next;
+  return '<div class="cdown' + (live ? ' now' : '') + '" id="cal-countdown"'
+    + ' data-cd="' + (live ? e.end.toISOString() : e.start.toISOString()) + '">'
+    + '<div class="lab">' + (live ? 'Ends in' : 'Next meeting in') + '</div>'
+    + '<div class="big">' + escC(countdownText(live ? e.end : e.start)) + '</div>'
+    + '<div class="who">' + escC(e.title) + '</div>'
+    + '<div class="when">' + hhmm(e.start) + ' \u2013 ' + hhmm(e.end)
+    +   (isToday(e.start) ? '' : ' \u00b7 ' + DAYNAMES[e.start.getDay()] + ' ' + e.start.getDate())
+    /* Never the URL itself: there is a Join button directly underneath it, and
+       eighty characters of query string is not a location. */
+    +   (e.location && !joinUrl(e) ? ' \u00b7 ' + escC(e.location.slice(0, 40)) : '') + '</div>'
+    + joinBtn(e, live ? 'Join now' : 'Join')
+    + '</div>';
+}
+
+/* One second, and only the digits.
+
+   Redrawing the whole block would replace the Join button under the pointer of
+   somebody reaching for it -- once a second, forever. So the clock writes the
+   number and nothing else, and the block is rebuilt only when the event it is
+   counting to changes. */
+let calClock = null;
+function startCalClock(){
+  if (calClock) return;
+  calClock = setInterval(() => {
+    const host = document.getElementById('cal-countdown');
+    if (!host || !host.dataset.cd) return;
+    if (!document.getElementById('v-calendar')?.classList.contains('on')) return;
+    const target = new Date(host.dataset.cd);
+    const big = host.querySelector('.big');
+    if (big) big.textContent = countdownText(target);
+    /* It has arrived, or ended: what comes next is a different event. */
+    if (target - new Date() <= 0) drawCal();
+  }, 1000);
+  calClock.unref?.();
+}
+
 /* ---------- side panel ---------- */
 function sidePanel(){
   const sel = EVENTS.find(e => e.id === CAL.sel);
   if (sel) {
     const c = acctById(sel.cal);
-    const row = (k, v) => v ? '<div class="detrow"><span class="k">' + k + '</span><span>' + escC(v) + '</span></div>' : '';
+    const row = (k, v) => v ? '<div class="detrow"><span class="k">' + k + '</span><span>'
+      + escC(v) + '</span></div>' : '';
+    /* Where and the notes carry the links, so those two are linkified and the
+       rest stay escaped. A calendar entry whose location is a URL is the normal
+       case now, not the exception. */
+    const linkRow = (k, v) => v ? '<div class="detrow"><span class="k">' + k + '</span><span>'
+      + linkify(v) + '</span></div>' : '';
     return '<div class="sblock"><h4>' + escC(sel.title) + '</h4>'
       + row('When', sel.allDay ? 'All day' : hhmm(sel.start) + ' \u2013 ' + hhmm(sel.end) + '  (' + dur(sel.start, sel.end) + ')')
       + row('Date', DAYNAMES[sel.start.getDay()] + ', ' + MONTHS[sel.start.getMonth()] + ' ' + sel.start.getDate())
-      + row('Where', sel.location)
-      + row('With', sel.attendees)
+      + linkRow('Where', sel.location)
+      + row('With', Array.isArray(sel.attendees) ? sel.attendees.join(', ') : sel.attendees)
+      + linkRow('Notes', sel.notes)
       + '<div class="detrow"><span class="k">Calendar</span><span style="color:' + c.color + '">' + escC(c.label) + '</span></div>'
-      + '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap">'
+      + '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center">'
+      + joinBtn(sel, 'Join meeting')
       + '<button class="btn" data-cact="close">Back</button>'
       + '<button class="btn" data-cact="task">Send to tasks</button></div></div>';
   }
@@ -5471,12 +5780,17 @@ function sidePanel(){
     if (tail >= 45) gaps.push({ from:new Date(cursor), to:endOf, m:tail });
   }
 
-  const list = arr => arr.map(e => '<div class="upnext" data-ev="' + e.id + '" style="--c:' + acctById(e.cal).color + '">'
+  const list = arr => arr.map(e => '<div class="upnext ' + calKind(e) + '"'
+    + ' data-ev="' + e.id + '" style="--c:' + acctById(e.cal).color + '">'
     + '<span class="tick"></span><span class="t">' + hhmm(e.start) + '</span>'
     + '<span><b>' + escC(e.title) + '</b>'
-    + (e.location ? '<small>' + escC(e.location) + '</small>' : '') + '</span></div>').join('');
+    /* linkify, not escape: a Zoom URL printed as eighty characters of text is
+       what this rail was doing, and it was both unreadable and unclickable. */
+    + (e.location ? '<small>' + linkify(e.location) + '</small>' : '')
+    + '</span></div>').join('');
 
-  return '<div class="sblock"><h4>Up next</h4>'
+  return countdownBlock()
+    + '<div class="sblock"><h4>Up next</h4>'
     + (upcoming.length ? list(upcoming)
        : '<div style="font-size:12px;color:var(--dimmer);line-height:1.6">Nothing left today.</div>')
     + '</div>'
@@ -5524,16 +5838,24 @@ function drawCal(){
   let range;
   if (CAL.view === 'day') {
     range = DAYNAMES[a.getDay()] + ', ' + MONTHS[a.getMonth()] + ' ' + a.getDate() + ' ' + a.getFullYear();
-    main.innerHTML = timeGrid([startOfDay(a)]);
+    main.innerHTML = CAL.mode === 'list' ? listView([startOfDay(a)]) : timeGrid([startOfDay(a)]);
   } else if (CAL.view === 'week') {
     const mon = mondayOf(a), sun = addDays(mon, 6);
     range = mon.getMonth() === sun.getMonth()
       ? MONTHS[mon.getMonth()] + ' ' + mon.getDate() + ' \u2013 ' + sun.getDate() + ', ' + sun.getFullYear()
       : MONTHS[mon.getMonth()].slice(0,3) + ' ' + mon.getDate() + ' \u2013 ' + MONTHS[sun.getMonth()].slice(0,3) + ' ' + sun.getDate() + ', ' + sun.getFullYear();
-    main.innerHTML = timeGrid(Array.from({length:7}, (_, i) => addDays(mon, i)));
+    const week = Array.from({length:7}, (_, i) => addDays(mon, i));
+    main.innerHTML = CAL.mode === 'list' ? listView(week) : timeGrid(week);
   } else {
     range = MONTHS[a.getMonth()] + ' ' + a.getFullYear();
-    main.innerHTML = monthGrid();
+    if (CAL.mode === 'list') {
+      const first = new Date(a.getFullYear(), a.getMonth(), 1);
+      const last = new Date(a.getFullYear(), a.getMonth() + 1, 0);
+      main.innerHTML = listView(
+        Array.from({ length: last.getDate() }, (_, i) => addDays(first, i)));
+    } else {
+      main.innerHTML = monthGrid();
+    }
   }
   document.getElementById('cal-range').textContent = range;
 
@@ -5543,6 +5865,7 @@ function drawCal(){
     + ACCOUNTS.length + (ACCOUNTS.length === 1 ? ' account' : ' accounts');
 
   side.innerHTML = sidePanel();
+  startCalClock();
 
   document.querySelectorAll('#v-calendar [data-ev]').forEach(b => b.onclick = () => {
     CAL.sel = CAL.sel === b.dataset.ev ? null : b.dataset.ev; drawCal();
@@ -5576,6 +5899,10 @@ function drawSources(){
 document.querySelectorAll('#cal-seg button').forEach(b => b.onclick = () => {
   document.querySelectorAll('#cal-seg button').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); CAL.view = b.dataset.v; CAL.sel = null; drawCal();
+});
+document.querySelectorAll('#cal-mode button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('#cal-mode button').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); CAL.mode = b.dataset.m; CAL.sel = null; drawCal();
 });
 document.getElementById('cal-prev').onclick = () => {
   const s = CAL.view === 'day' ? -1 : CAL.view === 'week' ? -7 : 0;
@@ -6939,9 +7266,15 @@ async function loadIngest(){
    event names the row that changed and the browser fetches exactly that row.
    Nothing here refetches a list.
 
-   Today only ghl_location INSERT is wired (a new sub-account appears in the
-   sidebar without a reload, existing rows untouched). lead and ghl_message
-   arrive in later steps and will branch off the same stream. */
+   Wired: ghl_location INSERT (a new sub-account appears in the sidebar without
+   a reload), lead and ghl_opportunity, ghl_message and its inbox — and the
+   social tables, which is how a comment, a DM or a new post shows up on the
+   board without anybody pressing Sync.
+
+   One stream for both halves on purpose. The browser already holds this
+   connection open, the server already LISTENs on this channel, and a second
+   EventSource for social would be a second thing to keep alive through
+   Railway's edge for no gain. */
 function startLiveUpdates(){
   if (CAL.demo || !window.EventSource) return;
   const es = new EventSource('/api/ghl/events');
@@ -6950,7 +7283,10 @@ function startLiveUpdates(){
      one fetch; the ingest pipeline re-upserting three thousand is ONE delta
      fetch rather than three thousand single ones. Either way nothing re-reads
      the whole database. */
-  const Q = { leads: new Set(), threads: new Set(), stages: false, timer: null };
+  const Q = { leads: new Set(), threads: new Set(), stages: false,
+    /* 'inbox' for a comment or message, 'posts' for a new post. A burst of
+       either collapses to one refresh. */
+    social: new Set(), timer: null };
   const schedule = () => { Q.timer ||= setTimeout(flushLive, 400); };
 
   async function flushLive(){
@@ -6958,6 +7294,7 @@ function startLiveUpdates(){
     const leadIds = [...Q.leads]; Q.leads.clear();
     const threadIds = [...Q.threads]; Q.threads.clear();
     const stages = Q.stages; Q.stages = false;
+    const social = [...Q.social]; Q.social.clear();
 
     try {
       if (leadIds.length > 20) {
@@ -6988,6 +7325,37 @@ function startLiveUpdates(){
     }
 
     if (stages) loadStages();
+
+    /* The social half: a comment, a message or a post landed.
+
+       A list refresh rather than the single-row fetch every branch above does,
+       and that is a deliberate break from the contract at the top of this
+       function. The inbox list is paged, filtered, searched and sorted on the
+       server, so "put this one new row in its right place" is not something the
+       browser can work out -- it would have to know whether the row passes the
+       current filter and where it sorts. One request per burst is the honest
+       version of that, and it only happens while somebody is looking.
+
+       Nothing at all when the view is closed: the next visit loads fresh, and
+       refreshing a screen nobody is on is how a dashboard spends its afternoon
+       talking to itself. */
+    if (social.length && document.getElementById('v-social')?.classList.contains('on')) {
+      try {
+        if (SO.view === 'inbox') {
+          /* Not while they are deep in a paged list. ibxLoad() starts again
+             from offset 0, so refreshing under somebody who pressed Load more
+             four times would throw away everything below the first page. The
+             open thread still updates, which is the part being watched. */
+          const paged = IBX.offset > IBX.limit;
+          if (social.includes('inbox') && !paged) await ibxLoad({ quiet: true });
+          await ibxRefreshOpen();
+        } else if (social.includes('posts')) {
+          await loadSocialView();
+        }
+      } catch (err) {
+        console.error('live: social refresh failed', err.message);
+      }
+    }
   }
 
   es.onmessage = async e => {
@@ -7010,6 +7378,26 @@ function startLiveUpdates(){
     if (leadId && (ev.tbl === 'ghl_message' || ev.tbl === 'ghl_message_inbox')) {
       Q.leads.add(leadId);
       Q.threads.add(leadId);
+      schedule();
+      return;
+    }
+
+    /* Facebook, Instagram and YouTube. social_items is the comment or the
+       message itself, social_threads the conversation it belongs to, and
+       social_posts a post appearing for the first time.
+
+       What makes this arrive in a second rather than in fifteen minutes is the
+       webhook: Meta posts to /webhooks/meta, that triggers a sync for the one
+       account named, the sync writes these rows, and the triggers on them put
+       it here. Without the webhook configured the same path still works, just
+       on the poller's clock. */
+    if (ev.tbl === 'social_items' || ev.tbl === 'social_threads') {
+      Q.social.add('inbox');
+      schedule();
+      return;
+    }
+    if (ev.tbl === 'social_posts') {
+      Q.social.add('posts');
       schedule();
       return;
     }
@@ -9970,11 +10358,19 @@ const ibxInitial = name => String(name || '?').replace(/^@/, '').trim().charAt(0
 
 /* The list. `more` appends the next page instead of replacing, which is what
    the Load more button calls. */
-async function ibxLoad({ more = false } = {}){
+/* quiet: a refresh nobody asked for, driven by something arriving rather than
+   by somebody clicking. It skips the spinner and the pre-draw, and leaves the
+   capability object alone -- a background poll is not a reason for the compose
+   box to blink out and back while somebody is using it. */
+async function ibxLoad({ more = false, quiet = false } = {}){
   if (CAL.demo) return;
-  IBX.busy = true; IBX.err = null;
+  /* A quiet refresh clears nothing it did not cause. Wiping IBX.err here meant
+     that a reply Meta had just refused lost its explanation the moment any
+     unrelated message arrived -- the banner would blink away inside half a
+     second and the reader would be left with a send that simply did nothing. */
+  if (!quiet) IBX.err = null;
   if (!more) { IBX.offset = 0; }
-  ibxDraw();
+  if (!quiet) { IBX.busy = true; ibxDraw(); }
   try {
     const qs = new URLSearchParams({
       platform: IBX.platform, kind: IBX.kind, account: IBX.account,
@@ -9991,14 +10387,22 @@ async function ibxLoad({ more = false } = {}){
     IBX.hasMore = Boolean(out.hasMore);
     IBX.offset = (out.offset || 0) + (out.threads || []).length;
     IBX.accounts = out.accounts || [];
-    IBX.caps = out.caps || null;
+    if (!quiet) IBX.caps = out.caps || null;
     IBX.notice = out.notice || null;
     /* A selection that is no longer in the list stays open -- it was chosen
        deliberately and a filter change should not close it -- but one that never
-       existed is dropped. */
-    if (IBX.sel && !IBX.items.length) IBX.sel = null;
+       existed is dropped.
+
+       Not while one is still being fetched, though. ibxOpen() sets sel and
+       empties items before it awaits, so for those few hundred milliseconds a
+       perfectly good thread looks exactly like a thread that never existed --
+       and a refresh landing in that window would close the thread somebody just
+       clicked. It took a live update arriving mid-open to expose it. */
+    if (IBX.sel && !IBX.items.length && !IBX.loadingThread) IBX.sel = null;
   } catch (err) {
-    IBX.err = err.body?.detail || err.message || 'request failed';
+    /* And it does not shout about its own failure either. Nobody asked for this
+       request; the next event or the next click will try again. */
+    if (!quiet) IBX.err = err.body?.detail || err.message || 'request failed';
   } finally {
     IBX.busy = false;
     ibxDraw();
@@ -10041,6 +10445,26 @@ async function ibxOpen(id){
     if (IBX.sel === id) IBX.loadingThread = false;
     ibxDraw();
   }
+}
+
+/* The open thread again, for a message that arrived while it was on screen.
+
+   Deliberately not ibxOpen(): that one is what a CLICK does, and it clears the
+   draft, resets the picker and marks the thread read. None of those are true of
+   a message arriving on its own -- somebody may be halfway through a reply, and
+   a message nobody has looked at yet is not read. Only the items move. */
+async function ibxRefreshOpen(){
+  const id = IBX.sel;
+  if (!id) return;
+  try {
+    const out = await api('/api/social/inbox/thread/' + encodeURIComponent(id));
+    /* They may have clicked away during the fetch. */
+    if (IBX.sel !== id) return;
+    IBX.items = out.items || [];
+    IBX.mentions = out.mentionable || [];
+    IBX.threadTags = out.thread?.tags || [];
+    ibxDraw();
+  } catch { /* the next event, or opening it, will catch up */ }
 }
 
 async function ibxSync(){
@@ -20334,6 +20758,12 @@ async function load(){
   await CACHE_READY;
   try {
     const acc = await api('/api/accounts');
+    /* Checked again, and not for the last time. The guard at the top only knows
+       about a load that has not STARTED; pressing Demo data while this one is
+       still in the air used to have the real (empty) answer land a second later
+       and wipe the demo out from under whoever pressed it. Every await here is
+       a chance for that to have happened. */
+    if (CAL.demo) return;
     ACCOUNTS = acc.accounts;
     CAN_CONNECT = acc.canConnect;
     PROVIDERS_CFG = acc.providers || {};
@@ -20360,6 +20790,11 @@ async function load(){
 
     const val = (r, key, fallback) =>
       r.status === 'fulfilled' && r.value ? (r.value[key] ?? fallback) : fallback;
+
+    /* The second one, after the long fetch. This is the await that actually
+       takes time -- eight endpoints including every lead -- so it is the one
+       somebody can press Demo data in the middle of. */
+    if (CAL.demo) return;
 
     MAIL = val(mail, 'messages', []);
     MAIL.forEach(m => { if (BODIES.has(m.id)) m.body = BODIES.get(m.id); });

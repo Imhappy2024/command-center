@@ -23,6 +23,7 @@ import express from 'express';
 import crypto from 'node:crypto';
 import { accountsFor } from '../lib/accounts.js';
 import { syncInbox, inboxPlatformOf } from '../lib/social-inbox.js';
+import { pollOnce } from '../lib/social-sync.js';
 
 /* Meta signs every delivery. Verifying it is what stops anybody who learns the
    URL from making this app hammer Instagram on command.
@@ -69,6 +70,34 @@ async function accountsForEntry(object, entries){
   return [...wanted];
 }
 
+/* Did this delivery say a POST appeared, as opposed to a comment on one?
+
+   Meta puts both down the same `feed` field, and the difference is in the
+   item: a comment is item="comment", a post is item="status", "photo",
+   "video" or "share". Instagram has no feed field at all -- a new media
+   object arrives as a mention or not at all -- so its posts still come from
+   the poller, and saying that here is more honest than pretending the
+   classifier covers it.
+
+   It matters because the comment sync and the post poller are different
+   passes over different tables: syncInbox fills social_threads, pollOnce
+   fills social_posts. A new post that only ran syncInbox would show up on
+   the board at the next scheduled poll, which is twice a day. */
+const POST_ITEMS = new Set(['status', 'photo', 'video', 'share', 'link', 'reel']);
+function mentionsAPost(entries){
+  for (const e of entries || []) {
+    for (const c of e.changes || []) {
+      if (c.field !== 'feed') continue;
+      const v = c.value || {};
+      /* "remove" is a delete, which the next poll reconciles; only an added
+         post is worth spending a poll on right now. */
+      if (v.verb && v.verb !== 'add') continue;
+      if (POST_ITEMS.has(String(v.item || ''))) return true;
+    }
+  }
+  return false;
+}
+
 export function webhookRoutes({ env }){
   const r = express.Router();
 
@@ -82,16 +111,23 @@ export function webhookRoutes({ env }){
 
   /* One pending sync per account, collapsed. */
   const pending = new Set();
+  /* And separately, the accounts that need their POSTS re-read. Kept apart
+     from `pending` because the two are different passes and most events
+     want only the first -- a burst of ten comments must not run ten post
+     polls, or even one. */
+  const pendingPosts = new Set();
   let timer = null;
   const DEBOUNCE_MS = 2500;
 
-  function schedule(ids){
-    for (const id of ids) pending.add(id);
+  function schedule(ids, { posts = false } = {}){
+    for (const id of ids) { pending.add(id); if (posts) pendingPosts.add(id); }
     if (timer || !pending.size) return;
     timer = setTimeout(async () => {
       timer = null;
       const batch = [...pending];
+      const postBatch = [...pendingPosts];
       pending.clear();
+      pendingPosts.clear();
       try {
         const out = await syncInbox({ only: new Set(batch) });
         const threads = (out.results || []).reduce((n, x) => n + (x.threads || 0), 0);
@@ -101,6 +137,17 @@ export function webhookRoutes({ env }){
         }
       } catch (err) {
         console.error('[webhook] sync failed:', err.message);
+      }
+
+      /* The post lane. Separate try, because a comment sync that worked
+         should not be reported as a failure by a post poll that did not. */
+      if (postBatch.length) {
+        try {
+          const out = await pollOnce({ env, only: new Set(postBatch) });
+          console.log(`[webhook] polled posts for ${out.polled} account(s)`);
+        } catch (err) {
+          console.error('[webhook] post poll failed:', err.message);
+        }
       }
     }, DEBOUNCE_MS);
     timer.unref?.();
@@ -156,7 +203,7 @@ export function webhookRoutes({ env }){
           console.log(`[webhook] ${body.object} event for an asset this dashboard does not hold`);
           return;
         }
-        schedule(ids);
+        schedule(ids, { posts: mentionsAPost(body.entry) });
       })
       .catch(err => console.error('[webhook] could not resolve the account:', err.message));
   };
