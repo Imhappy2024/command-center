@@ -1554,7 +1554,18 @@ body.ycmlock{overflow:hidden}
 .clcard .cljoin{margin-top:11px}
 .clcard.idle .clbig{color:var(--dimmer);font-size:15px}
 
-.cllist{padding:4px 0 10px}
+/* The rows scroll; the title, the filters and the two cards do not. The grid
+   view has done this since it was written -- .tgwrap caps at 620px -- and a
+   list of a hundred meetings had no reason to behave differently: scrolling the
+   whole page to reach Thursday means losing the toolbar and the countdown on
+   the way there. The day labels are sticky INSIDE this box, so the date you are
+   reading under stays with you. */
+.cllist{padding:4px 0 10px;max-height:min(620px,calc(100vh - 330px));
+  min-height:180px;overflow-y:auto;overscroll-behavior:contain}
+@media(max-width:820px){
+  /* Less chrome above it on a phone, and a shorter screen under it. */
+  .cllist{max-height:calc(100vh - 300px)}
+}
 .clday{display:grid;grid-template-columns:104px minmax(0,1fr);gap:14px;
   padding:13px 18px;border-bottom:1px solid var(--edge)}
 .clday:last-child{border-bottom:0}
@@ -1609,6 +1620,41 @@ body.ycmlock{overflow:hidden}
 .clcard.soon.urgent{border-color:color-mix(in srgb,var(--cal-red) 60%,transparent);
   background:color-mix(in srgb,var(--cal-red) 8%,var(--panel2))}
 .clcard.soon.urgent .clhead{color:var(--cal-red)}
+
+/* The meeting card. Same layer discipline as the alert, one step below it, so
+   a meeting starting in ten seconds still wins the screen. */
+.cmodal{position:fixed;inset:0;z-index:150;display:grid;place-items:center;
+  background:rgba(6,5,4,.72);backdrop-filter:blur(3px);padding:20px;
+  animation:cmfade .16s var(--ease)}
+@keyframes cmfade{from{opacity:0}}
+.cmpanel{width:min(560px,100%);max-height:86vh;overflow-y:auto;border-radius:14px;
+  padding:24px 26px;background:var(--panel);border:1px solid var(--edge2);
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.95);animation:cmrise .2s var(--ease)}
+@keyframes cmrise{from{opacity:0;transform:translateY(8px) scale(.99)}}
+@media (prefers-reduced-motion:reduce){.cmodal,.cmpanel{animation:none}}
+.cmtitle{font-size:20px;line-height:1.3;color:var(--cream);
+  font-variation-settings:'wght' 600;overflow-wrap:anywhere}
+.cmsub{font-size:12.5px;color:var(--dim);margin-top:6px;
+  padding-bottom:14px;border-bottom:1px solid var(--edge)}
+.cmrow{display:grid;grid-template-columns:78px minmax(0,1fr);gap:14px;
+  padding:11px 0;border-bottom:1px solid var(--panel2);align-items:start}
+.cmrow:last-of-type{border-bottom:0}
+.cmkey{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.11em;
+  text-transform:uppercase;color:var(--dimmer);padding-top:3px}
+/* The reason this is a dialog and not a rail: an attendee list used to be cut
+   off mid-address in a 300px column. Here it wraps. */
+.cmval{font-size:13px;color:var(--text);line-height:1.55;overflow-wrap:anywhere}
+.cmval a{color:var(--brass);text-decoration:none;
+  border-bottom:1px solid color-mix(in srgb,var(--brass) 40%,transparent)}
+.cmval a:hover{border-bottom-color:var(--brass)}
+.cmfoot{display:flex;gap:9px;margin-top:20px;flex-wrap:wrap;align-items:center}
+.cmfoot .cljoin{padding:8px 16px;font-size:13px}
+@media(max-width:820px){
+  .cmpanel{padding:20px 18px}
+  .cmrow{grid-template-columns:1fr;gap:3px}
+  .cmkey{padding-top:0}
+  .cmfoot .btn,.cmfoot .cljoin{min-height:40px}
+}
 
 /* The takeover. Ten seconds out, over everything this app draws -- the
    highest z-index in the file before this was 100. */
@@ -4285,6 +4331,10 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
        the properties page 788px wide -- 390 of content and 398 of a drawer
        nobody had opened -- and it was the last view still scrolling sideways.
        The social drawer was always out here, which is why it never did. -->
+  <!-- Where the meeting card and the ten-second alert are drawn. Top level, so
+       neither depends on which view happens to be on screen. -->
+  <div id="cal-detail"></div>
+
   <div class="prscrim" id="pr-scrim"></div>
   <aside class="prpanel" id="pr-panel" aria-hidden="true">
     <div class="prphead" id="pr-phead"></div>
@@ -6023,6 +6073,72 @@ function calTick(){
    rather than the first time somebody opens the calendar. */
 startCalClock();
 
+/* ---------- the meeting, in the middle of the screen ---------- */
+
+/* Clicking an event used to fill the right-hand rail. On a wide screen that
+   is a column three hundred pixels across, so a location wrapped four times
+   and an attendee list was cut off mid-address; on a phone the rail is under
+   the fold entirely, so a tap appeared to do nothing at all. The details are
+   the thing being asked for -- they get the middle of the screen. */
+function calDetail(){
+  const e = EVENTS.find(x => x.id === CAL.sel);
+  const host = document.getElementById('cal-detail');
+  if (!host) return;
+  if (!e) {
+    host.innerHTML = '';
+    if (!calAlertFor) document.body.classList.remove('ycmlock');
+    return;
+  }
+  const c = acctById(e.cal) || { label: '', color: 'var(--dim)' };
+  const row = (k, v, link) => v
+    ? '<div class="cmrow"><span class="cmkey">' + k + '</span>'
+      + '<span class="cmval">' + (link ? linkify(v) : escC(v)) + '</span></div>'
+    : '';
+
+  host.innerHTML = '<div class="cmodal" data-cm-backdrop="1">'
+    + '<div class="cmpanel" role="dialog" aria-modal="true" aria-label="Meeting">'
+    + '<div class="cmtitle">' + escC(e.title) + '</div>'
+    + '<div class="cmsub">'
+    +   DAYNAMES[e.start.getDay()] + ', ' + MONTHS[e.start.getMonth()] + ' ' + e.start.getDate()
+    +   ' \u00b7 ' + (e.allDay ? 'All day'
+        : hhmm(e.start) + ' \u2013 ' + hhmm(e.end) + ' (' + dur(e.start, e.end) + ')')
+    + '</div>'
+    + row('Where', e.location, true)
+    + row('With', Array.isArray(e.attendees) ? e.attendees.join(', ') : e.attendees)
+    + row('Notes', plainNotes(e.notes), true)
+    + '<div class="cmrow"><span class="cmkey">Calendar</span>'
+    +   '<span class="cmval" style="color:' + c.color + '">' + escC(c.label)
+    +   '</span></div>'
+    + '<div class="cmfoot">'
+    /* Join, not Send to tasks. What somebody wants from a meeting they just
+       clicked is to be in it. */
+    +   joinBtn(e, 'Join meeting')
+    +   '<button class="btn" data-cm-close="1">Close</button>'
+    + '</div></div></div>';
+
+  document.body.classList.add('ycmlock');
+  host.querySelectorAll('[data-cm-close]').forEach(b => b.onclick = calDetailClose);
+  const back = host.querySelector('[data-cm-backdrop]');
+  if (back) back.onclick = ev => { if (ev.target === back) calDetailClose(); };
+  const join = host.querySelector('.cljoin');
+  if (join) join.addEventListener('click', () => setTimeout(calDetailClose, 60));
+  host.querySelector('.cmpanel')?.focus?.();
+}
+
+function calDetailClose(){
+  CAL.sel = null;
+  drawCal();
+}
+
+/* Escape closes the meeting card. Registered in capture like the alert, and
+   AFTER it in file order, so when both are somehow up the alert -- the one
+   with a clock on it -- is the one Escape reaches first. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || calAlertFor || !CAL.sel) return;
+  e.stopPropagation();
+  calDetailClose();
+}, true);
+
 /* ---------- the ten-second takeover ---------- */
 
 /* Ten minutes turns the clock red; ten seconds takes the screen.
@@ -6145,29 +6261,10 @@ document.addEventListener('keydown', e => {
 }, true);
 
 /* ---------- side panel ---------- */
+/* The rail no longer carries a selected meeting -- calDetail() puts it in the
+   middle of the screen instead. What is left here is the standing furniture:
+   what is next, and where the gaps are. */
 function sidePanel(){
-  const sel = EVENTS.find(e => e.id === CAL.sel);
-  if (sel) {
-    const c = acctById(sel.cal);
-    const row = (k, v) => v ? '<div class="detrow"><span class="k">' + k + '</span><span>'
-      + escC(v) + '</span></div>' : '';
-    /* Where and the notes carry the links, so those two are linkified and the
-       rest stay escaped. A calendar entry whose location is a URL is the normal
-       case now, not the exception. */
-    const linkRow = (k, v) => v ? '<div class="detrow"><span class="k">' + k + '</span><span>'
-      + linkify(v) + '</span></div>' : '';
-    return '<div class="sblock"><h4>' + escC(sel.title) + '</h4>'
-      + row('When', sel.allDay ? 'All day' : hhmm(sel.start) + ' \u2013 ' + hhmm(sel.end) + '  (' + dur(sel.start, sel.end) + ')')
-      + row('Date', DAYNAMES[sel.start.getDay()] + ', ' + MONTHS[sel.start.getMonth()] + ' ' + sel.start.getDate())
-      + linkRow('Where', sel.location)
-      + row('With', Array.isArray(sel.attendees) ? sel.attendees.join(', ') : sel.attendees)
-      + linkRow('Notes', plainNotes(sel.notes))
-      + '<div class="detrow"><span class="k">Calendar</span><span style="color:' + c.color + '">' + escC(c.label) + '</span></div>'
-      + '<div style="display:flex;gap:6px;margin-top:12px;flex-wrap:wrap;align-items:center">'
-      + joinBtn(sel, 'Join meeting')
-      + '<button class="btn" data-cact="close">Back</button>'
-      + '<button class="btn" data-cact="task">Send to tasks</button></div></div>';
-  }
 
   const today = shownEvents().filter(e => isToday(e.start) && !e.allDay).sort((a,b) => a.start - b.start);
   const upcoming = shownEvents().filter(e => e.start > new Date() && !e.allDay)
@@ -6283,16 +6380,16 @@ function drawCal(){
     + ACCOUNTS.length + (ACCOUNTS.length === 1 ? ' account' : ' accounts');
 
   side.innerHTML = sidePanel();
+  calDetail();
   startCalClock();
   drawBell();
 
   document.querySelectorAll('#v-calendar [data-ev]').forEach(b => b.onclick = () => {
     CAL.sel = CAL.sel === b.dataset.ev ? null : b.dataset.ev; drawCal();
   });
-  document.querySelectorAll('#v-calendar [data-cact]').forEach(b => b.onclick = () => {
-    if (b.dataset.cact === 'close') { CAL.sel = null; drawCal(); }
-    else { b.textContent = 'Sent'; b.disabled = true; }
-  });
+  /* data-cact is gone with the rail's detail block: Back is the modal's Close,
+     and Send to tasks was a button that renamed itself to "Sent" and did
+     nothing else. A control that only pretends is worse than no control. */
 
   const nav = document.querySelector('.navitem[data-target="calendar"] .badge');
   if (nav) nav.textContent = todayCount || '';
