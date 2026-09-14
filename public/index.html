@@ -68,6 +68,10 @@
      AM pink. Lifted off the reference hues so they read on a near-black
      ground -- a true green at #2E7D32 is mud at 30% over #090807. */
   --cal-green:#7FBF86; --cal-purple:#AF8CDE; --cal-pink:#E38BB6;
+  /* Ten minutes out. Brighter and more saturated than --rust, which is the
+     colour of a number that is merely bad; this one is the colour of a number
+     that needs somebody to stand up. */
+  --cal-red:#E8574A;
 
   --grid:rgba(255,255,255,.045);
   --glass:rgba(22,21,19,.82);
@@ -1474,8 +1478,9 @@ body.ycmlock{overflow:hidden}
 /* Two cards above the list: what is running, and what is next. They answer
    the two questions somebody opens a calendar with, and they answer them
    without the reader scanning a day of rows to find which one is now. */
-.clcards{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:14px 18px 4px}
-@media(max-width:820px){.clcards{grid-template-columns:1fr}}
+/* Stacked. Side by side they competed for the same glance; one above the
+   other reads in the order the day happens -- what is on, then what is next. */
+.clcards{display:grid;grid-template-columns:1fr;gap:10px;padding:14px 18px 4px}
 .clcard{border:1px solid var(--edge);border-radius:10px;padding:13px 15px;
   background:var(--panel2);min-width:0}
 .clcard.live{border-color:color-mix(in srgb,var(--jade) 55%,transparent);
@@ -1495,6 +1500,9 @@ body.ycmlock{overflow:hidden}
 .clcard .clbig{font-family:var(--ff-mono);font-size:25px;line-height:1.15;margin-top:8px;
   color:var(--brass);font-variation-settings:'wght' 500;font-variant-numeric:tabular-nums}
 .clcard.live .clbig{color:var(--jade);font-size:19px;letter-spacing:.02em}
+/* Smaller than the card above it. A countdown is a number to glance at, not
+   the headline -- the headline is that something is already running. */
+.clcard.soon .clbig{font-size:19px}
 .clcard .clwho{font-size:13.5px;color:var(--cream);margin-top:7px;line-height:1.35;
   overflow-wrap:anywhere}
 .clcard .clwhen{font-size:11.5px;color:var(--dimmer);margin-top:3px}
@@ -1550,6 +1558,45 @@ body.ycmlock{overflow:hidden}
 .cdown .who{font-size:12.5px;color:var(--cream);margin-top:5px;line-height:1.4}
 .cdown .when{font-size:11px;color:var(--dimmer);margin-top:3px}
 .cdown .cljoin{margin-top:10px}
+/* Ten minutes or less. Applied by the clock rather than at render, because
+   the boundary is crossed while the page is sitting still. */
+.clbig.urgent,.cdown .big.urgent,.cdtime.urgent{color:var(--cal-red)}
+.clcard.soon.urgent{border-color:color-mix(in srgb,var(--cal-red) 60%,transparent);
+  background:color-mix(in srgb,var(--cal-red) 8%,var(--panel2))}
+.clcard.soon.urgent .clhead{color:var(--cal-red)}
+
+/* The takeover. Ten seconds out, over everything this app draws -- the
+   highest z-index in the file before this was 100. */
+.calert{position:fixed;inset:0;z-index:200;display:grid;place-items:center;
+  background:rgba(6,5,4,.82);backdrop-filter:blur(3px);padding:24px}
+.calertbox{width:min(560px,100%);border-radius:16px;padding:30px 32px;
+  background:var(--panel);border:1px solid color-mix(in srgb,var(--cal-red) 55%,transparent);
+  box-shadow:0 40px 90px -30px rgba(0,0,0,.95),
+    0 0 0 1px color-mix(in srgb,var(--cal-red) 18%,transparent);
+  animation:calertin .22s var(--ease)}
+@keyframes calertin{from{opacity:0;transform:translateY(10px) scale(.985)}}
+@media (prefers-reduced-motion:reduce){.calertbox{animation:none}}
+.calertlab{display:flex;align-items:center;gap:8px;font-family:var(--ff-mono);
+  font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--cal-red)}
+.calertdot{width:8px;height:8px;border-radius:50%;background:var(--cal-red);
+  animation:clpulse 1s var(--ease) infinite}
+.calertbig{font-family:var(--ff-mono);font-size:52px;line-height:1.05;margin-top:12px;
+  color:var(--cal-red);font-variant-numeric:tabular-nums;font-variation-settings:'wght' 500}
+.calertwho{font-size:21px;color:var(--cream);margin-top:12px;line-height:1.3;
+  overflow-wrap:anywhere}
+.calertwhen{font-size:13px;color:var(--dim);margin-top:6px}
+.calertrow{display:flex;gap:10px;margin-top:22px;flex-wrap:wrap;align-items:center}
+.calertrow .cljoin{margin:0;padding:9px 18px;font-size:13.5px;
+  background:var(--cal-red);border-color:var(--cal-red);color:#1A0705}
+.calertrow .cljoin:hover{background:transparent;color:var(--cal-red)}
+
+/* The switch that asks the operating system for permission. Only shown while
+   there is an answer to get -- once granted or refused it is not a control,
+   it is a label, and the browser is the only place either can be undone. */
+.calbell{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.1em;
+  text-transform:uppercase}
+.calbell.on{color:var(--jade);border-color:color-mix(in srgb,var(--jade) 45%,transparent)}
+.calbell.off{color:var(--dimmer)}
 .cdown .clstarted{font-size:21px;letter-spacing:.01em}
 .cdown .cdnext{margin-top:12px;padding-top:10px;border-top:1px solid var(--edge);
   font-size:11.5px;color:var(--dimmer);line-height:1.5}
@@ -4093,6 +4140,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
       <div class="seg" id="cal-mode">
         <button data-m="grid" class="on">Grid</button><button data-m="list">List</button>
       </div>
+      <button class="btn calbell" id="cal-bell" title="Alert me when a meeting is about to start">Alerts</button>
       <div class="stepper">
         <button class="btn ic" id="cal-prev" aria-label="Previous">‹</button>
         <button class="btn" id="cal-today">Today</button>
@@ -5698,7 +5746,7 @@ function listCards(){
       + '<div class="clhead"><span class="cldot"></span>Happening now</div>'
       /* No clock. Counting down the end of a meeting you are already in is
          the wrong number; that it has begun is the whole message. */
-      + '<div class="clbig">Started</div>'
+      + '<div class="clbig">Ongoing</div>'
       + '<div class="clwho">' + escC(live.title) + '</div>'
       + '<div class="clwhen">' + escC(whenLine(live)) + '</div>'
       + joinBtn(live, 'Join now')
@@ -5827,7 +5875,7 @@ function countdownBlock(){
   if (live) {
     return '<div class="cdown now" id="cal-countdown">'
       + '<div class="lab">Happening now</div>'
-      + '<div class="big clstarted">Started</div>'
+      + '<div class="big clstarted">Ongoing</div>'
       + '<div class="who">' + escC(live.title) + '</div>'
       + '<div class="when">' + escC(whenLine(live)) + '</div>'
       + joinBtn(live, 'Join now')
@@ -5857,20 +5905,182 @@ function countdownBlock(){
 let calClock = null;
 function startCalClock(){
   if (calClock) return;
-  calClock = setInterval(() => {
-    if (!document.getElementById('v-calendar')?.classList.contains('on')) return;
-    let arrived = false;
-    document.querySelectorAll('[data-cdto]').forEach(el => {
-      const target = new Date(el.dataset.cdto);
-      if (!(target > new Date())) { arrived = true; return; }
-      el.textContent = countdownText(target);
-    });
-    /* Something started while we were watching it. Which event is "next" has
-       changed, and that is a redraw rather than a new number. */
-    if (arrived) drawCal();
-  }, 1000);
+  calClock = setInterval(calTick, 1000);
   calClock.unref?.();
 }
+
+/* One second.
+
+   It runs whatever view is open, and that is the change that makes the alert
+   worth having: a meeting starting in ten seconds is not less urgent because
+   somebody is reading their leads. Only the DRAWING is gated on the calendar
+   being on screen -- there is nothing to rewrite otherwise. */
+function calTick(){
+  const now = new Date();
+
+  /* The alert first, so it does not wait behind a redraw. */
+  const { next } = liveAndNext();
+  if (next) {
+    const left = (next.start - now) / 1000;
+    if (left > 0 && left <= CAL_ALERT_SECONDS && !calAlerted.has(next.id)) {
+      calAlertOpen(next);
+    }
+  }
+
+  const onCal = document.getElementById('v-calendar')?.classList.contains('on');
+  const alertUp = Boolean(calAlertFor);
+  if (!onCal && !alertUp) return;
+
+  let arrived = false;
+  document.querySelectorAll('[data-cdto]').forEach(el => {
+    const target = new Date(el.dataset.cdto);
+    const left = (target - now) / 1000;
+    if (!(left > 0)) { arrived = true; return; }
+    el.textContent = countdownText(target);
+    /* Red inside ten minutes. Toggled here rather than set at render, because
+       the boundary is crossed while the page sits still. */
+    const urgent = left <= CAL_URGENT_SECONDS;
+    el.classList.toggle('urgent', urgent);
+    el.closest('.clcard')?.classList.toggle('urgent', urgent);
+  });
+
+  /* Something started while we were watching it. Which event is "next" has
+     changed, and that is a redraw rather than a new number. */
+  if (arrived) {
+    if (alertUp && calAlertFor && calAlertFor.start <= now) {
+      /* It has begun. The overlay stops counting and says so rather than
+         sitting on 00:00. */
+      const big = document.querySelector('.calertbig');
+      if (big) { big.textContent = 'Now'; big.removeAttribute('data-cdto'); }
+    }
+    if (onCal) drawCal();
+  }
+}
+
+/* The clock is the calendar's, but the alert is the app's, so it starts at boot
+   rather than the first time somebody opens the calendar. */
+startCalClock();
+
+/* ---------- the ten-second takeover ---------- */
+
+/* Ten minutes turns the clock red; ten seconds takes the screen.
+
+   What this CANNOT do, said here so nobody has to rediscover it: a web page
+   cannot draw on top of another application. There is no API for it, in any
+   browser, deliberately. The overlay below covers this app and nothing else.
+
+   The part that DOES reach past the browser is the system notification, which
+   the operating system draws over whatever is in front -- Excel, Zoom, a full
+   screen game. It needs permission, which is why there is a switch for it, and
+   it is the closest a web app gets to the thing being asked for. An overlay
+   that genuinely floats above every window needs a native shell.
+
+   One more limit worth knowing: a hidden tab has its timers throttled to about
+   once a minute, so an alert can be late when the dashboard is buried behind
+   other tabs. Installed as an app (its own window) it is not throttled the
+   same way, and the notification is scheduled from the same tick either way. */
+const CAL_URGENT_SECONDS = 600;
+const CAL_ALERT_SECONDS = 10;
+
+/* Fired once per meeting, by id. A redraw must not re-open a dismissed
+   alert, and the clock ticks through the whole ten seconds. */
+const calAlerted = new Set();
+let calAlertFor = null;
+
+const calBellWanted = () => {
+  try { return localStorage.getItem('cc:cal:alerts') !== 'off'; } catch { return true; }
+};
+const calBellState = () => {
+  if (typeof Notification === 'undefined') return 'unsupported';
+  return Notification.permission;
+};
+
+/* A short rising tone, synthesised rather than shipped: an audio file is a
+   request, a cache entry and a licence, and this is two sine notes. */
+function calBeep(){
+  if (!calBellWanted()) return;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    const ctx = new AC();
+    [880, 1320].forEach((hz, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = hz;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i * 0.18);
+      g.gain.exponentialRampToValueAtTime(0.18, ctx.currentTime + i * 0.18 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i * 0.18 + 0.16);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + i * 0.18); o.stop(ctx.currentTime + i * 0.18 + 0.18);
+    });
+    setTimeout(() => ctx.close().catch(() => {}), 900);
+  } catch { /* an alert that cannot beep is still an alert */ }
+}
+
+/* The one that leaves the browser. Through the service worker where there is
+   one, because a notification owned by the registration survives the page and
+   can be clicked back to it; the constructor is the fallback. */
+async function calNotify(e){
+  if (!calBellWanted() || calBellState() !== 'granted') return;
+  const body = hhmm(e.start) + ' \u2013 ' + hhmm(e.end)
+    + (joinUrl(e) ? '  \u00b7  Click to join' : '');
+  const opts = {
+    body, tag: 'cc-meeting-' + e.id, renotify: true, requireInteraction: true,
+    icon: '/icons/icon-192.png', badge: '/icons/icon-64.png',
+    data: { url: joinUrl(e) || location.href }
+  };
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    if (reg?.showNotification) { await reg.showNotification('Starting now: ' + e.title, opts); return; }
+    new Notification('Starting now: ' + e.title, opts);
+  } catch { /* refused or unsupported; the overlay still ran */ }
+}
+
+function calAlertOpen(e){
+  calAlertFor = e;
+  calAlerted.add(e.id);
+  let host = document.getElementById('cal-alert');
+  if (!host) {
+    host = document.createElement('div');
+    host.id = 'cal-alert';
+    document.body.appendChild(host);
+  }
+  host.innerHTML = '<div class="calert" data-calert-backdrop="1">'
+    + '<div class="calertbox" role="alertdialog" aria-live="assertive"'
+    +   ' aria-label="Meeting starting now">'
+    + '<div class="calertlab"><span class="calertdot"></span>Starting now</div>'
+    + '<div class="calertbig" data-cdto="' + e.start.toISOString() + '">'
+    +   escC(countdownText(e.start)) + '</div>'
+    + '<div class="calertwho">' + escC(e.title) + '</div>'
+    + '<div class="calertwhen">' + escC(whenLine(e)) + '</div>'
+    + '<div class="calertrow">'
+    +   joinBtn(e, 'Join now')
+    +   '<button class="btn" data-calert-close="1">Dismiss</button>'
+    + '</div></div></div>';
+  document.body.classList.add('ycmlock');
+  host.querySelectorAll('[data-calert-close]').forEach(b => b.onclick = calAlertClose);
+  const back = host.querySelector('[data-calert-backdrop]');
+  if (back) back.onclick = ev => { if (ev.target === back) calAlertClose(); };
+  const join = host.querySelector('.cljoin');
+  if (join) join.addEventListener('click', () => setTimeout(calAlertClose, 60));
+  calBeep();
+  calNotify(e);
+}
+
+function calAlertClose(){
+  calAlertFor = null;
+  const host = document.getElementById('cal-alert');
+  if (host) host.innerHTML = '';
+  document.body.classList.remove('ycmlock');
+}
+
+/* Escape dismisses it, like every other layer in this app. Registered once,
+   and first in the file order that matters -- an alert is the innermost thing
+   on screen when it is up. */
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape' || !calAlertFor) return;
+  e.stopPropagation();
+  calAlertClose();
+}, true);
 
 /* ---------- side panel ---------- */
 function sidePanel(){
@@ -5924,7 +6134,10 @@ function sidePanel(){
     + (e.location ? '<small>' + linkify(e.location) + '</small>' : '')
     + '</span></div>').join('');
 
-  return countdownBlock()
+  /* The list draws the same two facts as cards across the top of it, so the
+     rail's copy is a second answer to a question already answered on the same
+     screen. Grid keeps it: there are no cards there. */
+  return (CAL.mode === 'list' ? '' : countdownBlock())
     + '<div class="sblock"><h4>Up next</h4>'
     + (upcoming.length ? list(upcoming)
        : '<div style="font-size:12px;color:var(--dimmer);line-height:1.6">Nothing left today.</div>')
@@ -6001,6 +6214,7 @@ function drawCal(){
 
   side.innerHTML = sidePanel();
   startCalClock();
+  drawBell();
 
   document.querySelectorAll('#v-calendar [data-ev]').forEach(b => b.onclick = () => {
     CAL.sel = CAL.sel === b.dataset.ev ? null : b.dataset.ev; drawCal();
@@ -6039,6 +6253,64 @@ document.querySelectorAll('#cal-mode button').forEach(b => b.onclick = () => {
   document.querySelectorAll('#cal-mode button').forEach(x => x.classList.remove('on'));
   b.classList.add('on'); CAL.mode = b.dataset.m; CAL.sel = null; drawCal();
 });
+
+/* The alerts switch.
+
+   Three states, not two, because the browser owns one of them: not asked,
+   granted, denied. Asking happens on a click and only on a click -- a page that
+   fires a permission prompt on load is the reason browsers now ignore them --
+   and once denied, only the browser's own site settings can undo it, so the
+   button says that rather than pretending another click will help. */
+function drawBell(){
+  const b = document.getElementById('cal-bell');
+  if (!b) return;
+  const state = calBellState();
+  const wanted = calBellWanted();
+  b.classList.remove('on', 'off');
+  if (state === 'unsupported') {
+    b.textContent = 'No alerts';
+    b.classList.add('off');
+    b.title = 'This browser has no notification support, so meeting alerts can '
+      + 'only appear inside this window.';
+    b.disabled = true;
+    return;
+  }
+  if (state === 'denied') {
+    b.textContent = 'Alerts blocked';
+    b.classList.add('off');
+    b.title = 'Notifications are blocked for this site. Only the browser can '
+      + 'undo that — its site settings, not this button. The takeover inside '
+      + 'this window still works.';
+    return;
+  }
+  if (state === 'granted' && wanted) {
+    b.textContent = 'Alerts on';
+    b.classList.add('on');
+    b.title = 'A meeting starting in ten seconds takes this screen and raises a '
+      + 'system notification over whatever else is in front.';
+    return;
+  }
+  b.textContent = state === 'granted' ? 'Alerts off' : 'Enable alerts';
+  b.classList.add('off');
+  b.title = state === 'granted'
+    ? 'Alerts are silenced. Click to turn them back on.'
+    : 'Ask this browser for permission to notify you over other windows.';
+}
+
+const calBell = document.getElementById('cal-bell');
+if (calBell) calBell.onclick = async () => {
+  const state = calBellState();
+  if (state === 'denied' || state === 'unsupported') return;
+  if (state === 'default') {
+    try { await Notification.requestPermission(); } catch { /* refused */ }
+    try { localStorage.setItem('cc:cal:alerts', 'on'); } catch { /* private mode */ }
+    drawBell();
+    return;
+  }
+  const next = calBellWanted() ? 'off' : 'on';
+  try { localStorage.setItem('cc:cal:alerts', next); } catch { /* private mode */ }
+  drawBell();
+};
 document.getElementById('cal-prev').onclick = () => {
   const s = CAL.view === 'day' ? -1 : CAL.view === 'week' ? -7 : 0;
   if (s) CAL.anchor = addDays(CAL.anchor, s);
