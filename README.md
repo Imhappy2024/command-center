@@ -405,6 +405,16 @@ Facebook's dialog lets the user choose which Pages to grant, so **connecting one
 Page when four exist is correct**, not a failure. `ads_read` is checked against
 what was actually granted rather than what was asked for.
 
+Not every asset it returns belongs here. A personal ad account arrives beside
+the business ones and lands in the Meta Ads totals. Deleting the row does not
+hold: the next reconnect rediscovers it and puts it back with a fresh token. So
+`DELETE /api/accounts/:id` on a derived provider excludes instead of deleting.
+The row stays as a tombstone, every listing skips it, and `upsertOAuth` will not
+write to it again — which is also what stops the poller, the social inbox and
+the webhook receiver, since all three read through `accountsFor()`.
+
+Undoing it is one field: `meta.excluded` on the row.
+
 ### Metrics that no longer exist
 
 Nothing in this codebase requests any of these. They error or return nothing while
@@ -697,7 +707,7 @@ All of these need a session. API routes answer `401` JSON; page routes redirect 
 | `GET /api/health` | `{ ok, uptime, ts }` — open, no session |
 | `GET /api/accounts` | `{ canConnect, providers, accounts }` |
 | `POST /api/accounts/:id` | Rename or recolour |
-| `DELETE /api/accounts/:id` | Disconnect |
+| `DELETE /api/accounts/:id` | Disconnect. A discovered asset is excluded rather than deleted |
 | `GET /api/mail?folder=&account=&limit=` | `{ messages, counts, perAccount, warnings }` |
 | `GET /api/mail/capabilities` | Per-account `hardDelete` and `feeds` |
 | `GET /api/mail/:accountId/:messageId` | Full message with body |

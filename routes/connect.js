@@ -4,7 +4,8 @@ import express from 'express';
 import { PROVIDERS, isConfigured, exchangeCode } from '../lib/oauth.js';
 import { newState, newVerifier, challengeFor, setPending, readPending, STATE_COOKIE, clearCookie }
   from '../lib/session.js';
-import { listAccounts, listAll, upsertOAuth, upsertImap, renameAccount, deleteAccount, nextColour }
+import { listAccounts, listAll, upsertOAuth, upsertImap, renameAccount, deleteAccount,
+  excludeAccount, nextColour }
   from '../lib/accounts.js';
 import { guarded } from './guard.js';
 import { verify as verifyImap } from '../providers/imap.js';
@@ -131,10 +132,19 @@ export function connectRoutes({ env, auth, secret }){
     res.json({ account: updated });
   }));
 
+  /* A connected account is deleted. A discovered one is excluded instead.
+
+     The difference is whether the row can come back on its own: a Page, an
+     Instagram account or an ad account exists because a Meta grant listed it,
+     so deleting it lasts exactly until the next reconnect, and the asset the
+     owner removed reappears with a fresh token. Excluding leaves a tombstone
+     that every listing skips and that rediscovery will not overwrite. */
   r.delete('/api/accounts/:id', auth.require, guarded('api/accounts:delete', async (req, res) => {
-    const gone = await deleteAccount(req.params.id);
+    const id = String(req.params.id || '');
+    const derived = Boolean(PROVIDERS[id.split(':')[0]]?.derived);
+    const gone = derived ? await excludeAccount(id) : await deleteAccount(id);
     if (!gone) return res.status(404).json({ error: 'no such account' });
-    res.json({ ok: true });
+    res.json({ ok: true, excluded: derived });
   }));
 
   /* ---------------- OAuth round trip ---------------- */
