@@ -172,6 +172,13 @@ send look failed.
 Sending needs a token. Being listed does not: a location with no `GHL_TOKEN_*`
 pair is readable and marked read-only in the sidebar.
 
+Email leaves as `GHL_FROM_<NAME>` when one is declared, and the composer offers
+it first. Without one GHL supplies its own sender, a no-reply on its sending
+subdomain that a lead cannot reply to. The address is not taken from the mirror:
+`ghl_location.business_email` is null across these sub-accounts and `.email`
+holds whoever created the account, which is not reliably the person the mail is
+from.
+
 ### Webhooks — unauthenticated
 
 `/webhooks/ghl` stays, and is still the reason the dashboard is not stale. GHL's
@@ -631,6 +638,7 @@ one thing: the ability to SEND from that location.
 | `GHL_LOCATION_<NAME>` | — | Location ID — the string after `/location/` in the sub-account URL |
 | `GHL_LABEL_<NAME>` | — | Sidebar label. Falls back to the name GHL reports, then the suffix title-cased |
 | `GHL_COLOR_<NAME>` | — | Hex. Falls back to the next unused swatch |
+| `GHL_FROM_<NAME>` | — | From address for email sends. Unset, GHL uses its own no-reply on `send.<domain>`. Must already be verified in that sub-account |
 
 Tokens never auto-refresh, so **rotation is an edit here**: on the next deploy the
 new value is detected, verified, stored, and the account's reauth flag clears. An

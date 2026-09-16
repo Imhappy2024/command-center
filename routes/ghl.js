@@ -30,6 +30,7 @@ import {
   isActivity, activityLabel, channelOf, dirOf
 } from '../lib/ghl-data.js';
 import { run as limited } from '../lib/ghl-limiter.js';
+import { fromAddressFor } from '../lib/ghl-seed.js';
 import { guarded } from './guard.js';
 
 /* A lead id is '<locationId>:<contactId>', or '<locationId>:o_<opportunityId>'
@@ -219,9 +220,15 @@ export function ghlRoutes({ env, auth, live = null }){
     const sendable = await sendableLocationIds();
     return Promise.all(rows.map(async a => {
       const profile = await locationProfile(a.id);
-      const emails = profile
-        ? [...new Set([profile.business_email, profile.email].filter(Boolean))]
-        : [];
+      /* The declared sender leads, because it is the one the operator chose
+         and the profile addresses are whatever GHL happens to hold -- on Folio
+         Excel that is the person who set the sub-account up. Listing it first
+         makes it the composer's default; the others stay available. */
+      const emails = [...new Set([
+        fromAddressFor(a.id),
+        profile?.business_email,
+        profile?.email
+      ].filter(Boolean))];
       return {
         ...a,
         sendable: sendable.has(a.id),
@@ -727,10 +734,12 @@ export function ghlRoutes({ env, auth, live = null }){
          shown the message as sent — so it is checked here first. */
       let emailFrom;
       if (isEmail) {
+        const declaredFrom = fromAddressFor(locationId);
         const asked = String(b.from || '').trim();
         if (asked) {
           const profile = await locationProfile(locationId);
-          const known = [profile?.business_email, profile?.email].filter(Boolean);
+          const known = [declaredFrom, profile?.business_email, profile?.email]
+            .filter(Boolean);
           if (known.length && !known.includes(asked)) {
             return res.status(400).json({
               error: `${asked} is not a known sending address on this sub-account. `
@@ -740,9 +749,15 @@ export function ghlRoutes({ env, auth, live = null }){
             });
           }
           emailFrom = asked;
+        } else {
+          /* Nothing asked for, so the declared sender applies. Without one this
+             stays unset and GHL falls back to its own default, which is a
+             no-reply on its sending subdomain -- mail that looks like it came
+             from a machine and that nobody can reply to. Guessing an address
+             would be worse: an unverified sender fails after the composer has
+             already shown the message going out. */
+          emailFrom = declaredFrom || undefined;
         }
-        /* Left unset otherwise, and GHL uses its verified default. Guessing an
-           address is how a send fails after being shown as sent. */
       }
 
       /* SMS sending numbers are not in the mirror, so no number is named and GHL
