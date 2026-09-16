@@ -4381,6 +4381,26 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     </div>
   </div>
 
+  <!-- AQUISITY
+
+       A section rather than a dead menu entry. Every rail button does
+       getElementById('v-' + id).classList.add('on'), so a menu item without a
+       section is not an empty page, it is a TypeError that stops the click
+       handler and leaves the app on whatever was open. -->
+  <section class="view" id="v-acquisity">
+    <div class="vhead">
+      <div><h1>Aquisity</h1><p>Not built yet.</p></div>
+    </div>
+    <div class="card flush">
+      <div class="empty">
+        <b>Coming soon</b>
+        <small>Nothing is wired up behind this yet. It sits in the menu so the
+          shape of what is coming is visible; when it has something to show,
+          it will show it here.</small>
+      </div>
+    </div>
+  </section>
+
   <!-- CALENDAR -->
   <section class="view" id="v-calendar">
     <div class="vhead">
@@ -4713,6 +4733,9 @@ const ICON = {
   overview:'<path d="M3 3h7v7H3zM14 3h7v4h-7zM14 10h7v11h-7zM3 13h7v8H3z"/>',
   claude:'<path d="M12 3.2l2.4 5.3 5.8.6-4.3 3.9 1.2 5.7-5.1-2.9-5.1 2.9 1.2-5.7L3.8 9.1l5.8-.6z"/>',
   inbox:'<path d="M4 4h16v10h-5l-1.5 3h-3L9 14H4z"/><path d="M4 14v6h16v-6"/>',
+  /* A building with an arrow into it. Acquisitions, not a mailbox. */
+  acquisity:'<path d="M4 21V8l6-4 6 4v13"/><path d="M4 21h16"/>'
+    + '<path d="M10 21v-5h4v5"/><path d="M18 3v6M15.5 6.5L18 9l2.5-2.5"/>',
   calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   tasks:'<path d="M4 6l2 2 4-4"/><path d="M4 14l2 2 4-4"/><path d="M13 7h7M13 15h7"/>',
   notes:'<path d="M6 3h9l4 4v14H6z"/><path d="M15 3v4h4M9 12h7M9 16h5"/>',
@@ -4722,9 +4745,16 @@ const ICON = {
   social:'<circle cx="6" cy="12" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="18" cy="18" r="3"/><path d="M8.6 10.6l6.8-3.2M8.6 13.4l6.8 3.2"/>',
   systems:'<circle cx="12" cy="12" r="3"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M19.1 4.9l-2.8 2.8M7.7 16.3l-2.8 2.8"/>'
 };
+/* Overview and Instantly are both out of the rail. Their sections and their
+   code are untouched and still in the document -- Overview still renders and
+   /api/mail is still fetched, because the numbers it returns feed tiles
+   elsewhere -- there is simply no way in from the menu, which is exactly what
+   was done with Claude. Putting either back is one line here.
+
+   Aquisity has no view and no data yet, so it has a section that says so
+   rather than a menu entry that leads nowhere. */
 const MENU = [
-  ['overview','Overview','All',''],
-  ['inbox','Instantly','Gmail',''],
+  ['acquisity','Aquisity','Soon',''],
   ['calendar','Calendar','GCal',''],
   ['tasks','Tasks','ClickUp',''],
   ['notes','Notes','Vault',''],
@@ -4747,6 +4777,12 @@ const MENU = [
    it, including half the rail and all the bottom-of-file wiring. */
 let tkSubEl = null;
 
+/* Sections that exist as a promise rather than a feature. They appear in the
+   menu -- being able to see what is coming is the point -- but boot must not
+   land on one, or opening the app shows a page that says Coming soon. */
+const COMING_SOON = new Set(['acquisity']);
+const DEFAULT_VIEW = (MENU.find(m => !COMING_SOON.has(m[0])) || MENU[0])[0];
+
 /* ---------- where you were ----------
 
    A reload used to land on Overview. That loses whatever you were in the middle
@@ -4762,7 +4798,7 @@ const ROUTE = {
   subs: {},
   booting: true,
   ids: () => MENU.map(m => m[0]),
-  current: () => document.querySelector('.navitem.on')?.dataset.target || 'overview'
+  current: () => document.querySelector('.navitem.on')?.dataset.target || DEFAULT_VIEW
 };
 
 function routeRegister(section, get, set){ ROUTE.subs[section] = { get, set }; }
@@ -4802,7 +4838,7 @@ function routeApply(spec){
 const nav = document.getElementById('nav');
 MENU.forEach(([id,label,src,badge],i)=>{
   const b=document.createElement('button');
-  b.className='navitem'+(i===0?' on':'');
+  b.className='navitem'+(id===DEFAULT_VIEW?' on':'');
   b.dataset.target=id;
   b.innerHTML=`<span class="glyph"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICON[id]}</svg></span>
     <span><span class="label">${label}</span><br><span class="src">${src}</span></span>
@@ -4840,7 +4876,10 @@ MENU.forEach(([id,label,src,badge],i)=>{
 
    Four in the bar. Material puts the ceiling at five and warns that more than
    that crowds the targets; the fifth slot is the way to the other six. */
-const TAB_PRIMARY = ['overview', 'calendar', 'leads', 'social'];
+/* Four of the nine, chosen by where the work actually happens. Aquisity is
+   not among them while it is a placeholder -- a tab that leads to Coming soon
+   is a wasted fifth of the bar. */
+const TAB_PRIMARY = ['calendar', 'leads', 'social', 'properties'];
 
 const tabIcon = id => '<span class="glyph"><svg width="22" height="22" viewBox="0 0 24 24"'
   + ' fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"'
