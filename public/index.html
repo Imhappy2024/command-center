@@ -64,6 +64,9 @@
      into the warm register but still the hue each network is known
      by; going fully muted would make them interchangeable. */
   --yt:#D2604F; --fb:#6E8FD6; --ig:#C07BC4; --xx:#A29B90;
+  /* LinkedIn's blue is a neighbour of Facebook's, so it is pulled towards teal
+     far enough to tell two tabs apart at a glance without leaving the hue. */
+  --li:#4E9FB5;
   /* Calendar tags, named by the owner: PGO and Jay green, Stabilized purple,
      AM pink. Lifted off the reference hues so they read on a near-black
      ground -- a true green at #2E7D32 is mud at 30% over #090807. */
@@ -8453,7 +8456,7 @@ const SO_GRANT = { facebook:'meta', instagram:'meta', meta_ads:'meta', youtube:'
    all treat it like any other view -- but loadSocialView() and drawSocial()
    both special-case it, because it reads /api/social/inbox rather than the
    per-platform metrics payload. */
-const SO_VIEW_KEYS = { inbox:['youtube','facebook','instagram'],
+const SO_VIEW_KEYS = { inbox:['youtube','facebook','instagram','linkedin'],
   youtube:['youtube'], x:['x'], meta:['facebook','instagram','meta_ads'] };
 const SO_VIEW_LABEL = { inbox:'Comments & Messages', youtube:'YouTube', meta:'Meta', x:'X' };
 /* The name of one PLATFORM, which is not the name of the view it sits under.
@@ -11227,7 +11230,12 @@ const IBX = {
 const IBX_PLATFORMS = [
   { k: 'youtube',   label: 'YouTube',   colour: 'var(--yt)', kinds: ['comment'] },
   { k: 'facebook',  label: 'Facebook',  colour: 'var(--fb)', kinds: ['comment', 'message'] },
-  { k: 'instagram', label: 'Instagram', colour: 'var(--brass)', kinds: ['comment', 'message'] }
+  { k: 'instagram', label: 'Instagram', colour: 'var(--brass)', kinds: ['comment', 'message'] },
+  /* Messages only, like YouTube is comments only, and for the same kind of
+     reason: the route does not carry the other half. LinkedIn is read through
+     HeyReach, which has no comments endpoint, so a comments tab here would be
+     permanently empty. The capability panel says why. */
+  { k: 'linkedin',  label: 'LinkedIn',  colour: 'var(--li)', kinds: ['message'] }
 ];
 const ibxPlat = () => IBX_PLATFORMS.find(p => p.k === IBX.platform) || IBX_PLATFORMS[0];
 const IBX_KIND_LABEL = { comment: 'Comments', message: 'Messages' };
@@ -11551,9 +11559,15 @@ function ibxCapBar(){
 
   if (!actionable.length && !reconnect.length && !offerDirect) return '';
 
-  /* Which grant to send them to. Facebook and Instagram are one Meta sign-in. */
-  const grant = IBX.platform === 'youtube' ? 'youtube' : 'meta';
-  const fixable = actionable.length > 0 || reconnect.length > 0;
+  /* Which grant to send them to. Facebook and Instagram are one Meta sign-in.
+
+     LinkedIn has none. It is an API key in the environment, so there is no
+     consent screen to open and a Reconnect button would be a button that
+     cannot work — the fix is HEYREACH_API_KEY and a redeploy. */
+  const grant = IBX.platform === 'youtube' ? 'youtube'
+    : IBX.platform === 'linkedin' ? null
+      : 'meta';
+  const fixable = Boolean(grant) && (actionable.length > 0 || reconnect.length > 0);
 
   return '<div class="ytalert">'
     + '<div class="ytalert-i" aria-hidden="true">!</div>'
@@ -11564,6 +11578,10 @@ function ibxCapBar(){
     + actionable.map(v => '<p>' + escS(ibxWhy(v)) + '</p>').join('')
     + (reconnect.length && !actionable.length
       ? '<p>Everything below is the last data that arrived, not what the platform holds now.</p>' : '')
+    + (!grant && reconnect.length
+      ? '<p>LinkedIn is not a sign-in here, so there is nothing to reconnect from this '
+        + 'screen. HeyReach refused the API key: regenerate it in HeyReach under Settings, '
+        + 'Integrations, set <b>HEYREACH_API_KEY</b> to the new value and redeploy.</p>' : '')
     + (fixable
       ? '<div class="ytalert-do">'
         + '<button class="btn" data-soreconnect="' + escS(grant) + '">Reconnect '
@@ -11978,8 +11996,12 @@ function ibxWire(body){
   if (IBX.kind === 'message') msgrWire(body);
   body.querySelectorAll('[data-ibplat]').forEach(b => b.onclick = () => {
     IBX.platform = b.dataset.ibplat;
-    /* A platform that has no messages must not open on its Messages tab. */
-    if (!ibxPlat().kinds.includes(IBX.kind)) IBX.kind = 'comment';
+    /* A platform that does not have the kind you were reading opens on the one
+       it does have. This used to fall back to 'comment', which was true while
+       every platform had comments and became wrong the moment LinkedIn arrived
+       with messages and nothing else -- it would have opened LinkedIn on a
+       comments list that can never hold anything. */
+    if (!ibxPlat().kinds.includes(IBX.kind)) IBX.kind = ibxPlat().kinds[0];
     IBX.account = 'all'; IBX.sel = null; IBX.items = []; IBX.q = '';
     IBX.tag = null; IBX.compose = null; IBX.err = null;
     ibxLoad(); ibxTagList();

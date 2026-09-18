@@ -1,4 +1,4 @@
-/* Meta and Instagram webhooks.
+/* Meta, Instagram and HeyReach webhooks.
 
    A webhook here is a TRIGGER, not a second way in.
 
@@ -21,9 +21,11 @@
 
 import express from 'express';
 import crypto from 'node:crypto';
+import { query } from '../db/index.js';
 import { accountsFor } from '../lib/accounts.js';
 import { syncInbox, inboxPlatformOf } from '../lib/social-inbox.js';
 import { pollOnce } from '../lib/social-sync.js';
+import { senderAccounts } from '../lib/heyreach-seed.js';
 
 /* Meta signs every delivery. Verifying it is what stops anybody who learns the
    URL from making this app hammer Instagram on command.
@@ -214,6 +216,142 @@ export function webhookRoutes({ env }){
   for (const path of ['/webhooks/meta', '/webhooks/instagram']) {
     r.get(path, verify);
     r.post(path, raw, receive);
+  }
+
+  /* -------------------------------------------------------------------------
+     HeyReach, which is LinkedIn.
+
+     Same principle as above: the event says WHICH sender changed, and the
+     syncer reads the conversation from the API. It matters more here than it
+     does for Meta, because HeyReach's own guide says the webhook payload "is
+     not formally documented or versioned" — so a parser that lifted message
+     text straight out of it would be building the inbox on a shape nobody has
+     promised to keep.
+
+     HeyReach does not sign deliveries and sends nothing secret of its own, so
+     the secret is in the URL. That is the whole authentication: anyone holding
+     the URL can make this app call HeyReach, which is why the URL is not the
+     bare path and why HEYREACH_WEBHOOK_SECRET has to be long enough that it
+     cannot be guessed.
+     ------------------------------------------------------------------------- */
+
+  /* Timing-safe, and false on anything malformed rather than throwing. */
+  const secretOk = given => {
+    const want = String(env.HEYREACH_WEBHOOK_SECRET || '');
+    const got = String(given || '');
+    if (!want || !got) return false;
+    const a = Buffer.from(want, 'utf8');
+    const b = Buffer.from(got, 'utf8');
+    if (a.length !== b.length) return false;
+    try { return crypto.timingSafeEqual(a, b); } catch { return false; }
+  };
+
+  const at = (o, p) => p.split('.').reduce((x, k) => (x == null ? undefined : x[k]), o);
+
+  /* Which sender an event is about.
+
+     Every candidate spelling is tried, because the payload is unversioned. When
+     none of them matches anything stored, every LinkedIn sender is synced
+     rather than none: the alternative is an event that silently does nothing
+     the day HeyReach renames a field, and the number of senders in a workspace
+     is small enough that the whole set is an acceptable answer. */
+  const SENDER_ID_PATHS = [
+    'linkedInAccountId', 'linkedin_account_id', 'accountId', 'senderId',
+    'linkedInAccount.id', 'sender.id', 'sender.linkedInAccountId',
+    'linkedInSender.id', 'account.id'
+  ];
+  const SENDER_URL_PATHS = [
+    'sender.profileUrl', 'sender.linkedInUrl', 'linkedInAccount.linkedInUrl',
+    'senderProfileUrl', 'linkedInSender.profileUrl'
+  ];
+  const tidy = u => String(u).replace(/\/+$/, '').toLowerCase();
+
+  async function heyreachAccounts(body){
+    const senders = await senderAccounts();
+    if (!senders.length) return [];
+
+    const ids = new Set(SENDER_ID_PATHS.map(p => at(body, p))
+      .filter(v => v !== undefined && v !== null && v !== '').map(String));
+    const urls = new Set(SENDER_URL_PATHS.map(p => at(body, p)).filter(Boolean).map(tidy));
+
+    const hit = senders.filter(s => ids.has(String(s.senderId))
+      || (s.profileUrl && urls.has(tidy(s.profileUrl))));
+    if (hit.length) return hit.map(s => s.id);
+
+    console.log(`[webhook:heyreach] no sender matched the payload, syncing all `
+      + `${senders.length} LinkedIn account(s)`);
+    return senders.map(s => s.id);
+  }
+
+  /* Kept whether or not it moves the inbox. A connection request is not a
+     message and syncing the inbox will not find one, but it IS the record that
+     the request went out — and webhook_events is where this app already keeps
+     the things a platform says once and never says again. */
+  async function recordEvent(body){
+    const type = String(at(body, 'eventType') || at(body, 'event') || 'unknown');
+    const external = at(body, 'conversationId') || at(body, 'id')
+      || at(body, 'lead.profileUrl') || null;
+    await query(
+      `INSERT INTO webhook_events (provider, event_type, external_id, payload, processed)
+       VALUES ('heyreach', $1, $2, $3, true)`,
+      [type.slice(0, 120), external ? String(external).slice(0, 200) : null, body]);
+    return type;
+  }
+
+  /* Only two of the four events this dashboard subscribes to can put something
+     new in the inbox. A connection request sent or accepted is recorded and
+     acknowledged without spending a read on an inbox that has not changed. */
+  const MOVES_THE_INBOX = /MESSAGE|INMAIL|REPLY/i;
+
+  const heyreachReceive = (req, res) => {
+    if (!env.HEYREACH_WEBHOOK_SECRET) {
+      console.warn('[webhook:heyreach] delivery arrived with HEYREACH_WEBHOOK_SECRET unset');
+      return res.status(503).type('text/plain')
+        .send('HEYREACH_WEBHOOK_SECRET is not set on this server, so there is nothing to '
+          + 'check this delivery against. Set it, redeploy, then re-save the webhook.');
+    }
+    if (!secretOk(req.params.secret || req.query.key || req.get('X-Webhook-Secret'))) {
+      console.warn('[webhook:heyreach] rejected: the secret did not match');
+      return res.sendStatus(403);
+    }
+
+    /* Answer first. HeyReach retries up to five times over 24 hours on a
+       failure, so a slow handler turns one event into five. */
+    res.sendStatus(200);
+
+    const body = req.body || {};
+    recordEvent(body)
+      .then(async type => {
+        if (!MOVES_THE_INBOX.test(type)) {
+          console.log(`[webhook:heyreach] ${type} recorded`);
+          return;
+        }
+        const ids = await heyreachAccounts(body);
+        if (!ids.length) {
+          console.log(`[webhook:heyreach] ${type} but no LinkedIn sender is connected`);
+          return;
+        }
+        schedule(ids);
+      })
+      .catch(err => console.error('[webhook:heyreach]', err.message));
+  };
+
+  /* A GET, so the URL can be opened once to confirm it is the right one and the
+     secret is right, before it is pasted into HeyReach. It says nothing to
+     anyone who does not already hold the secret. */
+  const heyreachPing = (req, res) => {
+    if (!env.HEYREACH_WEBHOOK_SECRET) {
+      return res.status(503).type('text/plain').send('HEYREACH_WEBHOOK_SECRET is not set');
+    }
+    if (!secretOk(req.params.secret || req.query.key)) return res.sendStatus(403);
+    res.type('text/plain').send('ready — paste this same URL into HeyReach');
+  };
+
+  /* The secret in the path, because a URL is the only field HeyReach gives you.
+     The query form is there for anyone who would rather keep it off the path. */
+  for (const path of ['/webhooks/heyreach', '/webhooks/heyreach/:secret']) {
+    r.get(path, heyreachPing);
+    r.post(path, raw, heyreachReceive);
   }
 
   return r;

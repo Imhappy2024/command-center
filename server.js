@@ -8,6 +8,7 @@ import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
 import { PROVIDERS, missingVars } from './lib/oauth.js';
 import { seedFromEnv } from './lib/ghl-seed.js';
+import { seedHeyReach, apiKey as heyreachKey } from './lib/heyreach-seed.js';
 import { claudeIsLocal } from './routes/claude.js';
 import { loadEnvFile } from './lib/dotenv.js';
 
@@ -170,6 +171,28 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       }
     })
     .catch(err => console.error('[boot] seeding failed:', err.message));
+
+  /* LinkedIn, the same way and for the same reason: it verifies the key against
+     HeyReach and then lists the workspace's sender accounts, which is two calls
+     to somebody else's API and belongs behind readiness. */
+  if (heyreachKey(env)) {
+    seedHeyReach(env)
+      .then(s => {
+        console.log(`HeyReach: ${s.senders} LinkedIn sender account(s), ${s.seeded} written`);
+        if (s.note) console.warn(`  heyreach: ${s.note}`);
+        /* Said once, in full, because the person setting this up has to paste it
+           into HeyReach and there is nowhere else to read it from. */
+        if (env.HEYREACH_WEBHOOK_SECRET) {
+          console.log(`  heyreach: webhook ${env.PUBLIC_URL}/webhooks/heyreach/`
+            + `${env.HEYREACH_WEBHOOK_SECRET}`);
+        } else {
+          console.warn('  heyreach: HEYREACH_WEBHOOK_SECRET is unset, so the webhook '
+            + 'endpoint refuses every delivery. Set it to a long random string and '
+            + 'paste PUBLIC_URL/webhooks/heyreach/<that string> into HeyReach.');
+        }
+      })
+      .catch(err => console.error('[boot] HeyReach seeding failed:', err.message));
+  }
 
   /* Reported through missingVars, the same check the connect sheet uses, and
      enumerated from PROVIDERS so a provider added later is covered without

@@ -394,6 +394,40 @@ is not a reason to spend.
 
 The header states when the data was last pulled and when the next pull is.
 
+### LinkedIn, by way of HeyReach
+
+There is no LinkedIn connection here and there is not going to be one. LinkedIn
+sells no API for reading a member's own inbox — Marketing and Community
+Management cover Pages and ads, and one-to-one messages are not among them at
+any tier. HeyReach already sends those messages and holds the replies, so it is
+the LinkedIn provider in the same sense that Meta is the Facebook one.
+
+`HEYREACH_API_KEY` is the whole credential. There is nothing to sign in to, no
+refresh, and no reauth loop; a rotated key is an environment edit and a
+redeploy. At boot the key is checked, then the workspace's LinkedIn **sender
+profiles** are listed and written as one account row each — so three senders is
+three toggles in the inbox, the way three Pages are.
+
+**Messages only.** HeyReach automates outreach: connection requests, messages,
+InMails, follows, likes and profile views. It has no endpoint for the comments
+under a post, and neither does LinkedIn, so the comments half of the view says
+that rather than offering a tab that would be empty forever. It is not a
+permission that could be granted later.
+
+The webhook is at `/webhooks/heyreach/<HEYREACH_WEBHOOK_SECRET>`. HeyReach does
+not sign its deliveries and sends no secret of its own, so the secret is in the
+URL and that is the entire authentication — make it long. `GET` the same URL to
+check it before pasting it into HeyReach; it answers `ready` or 403.
+
+As with Meta, an event says only **which sender changed** and the syncer then
+reads the conversation from the API. That matters more here: HeyReach's own
+guide says the payload "is not formally documented or versioned", so a parser
+that lifted message text straight out of it would be building the inbox on a
+shape nobody has promised to keep. Of the four events worth subscribing to,
+`MESSAGE_SENT` and `EVERY_MESSAGE_REPLY_RECEIVED` trigger a sync;
+`CONNECTION_REQUEST_SENT` and `CONNECTION_REQUEST_ACCEPTED` are recorded in
+`webhook_events` and spend no read, because the inbox has not changed.
+
 ### One Meta grant, several accounts
 
 Meta is the reason `lib/oauth.js` grew a `discover()` hook. The code exchange
@@ -625,6 +659,8 @@ with the variable it needs.
 | `MS_TENANT_ID` | `common` supports work and personal accounts |
 | `META_APP_ID` / `META_APP_SECRET` | Business-type app. Covers Pages, Instagram and Ads in one grant |
 | `META_WEBHOOK_VERIFY_TOKEN` | You invent it; Meta echoes it back at `GET /webhooks/meta` |
+| `HEYREACH_API_KEY` | LinkedIn. Settings → Integrations → HeyReach API. One key, one row per sender profile, discovered at boot |
+| `HEYREACH_WEBHOOK_SECRET` | You invent it. The URL is `PUBLIC_URL/webhooks/heyreach/<this>`, and it is the only thing guarding that endpoint |
 | `X_CLIENT_ID` / `X_CLIENT_SECRET` | OAuth 2.0 "Web App". **Reads bill at $0.005 each** |
 | `SOCIAL_SCHEDULE` / `SOCIAL_SCHEDULE_TZ` | Default `60`, floors at `15`. How often the poller runs |
 
