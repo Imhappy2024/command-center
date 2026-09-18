@@ -4764,7 +4764,8 @@ const MENU = [
   ['leads','GHL','Supabase',''],
   ['properties','Properties','Postgres',''],
   ['financial','Financial','Ledger',''],
-  ['social','Social','5 networks',''],
+  /* YouTube, Facebook, Instagram, Meta Ads, X, and now LinkedIn. */
+  ['social','Social','6 networks',''],
   ['systems','Systems','n8n','']
 ];
 /* Claude used to sit before Systems. The section it opened is still in the
@@ -12235,7 +12236,10 @@ function msgrList(){
     +     (IBX.syncing ? ' disabled' : '') + '>' + (IBX.syncing ? msgrSpinner() : msgrIcon('refresh')) + '</button>'
     + '</div>'
     + '<div class="mgsearch"><span>' + msgrIcon('search') + '</span>'
-    +   '<input id="ibx-q" placeholder="Search Messenger" value="' + escS(IBX.q) + '"></div>'
+    /* Messenger is Meta's name for its own product, not a word for any inbox,
+       and it read as wrong the moment LinkedIn appeared in the same strip. */
+    +   '<input id="ibx-q" placeholder="Search ' + escS(ibxPlat().label)
+    +     '" value="' + escS(IBX.q) + '"></div>'
     /* Read state only. No account toggle.
        Instagram is reachable by two routes -- through the Page and signed in
        directly -- and they arrive as two account rows. That is a fact about
@@ -12616,8 +12620,11 @@ function msgrView(){
   const t = IBX.threads.find(x => x.id === IBX.sel);
   const main = !IBX.sel
     ? '<div class="mgpane mgmain empty-main"><div class="empty">'
+      /* Named, because a reply leaves through whichever service holds the
+         conversation and "Meta" was simply wrong on the LinkedIn tab. */
       + '<b>Pick a conversation</b><small>Messages arrive on the sync; '
-      + 'replies go straight to Meta.</small></div></div>'
+      + 'replies go straight to ' + (IBX.platform === 'linkedin' ? 'HeyReach' : 'Meta')
+      + '.</small></div></div>'
     : '<div class="mgpane mgmain">'
       + '<div class="mgthreadhead">'
       +   msgrAvatar(t?.with, 'sm')
