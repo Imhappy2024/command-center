@@ -225,8 +225,19 @@ function conversationOut(c, { senderId } = {}){
     || str(first(peer, ['fullName', 'name', 'headline']))
     || null;
 
+  /* The peer goes down into each message. A LinkedIn conversation has exactly
+     two participants, so an inbound message is from this person by definition
+     and there is no need for the message object to name them -- which is just
+     as well, because across 180 real messages not one of them did. Reading it
+     off the conversation is not a guess, it is the only thing it can be. */
+  const peerOut = {
+    name: peerName,
+    avatar: str(first(peer, ['profilePictureUrl', 'profilePicture', 'imageUrl', 'avatarUrl'])),
+    id: str(first(peer, ['profileUrl', 'linkedInId', 'memberId', 'id', 'publicIdentifier']))
+  };
+
   const items = (first(c, ['messages', 'chatMessages', 'items']) || [])
-    .map(m => messageOut(m, { senderId }))
+    .map(m => messageOut(m, { senderId, peer: peerOut, conversationId: externalId }))
     .filter(Boolean);
 
   const lastAt = when(first(c, [
@@ -270,22 +281,42 @@ function conversationOut(c, { senderId } = {}){
    `mine` decides which side of the thread the bubble lands on, and getting it
    wrong is the most visible possible bug, so it is read from an explicit sender
    flag and never inferred from whether a name is missing. */
-function messageOut(m, { senderId } = {}){
+function messageOut(m, { senderId, peer = {}, conversationId = '' } = {}){
   const body = str(first(m, ['body', 'text', 'message', 'content'])) || '';
-  const externalId = str(first(m, ['id', 'messageId', 'message_id']))
-    || (body ? 'hr:' + hash(body + String(first(m, ['createdAt', 'sentAt', 'timestamp']) || '')) : null);
+  const createdAt = when(first(m, ['createdAt', 'sentAt', 'timestamp', 'date']));
+
+  /* HeyReach does not put an id on a message. Not "sometimes" -- across 180
+     real messages every one of these came back empty, so the fallback is the
+     normal path rather than the exception, and it has to be a good key.
+
+     Conversation plus timestamp, NOT the body. Hashing the body looked fine
+     until you ask what happens when the same message comes back a character
+     different -- trimmed, re-encoded, an emoji normalised -- and the answer is
+     a second row in the thread saying the same thing twice. The time a message
+     was sent does not change, and two messages in one conversation do not
+     share a millisecond. */
+  const externalId = str(first(m, [
+    'id', 'messageId', 'message_id', 'chatMessageId', 'entityUrn', 'urn', 'externalId'
+  ])) || (createdAt ? 'hr:' + hash(conversationId + '|' + createdAt) : null);
   if (!externalId) return null;
 
   const senderish = first(m, [
     'sender', 'from', 'senderType', 'direction', 'isSender', 'sentByUser'
   ]);
+  const mine = isOutbound(senderish, m, senderId);
   return {
     externalId,
     replyTo: null,
-    authorId: str(first(m, ['senderId', 'sender.id', 'fromId'])),
-    authorName: str(first(m, ['senderName', 'sender.name', 'from.name'])),
-    authorAvatar: str(first(m, ['senderPictureUrl', 'sender.profilePictureUrl'])),
-    mine: isOutbound(senderish, m, senderId),
+    authorId: str(first(m, ['senderId', 'sender.id', 'fromId']))
+      || (mine ? str(senderId) : peer.id),
+    /* Ours or theirs, and theirs is the person the conversation is with. Left
+       to the message object this was 'Unknown' on every row. Our own name is
+       filled in by the caller, which knows the account label. */
+    authorName: str(first(m, ['senderName', 'sender.name', 'from.name']))
+      || (mine ? null : peer.name),
+    authorAvatar: str(first(m, ['senderPictureUrl', 'sender.profilePictureUrl']))
+      || (mine ? null : peer.avatar),
+    mine,
     body,
     likes: 0,
     likedByUs: false,
@@ -293,7 +324,7 @@ function messageOut(m, { senderId } = {}){
     /* HeyReach returns InMail and message alike as text. An attachment, where
        one exists, arrives as a URL rather than bytes. */
     attachments: attachmentsOut(m),
-    createdAt: when(first(m, ['createdAt', 'sentAt', 'timestamp', 'date'])),
+    createdAt,
     raw: {}
   };
 }
