@@ -4365,7 +4365,10 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
       <input placeholder="Ask anything, or run a command" aria-label="Command">
       <span class="kbd">⌘K</span>
     </label>
-    <div class="clock"><div class="t" id="clk">08:42</div><div class="d">Mon 17 Aug 2026</div></div>
+    <!-- Both halves are filled by tick(). The date used to be typed in here
+         with no id, so nothing ever updated it and it read Mon 17 Aug 2026
+         whatever the actual date was. -->
+    <div class="clock"><div class="t" id="clk">--:--</div><div class="d" id="clk-d"></div></div>
   </div>
 
   <!-- OVERVIEW -->
@@ -5095,10 +5098,53 @@ document.addEventListener('keydown', e => {
 
 buildTabs();
 
-function tick(){
-  const d=new Date();
-  document.getElementById('clk').textContent=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+/* The header clock.
+
+   In AGENT_TIMEZONE, injected as window.__TZ, which is the same zone the server
+   uses for every timestamp it renders — a lead's "2h ago", a social post's
+   date, an appointment's hour. Reading the browser's zone instead meant the
+   header could disagree with the rest of the page for anyone not sitting in
+   that zone, which on a hosted dashboard is most people most of the time.
+
+   Intl, not getHours(): it is the only thing that gets an IANA zone right
+   across a daylight-saving change without a table of rules. An unusable zone
+   string throws on construction, so it falls back to the browser's own rather
+   than leaving the clock blank. */
+const CLOCK_TZ = window.__TZ || undefined;
+function clockFormatters(tz){
+  const opts = t => (tz ? { ...t, timeZone: tz } : t);
+  return {
+    /* en-GB for the time, because it is the one that gives 24-hour without
+       an AM/PM the layout has no room for. en-US for the date, because
+       en-GB abbreviates September as "Sept" — four letters where every other
+       month has three, so the line changes width once a year. */
+    time: new Intl.DateTimeFormat('en-GB',
+      opts({ hour: '2-digit', minute: '2-digit', hour12: false })),
+    date: new Intl.DateTimeFormat('en-US',
+      opts({ weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }))
+  };
 }
+let CLOCK;
+try { CLOCK = clockFormatters(CLOCK_TZ); }
+catch (err) {
+  console.warn('[clock] ' + CLOCK_TZ + ' is not a usable time zone, using this browser’s:',
+    err.message);
+  CLOCK = clockFormatters(null);
+}
+
+function tick(){
+  const now = new Date();
+  document.getElementById('clk').textContent = CLOCK.time.format(now);
+  /* Assembled from parts rather than taking the locale's own order, so it is
+     "Mon 21 Sep 2026" and not "Mon, 21 Sep 2026" with a comma the uppercase
+     styling would keep. */
+  const p = {};
+  for (const part of CLOCK.date.formatToParts(now)) p[part.type] = part.value;
+  const el = document.getElementById('clk-d');
+  if (el) el.textContent = [p.weekday, p.day, p.month, p.year].filter(Boolean).join(' ');
+}
+/* Every ten seconds, which also rolls the date over at midnight without a
+   second timer. */
 tick();setInterval(tick,10000);
 
 document.addEventListener('keydown',e=>{

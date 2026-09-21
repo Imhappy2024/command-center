@@ -13,6 +13,7 @@
 import express from 'express';
 import { query } from '../db/index.js';
 import { accountsFor, getAccessToken } from '../lib/accounts.js';
+import { SAFE_TZ as TZ } from '../lib/timezone.js';
 import * as youtube from '../providers/youtube.js';
 import { guarded } from './guard.js';
 import {
@@ -33,10 +34,9 @@ const rangeOf = q => {
 
 /* The four platforms the Social view draws a card for. The grant row (`meta`)
    publishes no metrics of its own, and LinkedIn is rendered by the frontend as a
-   permanently closed API. */
+   a messages-only inbox rather than a dashboard — see lib/social-inbox.js. */
 const PLATFORMS = ['facebook', 'instagram', 'youtube', 'x'];
 
-const TZ = process.env.AGENT_TIMEZONE || undefined;
 const monthDay = d => new Intl.DateTimeFormat('en-US',
   { timeZone: TZ, month: 'short', day: 'numeric' }).format(d);
 

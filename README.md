@@ -708,7 +708,7 @@ with the variable it needs.
 | Variable | Default | Notes |
 |---|---|---|
 | `MAIL_FETCH_LIMIT` | `25` | Per mailbox per folder, before merging |
-| `AGENT_TIMEZONE` | server zone | IANA zone deciding whether a row shows a clock, `Yesterday` or a date. Also drives the lead list's `12m` / `2h` / `Aug 4` column |
+| `AGENT_TIMEZONE` | `America/Chicago` | The one zone the app thinks in: whether a row shows a clock, `Yesterday` or a date, the lead list's `12m` / `2h` / `Aug 4` column, and the header clock. Defaults to Central rather than to the server's zone, which on Railway is UTC. An unusable value is logged and the default applies |
 | `PGSSLMODE` | — | `disable` if your Postgres rejects TLS. Railway's private hostname is detected automatically |
 
 **GoHighLevel** — none required. Sub-accounts come from `ghl_location` in Supabase

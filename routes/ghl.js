@@ -30,6 +30,7 @@ import {
   isActivity, activityLabel, channelOf, dirOf
 } from '../lib/ghl-data.js';
 import { run as limited } from '../lib/ghl-limiter.js';
+import { SAFE_TZ as TZ } from '../lib/timezone.js';
 import { fromAddressFor } from '../lib/ghl-seed.js';
 import { guarded } from './guard.js';
 
@@ -51,8 +52,6 @@ function splitLeadId(raw){
 /* ---------------- display strings ----------------
    Computed server-side, in AGENT_TIMEZONE, because the Leads view does no date
    arithmetic — it renders the string it is handed. */
-
-const TZ = process.env.AGENT_TIMEZONE || undefined;
 
 const dayKey = d => new Intl.DateTimeFormat('en-CA',
   { timeZone: TZ, year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
