@@ -1,6 +1,6 @@
 {
   "name": "Command Center",
-  "short_name": "Command",
+  "short_name": "Command Center",
   "description": "Single-pane operations dashboard: mail, calendar, leads, social and systems.",
   "start_url": "/",
   "scope": "/",

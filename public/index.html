@@ -231,18 +231,84 @@ h1,h2,h3,h4{font-family:var(--ff-display)}
   padding:18px 18px 16px;border-bottom:1px solid var(--edge);
   display:flex;align-items:center;gap:11px;
 }
-/* Was a blend of the platform hues, as the product's own identity. On a warm
-   board the red-magenta-blue sweep is the one thing that still reads as the
-   old theme, and it is the first mark on the page — so it is brass now, which
-   is what the accent means everywhere else. It keeps the slow beat. */
-.brand .pulse{
-  width:32px;height:32px;border-radius:11px;flex:none;
-  background:linear-gradient(150deg,var(--brass),#A88B52 62%,#8A7040);
-  box-shadow:0 6px 18px -8px var(--brass);animation:beat 3.4s infinite;
+/* ---------- the mark ----------
+
+   It was a flat brass tile with a slow beat. A tile is a placeholder: it says
+   the accent colour and nothing else, and it is the first thing on the page.
+
+   This is a control-room instrument instead — a plate, a bezel, concentric
+   rings with tick marks, and a sweep going round like a radar trace. Three
+   motions, deliberately out of phase with each other so it never resolves into
+   one throb:
+
+     sweep   3.6s, linear, continuous. The thing that reads as "processing".
+     sheen   5.4s, a highlight crossing the glass. What makes it look made of
+             something rather than printed.
+     core    2.8s, the centre breathing.
+
+   None of the periods divide evenly into another, so the three never line up
+   and the mark stays alive instead of ticking.
+
+   Everything is CSS and one inline SVG: no image to load, no request to make,
+   and it scales to the login screen and the favicon without a second asset. */
+.brand .mark{
+  position:relative;width:32px;height:32px;border-radius:11px;flex:none;
+  overflow:hidden;isolation:isolate;
+  background:
+    radial-gradient(120% 120% at 30% 18%, #221F1A 0%, #16150F 55%, #0F0E0B 100%);
+  border:1px solid rgba(201,169,107,.34);
+  box-shadow:0 6px 18px -9px rgba(201,169,107,.65),
+             inset 0 1px 0 rgba(255,244,222,.06);
 }
-@keyframes beat{0%,100%{box-shadow:0 6px 18px -8px var(--brass)}50%{box-shadow:0 6px 26px -6px var(--brass)}}
+/* The trace. A conic gradient that is transparent for most of the turn and
+   brightest at its leading edge, which is what makes it read as a sweep going
+   one way rather than a wheel spinning. */
+.brand .mark::before{
+  content:"";position:absolute;inset:-30%;z-index:0;
+  background:conic-gradient(from 0deg,
+    rgba(201,169,107,0) 0deg,
+    rgba(201,169,107,0) 232deg,
+    rgba(201,169,107,.16) 296deg,
+    rgba(228,200,146,.52) 344deg,
+    rgba(255,240,208,.92) 358deg,
+    rgba(201,169,107,0) 360deg);
+  animation:mk-sweep 3.6s linear infinite;
+}
+/* The glass. Sits above everything, crosses, and waits — the pause is most of
+   the cycle, because a highlight that never stops is a strobe. */
+.brand .mark::after{
+  content:"";position:absolute;inset:-40% -60%;z-index:2;
+  background:linear-gradient(104deg,
+    transparent 38%, rgba(255,245,224,.26) 50%, transparent 62%);
+  transform:translate3d(-130%,0,0);
+  animation:mk-sheen 5.4s cubic-bezier(.5,0,.2,1) infinite;
+}
+.brand .mark svg{position:relative;z-index:1;display:block}
+.brand .mark .mk-ring{fill:none;stroke:rgba(201,169,107,.44);stroke-width:1}
+.brand .mark .mk-ring2{fill:none;stroke:rgba(201,169,107,.26);stroke-width:.85}
+.brand .mark .mk-tick{stroke:rgba(201,169,107,.55);stroke-width:1.1;stroke-linecap:round}
+.brand .mark .mk-core{fill:#F2DCAE;animation:mk-core 2.8s ease-in-out infinite}
+
+@keyframes mk-sweep{to{transform:rotate(360deg)}}
+@keyframes mk-sheen{
+  0%,62%{transform:translate3d(-130%,0,0)}
+  92%,100%{transform:translate3d(130%,0,0)}
+}
+@keyframes mk-core{
+  0%,100%{opacity:.62;r:2}
+  50%{opacity:1;r:2.7}
+}
+
+/* Someone who has asked their machine to stop moving things has asked this
+   too. The mark keeps its shape and loses all three motions. */
+@media (prefers-reduced-motion:reduce){
+  .brand .mark::before{animation:none;opacity:.5}
+  .brand .mark::after{animation:none;opacity:0}
+  .brand .mark .mk-core{animation:none}
+}
+
 .brand b{font-family:var(--ff-display);font-weight:700;font-size:14px;letter-spacing:-.01em;
-  text-transform:none;color:var(--cream)}
+  text-transform:none;color:var(--cream);white-space:nowrap}
 
 nav{padding:10px 8px;overflow-y:auto;flex:1}
 .navitem{
@@ -4263,7 +4329,18 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
 
 <!-- ============ RAIL ============ -->
 <aside class="rail">
-  <div class="brand"><span class="pulse"></span><b>Command</b></div>
+  <div class="brand">
+    <span class="mark" aria-hidden="true">
+      <svg width="32" height="32" viewBox="0 0 32 32">
+        <circle class="mk-ring" cx="16" cy="16" r="10"/>
+        <circle class="mk-ring2" cx="16" cy="16" r="5.6"/>
+        <!-- Four ticks at the quarters, so the sweep has something to pass. -->
+        <path class="mk-tick" d="M16 3.6v2.4M16 26v2.4M3.6 16h2.4M26 16h2.4"/>
+        <circle class="mk-core" cx="16" cy="16" r="2"/>
+      </svg>
+    </span>
+    <b>Command Center</b>
+  </div>
   <nav id="nav"></nav>
   <div class="railfoot">
     <div class="eyebrow" style="margin-bottom:3px">Connections</div>

@@ -7,17 +7,24 @@
    .ico is a 6-byte header, one 16-byte directory entry, and a whole PNG, which
    Windows has accepted since Vista.
 
-   The mark: the rail's brand pulse. A brass ring on the ink ground with a filled
-   centre, which reads at 16px in a taskbar where a letterform would not. */
+   The mark: the rail's brand mark, flattened. Concentric brass rings on the ink
+   ground, four ticks, a bright core, and one frozen frame of the sweep — which
+   reads at 16px in a taskbar where a letterform would not.
+
+   The colours below were the OLD theme's and nobody noticed, because a taskbar
+   icon is the one part of a redesign you never look at while working: --brass
+   was 0x7C6CFF, which is violet, so the app has been shipping a purple icon on
+   a blue ground since the board went warm. */
 
 import zlib from 'node:zlib';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const INK   = [0x0E, 0x11, 0x20];   // --ink
-const BRASS = [0x7C, 0x6C, 0xFF];   // --brass
-const JADE  = [0x35, 0xD0, 0xA5];   // --jade
+const INK   = [0x0E, 0x0D, 0x0C];   // --ink
+const BRASS = [0xC9, 0xA9, 0x6B];   // --brass
+const CORE  = [0xF2, 0xDC, 0xAE];   // the lit centre
+const PLATE = [0x1E, 0x1B, 0x17];   // the plate, a shade off the ground
 
 function crc32(buf){
   let c, crc = 0xFFFFFFFF;
@@ -92,14 +99,38 @@ const mix = (under, over, a) => under.map((c, i) => Math.round(c * (1 - a) + ove
 
 /* `pad` leaves room for the safe area a maskable icon needs — Android and
    Windows both crop these, and a mark that fills the square gets clipped. */
+/* An annulus, as coverage. Two discs subtracted, which antialiases both edges
+   for free because discCoverage already supersamples. */
+const ringCoverage = (x, y, c, outer, inner) =>
+  Math.max(0, discCoverage(x, y, c, c, outer) - discCoverage(x, y, c, c, inner));
+
+/* The sweep, frozen. The animated mark brightens towards the leading edge of a
+   trace; here that is one angular ramp, brightest at `head` and gone by
+   `span` behind it. Nothing else in a flat icon says "this thing is working". */
+function sweepCoverage(x, y, c, outer, head, span){
+  const d = Math.hypot(x + 0.5 - c, y + 0.5 - c);
+  if (d > outer) return 0;
+  let a = Math.atan2(y + 0.5 - c, x + 0.5 - c) - head;
+  while (a < 0) a += Math.PI * 2;
+  while (a > Math.PI * 2) a -= Math.PI * 2;
+  if (a > span) return 0;
+  /* Brightest at the head, falling away behind it, and fading at the hub so
+     the wedge does not become a solid pie. */
+  return (1 - a / span) ** 1.7 * Math.min(1, d / (outer * 0.42));
+}
+
 function draw(size, { pad = 0, square = true } = {}){
   const rgba = Buffer.alloc(size * size * 4);
   const c = size / 2;
   const inset = size * pad;
   const boxR = size * 0.22;                     // corner radius of the tile
-  const ringOuter = (size / 2 - inset) * 0.62;
-  const ringInner = ringOuter * 0.70;
-  const dot = ringOuter * 0.34;
+  const half = size / 2 - inset;
+  const ringOuter = half * 0.64;
+  const ringMid   = half * 0.36;
+  const stroke    = Math.max(1, size * 0.028);
+  const dot       = half * 0.14;
+  const tickIn    = half * 0.76;
+  const tickOut   = half * 0.94;
 
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
@@ -108,16 +139,32 @@ function draw(size, { pad = 0, square = true } = {}){
       /* ground */
       const bg = square
         ? roundedSquareCoverage(x, y, size, boxR)
-        : discCoverage(x, y, c, c, size / 2 - 0.5);
-      if (bg > 0) { px = INK; alpha = bg; }
+        : discCoverage(x, y, c, c, half);
+      if (bg > 0) { px = PLATE; alpha = bg; }
 
-      /* brass ring: inside the outer disc, outside the inner one */
-      const ring = Math.max(0, discCoverage(x, y, c, c, ringOuter) - discCoverage(x, y, c, c, ringInner));
-      if (ring > 0) { px = mix(px, BRASS, ring); alpha = Math.max(alpha, ring); }
+      /* Inside the plate only, so nothing bleeds past the corners. */
+      if (bg > 0) {
+        const sweep = sweepCoverage(x, y, c, ringOuter, -Math.PI / 2, Math.PI * 0.62);
+        if (sweep > 0) px = mix(px, BRASS, sweep * 0.42 * bg);
 
-      /* live dot, jade — the same "it is running" green as the rail */
-      const centre = discCoverage(x, y, c, c, dot);
-      if (centre > 0) { px = mix(px, JADE, centre); alpha = Math.max(alpha, centre); }
+        const outer = ringCoverage(x, y, c, ringOuter, ringOuter - stroke);
+        if (outer > 0) px = mix(px, BRASS, outer * bg);
+
+        const mid = ringCoverage(x, y, c, ringMid, ringMid - stroke * 0.8);
+        if (mid > 0) px = mix(px, BRASS, mid * 0.55 * bg);
+
+        /* Four ticks at the quarters, drawn as short radial bars. */
+        const dx = x + 0.5 - c, dy = y + 0.5 - c;
+        const d = Math.hypot(dx, dy);
+        if (d > tickIn && d < tickOut) {
+          const near = Math.min(Math.abs(dx), Math.abs(dy));
+          const t = Math.max(0, 1 - near / (stroke * 0.75));
+          if (t > 0) px = mix(px, BRASS, t * 0.8 * bg);
+        }
+
+        const centre = discCoverage(x, y, c, c, dot);
+        if (centre > 0) px = mix(px, CORE, centre * bg);
+      }
 
       const o = (y * size + x) * 4;
       rgba[o] = px[0]; rgba[o + 1] = px[1]; rgba[o + 2] = px[2];
