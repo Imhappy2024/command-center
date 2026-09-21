@@ -53,6 +53,11 @@
   --brass:#C9A96B;
   --jade:#8FB48C;       /* good / up — sage, not a signal green */
   --rust:#C08268;       /* bad / needs attention */
+  /* Unread. Deliberately NOT brass: brass is the accent on every control in
+     this dashboard, so a brass dot is another piece of chrome and the eye
+     stops seeing it. Hotter and more saturated than rust, which is a status
+     colour for something wrong — unread is not wrong, it is waiting. */
+  --unread:#E2564A;
   /* The reference has no third status colour. This one is pushed
      yellower than brass so a warning and the accent chrome do not
      read as the same mark at a glance. */
@@ -261,6 +266,10 @@ nav{padding:10px 8px;overflow-y:auto;flex:1}
   font-family:var(--ff-mono);font-size:10px;padding:1px 6px;border-radius:20px;
   background:rgba(201,169,107,.16);color:var(--brass);
 }
+/* Waiting, not describing. The brass badge above says what a section IS
+   ("Soon"); this one says something in it wants you. */
+.navitem .badge.wait{background:var(--unread);color:#1B1916;
+  font-variation-settings:'wght' 600}
 .railfoot{border-top:1px solid var(--edge);padding:14px 18px;display:flex;flex-direction:column;gap:7px}
 .wire{display:flex;align-items:center;gap:7px;font-size:10.5px}
 .dot{width:6px;height:6px;border-radius:50%;flex:none}
@@ -693,7 +702,10 @@ body.ycmlock{overflow:hidden}
 .mgrowsnip{font-size:12.5px;color:var(--dimmer);margin-top:2px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .mgrow.unread .mgrowsnip{color:var(--dim)}
-.mgdot{width:9px;height:9px;border-radius:50%;background:var(--brass);flex:none}
+/* The unread mark on a conversation. Red, and it is the only red on the row,
+   so it is found without being looked for. */
+.mgdot{width:9px;height:9px;border-radius:50%;background:var(--unread);flex:none;
+  box-shadow:0 0 0 3px rgba(226,86,74,.14)}
 .mgmore{padding:8px;border-top:1px solid var(--edge);text-align:center}
 
 .mgav{
@@ -1074,8 +1086,12 @@ body.ycmlock{overflow:hidden}
 .ibxrow:hover{background:var(--panel2)}
 .ibxrow.on{background:var(--panel2);border-color:var(--edge2)}
 .ibxrow:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
+/* Same mark as a conversation gets, because a comment nobody has read and a
+   message nobody has read are the same thing to the person reading them. It
+   used to inherit the mail list's dot, which is dim grey and invisible. */
 .ibxrow .udot{opacity:0}
-.ibxrow.unread .udot{opacity:1}
+.ibxrow.unread .udot{opacity:1;background:var(--unread);width:8px;height:8px;
+  box-shadow:0 0 0 3px rgba(226,86,74,.14)}
 .ibxrow.unread b{color:var(--cream)}
 .ibxmid{min-width:0}
 .ibxr1{display:flex;align-items:center;gap:7px;min-width:0}
@@ -1353,6 +1369,12 @@ body.ycmlock{overflow:hidden}
 .subitem .scount{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);flex:none}
 .subitem.on .scount{color:var(--brass)}
 .subitem.broken .scount{color:var(--rust)}
+.subitem .scount{display:flex;align-items:center;gap:6px}
+/* The unread badge in the sub-menu. Keeps its colour when the row is selected
+   and when an account is broken, because it is not describing either. */
+.subitem .waitn,.subitem.on .waitn,.subitem.broken .waitn{
+  background:var(--unread);color:#1B1916;border-radius:9px;padding:1px 6px;
+  font-variation-settings:'wght' 600;min-width:17px;text-align:center}
 .subadd{
   display:flex;align-items:center;gap:9px;background:none;border:1px dashed var(--edge2);cursor:pointer;
   color:var(--dimmer);padding:6px 10px;border-radius:6px;width:100%;margin-top:4px;
@@ -1362,6 +1384,9 @@ body.ycmlock{overflow:hidden}
 .unprotected{display:flex;align-items:center;gap:7px;margin-top:8px;padding-top:8px;
   border-top:1px solid var(--edge);font-family:var(--ff-mono);font-size:9.5px;
   letter-spacing:.05em;color:var(--rust)}
+.unprotected-fix{font-family:var(--ff-mono);font-size:9px;letter-spacing:.04em;
+  color:var(--dimmer);margin-top:3px;padding-left:15px}
+.unprotected-fix b{color:var(--dim);font-variation-settings:'wght' 500}
 /* Who is signed in, and the way out. Same slot as the unprotected warning,
    because they answer the same question and only one of them is ever true. */
 .whoami{margin-top:8px;padding-top:8px;border-top:1px solid var(--edge)}
@@ -1395,6 +1420,12 @@ body.ycmlock{overflow:hidden}
 .viewtabs button .n{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);
   font-variant-numeric:tabular-nums}
 .viewtabs button.on .n{color:var(--brass)}
+/* A count that means "waiting for you" rather than "how many there are". It
+   reads as a badge, and it is red on the tab you are NOT on -- which is the
+   only tab whose count you cannot already see. */
+.viewtabs button .n.wait{color:#1B1916;background:var(--unread);border-radius:9px;
+  padding:1px 6px;font-variation-settings:'wght' 600;min-width:17px;text-align:center}
+.viewtabs button.on .n.wait{color:#1B1916}
 .viewtabs button .sdot{width:6px;height:6px;border-radius:50%;flex:none}
 
 /* ---------- the leads table ----------
@@ -5337,8 +5368,14 @@ function drawAuthFlag(){
   const box = document.getElementById('rail-auth');
   if (!box) return;
   if (window.__AUTH_MODE === 'open') {
-    box.innerHTML = '<div class="unprotected"><span class="dot off"></span>'
-      + 'No login \u00b7 public URL</div>';
+    /* Names the fix, not just the fact. "No login" was true and useless: it did
+       not say that accounts exist as a feature, or that turning them on is two
+       environment variables rather than a code change, so it read as a
+       permanent property of the dashboard instead of a setting. */
+    box.innerHTML = '<div class="unprotected" title="Set APP_USERS to a JSON array of '
+      + 'accounts and AUTH_MODE=remember, then redeploy.">'
+      + '<span class="dot off"></span>No login \u00b7 public URL</div>'
+      + '<div class="unprotected-fix">Set <b>APP_USERS</b> and <b>AUTH_MODE</b></div>';
     return;
   }
   if (!ME) { box.innerHTML = ''; return; }
@@ -8582,13 +8619,15 @@ function soAccountsFor(keys){
 /* One tab strip, used by Tasks and by every platform in Social. The caller
    passes the data attribute it will wire; the strip itself knows nothing about
    what it switches. */
+/* items are [key, label, count] or [key, label, count, waiting].
+   `waiting` turns the count into an unread badge rather than a total. */
 function viewTabs(items, active, attr){
   return '<div class="viewtabs">' + items.map(it => {
-    const [key, label, count] = it;
+    const [key, label, count, waiting] = it;
     return '<button class="' + (key === active ? 'on' : '') + '" ' + attr + '="' + escS(key) + '">'
       + escS(label)
       + (count === '' || count === null || count === undefined ? ''
-          : '<span class="n">' + escS(String(count)) + '</span>')
+          : '<span class="n' + (waiting ? ' wait' : '') + '">' + escS(String(count)) + '</span>')
       + '</button>';
   }).join('') + '</div>';
 }
@@ -8614,11 +8653,20 @@ function soTabs(){
 
 function drawSocialSubnav(){
   if (!soSubEl) return;
+  /* The count and the dot are different facts and both get shown.
+
+     They used to share one slot, with the dot winning — so the unread badge
+     this row was already passing a number to could never appear, because the
+     account-state dot is always present. "How many are waiting" and "are the
+     accounts healthy" are not alternatives. */
   const row = (key, label, count, color, dot) =>
     '<button class="subitem' + (SO.view === key ? ' on' : '') + '" data-soview="' + key + '">'
     + '<span class="sdot" style="--c:' + color + '"></span>'
     + '<span class="slabel">' + label + '</span>'
-    + '<span class="scount">' + (dot ? '<span class="dot ' + dot + '" style="display:inline-block"></span>' : (count || '')) + '</span></button>';
+    + '<span class="scount">'
+    +   (count ? '<span class="waitn">' + escS(String(count)) + '</span>' : '')
+    +   (dot ? '<span class="dot ' + dot + '" style="display:inline-block"></span>' : '')
+    + '</span></button>';
 
   const state = keys => {
     const acc = soAccountsFor(keys);
@@ -8632,7 +8680,10 @@ function drawSocialSubnav(){
      a dashboard of last week's numbers can wait behind a question somebody
      asked this morning. The count is the unread badge. */
   soSubEl.innerHTML =
-    row('inbox', 'Comments &amp; Messages', IBX.unreadCount || 0, 'var(--brass)',
+    /* Everything unread, on every platform and both kinds — not the count for
+       whichever tab happens to be selected inside. This row is read from
+       outside the inbox, so the number it shows has to be the whole answer. */
+    row('inbox', 'Comments &amp; Messages', ibxUnreadTotal(), 'var(--brass)',
       state(SO_VIEW_KEYS.inbox))
     + row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube))
     + row('meta',    'Meta',    0, 'var(--fb)', state(SO_VIEW_KEYS.meta))
@@ -11255,6 +11306,10 @@ const IBX = {
      stopping at a page and implying that is all there is. */
   threads: [], total: 0, unreadCount: 0, offset: 0, limit: 40, hasMore: false,
   accounts: [], caps: null, notice: null,
+  /* Unread per platform per kind, for the tab badges and the rail dot. Comes
+     back with every list, so it covers the platforms nobody is looking at --
+     which is the only place it is any use. */
+  unread: {},
 
   /* The open thread. */
   sel: null, items: [], mentions: [], threadTags: [], loadingThread: false,
@@ -11340,6 +11395,10 @@ async function ibxLoad({ more = false, quiet = false } = {}){
     IBX.threads = more ? [...IBX.threads, ...out.threads] : (out.threads || []);
     IBX.total = out.total || 0;
     IBX.unreadCount = out.unreadCount || 0;
+    /* Every platform's totals, for the tab badges. Replaced rather than merged:
+       a platform that has dropped to zero must lose its badge, and merging
+       would leave the last non-zero number sitting there. */
+    IBX.unread = out.unread || {};
     IBX.hasMore = Boolean(out.hasMore);
     IBX.offset = (out.offset || 0) + (out.threads || []).length;
     IBX.accounts = out.accounts || [];
@@ -11392,6 +11451,11 @@ async function ibxOpen(id){
     if (row?.unread) {
       row.unread = false;
       IBX.unreadCount = Math.max(0, IBX.unreadCount - 1);
+      /* The tab badge too, and locally, for the same reason the row is: the
+         next list response will carry the real number, and until it does the
+         badge must not still be counting a thread that is open on screen. */
+      const byKind = IBX.unread?.[IBX.platform];
+      if (byKind && byKind[IBX.kind]) byKind[IBX.kind] = Math.max(0, byKind[IBX.kind] - 1);
       post('/api/social/inbox/thread/' + encodeURIComponent(id) + '/read',
         { read: true }).catch(() => {});
     }
@@ -11546,13 +11610,71 @@ async function ibxTargets(){
 const ibxCan = verb => Boolean(IBX.caps?.can?.[verb]);
 const ibxWhy = verb => IBX.caps?.why?.[verb] || null;
 
+/* How much is unread on a platform, or on one kind of it. Filled from every
+   list response, so it is right after a thread is opened rather than at the
+   next poll. */
+const ibxWaiting = (platform, kind = null) => {
+  const byKind = IBX.unread?.[platform] || {};
+  if (kind) return Number(byKind[kind]) || 0;
+  return Object.values(byKind).reduce((n, v) => n + (Number(v) || 0), 0);
+};
+
+/* Everything waiting, everywhere. Used by the Social sub-menu and the rail,
+   both of which are read from outside the inbox. */
+function ibxUnreadTotal(){
+  return Object.keys(IBX.unread || {}).reduce((n, p) => n + ibxWaiting(p), 0);
+}
+
+/* The two badges outside the inbox, redrawn only when the number changed. */
+let ibxBadgeShown = -1;
+function ibxBadges(){
+  const n = ibxUnreadTotal();
+  if (n === ibxBadgeShown) return;
+  ibxBadgeShown = n;
+  drawRailUnread();
+  if (SO.view === 'inbox') drawSocialSubnav();
+}
+
+/* A red count on the rail's Social item, so work waiting is visible from any
+   view rather than only from inside Social. */
+function drawRailUnread(){
+  const b = document.querySelector('.navitem[data-target="social"]');
+  const slot = b?.lastElementChild;
+  if (!slot) return;
+  const n = ibxUnreadTotal();
+  slot.className = n ? 'badge wait' : '';
+  slot.textContent = n ? String(n) : '';
+}
+
+/* The totals on their own, for the places that need them before the inbox has
+   ever been opened. One grouped query on the server; cheap enough to ask for
+   whenever the Social view is drawn. */
+async function ibxLoadUnread(){
+  try {
+    const out = await api('/api/social/inbox/unread');
+    IBX.unread = out.unread || {};
+    ibxBadgeShown = -1;      // force a redraw; the number came from elsewhere
+    ibxBadges();
+  } catch { /* the badge simply does not appear */ }
+}
+
 function ibxTabs(){
-  const plat = viewTabs(IBX_PLATFORMS.map(p => [p.k, p.label, '']), IBX.platform, 'data-ibplat');
+  /* The badge is the point of this row. Without it a platform's unread was
+     invisible until you clicked it, which is the one question an inbox exists
+     to answer -- forty-five unread LinkedIn messages sat behind a tab that
+     looked exactly like an empty one. */
+  const plat = viewTabs(IBX_PLATFORMS.map(p => {
+    const n = ibxWaiting(p.k);
+    return [p.k, p.label, n || '', n > 0];
+  }), IBX.platform, 'data-ibplat');
+
   const p = ibxPlat();
   /* One tab is furniture. YouTube has no DMs, so it gets no strip at all. */
   const kinds = p.kinds.length > 1
-    ? viewTabs(p.kinds.map(k => [k, IBX_KIND_LABEL[k],
-        k === IBX.kind && IBX.unreadCount ? IBX.unreadCount : '']), IBX.kind, 'data-ibkind')
+    ? viewTabs(p.kinds.map(k => {
+        const n = ibxWaiting(IBX.platform, k);
+        return [k, IBX_KIND_LABEL[k], n || '', n > 0];
+      }), IBX.kind, 'data-ibkind')
     : '';
   return plat + kinds;
 }
@@ -11983,6 +12105,15 @@ function inboxView(){
 /* A redraw of just this view, so a keystroke in the composer does not repaint
    the platform tabs and take the caret with them. */
 function ibxDraw(){
+  /* The rail badge and the sub-menu count answer "is there anything waiting"
+     from outside the inbox, so they are refreshed whatever view is open --
+     before the early return, which would otherwise be the one thing stopping
+     them from clearing when a thread is read.
+
+     Only when the number actually moved: ibxDraw runs on every keystroke in the
+     composer, and rebuilding the sub-menu's markup that often is work nobody
+     asked for. */
+  ibxBadges();
   if (SO.view !== 'inbox') return;
   const body = document.getElementById('so-body');
   if (!body) return;
@@ -21977,6 +22108,10 @@ function readHash(){
 
 readHash();
 load();
+/* Last, and on its own: the rail's unread badge has to be right from the first
+   paint, on whatever view the app opened on, and it must not wait behind a
+   mailbox fetch to say so. */
+ibxLoadUnread();
 
 </script>
 

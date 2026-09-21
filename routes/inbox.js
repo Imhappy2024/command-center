@@ -17,6 +17,7 @@ import { accountsFor } from '../lib/accounts.js';
 import {
   INBOX_PLATFORMS, inboxPlatformOf, capabilities, listThreads, loadThread, loadParent,
   markThreadRead,
+  unreadSummary,
   mentionable, reply, postComment, react, postTargets, syncInbox, inboxHealth,
   sendAttachment,
   tagThread, tagsInUse
@@ -58,7 +59,8 @@ export function inboxRoutes({ auth }){
     if (!mine.length) {
       return res.json({
         threads: [], total: 0, unreadCount: 0, offset: 0, hasMore: false,
-        accounts: [], caps, notice: `No ${platform} account is connected.`
+        accounts: [], caps, unread: await unreadSummary(),
+        notice: `No ${platform} account is connected.`
       });
     }
     /* ?account= narrows to one; otherwise every account of this platform. */
@@ -75,8 +77,21 @@ export function inboxRoutes({ auth }){
       limit: req.query.limit,
       offset: req.query.offset
     });
-    res.json({ ...out, accounts: mine, caps });
+    /* Every platform's unread totals ride along with the list, so the tabs can
+       say where the waiting work is without a second request, and so they stop
+       saying it the moment something is read. */
+    res.json({ ...out, accounts: mine, caps, unread: await unreadSummary() });
   }));
+
+  /* Unread totals on their own, for the sub-menu and the rail.
+
+     They already ride along with a list, but both of those are read BEFORE the
+     inbox has been opened — which is exactly when knowing there is something
+     waiting is worth anything. One grouped query, no platform argument. */
+  r.get('/api/social/inbox/unread', auth.require,
+    guarded('api/social/inbox/unread', async (_req, res) => {
+      res.json({ unread: await unreadSummary() });
+    }));
 
   /* One thread and its items.
 
