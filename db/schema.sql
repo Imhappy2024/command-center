@@ -464,3 +464,31 @@ ALTER TABLE social_threads ADD COLUMN IF NOT EXISTS parent_media JSONB NOT NULL 
    top-posts table could show a row it could not open. The poller already lists
    the media to get its insights; this is the same response, kept. */
 ALTER TABLE social_posts ADD COLUMN IF NOT EXISTS media JSONB;
+
+/* People who may sign in.
+
+   Until this table existed the gate was one shared APP_PASSWORD, which cannot
+   say who is looking and cannot be taken away from one person without taking
+   it from everybody. A row per person fixes both, and costs a login screen
+   that asks for an address as well as a password.
+
+   No password is ever stored. password_hash is scrypt over the password and a
+   per-row salt, so two people who choose the same password still hash
+   differently and a stolen table cannot be reversed by looking anything up.
+
+   must_change_password is for an account created FOR somebody: whoever set it
+   up knows the password, so it is not a password yet. It is cleared the moment
+   they choose their own. */
+CREATE TABLE IF NOT EXISTS users (
+  id                   BIGSERIAL PRIMARY KEY,
+  email                TEXT NOT NULL,
+  email_lower          TEXT NOT NULL UNIQUE,       -- what a sign-in is matched on
+  name                 TEXT NOT NULL,
+  password_hash        TEXT NOT NULL,              -- scrypt, hex
+  password_salt        TEXT NOT NULL,              -- 16 random bytes, hex
+  must_change_password BOOLEAN NOT NULL DEFAULT false,
+  disabled             BOOLEAN NOT NULL DEFAULT false,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  password_set_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_login_at        TIMESTAMPTZ
+);

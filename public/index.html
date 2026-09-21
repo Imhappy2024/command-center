@@ -1362,6 +1362,18 @@ body.ycmlock{overflow:hidden}
 .unprotected{display:flex;align-items:center;gap:7px;margin-top:8px;padding-top:8px;
   border-top:1px solid var(--edge);font-family:var(--ff-mono);font-size:9.5px;
   letter-spacing:.05em;color:var(--rust)}
+/* Who is signed in, and the way out. Same slot as the unprotected warning,
+   because they answer the same question and only one of them is ever true. */
+.whoami{margin-top:8px;padding-top:8px;border-top:1px solid var(--edge)}
+.whoami b{display:block;font-family:var(--ff-sans);font-size:11.5px;color:var(--text);
+  font-variation-settings:'wght' 600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.whoami small{display:block;font-family:var(--ff-mono);font-size:9px;letter-spacing:.05em;
+  color:var(--dimmer);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.whoami .acts{display:flex;gap:10px;margin-top:6px}
+.whoami .acts button{background:none;border:0;padding:0;cursor:pointer;
+  font-family:var(--ff-mono);font-size:9px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--dimmer)}
+.whoami .acts button:hover{color:var(--brass)}
 .subempty{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);padding:5px 10px;letter-spacing:.05em}
 
 /* ---------- view tabs ----------
@@ -5313,16 +5325,56 @@ function drawRail(){
         + '<span class="mono" style="color:var(--dim)">' + esc2(a.label) + ' needs reauth</span></div>').join('');
 }
 
-/* Server injects window.__AUTH_MODE. 'open' means no gate, so say so plainly
-   rather than letting an unprotected deployment look identical to a gated one. */
+/* Who is signed in, or that nobody has to be.
+
+   Server injects window.__AUTH_MODE. 'open' means no gate, so say so plainly
+   rather than letting an unprotected deployment look identical to a gated one.
+   ME is filled by /api/me; until it answers, the slot stays empty rather than
+   guessing at a name. */
+let ME = null;
+
 function drawAuthFlag(){
   const box = document.getElementById('rail-auth');
   if (!box) return;
-  box.innerHTML = (window.__AUTH_MODE === 'open')
-    ? '<div class="unprotected"><span class="dot off"></span>No login \u00b7 public URL</div>' : '';
+  if (window.__AUTH_MODE === 'open') {
+    box.innerHTML = '<div class="unprotected"><span class="dot off"></span>'
+      + 'No login \u00b7 public URL</div>';
+    return;
+  }
+  if (!ME) { box.innerHTML = ''; return; }
+  box.innerHTML = '<div class="whoami">'
+    + '<b>' + esc2(ME.name || ME.email) + '</b>'
+    + '<small>' + esc2(ME.email) + '</small>'
+    + '<div class="acts">'
+    +   '<button type="button" data-authgo="password">Password</button>'
+    +   '<button type="button" data-authgo="logout">Sign out</button>'
+    + '</div></div>';
+  box.querySelector('[data-authgo="password"]').onclick = () => { location.href = '/password'; };
+  /* A POST, not a link: signing out changes state, and a GET that does is a
+     thing any page on the internet can make your browser fetch. */
+  box.querySelector('[data-authgo="logout"]').onclick = () => {
+    const f = document.createElement('form');
+    f.method = 'post'; f.action = '/logout';
+    document.body.appendChild(f); f.submit();
+  };
+}
+
+async function loadMe(){
+  if (window.__AUTH_MODE === 'open') return;
+  try {
+    const r = await fetch('/api/me', { headers: { accept: 'application/json' } });
+    if (!r.ok) return;
+    ME = (await r.json()).user || null;
+    drawAuthFlag();
+  } catch { /* the rail simply stays quiet */ }
 }
 
 function drawAll(){ drawSubnav(); drawHeader(); drawList(); drawReader(); syncBadge(); drawRail(); drawAuthFlag(); }
+
+/* Asked once, on its own, rather than inside load(): it is one small request
+   that has nothing to do with mail, and a slow mailbox must not decide how
+   long it takes the rail to say who is signed in. */
+loadMe();
 
 /* ---------- connect flow ---------- */
 const modal = () => document.getElementById('ib-modal');

@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Command Center — Sign in</title>
+<meta name="robots" content="noindex, nofollow">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='9' fill='%23C9A96B'/></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +12,7 @@
 <style>
 /* The same tokens as the dashboard, so signing in and landing do not
    look like two products. */
-:root{--ink:#0E0D0C;--panel:#161513;--edge:#2C2926;--edge2:#3A3630;--cream:#EFEBE4;--text:#CFC8BC;--dim:#A29B90;--dimmer:#8A8377;--brass:#C9A96B;--rust:#C08268}
+:root{--ink:#0E0D0C;--panel:#161513;--edge:#2C2926;--edge2:#3A3630;--cream:#EFEBE4;--text:#CFC8BC;--dim:#A29B90;--dimmer:#8A8377;--brass:#C9A96B;--rust:#C08268;--jade:#8FB48C}
 *{box-sizing:border-box;margin:0;padding:0}
 body{
   min-height:100vh;background:var(--ink);color:var(--text);
@@ -38,9 +39,9 @@ button{
   letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
 }
 button:hover{opacity:.9}
-.err{
+.note{
   margin-top:16px;border:1px solid #3A2A22;background:#1C1310;color:var(--rust);
-  border-radius:8px;padding:10px 12px;font-size:12.5px;
+  border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5;
 }
 :focus-visible{outline:2px solid var(--brass);outline-offset:2px}
 </style>
@@ -49,16 +50,34 @@ button:hover{opacity:.9}
 <div class="box">
   <div class="brand"><span class="pulse"></span><b>Command</b></div>
   <h1>Sign in</h1>
-  <p class="sub">This dashboard reads connected mailboxes and calendars. The password is set server-side as <span style="font-family:'JetBrains Mono',monospace;font-size:12px">APP_PASSWORD</span>.</p>
-  <div id="err" class="err" hidden>Wrong password.</div>
+  <p class="sub">This dashboard holds connected mailboxes, leads, properties and financials. Sign in with the address it was set up for.</p>
+
+  <div id="note" class="note" hidden></div>
+
   <form method="post" action="/login">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" autocomplete="username"
+           spellcheck="false" autocapitalize="none" autofocus required>
     <label for="password">Password</label>
-    <input id="password" name="password" type="password" autocomplete="current-password" autofocus required>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
     <button type="submit">Sign in</button>
   </form>
 </div>
 <script>
-  if (new URLSearchParams(location.search).has('error')) document.getElementById('err').hidden = false;
+  /* One message per outcome, and the wrong-credentials one deliberately does
+     not say which half was wrong. */
+  var q = new URLSearchParams(location.search);
+  var msg = q.has('error') ? 'That email and password do not match an account.'
+    : q.has('down') ? 'The sign-in service could not be reached. Try again in a moment.'
+    : q.has('gone') ? 'That account is no longer active on this dashboard.'
+    : q.has('out') ? 'Signed out.'
+    : null;
+  if (msg) {
+    var n = document.getElementById('note');
+    n.textContent = msg;
+    if (q.has('out')) { n.style.borderColor = '#243024'; n.style.background = '#121711'; n.style.color = '#8FB48C'; }
+    n.hidden = false;
+  }
 </script>
 </body>
 </html>

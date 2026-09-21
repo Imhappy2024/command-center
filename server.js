@@ -9,6 +9,7 @@ import { AUTH_MODES, normaliseMode } from './lib/session.js';
 import { PROVIDERS, missingVars } from './lib/oauth.js';
 import { seedFromEnv } from './lib/ghl-seed.js';
 import { seedHeyReach, apiKey as heyreachKey } from './lib/heyreach-seed.js';
+import { seedUsers, countUsers } from './lib/users.js';
 import { claudeIsLocal } from './routes/claude.js';
 import { loadEnvFile } from './lib/dotenv.js';
 
@@ -44,14 +45,21 @@ if (!env.PUBLIC_URL && env.RAILWAY_PUBLIC_DOMAIN) {
   console.log(`PUBLIC_URL not set — derived ${env.PUBLIC_URL} from RAILWAY_PUBLIC_DOMAIN`);
 }
 
-/* APP_PASSWORD is required only by the modes that actually check it. Demanding
-   it under AUTH_MODE=open is what locked the owner out of his own dashboard. */
+/* A gated deployment needs SOMETHING to check a sign-in against, and there are
+   now two kinds: APP_USERS, which is a person per row and the way this works,
+   and APP_PASSWORD, the single shared password it replaced. Either satisfies
+   this; neither does not, because a gate with no credentials behind it is a
+   locked door with no key.
+
+   Demanding a password under AUTH_MODE=open is what once locked the owner out
+   of his own dashboard, so open still requires neither. */
+const hasCredentials = Boolean(env.APP_USERS || env.APP_PASSWORD);
 const REQUIRED = [
   'SESSION_SECRET',
   'ENCRYPTION_KEY',
   'PUBLIC_URL',
   'DATABASE_URL',
-  ...(AUTH_MODE === 'open' ? [] : ['APP_PASSWORD'])
+  ...(AUTH_MODE === 'open' || hasCredentials ? [] : ['APP_USERS'])
 ];
 
 const missing = REQUIRED.filter(name => !env[name]);
@@ -61,8 +69,10 @@ if (missing.length) {
       '',
       `AUTH_MODE is "${AUTH_MODE}".`
         + (AUTH_MODE === 'open'
-            ? ' APP_PASSWORD is not required in this mode.'
-            : ' Set AUTH_MODE=open to drop the login and stop needing APP_PASSWORD.'),
+            ? ' No sign-in credentials are required in this mode.'
+            : ' APP_USERS is a JSON array of accounts, for example '
+              + '[{"email":"you@example.com","name":"You","password":"a long one","mustChange":false}]. '
+              + 'Set AUTH_MODE=open to drop the login entirely.'),
       '',
       /* Say whether a .env was even found. "Set them in .env" is unhelpful
          advice when the file is missing, and misleading when it exists but the
@@ -122,6 +132,41 @@ const server = app.listen(PORT, '0.0.0.0', () => {
 
   console.log(`Command Center listening on 0.0.0.0:${PORT}`);
   console.log(`  auth:     ${gate}`);
+
+  /* Accounts, after listen() like the rest of the seeding. Creating only: an
+     address already in the table keeps the password it has, so a redeploy
+     never resets one somebody chose, and never puts back a must-change flag
+     they have already cleared.
+
+     Said out loud either way. A gate is the one piece of configuration where
+     being wrong and being silent is worst -- a deployment with the gate on and
+     nobody able to sign in looks exactly like a deployment that is working. */
+  seedUsers(env)
+    .then(async s => {
+      if (s.declared) {
+        console.log(`  users:    ${s.declared} declared in APP_USERS, `
+          + `${s.created} created, ${s.existing} already present`);
+      }
+      const total = await countUsers();
+      if (AUTH_MODE === 'open') {
+        if (total) {
+          console.warn(`  users:    ${total} account(s) exist but AUTH_MODE=open, so nobody is `
+            + 'asked to sign in. Set AUTH_MODE=remember to turn the gate on.');
+        }
+        return;
+      }
+      if (!total && env.APP_PASSWORD) {
+        console.warn('  users:    no accounts, falling back to the shared APP_PASSWORD. '
+          + 'Set APP_USERS to give people their own sign-in.');
+      } else if (!total) {
+        console.error('  users:    NOBODY CAN SIGN IN. The gate is on, there are no accounts, '
+          + 'and APP_PASSWORD is unset. Set APP_USERS.');
+      } else if (env.APP_PASSWORD) {
+        console.log('  users:    APP_PASSWORD is set but ignored — accounts exist, so the shared '
+          + 'password is not a way in. Remove it.');
+      }
+    })
+    .catch(err => console.error('  users:    APP_USERS was not applied:', err.message));
   console.log('  tokens:   Postgres, AES-256-GCM at rest');
   /* Both databases, by role. "Not ingested yet" on screen with anything but
      supabase on the ghl line is the whole diagnosis. */

@@ -634,13 +634,52 @@ ephemeral.
 | `ENCRYPTION_KEY` | 32+ chars. Encrypts refresh tokens and app passwords. Changing it makes every stored credential undecryptable |
 | `PUBLIC_URL` | Derived from `RAILWAY_PUBLIC_DOMAIN` when that is present, so on Railway you only set it to override a custom domain |
 | `DATABASE_URL` | Injected by Railway's Postgres plugin |
-| `APP_PASSWORD` | **Only when `AUTH_MODE` is `remember` or `password`.** Requiring it under `open` is what once locked the owner out |
+| `APP_USERS` | **Only when `AUTH_MODE` is not `open`,** and `APP_PASSWORD` satisfies the check instead. A JSON array of accounts. The only place a password is ever written |
+| `APP_PASSWORD` | The single shared password `APP_USERS` replaced. Honoured only while no accounts exist. Requiring it under `open` is what once locked the owner out |
 
 **Access**
 
 | Variable | Default | Notes |
 |---|---|---|
 | `AUTH_MODE` | `remember` | `open` — no gate at all, and the rail says so. `remember` — one sign-in per browser, 365-day sliding cookie. `password` — 14-day cookie, no sliding |
+
+### Accounts
+
+One row per person, in `users`. The gate used to be a single shared
+`APP_PASSWORD`, which cannot say who is looking and cannot be taken from one
+person without taking it from everybody.
+
+Passwords are never stored. What is stored is scrypt over the password and 16
+random bytes of per-row salt, so two people who choose the same password hash
+differently and the table is enough to check a password and not enough to learn
+one. **`APP_USERS` is the only place a password is written, and it lives in the
+environment** — this repository is public, and a committed password is a public
+password. So is a committed hash of a short one: scrypt makes guessing slow, it
+does not save a password that appears in a word list.
+
+```
+APP_USERS=[{"email":"a@b.com","name":"A B","password":"…","mustChange":true}]
+```
+
+Seeding **creates only**. An address already in the table keeps the password it
+has, so a redeploy never resets one somebody chose and never re-raises a
+must-change flag they have cleared. Editing a password here after the account
+exists does nothing; the person changes it at `/password`.
+
+`mustChange` defaults to true, which is right for an account created FOR
+somebody: whoever set it up knows the password, so it is not a password yet.
+Until they choose one, every page redirects to `/password` **and every API
+answers 403** — a gate that only exists in the browser is not a gate.
+
+Sign-in attempts are capped at ten per fifteen minutes, counted per source
+address *and* per account. Either counter alone has a hole: per account, one
+machine works through a list of addresses; per source, a botnet spreads one
+guess across a thousand. A locked-out attempt is worded exactly like a wrong
+password, because "too many attempts" tells an attacker their aim is good.
+
+Minimum length is 8. It is a floor, not a recommendation — the honest defence
+against a short password is the attempt limiter, not a number that makes people
+write their password down.
 
 **Deployment**
 
