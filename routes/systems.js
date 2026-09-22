@@ -39,6 +39,24 @@ export const AUTOMATIONS = [
 
 const MAX_UPLOAD = 30 * 1024 * 1024 * 1024;   // the service's own ceiling
 
+/* How long a stored clip URL is trusted before it is fetched again.
+
+   OpusClip does not serve clips from a plain address. Every preview, thumbnail
+   and export is a SIGNED link on signed-ext.cdn.opus.pro carrying an Akamai
+   token, and the token expires. This app wrote those links down once, when the
+   project rendered, and then served them forever — so a project opened weeks
+   later showed a row of clips whose video AND poster both answered 403. On
+   screen that is not an error, it is a blank: no preview, nothing plays, and
+   the clips look like somebody deleted them.
+
+   Measured, not guessed: three clips rendered on 27 August all answered 403 on
+   their stored links and 200 on the links the API returned for the same clip
+   ids a month later. OpusClip re-signs on read, so re-reading is the fix.
+
+   Twenty minutes is well inside any plausible signing window and costs one API
+   call per project per sitting rather than one per page view. */
+const URL_TTL_MS = 20 * 60_000;
+
 export function systemRoutes({ env, auth }){
   const r = express.Router();
   const cfg = () => opus.configured(env);
@@ -170,9 +188,28 @@ export function systemRoutes({ env, auth }){
   r.get('/api/systems/clip/projects/:id', auth.require, guarded('api/systems/clip:one', async (req, res) => {
     const project = await store.getProject(req.params.id);
     if (!project) return res.status(404).json({ error: 'No such project.' });
-    const clips = await store.listClips(project.id);
+    let clips = await store.listClips(project.id);
+
+    /* Re-sign before handing them over, rather than leaving it to a button
+       nobody knows to press. Best effort in both directions: if OpusClip is
+       unreachable the stored links are still returned — stale links beat an
+       error page, and the ones written in the last twenty minutes are fine. */
+    const stale = clips.length && clips.some(c =>
+      !c.updatedAt || Date.now() - new Date(c.updatedAt).getTime() > URL_TTL_MS);
+    let urlRefreshFailed = null;
+
+    if (stale && project.opusProjectId && cfg()) {
+      try {
+        await store.upsertClips(project.id, await opus.getClips(env, project.opusProjectId));
+        clips = await store.listClips(project.id);
+      } catch (err) {
+        urlRefreshFailed = err.message;
+        console.error('[clip] could not re-sign %s: %s', project.id, err.message);
+      }
+    }
+
     const schedules = await store.listSchedules(clips.map(c => c.id));
-    res.json({ project, clips, schedules });
+    res.json({ project, clips, schedules, urlRefreshFailed });
   }));
 
   /* Ask OpusClip what it has. Polling rather than waiting on the webhook,
