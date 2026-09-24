@@ -576,13 +576,18 @@ main{min-width:0;display:flex;flex-direction:column}
      nowrap, because wrapping put the button on its own line BELOW the subtitle,
      where it read as an action on the subtitle rather than on the section.
 
-     Only on the headings whose second half IS that button, though. Leads keeps
-     a search field and a row of controls up here, and forbidding it to wrap
-     pushed them 420px off the right of a 390px screen and made its heading
-     352px tall. :has() is the whole condition; where it is not supported the
-     heading simply wraps, which is what it did before. */
+     Only where that button is the ONLY thing on the other side. Leads keeps a
+     search field up here and Social keeps a range picker and Sync now, and
+     forbidding either to wrap pushes the row past the screen: Leads' heading
+     went 352px tall, and Social widened the whole DOCUMENT to 448px on a 390px
+     viewport, which is what was clipping its tabs, its account row and the
+     Connect button itself.
+
+     `:has(> div > .vhadd:only-child)` is the exact condition -- the wrapper
+     holds the add button and nothing else. Where :has() is unsupported the
+     heading wraps, which is what it did before. */
   .vhead{align-items:flex-start;gap:12px;margin-bottom:14px}
-  .vhead:has(.vhadd){flex-wrap:nowrap}
+  .vhead:has(> div > .vhadd:only-child){flex-wrap:nowrap}
   .vhead > div:first-child{min-width:0;flex:1 1 auto}
   .vhead h1{font-size:22px}
   .vhadd .vhtxt{display:none}
@@ -615,6 +620,18 @@ main{min-width:0;display:flex;flex-direction:column}
      phone breakpoint, where the same controls sit under a cursor. */
   .btn,.tgl,.stagesel,.seg button,.ubitem,.prthb,.calbell,
   select,input[type=text],input[type=search],input[type=number]{min-height:40px}
+
+  /* A segmented control is as wide as its labels, and account names are not
+     short. The inbox's account switcher -- "All 2 / Chris Pomerleau / Cashflow
+     with Chris and" -- measured 416px on a 390px screen and widened the whole
+     DOCUMENT to 448. That is what was cutting off the platform tabs, the
+     account row and the Connect button: not a header problem, one control
+     pushing the page out from under everything else.
+     It scrolls now, the way the view tabs already do. */
+  .seg{max-width:100%;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .seg::-webkit-scrollbar{display:none}
+  /* Keep their own width and scroll, rather than squeezing to ellipses. */
+  .seg button{flex:none;white-space:nowrap}
   .btn.ic{min-width:40px}
   /* The command bar's input measures 16px because the box around it is the
      target. Filling the label makes the two agree. */
@@ -1020,9 +1037,27 @@ body.ycmlock{overflow:hidden}
 }
 @media(max-width:820px){
   .mgr,.mgr.withside{grid-template-columns:minmax(0,1fr);height:auto}
-  .mgr .mglist{max-height:340px}
-  .mgr .mgmain{min-height:60vh}
   .mgbubwrap{max-width:88%}
+
+  /* One thing at a time.
+
+     Three panes side by side becomes three panes stacked, and the middle one
+     is "Pick a conversation" — which on a desktop is a hint in the empty half
+     of the screen and on a phone was a 60vh empty box below the chat list,
+     with the details pane under that. Nothing selected: no pane. */
+  .mgr .mgmain.empty-main{display:none}
+
+  /* Something selected: the conversation takes the screen and the list steps
+     aside, rather than making you scroll past every chat to reach the one you
+     opened. The close button already in the thread header is the way back.
+     :has() is the condition; without it both stay visible, which is what
+     happened before. */
+  .mgr:has(.mgmain:not(.empty-main)) .mglist{display:none}
+  .mgr .mgmain:not(.empty-main){min-height:70vh}
+
+  /* And with the list alone on screen there is no reason to cap it at 340px
+     and scroll it inside a page that also scrolls. */
+  .mgr .mglist{max-height:none}
 }
 .ycmnoplay b{display:block;font-size:15px;color:var(--cream)}
 .ycmnoplay p{margin:6px 0 12px;font-size:12.5px;color:var(--dim);max-width:60ch;line-height:1.5}
@@ -8866,6 +8901,23 @@ const platByK = k => PLATFORMS.find(p => p.k === k);
    the schedule had already been written by then and the body had not, which is
    why the page showed a YouTube header above a Meta panel instead of an error. */
 const escS = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* Relabelling the heading's add button without flattening it.
+
+   It is two parts on purpose: a + that is always there, and a label a phone
+   hides so the control becomes a 40px square. Writing textContent -- which is
+   what this used to do -- replaced both with one string, so on a phone the
+   icon-only rule had nothing to hide and the button rendered "+ Connect" at
+   full width with the text running out of its own background. The accessible
+   name is set here too, since it is the only name left once the label is
+   hidden. */
+function setAddLabel(btn, label){
+  if (!btn) return;
+  btn.classList.add('vhadd');
+  btn.setAttribute('aria-label', label);
+  btn.innerHTML = '<span class="vhplus" aria-hidden="true">+</span>'
+    + '<span class="vhtxt">' + escS(label) + '</span>';
+}
 const num = n => n >= 1e6 ? (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? (n/1e3).toFixed(1) + 'K' : String(n);
 const pesos = n => '\u20b1' + Math.round(n).toLocaleString();
 const delta = d => d > 0 ? '<span class="up">\u25b2 ' + num(d) + '</span>'
@@ -8918,6 +8970,30 @@ function soAccountsFor(keys){
 /* One tab strip, used by Tasks and by every platform in Social. The caller
    passes the data attribute it will wire; the strip itself knows nothing about
    what it switches. */
+/* Bring the selected chip into view inside its own strip.
+
+   These strips scroll sideways on a phone, and the selected one is routinely
+   the one off the end: picking LinkedIn left LinkedIn half past the right edge
+   with YouTube fully visible, which reads as though the wrong tab is active.
+
+   scrollLeft rather than scrollIntoView, deliberately — scrollIntoView also
+   scrolls every ancestor, so it would jump the page vertically to a strip that
+   was already perfectly visible. */
+function scrollActiveIntoView(root){
+  const bars = (root || document).querySelectorAll('.viewtabs, .subnav');
+  for (const bar of bars) {
+    if (bar.scrollWidth <= bar.clientWidth) continue;
+    const on = bar.querySelector('button.on, .subitem.on, .subsec.on');
+    if (!on) continue;
+    const left = on.offsetLeft;
+    const right = left + on.offsetWidth;
+    if (left < bar.scrollLeft) bar.scrollLeft = Math.max(0, left - 12);
+    else if (right > bar.scrollLeft + bar.clientWidth) {
+      bar.scrollLeft = right - bar.clientWidth + 12;
+    }
+  }
+}
+
 /* items are [key, label, count] or [key, label, count, waiting].
    `waiting` turns the count into an unread badge rather than a total. */
 function viewTabs(items, active, attr){
@@ -8988,6 +9064,7 @@ function drawSocialSubnav(){
     + row('meta',    'Meta',    0, 'var(--fb)', state(SO_VIEW_KEYS.meta))
     + row('x',       'X',       0, 'var(--xx)', state(SO_VIEW_KEYS.x));
 
+  scrollActiveIntoView(soSubEl.parentElement || soSubEl);
   soSubEl.querySelectorAll('[data-soview]').forEach(b => b.onclick = () => {
     SO.view = b.dataset.soview;
     if (SO.view === 'inbox') { drawSocial(); loadSocialView(); return; }
@@ -9095,7 +9172,7 @@ function drawSocial(){
        because from this view there is more than one right answer. */
     if (SO.view === 'inbox') {
       connectBtn.hidden = false;
-      connectBtn.textContent = '+ Connect';
+      setAddLabel(connectBtn, 'Connect');
       connectBtn.onclick = () => openModal('social');
       fetchBtn.hidden = false;
       fetchBtn.textContent = IBX.syncing ? 'Syncing…' : 'Sync now';
@@ -9122,7 +9199,8 @@ function drawSocial(){
     }
 
     connectBtn.hidden = !connected;
-    connectBtn.textContent = '+ Add ' + ({ youtube:'channel', meta:'Meta account', x:'X account' }[grant] || 'account');
+    setAddLabel(connectBtn, 'Add '
+      + ({ youtube:'channel', meta:'Meta account', x:'X account' }[grant] || 'account'));
     connectBtn.onclick = () => soConnectProvider(grant);
     fetchBtn.hidden = !connected;
     fetchBtn.textContent = SO.fetching ? 'Fetching…' : 'Fetch now';
@@ -12477,6 +12555,7 @@ function ibxWire(body){
      profile pane -- and share the rest (rows, sync, load more) with the comment
      list. Wired first so a shared attribute bound below still wins. */
   if (IBX.kind === 'message') msgrWire(body);
+  scrollActiveIntoView(body);
   body.querySelectorAll('[data-ibplat]').forEach(b => b.onclick = () => {
     IBX.platform = b.dataset.ibplat;
     /* A platform that does not have the kind you were reading opens on the one
