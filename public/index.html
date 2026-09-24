@@ -1553,12 +1553,38 @@ body.ycmlock{overflow:hidden}
 .sheetfoot{display:flex;gap:8px;justify-content:flex-end;padding:14px 20px;border-top:1px solid var(--edge)}
 .err{color:var(--rust);font-size:11.5px;padding:0 20px 10px}
 
+/* The dock is nothing on a desktop: the sub-menus are in the rail, and an
+   empty div must not leave a gap under the top bar. */
+#subdock:empty{display:none}
+#subdock{display:none}
+
 @media(max-width:820px){
-  .subnav{flex-direction:row;overflow-x:auto;border-left:0;border-top:1px solid var(--edge);
-          padding:6px 8px;margin:0;width:100%;order:99}
+  /* One line of chips under the top bar, scrolled sideways. It was written
+     before the dock existed and could never apply — every .subnav was inside
+     the rail, and the rail is display:none here, so the rule was styling
+     something nobody could see. */
+  #subdock{display:block;position:sticky;top:0;z-index:30;background:var(--ink)}
+  #subdock:empty{display:none}
+  /* The rule and the background belong to the MENU, not to the dock. The dock
+     holds every section's sub-menu with all but one hidden, so it is never
+     :empty — a border on it drew a 1px line under the header on Calendar and
+     every other section that has no sub-menu. */
+  .subnav{flex-direction:row;overflow-x:auto;border-left:0;border-top:0;
+          border-bottom:1px solid var(--edge);
+          padding:8px 12px;margin:0;width:100%;gap:6px;
+          scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .subnav::-webkit-scrollbar{display:none}
   .subhead{display:none}
-  .subitem{flex:none;width:auto}
-  .subadd{width:auto;flex:none;margin-top:0}
+  /* A chip, not a row: a 44px target with the label beside its dot rather than
+     a full-width bar that would fit three of them on a screen. */
+  .subitem{flex:none;width:auto;min-height:40px;border:1px solid var(--edge);
+    border-radius:999px;padding:0 13px}
+  .subitem.on{background:var(--panel2);border-color:var(--edge2)}
+  .subadd{width:auto;flex:none;margin-top:0;min-height:40px;border-radius:999px}
+  .subnav .subsec{width:auto;flex:none;min-height:40px;border:1px solid var(--edge);
+    border-radius:999px;padding:0 13px}
+  .subnav .subsec.on::before{display:none}
+  .subnav .subsec.on{background:var(--panel2);border-color:var(--edge2)}
 }
 
 /* ---------- calendar ---------- */
@@ -4371,6 +4397,16 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div class="clock"><div class="t" id="clk">--:--</div><div class="d" id="clk-d"></div></div>
   </div>
 
+  <!-- Where a section's sub-menu goes on a phone.
+
+       The sub-menus are built inside the rail, one under the nav item they
+       belong to. The rail is display:none below 820px, which took the
+       sub-menus down with it — so on a phone Social opened on YouTube with no
+       way to reach Comments & Messages, GHL showed one sub-account with no way
+       to reach the others, and Tasks showed one list. Empty on a desktop and
+       for any section that has no sub-menu. -->
+  <div id="subdock"></div>
+
   <!-- OVERVIEW -->
   <section class="view on" id="v-overview">
     <div class="vhead">
@@ -4962,6 +4998,46 @@ function routeApply(spec){
   return true;
 }
 
+/* ---------- sub-menus on a phone ----------
+
+   Each section's sub-menu is built inside the rail, directly under the nav item
+   it belongs to, which is the right place on a desktop and the wrong place on a
+   phone: the rail is display:none below 820px and the sub-menu goes with it.
+   The symptom was that Social opened on YouTube metrics with no way to reach
+   Comments & Messages, Meta or X, GHL showed one sub-account and no way to the
+   others, and Tasks showed one list.
+
+   The node is MOVED rather than duplicated. Every one of these is built by code
+   that binds click handlers to the elements inside it, and a copy would be a
+   second set of buttons wired to nothing — so the same element lives in the
+   rail on a desktop and in the dock on a phone, and everything bound to it
+   keeps working. `hidden` still decides which one shows; that is the existing
+   mechanism and it is untouched. */
+const SUB_NARROW = window.matchMedia('(max-width:820px)');
+const subHome = new WeakMap();
+
+function placeSubnavs(){
+  const dock = document.getElementById('subdock');
+  if (!dock) return;
+  for (const sub of document.querySelectorAll('.subnav')) {
+    /* Where it came from, remembered the first time it is seen, so it can go
+       back when the window widens again. */
+    if (!subHome.has(sub) && sub.parentElement !== dock) {
+      subHome.set(sub, { parent: sub.parentElement, next: sub.nextElementSibling });
+    }
+    if (SUB_NARROW.matches) {
+      if (sub.parentElement !== dock) dock.appendChild(sub);
+    } else {
+      const home = subHome.get(sub);
+      if (home && sub.parentElement !== home.parent) {
+        home.parent.insertBefore(sub, home.next && home.next.parentElement === home.parent
+          ? home.next : null);
+      }
+    }
+  }
+}
+SUB_NARROW.addEventListener('change', placeSubnavs);
+
 const nav = document.getElementById('nav');
 MENU.forEach(([id,label,src,badge],i)=>{
   const b=document.createElement('button');
@@ -4990,6 +5066,7 @@ MENU.forEach(([id,label,src,badge],i)=>{
     sub.className = 'subnav'; sub.dataset.owner = 'tasks'; sub.hidden = true;
     nav.appendChild(sub);
     tkSubEl = sub;
+    placeSubnavs();
   }
 });
 
@@ -5198,6 +5275,7 @@ function mountSubnav(){
   subnavEl.className = 'subnav';
   subnavEl.hidden = true;
   item.after(subnavEl);
+  placeSubnavs();
 
   document.querySelectorAll('.navitem').forEach(b =>
     b.addEventListener('click', () => { subnavEl.hidden = b.dataset.target !== 'inbox'; })
@@ -7268,6 +7346,7 @@ function mountLeadSubnav(){
   ldSubEl.className = 'subnav';
   ldSubEl.hidden = true;
   item.after(ldSubEl);
+  placeSubnavs();
   document.querySelectorAll('.navitem').forEach(b =>
     b.addEventListener('click', () => { ldSubEl.hidden = b.dataset.target !== 'leads'; }));
 }
@@ -8708,6 +8787,7 @@ function mountSocialSubnav(){
   soSubEl.className = 'subnav';
   soSubEl.hidden = true;
   item.after(soSubEl);
+  placeSubnavs();
   document.querySelectorAll('.navitem').forEach(b =>
     b.addEventListener('click', () => { soSubEl.hidden = b.dataset.target !== 'social'; }));
 }
