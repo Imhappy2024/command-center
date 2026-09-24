@@ -1976,11 +1976,44 @@ body.ycmlock{overflow:hidden}
 .cmval a:hover{border-bottom-color:var(--brass)}
 .cmfoot{display:flex;gap:9px;margin-top:20px;flex-wrap:wrap;align-items:center}
 .cmfoot .cljoin{padding:8px 16px;font-size:13px}
+/* ---- the event composer ----
+   Same panel as the meeting card, with fields in it. */
+.cfpanel .cmtitle{padding-bottom:14px;border-bottom:1px solid var(--edge)}
+.cfrow{display:block;margin-top:14px}
+.cfkey{display:block;font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--dimmer);margin-bottom:6px}
+.cfrow input,.cfrow textarea{
+  width:100%;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
+  padding:10px 12px;color:var(--text);font:inherit;font-size:13.5px;outline:0;
+  min-height:42px;resize:vertical}
+.cfrow input:focus,.cfrow textarea:focus{border-color:var(--brass)}
+/* Start and end sit together: they are one decision, not two. */
+.cftimes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cftimes .cfrow{margin-top:14px}
+/* Two buttons, not a text field — the whole point of the change. */
+.cfplaces{display:flex;gap:8px;flex-wrap:wrap}
+.cfplace{flex:1 1 0;min-width:120px;min-height:44px;cursor:pointer;
+  background:var(--ink2);border:1px solid var(--edge);border-radius:9px;
+  color:var(--dim);font:inherit;font-size:13px;transition:.14s var(--ease)}
+.cfplace:hover:not(.off){border-color:var(--edge2);color:var(--cream)}
+.cfplace.on{border-color:var(--brass);color:var(--cream);
+  background:color-mix(in srgb,var(--brass) 12%,var(--ink2))}
+.cfplace.off{opacity:.4;cursor:not-allowed}
+.cfzone{font-family:var(--ff-mono);font-size:10px;letter-spacing:.06em;
+  color:var(--dimmer);margin-top:12px}
+.cferr{margin-top:14px;border:1px solid #3A2A22;background:#1C1310;color:var(--rust);
+  border-radius:8px;padding:10px 12px;font-size:12.5px;line-height:1.5}
+.cmfoot .cfdel{color:var(--rust);border-color:color-mix(in srgb,var(--rust) 40%,transparent)}
+.cmfoot .cfdel:hover{border-color:var(--rust)}
+
 @media(max-width:820px){
   .cmpanel{padding:20px 18px}
   .cmrow{grid-template-columns:1fr;gap:3px}
   .cmkey{padding-top:0}
   .cmfoot .btn,.cmfoot .cljoin{min-height:40px}
+  /* Two date pickers side by side on a phone is two unreadable pickers. */
+  .cftimes{grid-template-columns:1fr;gap:0}
+  .cfplace{flex:1 1 100%}
 }
 
 /* The takeover. Ten seconds out, over everything this app draws -- the
@@ -4699,7 +4732,13 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
     <div class="vhead">
       <div><h1>Calendar</h1><p id="cal-sub">No calendars connected.</p></div>
       <div style="display:flex;gap:8px;align-items:center">
-        <button class="btn primary vhadd" id="cal-connect" aria-label="Connect account"><span class="vhplus" aria-hidden="true">+</span><span class="vhtxt">Connect account</span></button>
+        <!-- Connect steps back to a secondary control: on a calendar that is
+             already connected, the thing somebody came here to do is add a
+             meeting, not add an account. -->
+        <button class="tgl" id="cal-connect">Connect</button>
+        <!-- Hidden until the server says a calendar can actually be written
+             to, rather than offering a button that answers 400. -->
+        <button class="btn primary vhadd" id="cal-new" aria-label="New event" hidden><span class="vhplus" aria-hidden="true">+</span><span class="vhtxt">New event</span></button>
       </div>
     </div>
 
@@ -6847,11 +6886,17 @@ function calDetail(){
     /* Join, not Send to tasks. What somebody wants from a meeting they just
        clicked is to be in it. */
     +   joinBtn(e, 'Join meeting')
+    /* Only where it can actually be changed. A Google event or a mailbox this
+       app only reads shows no Edit, rather than one that fails on save. */
+    +   (CALW.canWrite && CALW.targets.some(t => t.id === e.cal)
+        ? '<button class="btn" data-cm-edit="1">Edit</button>' : '')
     +   '<button class="btn" data-cm-close="1">Close</button>'
     + '</div></div></div>';
 
   document.body.classList.add('ycmlock');
   host.querySelectorAll('[data-cm-close]').forEach(b => b.onclick = calDetailClose);
+  const edit = host.querySelector('[data-cm-edit]');
+  if (edit) edit.onclick = () => calEdit(e);
   const back = host.querySelector('[data-cm-backdrop]');
   if (back) back.onclick = ev => { if (ev.target === back) calDetailClose(); };
   const join = host.querySelector('.cljoin');
@@ -6862,6 +6907,203 @@ function calDetail(){
 function calDetailClose(){
   CAL.sel = null;
   drawCal();
+}
+
+/* ---------- writing events ----------
+
+   Only against a calendar the server says it can write to, which today means
+   the Outlook mailbox connected as the app. Everything else is read-only and
+   shows no controls rather than a button that answers 400.
+
+   Where a meeting happens is two choices, not a text field. Free text is what
+   produced a calendar whose location is sometimes a street address, sometimes
+   a room and usually nothing, with a Join button left guessing a link out of
+   prose. Teams is made by Graph; Zoom is the standing room from
+   ZOOM_MEETING_URL. */
+let CALW = { canWrite: false, targets: [], places: [], timeZone: null };
+let calForm = null;      // null, or the event being written
+
+async function calLoadCaps(){
+  try {
+    CALW = await api('/api/calendar/capabilities');
+  } catch { CALW = { canWrite: false, targets: [], places: [] }; }
+  const btn = document.getElementById('cal-new');
+  if (btn) btn.hidden = !CALW.canWrite;
+}
+
+/* Re-read the window on screen, and only that.
+
+   load() fetches eight endpoints including every lead; making a saved meeting
+   wait on all of them would be a second or two of the calendar sitting on data
+   it knows is stale. This is the one request that changed. */
+async function calReload(){
+  const range = visibleRange();
+  try {
+    const out = await api('/api/calendar?from=' + encodeURIComponent(range.from)
+      + '&to=' + encodeURIComponent(range.to) + '&account=all');
+    EVENTS = (out.events || []).map(e => ({
+      ...e,
+      start: parseWhen(e.start, e.allDay),
+      end: parseWhen(e.end, e.allDay)
+    })).filter(e => e.start && e.end);
+    drawCal();
+  } catch (err) {
+    console.warn('[calendar] could not re-read after a write:', err.message);
+  }
+}
+
+/* A <input type="datetime-local"> value for a Date, in local wall clock --
+   which is exactly what the server wants, because the zone travels separately
+   and keeps 2pm at 2pm across a daylight-saving change. */
+const calLocalValue = d => {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+    + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+};
+
+function calNew(){
+  const start = new Date();
+  start.setMinutes(start.getMinutes() < 30 ? 30 : 60, 0, 0);
+  const end = new Date(start.getTime() + 30 * 60000);
+  calForm = { mode: 'new', id: null, title: '', start: calLocalValue(start),
+    end: calLocalValue(end), place: 'teams', notes: '', attendees: '', err: null, busy: false };
+  calDrawForm();
+}
+
+function calEdit(e){
+  if (!e) return;
+  calForm = {
+    mode: 'edit', id: e.id, title: e.title || '',
+    start: calLocalValue(e.start), end: calLocalValue(e.end),
+    /* Which of the two it already is, read off what is there rather than
+       stored: a Teams event has a joinUrl on a teams.microsoft.com host. */
+    place: /teams\.microsoft\.com/i.test(String(e.join || '')) ? 'teams'
+      : (/zoom/i.test(String(e.join || '') + String(e.location || '')) ? 'zoom' : 'teams'),
+    notes: plainNotes(e.notes) || '',
+    attendees: (Array.isArray(e.attendees) ? e.attendees : []).join(', '),
+    err: null, busy: false
+  };
+  CAL.sel = null;
+  calDrawForm();
+}
+
+function calFormClose(){
+  calForm = null;
+  const host = document.getElementById('cal-detail');
+  if (host) host.innerHTML = '';
+  document.body.classList.remove('ycmlock');
+  drawCal();
+}
+
+function calDrawForm(){
+  const host = document.getElementById('cal-detail');
+  if (!host || !calForm) return;
+  const f = calForm;
+  const field = (label, inner) => '<label class="cfrow"><span class="cfkey">'
+    + escC(label) + '</span>' + inner + '</label>';
+
+  const places = (CALW.places || []).map(p =>
+    '<button type="button" class="cfplace' + (f.place === p.id ? ' on' : '')
+    + (p.available ? '' : ' off') + '" data-cfplace="' + escC(p.id) + '"'
+    + (p.available ? '' : ' disabled title="' + escC(p.why || '') + '"') + '>'
+    + escC(p.label) + '</button>').join('');
+
+  host.innerHTML = '<div class="cmodal" data-cm-backdrop="1">'
+    + '<div class="cmpanel cfpanel" role="dialog" aria-modal="true" aria-label="Event">'
+    + '<div class="cmtitle">' + (f.mode === 'new' ? 'New event' : 'Edit event') + '</div>'
+    + (f.err ? '<div class="cferr">' + escC(f.err) + '</div>' : '')
+    + field('Title', '<input id="cf-title" type="text" maxlength="250" value="'
+        + escC(f.title) + '" placeholder="What is it?">')
+    + '<div class="cftimes">'
+    +   field('Starts', '<input id="cf-start" type="datetime-local" value="' + escC(f.start) + '">')
+    +   field('Ends', '<input id="cf-end" type="datetime-local" value="' + escC(f.end) + '">')
+    + '</div>'
+    + '<div class="cfrow"><span class="cfkey">Where</span>'
+    +   '<div class="cfplaces">' + places + '</div></div>'
+    + field('Guests', '<input id="cf-guests" type="text" value="' + escC(f.attendees)
+        + '" placeholder="email, email — optional">')
+    + field('Notes', '<textarea id="cf-notes" rows="3" placeholder="Optional">'
+        + escC(f.notes) + '</textarea>')
+    + '<div class="cfzone">Times are ' + escC(CALW.timeZone || 'local') + '</div>'
+    + '<div class="cmfoot">'
+    +   (f.mode === 'edit'
+        ? '<button class="btn cfdel" data-cfdelete="1"' + (f.busy ? ' disabled' : '')
+          + '>Cancel event</button>' : '')
+    +   '<span style="flex:1"></span>'
+    +   '<button class="btn" data-cm-close="1">Close</button>'
+    +   '<button class="btn primary" data-cfsave="1"' + (f.busy ? ' disabled' : '') + '>'
+    +     (f.busy ? 'Saving…' : (f.mode === 'new' ? 'Create' : 'Save')) + '</button>'
+    + '</div></div></div>';
+
+  document.body.classList.add('ycmlock');
+  host.querySelectorAll('[data-cm-close]').forEach(b => b.onclick = calFormClose);
+  const back = host.querySelector('[data-cm-backdrop]');
+  if (back) back.onclick = ev => { if (ev.target === back) calFormClose(); };
+  host.querySelectorAll('[data-cfplace]').forEach(b => b.onclick = () => {
+    calForm.place = b.dataset.cfplace; calReadForm(); calDrawForm();
+  });
+  const save = host.querySelector('[data-cfsave]');
+  if (save) save.onclick = calSave;
+  const del = host.querySelector('[data-cfdelete]');
+  if (del) del.onclick = calDelete;
+  host.querySelector('#cf-title')?.focus?.();
+}
+
+/* What is typed, kept across a redraw. */
+function calReadForm(){
+  if (!calForm) return;
+  const v = id => document.getElementById(id)?.value ?? '';
+  calForm.title = v('cf-title');
+  calForm.start = v('cf-start');
+  calForm.end = v('cf-end');
+  calForm.attendees = v('cf-guests');
+  calForm.notes = v('cf-notes');
+}
+
+function calFormPayload(){
+  return {
+    title: calForm.title,
+    start: calForm.start,
+    end: calForm.end,
+    place: calForm.place,
+    notes: calForm.notes,
+    attendees: calForm.attendees.split(',').map(s => s.trim()).filter(Boolean)
+  };
+}
+
+async function calSave(){
+  calReadForm();
+  calForm.busy = true; calForm.err = null; calDrawForm();
+  try {
+    const body = calFormPayload();
+    if (calForm.mode === 'new') await post('/api/calendar/events', body);
+    else {
+      await api('/api/calendar/events/' + encodeURIComponent(calForm.id), {
+        method: 'PATCH', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+    }
+    calFormClose();
+    await calReload();
+  } catch (err) {
+    calForm.busy = false;
+    calForm.err = err.body?.error || err.message || 'That did not save.';
+    calDrawForm();
+  }
+}
+
+async function calDelete(){
+  if (!confirm('Cancel this event? It is removed from the calendar for everyone invited.')) return;
+  calForm.busy = true; calForm.err = null; calDrawForm();
+  try {
+    await api('/api/calendar/events/' + encodeURIComponent(calForm.id), { method: 'DELETE' });
+    calFormClose();
+    await calReload();
+  } catch (err) {
+    calForm.busy = false;
+    calForm.err = err.body?.error || err.message || 'That did not cancel.';
+    calDrawForm();
+  }
 }
 
 /* Escape closes the meeting card. Registered in capture like the alert, and
@@ -7227,6 +7469,10 @@ document.getElementById('cal-next').onclick = () => {
 document.getElementById('cal-today').onclick = () => { CAL.anchor = new Date(); CAL.sel = null; drawCal(); };
 /* Mail and calendar ride on one OAuth grant, so this opens the same sheet. */
 document.getElementById('cal-connect').onclick = () => openModal('mail');
+document.getElementById('cal-new').onclick = calNew;
+/* Asked once at boot. Whether anything can be written to is a property of the
+   deployment, not of the week on screen, so it does not belong in the reload. */
+calLoadCaps();
 
 /* Demo data loads at boot so the views are not empty while the backend is built.
    Both Demo data buttons clear it. Delete buildDemo/clearDemo/toggleDemo and the

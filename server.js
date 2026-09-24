@@ -10,6 +10,7 @@ import { PROVIDERS, missingVars } from './lib/oauth.js';
 import { seedFromEnv } from './lib/ghl-seed.js';
 import { seedHeyReach, apiKey as heyreachKey } from './lib/heyreach-seed.js';
 import { seedUsers, countUsers } from './lib/users.js';
+import { seedOutlookService, configured as outlookServiceConfigured } from './lib/ms-seed.js';
 import { claudeIsLocal } from './routes/claude.js';
 import { loadEnvFile } from './lib/dotenv.js';
 
@@ -216,6 +217,21 @@ const server = app.listen(PORT, '0.0.0.0', () => {
       }
     })
     .catch(err => console.error('[boot] seeding failed:', err.message));
+
+  /* The service Outlook calendar. Behind readiness for the same reason: it
+     mints a tenant token and reads a day of the mailbox to prove the app was
+     actually granted Calendars.ReadWrite, which is two round trips to
+     Microsoft. Getting a token proves nothing on its own — an app with no
+     application permission is issued one quite happily and then fails on the
+     first read, which on screen is indistinguishable from an empty week. */
+  if (outlookServiceConfigured(env)) {
+    seedOutlookService(env)
+      .then(s => console.log(`  outlook:  service calendar for ${s.user} verified and connected`))
+      .catch(err => console.error('  outlook:  service calendar NOT connected — ' + err.message));
+  } else {
+    console.log('  outlook:  no service calendar (needs MS_TENANT_ID, MS_CLIENT_ID, '
+      + 'MS_CLIENT_SECRET, MS_SERVICE_USER)');
+  }
 
   /* LinkedIn, the same way and for the same reason: it verifies the key against
      HeyReach and then lists the workspace's sender accounts, which is two calls

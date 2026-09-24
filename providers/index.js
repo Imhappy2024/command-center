@@ -6,7 +6,10 @@ import * as microsoft from './microsoft.js';
 import * as imap from './imap.js';
 import { getAccessToken, getImapConfig } from '../lib/accounts.js';
 
-const MODULES = { google, microsoft, imap };
+/* microsoft_service is the same Graph client with a different credential and a
+   mailbox path instead of /me, so it is the same module under a second name
+   rather than a copy of it. */
+const MODULES = { google, microsoft, imap, microsoft_service: microsoft };
 
 /* Every call resolves its own credential, so a token that expired mid-session
    refreshes transparently and an account that cannot refresh fails alone. */
@@ -62,7 +65,30 @@ export async function send(account, payload){
 export async function listEvents(account, from, to){
   const { mod, auth } = await bind(account);
   if (!mod.listEvents) throw new Error(`${account.provider} has no calendar`);
-  return mod.listEvents({ ...auth, cal: account.id, from, to });
+  return mod.listEvents({ ...auth, cal: account.id, from, to, mailbox: account.mailbox });
+}
+
+/* Creating, changing and cancelling. Only a provider that implements them is
+   offered, which is what lets the UI hide the controls rather than show a New
+   event button that answers 500 on a calendar it can only read. */
+export const canWriteEvents = account => Boolean(MODULES[account.provider]?.createEvent);
+
+export async function createEvent(account, payload){
+  const { mod, auth } = await bind(account);
+  if (!mod.createEvent) throw new Error(`${account.provider} cannot create events`);
+  return mod.createEvent({ ...auth, mailbox: account.mailbox, ...payload });
+}
+
+export async function updateEvent(account, id, payload){
+  const { mod, auth } = await bind(account);
+  if (!mod.updateEvent) throw new Error(`${account.provider} cannot change events`);
+  return mod.updateEvent({ ...auth, mailbox: account.mailbox, id, ...payload });
+}
+
+export async function deleteEvent(account, id){
+  const { mod, auth } = await bind(account);
+  if (!mod.deleteEvent) throw new Error(`${account.provider} cannot cancel events`);
+  return mod.deleteEvent({ ...auth, mailbox: account.mailbox, id });
 }
 
 /* Which providers can permanently delete. Gmail cannot without the full

@@ -696,6 +696,8 @@ with the variable it needs.
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Web application client. Also used by YouTube, which needs its own redirect URI on the same client |
 | `MS_CLIENT_ID` / `MS_CLIENT_SECRET` | Secret **value** |
 | `MS_TENANT_ID` | `common` supports work and personal accounts |
+| `MS_SERVICE_USER` | Connects ONE mailbox as the app rather than by sign-in, and makes it the calendar new events are written to. Needs the real tenant id and Calendars.ReadWrite as an **Application** permission with admin consent |
+| `ZOOM_MEETING_URL` | The standing Zoom room. One of the two places an event can be; the other is Teams |
 | `META_APP_ID` / `META_APP_SECRET` | Business-type app. Covers Pages, Instagram and Ads in one grant |
 | `META_WEBHOOK_VERIFY_TOKEN` | You invent it; Meta echoes it back at `GET /webhooks/meta` |
 | `HEYREACH_API_KEY` | LinkedIn. Settings → Integrations → HeyReach API. One key, one row per sender profile, discovered at boot |

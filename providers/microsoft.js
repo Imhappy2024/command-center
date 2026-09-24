@@ -146,7 +146,74 @@ export const send = ({ token, to, subject, body }) =>
     }
   });
 
-export async function listEvents({ token, cal, from, to }){
+/* ---------------------------------------------------------------------------
+   App-only access to one mailbox.
+
+   The delegated flow above is a person signing in and granting this app their
+   own mailbox. That is the right model for the owner's account and the wrong
+   one for somebody else's calendar: it needs Chris sitting at a browser, and
+   the grant dies with his refresh token.
+
+   Client credentials instead. The app authenticates as itself against the
+   tenant and reads a named mailbox, which needs Calendars.ReadWrite as an
+   APPLICATION permission with admin consent — not the delegated one of the
+   same name. Nobody signs in and nothing expires but the hour-long token.
+
+   Two things reliably go wrong and are worth naming rather than debugging:
+
+     - MS_TENANT_ID must be the real tenant id. 'common' is a multi-tenant
+       placeholder that only means anything for an interactive sign-in, and
+       client credentials against it fail with an unhelpful 400.
+     - Every path is /users/<upn>. There is no /me when nobody is signed in,
+       and Graph answers /me with a 400 that says the token is missing a
+       user context.
+   --------------------------------------------------------------------------- */
+
+export function appConfigured(env){
+  return Boolean(env.MS_CLIENT_ID && env.MS_CLIENT_SECRET
+    && env.MS_TENANT_ID && env.MS_SERVICE_USER);
+}
+
+export async function appToken(env){
+  const tenant = String(env.MS_TENANT_ID || '').trim();
+  if (!tenant || tenant === 'common' || tenant === 'organizations') {
+    throw new Error('MS_TENANT_ID must be the tenant id (a GUID or a domain) for app-only '
+      + `access. "${tenant || 'unset'}" is a sign-in placeholder and has no tenant to `
+      + 'authenticate against.');
+  }
+  const res = await fetch(`https://login.microsoftonline.com/${encodeURIComponent(tenant)}`
+    + '/oauth2/v2.0/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: env.MS_CLIENT_ID,
+      client_secret: env.MS_CLIENT_SECRET,
+      grant_type: 'client_credentials',
+      scope: 'https://graph.microsoft.com/.default'
+    })
+  });
+  const j = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    /* Azure's description is the actionable half — it names the missing
+       consent or the wrong secret outright. */
+    throw new Error('Microsoft refused the app credentials: '
+      + (j.error_description?.split(/[\r\n]/)[0] || j.error || res.statusText));
+  }
+  return {
+    accessToken: j.access_token,
+    /* There is no refresh token in this flow; the credential IS the client
+       secret, and a new access token is one request away. The stored value
+       keeps the accounts row's shape. */
+    refreshToken: 'client_credentials',
+    expiresAt: Date.now() + (Number(j.expires_in || 3600) - 120) * 1000,
+    scope: 'https://graph.microsoft.com/.default'
+  };
+}
+
+/* /users/<upn> for an app-only token, /me for a delegated one. */
+const box = mailbox => (mailbox ? `/users/${encodeURIComponent(mailbox)}` : '/me');
+
+export async function listEvents({ token, cal, from, to, mailbox = null }){
   const params = new URLSearchParams({
     startDateTime: from,
     endDateTime: to,
@@ -164,7 +231,7 @@ export async function listEvents({ token, cal, from, to }){
      returns start.dateTime as a local wall-clock string with no offset. In any
      other zone that string is ambiguous and new Date() would misread it; in UTC
      it just needs a Z. */
-  const res = await call(token, `/me/calendarView?${params}`, {
+  const res = await call(token, `${box(mailbox)}/calendarView?${params}`, {
     headers: { Prefer: 'outlook.timezone="UTC"' }
   });
 
@@ -196,4 +263,84 @@ export async function listEvents({ token, cal, from, to }){
       allDay: Boolean(e.isAllDay)
     });
   }).filter(e => e.start && e.end);
+}
+
+/* ---------------------------------------------------------------------------
+   Writing events.
+
+   Where a meeting happens is two choices and not a free-text box, because a
+   free-text box is how "location" became a field nobody can act on: half the
+   events in this calendar carry a street address, a room name or nothing, and
+   the dashboard's Join button has to guess a link out of prose.
+
+     teams   Graph makes the meeting. isOnlineMeeting with the provider named,
+             and it returns a real joinUrl on the created event.
+     zoom    There is no Zoom provider in Graph, and there is not going to be
+             one. The standing room URL goes in as the location and again in
+             the body, which is where listEvents already looks for a link that
+             is not a Teams one.
+
+   Times are sent with an explicit timeZone rather than as UTC instants. Graph
+   stores the wall clock and the zone, so an event created for 2pm Central
+   stays 2pm Central through a daylight-saving change; converting to UTC here
+   would freeze the offset and move the meeting an hour in November.
+   --------------------------------------------------------------------------- */
+
+const asGraphTime = (local, tz) => ({ dateTime: local, timeZone: tz });
+
+function bodyFor({ notes, place, zoomUrl }){
+  const lines = [];
+  if (notes) lines.push(String(notes));
+  if (place === 'zoom' && zoomUrl) {
+    if (notes) lines.push('');
+    lines.push(`Join Zoom: ${zoomUrl}`);
+  }
+  return lines.join('\n');
+}
+
+/* The shared half of create and update. `place` is 'teams' | 'zoom' | null. */
+function eventBody({ title, startLocal, endLocal, tz, notes, place, zoomUrl, attendees, allDay }){
+  const b = {
+    subject: title,
+    body: { contentType: 'text', content: bodyFor({ notes, place, zoomUrl }) },
+    start: asGraphTime(startLocal, tz),
+    end: asGraphTime(endLocal, tz),
+    isAllDay: Boolean(allDay)
+  };
+  if (Array.isArray(attendees) && attendees.length) {
+    b.attendees = attendees.map(a => ({
+      emailAddress: { address: String(a).trim() }, type: 'required'
+    }));
+  }
+  if (place === 'teams') {
+    b.isOnlineMeeting = true;
+    b.onlineMeetingProvider = 'teamsForBusiness';
+    b.location = { displayName: 'Microsoft Teams' };
+  } else if (place === 'zoom') {
+    /* Explicitly off: without this, a tenant configured to add Teams to every
+       meeting would attach one alongside the Zoom link and the event would
+       carry two conflicting ways in. */
+    b.isOnlineMeeting = false;
+    b.location = { displayName: zoomUrl ? `Zoom — ${zoomUrl}` : 'Zoom' };
+  }
+  return b;
+}
+
+export async function createEvent({ token, mailbox, ...rest }){
+  const made = await call(token, `${box(mailbox)}/events`, {
+    method: 'POST', body: eventBody(rest)
+  });
+  return { id: made?.id || null, join: made?.onlineMeeting?.joinUrl || null };
+}
+
+export async function updateEvent({ token, mailbox, id, ...rest }){
+  const saved = await call(token, `${box(mailbox)}/events/${encodeURIComponent(id)}`, {
+    method: 'PATCH', body: eventBody(rest)
+  });
+  return { id: saved?.id || id, join: saved?.onlineMeeting?.joinUrl || null };
+}
+
+export async function deleteEvent({ token, mailbox, id }){
+  await call(token, `${box(mailbox)}/events/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  return { id, deleted: true };
 }
