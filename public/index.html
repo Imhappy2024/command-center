@@ -5411,6 +5411,20 @@ catch (err) {
   CLOCK = clockFormatters(null);
 }
 
+/* The zone's own short name, as the zone itself calls it on this date -- CDT
+   in the summer, CST in the winter, PST for somebody who has overridden it.
+   An unlabelled 04:29 above a page of Central timestamps is a trap for anyone
+   not sitting in Central, which on a hosted dashboard is most people. */
+const CLOCK_ABBR = (() => {
+  try {
+    const f = new Intl.DateTimeFormat('en-US', CLOCK_TZ
+      ? { timeZone: CLOCK_TZ, timeZoneName: 'short' }
+      : { timeZoneName: 'short' });
+    const p = f.formatToParts(new Date()).find(x => x.type === 'timeZoneName');
+    return p ? p.value : '';
+  } catch { return ''; }
+})();
+
 function tick(){
   const now = new Date();
   document.getElementById('clk').textContent = CLOCK.time.format(now);
@@ -5420,7 +5434,8 @@ function tick(){
   const p = {};
   for (const part of CLOCK.date.formatToParts(now)) p[part.type] = part.value;
   const el = document.getElementById('clk-d');
-  if (el) el.textContent = [p.weekday, p.day, p.month, p.year].filter(Boolean).join(' ');
+  if (el) el.textContent = [p.weekday, p.day, p.month, p.year].filter(Boolean).join(' ')
+    + (CLOCK_ABBR ? ' · ' + CLOCK_ABBR : '');
 }
 /* Every ten seconds, which also rolls the date over at midnight without a
    second timer. */
@@ -6247,6 +6262,23 @@ const CAL_TAGS = [
   { k: 'purple', re: /\bStabili[sz]ed\b/i },
   { k: 'pink',   re: /(?<!\d)(?<!\d\s)\bAM\b/ }
 ];
+/* Display only.
+
+   Almost every event in the source calendar carries a trailing "(copy)" from
+   having been duplicated there. It is real data, not something this app adds,
+   so it is stripped on the way to the screen and left untouched in e.title --
+   which is what the edit form reads and writes back. A dashboard that quietly
+   renamed somebody's calendar entries as a side effect of displaying them
+   would be a genuinely surprising thing to own.
+
+   The real fix is in the calendar itself; this only stops it being shouted on
+   every row in the meantime. */
+const calTitle = e => {
+  const raw = String((e && e.title) || '');
+  const cut = raw.replace(/(?:\s*\(copy\))+\s*$/i, '').trim();
+  return cut || raw;
+};
+
 function calTag(e){
   const t = String(e.title || '');
   for (const { k, re } of CAL_TAGS) if (re.test(t)) return k;
@@ -6280,13 +6312,75 @@ const joinBtn = (e, label = 'Join') => joinUrl(e)
     + ' onclick="event.stopPropagation()">' + CAM_SVG + escC(label) + '</a>'
   : '';
 
-const startOfDay = d => new Date(d.getFullYear(), d.getMonth(), d.getDate());
-const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
-const sameDay = (a, b) => a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+/* ---------- the zone the calendar thinks in ----------
+
+   Every one of these used to read the BROWSER's clock, while the header clock
+   and every timestamp the server renders read AGENT_TIMEZONE. Anywhere outside
+   that zone the whole grid slid. From Manila a 21:15 Central meeting drew in
+   the 11:15 row, frequently on the wrong day, and the countdown -- which works
+   from the absolute instant and so was the only one of the three that was
+   right -- agreed with neither the clock above it nor the row beside it.
+
+   So the calendar now lays out in the same zone as everything else. Intl
+   rather than a table of offsets, because it is the only thing that gets a
+   daylight-saving change right without one. */
+const CAL_TZ = window.__TZ || Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+const mkCalFmt = (tz, opts) => {
+  try { return new Intl.DateTimeFormat('en-US', { ...opts, timeZone: tz }); }
+  catch { return new Intl.DateTimeFormat('en-US', opts); }
+};
+const CAL_PARTS = mkCalFmt(CAL_TZ, { hour12:false,
+  year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+const CAL_DOW = mkCalFmt(CAL_TZ, { weekday:'short' });
+
+/* The wall-clock fields of an instant, in the calendar's zone. */
+function calWall(d){
+  const o = {};
+  for (const part of CAL_PARTS.formatToParts(d)) if (part.type !== 'literal') o[part.type] = +part.value;
+  if (o.hour === 24) o.hour = 0;        /* hour12:false reports midnight as 24 */
+  return o;
+}
+
+/* The zone's offset from UTC at that instant. Derived from the formatter
+   rather than stored, so the two days a year the clocks move need no rules. */
+function calOffsetMs(d){
+  const p = calWall(d);
+  return Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute)
+       - Math.floor(d.getTime() / 60000) * 60000;
+}
+
+/* A wall-clock time in the calendar's zone, back to a real instant. Resolved
+   twice: the offset at the target can differ from the offset now, which is
+   precisely what happens across a daylight-saving boundary. */
+function calInstant(wallUTC, near){
+  let t = wallUTC - calOffsetMs(near);
+  return new Date(wallUTC - calOffsetMs(new Date(t)));
+}
+
+const DOW_N = { Sun:0, Mon:1, Tue:2, Wed:3, Thu:4, Fri:5, Sat:6 };
+const calDow = d => DOW_N[CAL_DOW.format(d)] ?? 0;
+
+const startOfDay = d => {
+  const p = calWall(d);
+  return calInstant(Date.UTC(p.year, p.month - 1, p.day), d);
+};
+/* Days are added in wall-clock terms, not as 86,400,000ms. Two days a year
+   are 23 or 25 hours long and the fixed-millisecond version walks off by an
+   hour for the rest of the week. */
+const addDays = (d, n) => {
+  const p = calWall(d);
+  return calInstant(Date.UTC(p.year, p.month - 1, p.day + n, p.hour, p.minute), d);
+};
+const sameDay = (a, b) => {
+  const x = calWall(a), y = calWall(b);
+  return x.year === y.year && x.month === y.month && x.day === y.day;
+};
 const isToday = d => sameDay(d, new Date());
-const mondayOf = d => { const x = startOfDay(d); const off = (x.getDay() + 6) % 7; return addDays(x, -off); };
-const hhmm = d => String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0');
-const mins = d => d.getHours() * 60 + d.getMinutes();
+const mondayOf = d => addDays(startOfDay(d), -((calDow(d) + 6) % 7));
+const hhmm = d => { const p = calWall(d);
+  return String(p.hour).padStart(2,'0') + ':' + String(p.minute).padStart(2,'0'); };
+const mins = d => { const p = calWall(d); return p.hour * 60 + p.minute; };
 const dur = (a, b) => { const m = Math.round((b - a) / 60000); return m >= 60 ? (m/60 % 1 ? (m/60).toFixed(1) : m/60) + 'h' : m + 'm'; };
 
 const shownEvents = () => EVENTS.filter(e => !CAL.hidden.has(e.cal) && acctById(e.cal));
@@ -6569,7 +6663,7 @@ function timeGrid(days){
       + allday.map(e => '<button class="adev ' + calKind(e) + (calTag(e) ? ' tagged' : '')
         + '" data-ev="' + e.id + '"'
         + ' style="--c:' + calColour(e) + '">'
-        + escC(e.title) + '</button>').join('') + '</div>'
+        + escC(calTitle(e)) + '</button>').join('') + '</div>'
     : '';
 
   let gut = '<div class="tggut">';
@@ -6593,12 +6687,12 @@ function timeGrid(days){
           return '<button class="ev ' + kind + (tag ? ' tagged' : '')
             + (CAL.sel === e.id ? ' on' : '') + '"'
             + ' data-ev="' + e.id + '"'
-            + ' title="' + escC(e.title + ' \u00b7 ' + hhmm(e.start) + '\u2013' + hhmm(e.end)
+            + ' title="' + escC(calTitle(e) + ' \u00b7 ' + hhmm(e.start) + '\u2013' + hhmm(e.end)
                 + (e.location ? ' \u00b7 ' + e.location : '')) + '"'
             + ' style="--c:' + calColour(e) + ';top:' + top + '%;height:' + hgt + '%;'
             + 'left:calc(' + left + '% + 2px);width:calc(' + w + '% - 4px)">'
             + (kind === 'meet' ? '<span class="cam">' + CAM_SVG + '</span>' : '')
-            + '<b>' + escC(e.title) + '</b>'
+            + '<b>' + escC(calTitle(e)) + '</b>'
             + (tall ? '<small>' + hhmm(e.start) + ' \u2013 ' + hhmm(e.end) + '</small>' : '')
             + '</button>';
         }).join('')
@@ -6629,7 +6723,7 @@ function monthGrid(){
       + day.slice(0,3).map(e => '<button class="mev ' + calKind(e) + (calTag(e) ? ' tagged' : '')
           + '" data-ev="' + e.id + '"'
           + ' style="--c:' + calColour(e) + '">'
-          + (e.allDay ? '' : hhmm(e.start) + ' ') + escC(e.title) + '</button>').join('')
+          + (e.allDay ? '' : hhmm(e.start) + ' ') + escC(calTitle(e)) + '</button>').join('')
       + (day.length > 3 ? '<div class="mmore">+' + (day.length - 3) + ' more</div>' : '')
       + '</div>';
   }).join('') + '</div>';
@@ -6669,7 +6763,7 @@ function listCards(){
       /* No clock. Counting down the end of a meeting you are already in is
          the wrong number; that it has begun is the whole message. */
       + '<div class="clbig">Ongoing</div>'
-      + '<div class="clwho">' + escC(live.title) + '</div>'
+      + '<div class="clwho">' + escC(calTitle(live)) + '</div>'
       + '<div class="clwhen">' + escC(whenLine(live)) + '</div>'
       + joinBtn(live, 'Join now')
       + '</button>'
@@ -6679,7 +6773,7 @@ function listCards(){
     ? '<button class="clcard soon" data-ev="' + next.id + '">'
       + '<div class="clhead">Starts in</div>'
       + ticker(next.start, 'clbig')
-      + '<div class="clwho">' + escC(next.title) + '</div>'
+      + '<div class="clwho">' + escC(calTitle(next)) + '</div>'
       + '<div class="clwhen">' + escC(whenLine(next)) + '</div>'
       + joinBtn(next, 'Join')
       + '</button>'
@@ -6717,7 +6811,7 @@ function listView(days){
             +   (e.allDay ? 'All day' : hhmm(e.start) + ' \u2013 ' + hhmm(e.end))
             +   (e.allDay ? '' : '<em>' + dur(e.start, e.end) + '</em>') + '</span>'
             + '<span class="clbar"></span>'
-            + '<span><span class="cltitle">' + escC(e.title) + '</span>'
+            + '<span><span class="cltitle">' + escC(calTitle(e)) + '</span>'
             +   (where ? '<span class="clmeta">' + where + '</span>' : '') + '</span>'
             + joinBtn(e)
             + '</button>';
@@ -6793,11 +6887,11 @@ function countdownBlock(){
     return '<div class="cdown now" id="cal-countdown">'
       + '<div class="lab">Happening now</div>'
       + '<div class="big clstarted">Ongoing</div>'
-      + '<div class="who">' + escC(live.title) + '</div>'
+      + '<div class="who">' + escC(calTitle(live)) + '</div>'
       + '<div class="when">' + escC(whenLine(live)) + '</div>'
       + joinBtn(live, 'Join now')
       + (next
-        ? '<div class="cdnext">Then <b>' + escC(next.title) + '</b> in '
+        ? '<div class="cdnext">Then <b>' + escC(calTitle(next)) + '</b> in '
           + '<span class="cdtime" data-cdto="' + next.start.toISOString() + '">'
           + escC(countdownText(next.start)) + '</span></div>'
         : '')
@@ -6807,7 +6901,7 @@ function countdownBlock(){
   return '<div class="cdown" id="cal-countdown">'
     + '<div class="lab">Next meeting in</div>'
     + ticker(next.start)
-    + '<div class="who">' + escC(next.title) + '</div>'
+    + '<div class="who">' + escC(calTitle(next)) + '</div>'
     + '<div class="when">' + escC(whenLine(next)) + '</div>'
     + joinBtn(next, 'Join')
     + '</div>';
@@ -6902,7 +6996,7 @@ function calDetail(){
 
   host.innerHTML = '<div class="cmodal" data-cm-backdrop="1">'
     + '<div class="cmpanel" role="dialog" aria-modal="true" aria-label="Meeting">'
-    + '<div class="cmtitle">' + escC(e.title) + '</div>'
+    + '<div class="cmtitle">' + escC(calTitle(e)) + '</div>'
     + '<div class="cmsub">'
     +   DAYNAMES[e.start.getDay()] + ', ' + MONTHS[e.start.getMonth()] + ' ' + e.start.getDate()
     +   ' \u00b7 ' + (e.allDay ? 'All day'
@@ -7216,8 +7310,8 @@ async function calNotify(e){
   };
   try {
     const reg = await navigator.serviceWorker?.getRegistration();
-    if (reg?.showNotification) { await reg.showNotification('Starting now: ' + e.title, opts); return; }
-    new Notification('Starting now: ' + e.title, opts);
+    if (reg?.showNotification) { await reg.showNotification('Starting now: ' + calTitle(e), opts); return; }
+    new Notification('Starting now: ' + calTitle(e), opts);
   } catch { /* refused or unsupported; the overlay still ran */ }
 }
 
@@ -7236,7 +7330,7 @@ function calAlertOpen(e){
     + '<div class="calertlab"><span class="calertdot"></span>Starting now</div>'
     + '<div class="calertbig" data-cdto="' + e.start.toISOString() + '">'
     +   escC(countdownText(e.start)) + '</div>'
-    + '<div class="calertwho">' + escC(e.title) + '</div>'
+    + '<div class="calertwho">' + escC(calTitle(e)) + '</div>'
     + '<div class="calertwhen">' + escC(whenLine(e)) + '</div>'
     + '<div class="calertrow">'
     +   joinBtn(e, 'Join now')
@@ -7295,7 +7389,7 @@ function sidePanel(){
   const list = arr => arr.map(e => '<div class="upnext ' + calKind(e) + '"'
     + ' data-ev="' + e.id + '" style="--c:' + calColour(e) + '">'
     + '<span class="tick"></span><span class="t">' + hhmm(e.start) + '</span>'
-    + '<span><b>' + escC(e.title) + '</b>'
+    + '<span><b>' + escC(calTitle(e)) + '</b>'
     /* linkify, not escape: a Zoom URL printed as eighty characters of text is
        what this rail was doing, and it was both unreadable and unclickable. */
     + (e.location ? '<small>' + linkify(e.location) + '</small>' : '')
