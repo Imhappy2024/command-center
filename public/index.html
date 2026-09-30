@@ -4757,7 +4757,11 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
 .fnpct small{width:48px;font-family:var(--ff-mono);font-size:11px;text-align:right;color:var(--dimmer)}
 /* The statement: account names stay put while twelve months scroll past. */
 .fncard.t12 .fntbl th:first-child,.fncard.t12 .fntbl td:first-child{position:sticky;left:0;
-  z-index:1;min-width:250px;max-width:330px;white-space:normal}
+  z-index:1;white-space:normal;box-sizing:border-box;
+  /* One fixed width. min/max let the browser pick anything between them from
+     the rows and the month count, so the property picker in this column
+     changed width every time the range or the property did. */
+  width:320px;min-width:320px;max-width:320px}
 .fncard.t12 .fntbl thead th:first-child{z-index:2}
 .fnprop{display:flex;align-items:center;gap:9px;cursor:pointer;color:var(--brass)}
 .fnprop svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;
@@ -4767,7 +4771,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   text-transform:none;padding:8px 10px;cursor:pointer;outline:0}
 .fnprop select:hover{border-color:var(--dim)}
 .fnprop select:focus{border-color:var(--brass)}
-.fncard.t12 .fntbl thead th:first-child{min-width:300px;vertical-align:middle}
+.fncard.t12 .fntbl thead th:first-child{vertical-align:middle}
 .fncard.t12 .fntbl td,.fncard.t12 .fntbl th{padding:9px 12px}
 /* ---- T12 tables: reading aids ----
    Every cell paints its own background from four stacked layers -- crosshair,
