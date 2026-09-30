@@ -4740,18 +4740,25 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   padding:20px 22px;width:min(480px,92vw);max-height:92vh;overflow:auto;box-shadow:0 30px 70px -20px rgba(0,0,0,.9)}
 #fin-dlg::backdrop{background:rgba(6,5,4,.62);backdrop-filter:blur(2px)}
 #fin-dlg h2{font-size:17px;color:var(--cream);font-variation-settings:'wght' 600;margin:0 0 12px}
-#fin-dlg .dsub{margin:2px 0 12px;color:var(--dimmer);font-size:12px;line-height:1.5}
+/* Not .dsub or .row: both are global classes in this file (mono caps, and a
+   ruled list row), and borrowing the names borrowed their looks. */
+#fin-dlg .xnote{margin:2px 0 12px;color:var(--dimmer);font-size:12px;line-height:1.5}
 #fin-dlg fieldset{border:1px solid var(--edge);border-radius:10px;margin:0 0 11px;padding:9px 13px 11px;display:grid;gap:7px}
 #fin-dlg legend{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
   color:var(--dimmer);padding:0 6px}
 #fin-dlg fieldset label{display:flex;gap:9px;align-items:center;font-size:12.5px;cursor:pointer;color:var(--text)}
 #fin-dlg input[type=radio],#fin-dlg input[type=checkbox]{width:15px;height:15px;accent-color:var(--brass)}
 #fin-dlg .stagesel{width:100%}
-#fin-dlg label.row .stagesel{width:auto;flex:1}
+#fin-dlg label.xrow .stagesel{width:auto;flex:1}
 #fin-dlg .kind{margin:0 0 12px;width:100%}
 #fin-dlg .kind button{flex:1}
 #fin-dlg .plist{max-height:190px;overflow:auto;display:grid;gap:6px;padding-right:4px}
-#fin-dlg .lnk button{background:none;border:0;color:var(--brass);cursor:pointer;font:inherit;font-size:10px;padding:0 4px}
+/* The fieldsets are display:grid, which beats the hidden attribute, so the
+   one-property select and the property checklist both showed at once. */
+#fin-dlg [hidden]{display:none!important}
+#fin-dlg .xtools{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+#fin-dlg .xtools .tgl{padding:4px 10px;font-size:11px}
+#fin-dlg .xtools .xnote{margin:0 0 0 4px}
 #fin-dlg .dmsg{min-height:20px;margin:4px 0 10px;font-size:12px;color:var(--dim)}
 #fin-dlg .dmsg.err{color:var(--rust)}
 #fin-dlg .dact{display:flex;justify-content:flex-end;gap:8px}
@@ -5161,7 +5168,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
         <button type="button" data-k="company">Company reports</button><button type="button" data-k="t12">Property T12</button>
       </div>
       <div id="fin-xco">
-        <p class="dsub" id="fin-xrange"></p>
+        <p class="xnote" id="fin-xrange"></p>
         <fieldset><legend>Reports</legend>
           <label><input type="checkbox" name="r" value="income" checked> Income</label>
           <label><input type="checkbox" name="r" value="expenses" checked> Expenses</label>
@@ -5171,18 +5178,16 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
         </fieldset>
       </div>
       <div id="fin-xt12" hidden>
-        <fieldset><legend>T12 income statement</legend>
-          <label><input type="radio" name="t" value="one12" checked> Running 12 months, one property</label>
-          <label><input type="radio" name="t" value="multi12"> Running 12 months, several properties</label>
-          <label><input type="radio" name="t" value="month"> Several properties, one month</label>
+        <fieldset><legend>Period</legend>
+          <label><input type="radio" name="t" value="12" checked> Running 12 months</label>
+          <label><input type="radio" name="t" value="month"> A single month</label>
+          <label class="xrow"><span id="fin-xendlbl">Ending</span> <select class="stagesel" id="fin-xend" aria-label="Period"></select></label>
+          <p class="xnote" id="fin-xendnote" style="margin:0"></p>
         </fieldset>
-        <fieldset><legend id="fin-xwhenlbl">Period</legend>
-          <label class="row"><span id="fin-xendlbl">12 months ending</span> <select class="stagesel" id="fin-xend"></select></label>
-          <p class="dsub" id="fin-xendnote" style="margin:0"></p>
+        <fieldset><legend id="fin-xpropslbl">Properties</legend>
+          <div class="xtools"><button type="button" class="tgl" id="fin-xall">Select all</button><button type="button" class="tgl" id="fin-xnone">Clear</button><span class="xnote" id="fin-xpropsnote"></span></div>
+          <div class="plist" id="fin-xprops"></div>
         </fieldset>
-        <fieldset id="fin-xonef"><legend>Property</legend><select class="stagesel" id="fin-xprop" aria-label="Property"></select></fieldset>
-        <fieldset id="fin-xmultif" hidden><legend>Properties <span class="lnk"><button type="button" id="fin-xall">Select all</button><button type="button" id="fin-xnone">Clear</button></span></legend>
-          <div class="plist" id="fin-xprops"></div></fieldset>
       </div>
       <fieldset><legend>Format</legend>
         <label><input type="radio" name="f" value="xlsx" checked> Excel (.xlsx)</label>
@@ -21492,8 +21497,8 @@ async function buildCompanyExport(ids, fmt, mode) { return filesFor(ids.map(repo
 async function buildT12Export(type, props, when, fmt, mode) {
   if (type === 'month') {
     const ms = [when], label = my(when);
-    const reps = [t12CompareReport(props, ms, label), ...props.map((p) => Object.assign(t12StatementReport(p, ms, label), { tab: p.p }))];
-    reps[0].tab = 'Comparison'; reps[0].fileName = 'T12_comparison'; reps.slice(1).forEach((r) => { r.fileName = 'T12_' + r.name; });
+    const reps = props.map((p) => Object.assign(t12StatementReport(p, ms, label), { tab: p.p, fileName: 'T12_' + p.p }));
+    if (props.length > 1) reps.unshift(Object.assign(t12CompareReport(props, ms, label), { tab: 'Comparison', fileName: 'T12_comparison' }));
     return filesFor(reps, fmt, mode, 'T12_properties_' + when, when, 'T12 income statements, ' + label);
   }
   const ms = t12Months(when), label = ms.length ? my(ms[0]) + ' to ' + my(ms[ms.length - 1]) : my(when);
@@ -21520,8 +21525,6 @@ const pickedProps = () => [...dlg.querySelectorAll('#fin-xprops input:checked')]
 function fillT12Dialog() {
   $('#fin-xend').innerHTML = T.months.slice().reverse().map((m) => `<option value="${m}">${mon(m, true)} ${m.slice(0, 4)}</option>`).join('');
   if (T.months.length) $('#fin-xend').value = T.months.includes(S.to) && S.mode === 't12' ? S.to : T.months[T.months.length - 1];
-  $('#fin-xprop').innerHTML = T.props.map((p) => `<option value="${esc(p.p)}">${esc(p.p)}</option>`).join('');
-  if (T.props.length) $('#fin-xprop').value = T.byName[S.prop] ? S.prop : T.props[0].p;
   /* Rebuilt only when the property list changed, so a selection survives
      closing and reopening the dialog. */
   const names = T.props.map((p) => p.p).join('\n');
@@ -21536,12 +21539,14 @@ function syncDlg() {
   const kind = dv('k'), fmt = dv('f'), type = dv('t');
   dlg.querySelectorAll('.kind button').forEach((b) => b.classList.toggle('on', b.dataset.k === kind));
   $('#fin-xco').hidden = kind !== 'company'; $('#fin-xt12').hidden = kind !== 't12';
-  $('#fin-xonef').hidden = type !== 'one12'; $('#fin-xmultif').hidden = type === 'one12';
-  $('#fin-xendlbl').textContent = type === 'month' ? 'Month' : '12 months ending'; $('#fin-xwhenlbl').textContent = type === 'month' ? 'Month' : 'Period';
+  $('#fin-xendlbl').textContent = type === 'month' ? 'Month' : 'Ending';
   if (T && kind === 't12') { const ms = type === 'month' ? [$('#fin-xend').value] : t12Months($('#fin-xend').value); $('#fin-xendnote').textContent = type === 'month' ? '' : (ms.length ? 'Covers ' + my(ms[0]) + ' to ' + my(ms[ms.length - 1]) + (ms.length < 12 ? ' (' + ms.length + ' months with data)' : '') + '.' : 'No data for that period.'); }
+  const n = pickedProps().length;
+  $('#fin-xpropslbl').textContent = 'Properties (' + n + ' of ' + T.props.length + ')';
+  $('#fin-xpropsnote').textContent = n === 1 ? 'One statement for this property.' : n > 1 ? 'A comparison plus one statement each.' : '';
   $('#fin-onelbl').textContent = LBL[kind][fmt][0]; $('#fin-seplbl').textContent = LBL[kind][fmt][1];
-  const count = kind === 'company' ? checked().length : !T.props.length ? 0 : type === 'one12' ? 1 : pickedProps().length;
-  const multiOut = kind === 'company' ? count > 1 : type !== 'one12' && count >= 1;
+  const count = kind === 'company' ? checked().length : !T.props.length ? 0 : n;
+  const multiOut = count > 1;
   dlg.querySelectorAll('input[name=m]').forEach((x) => { x.disabled = !multiOut; }); $('#fin-xfiles').style.opacity = multiOut ? 1 : .5;
   const msg = $('#fin-xmsg'); const need1 = kind === 'company' ? 'Choose at least one report.' : T.props.length ? 'Choose at least one property.' : 'No property T12s are loaded.';
   $('#fin-xgo').disabled = !count;
@@ -21550,7 +21555,9 @@ function syncDlg() {
 const companyRangeText = () => { const r = S.mode === 'company' ? { from: S.from, to: S.to } : S.ranges.company; if (!r) return period();
   return (r.from === r.to ? my(r.from) : my(r.from) + ' to ' + my(r.to)); };
 $('#fin-export').onclick = () => { if (!M || !T) return; fillT12Dialog(); dlg.querySelector(`input[name=k][value=${S.mode}]`).checked = true;
-  if (S.mode === 't12' && S.t12view === 'one') dlg.querySelector('input[name=t][value=one12]').checked = true;
+  /* From a single property's statement, export that property; from the
+     comparison, keep whatever was ticked last time. */
+  if (S.mode === 't12' && S.t12view === 'one') dlg.querySelectorAll('#fin-xprops input').forEach((x) => { x.checked = x.value === S.prop; });
   $('#fin-xrange').textContent = 'Date range: ' + (S.mode === 'company' ? period() : companyRangeText()) + ' (the range selected on the Company screen)';
   $('#fin-xmsg').textContent = ''; $('#fin-xmsg').className = 'dmsg'; syncDlg(); dlg.showModal(); };
 dlg.addEventListener('change', syncDlg);
@@ -21570,8 +21577,8 @@ $('#fin-xgo').onclick = async () => {
       if (S.mode !== 'company') { const r = S.ranges.company || defaultRange('company'); S.mode = 'company'; S.from = r.from; S.to = r.to; S.off = r.off || []; }
       try { files = await buildCompanyExport(checked(), fmt, mode); } finally { Object.assign(S, saved); }
     } else {
-      const props = type === 'one12' ? [T.byName[$('#fin-xprop').value]] : pickedProps().map((n) => T.byName[n]);
-      files = await buildT12Export(type, props.filter(Boolean), $('#fin-xend').value, fmt, mode);
+      const props = pickedProps().map((n) => T.byName[n]).filter(Boolean);
+      files = await buildT12Export(type === 'month' ? 'month' : props.length === 1 ? 'one12' : 'multi12', props, $('#fin-xend').value, fmt, mode);
     }
     for (const f of files) saveFile(f);
     msg.textContent = 'Saved ' + files.map((f) => f.filename).join(', ') + '.';
