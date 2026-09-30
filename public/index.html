@@ -2161,8 +2161,13 @@ body.ycmlock{overflow:hidden}
 /* The switch that asks the operating system for permission. Only shown while
    there is an answer to get -- once granted or refused it is not a control,
    it is a label, and the browser is the only place either can be undone. */
+/* Set apart from the view switches beside it. Day/Week/Month and Grid/List
+   choose what you are looking at; this one asks the operating system for a
+   permission. At the same weight, in the same row, it read as a third
+   segmented control, so it is pushed away from them and wears a dashed
+   outline -- the shape this app already uses for "not a state, an offer". */
 .calbell{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.1em;
-  text-transform:uppercase}
+  text-transform:uppercase;margin-left:10px;border-style:dashed}
 .calbell.on{color:var(--jade);border-color:color-mix(in srgb,var(--jade) 45%,transparent)}
 .calbell.off{color:var(--dimmer)}
 .cdown .clstarted{font-size:21px;letter-spacing:.01em}
@@ -4862,7 +4867,8 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   <!-- CALENDAR -->
   <section class="view" id="v-calendar">
     <div class="vhead">
-      <div><h1>Calendar</h1><p id="cal-sub">No calendars connected.</p></div>
+      <div><h1>Calendar</h1><p id="cal-sub">No calendars connected.</p>
+        <span class="synced" id="cal-state"></span></div>
       <div style="display:flex;gap:8px;align-items:center">
         <!-- Connect steps back to a secondary control: on a calendar that is
              already connected, the thing somebody came here to do is add a
@@ -5405,7 +5411,7 @@ MENU.forEach(([id,label,src,badge],i)=>{
   const b=document.createElement('button');
   b.className='navitem'+(id===DEFAULT_VIEW?' on':'');
   b.dataset.target=id;
-  b.innerHTML=`<span class="glyph"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${ICON[id]}</svg></span>
+  b.innerHTML=`<span class="glyph"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.85" stroke-linecap="round" stroke-linejoin="round">${ICON[id]}</svg></span>
     <span><span class="label">${label}</span><br><span class="src">${src}</span></span>
     ${badge?`<span class="badge">${badge}</span>`:'<span></span>'}`;
   b.onclick=()=>{
@@ -6386,7 +6392,9 @@ const CAL = { view:'week', anchor:new Date(), hidden:new Set(), sel:null, demo:f
   mode:'list',
   /* Which event the countdown is currently counting to, so the clock can tick
      the number without redrawing the block under somebody's cursor. */
-  cdFor:null };
+  cdFor:null,
+  /* When the events on screen were last read, for the freshness line. */
+  lastRead:null };
 
 const DAY_START = 6, DAY_END = 22, ROWH = 46;
 const DAYNAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -7271,6 +7279,7 @@ async function calReload(){
       start: parseWhen(e.start, e.allDay),
       end: parseWhen(e.end, e.allDay)
     })).filter(e => e.start && e.end);
+    CAL.lastRead = Date.now();
     drawCal();
   } catch (err) {
     console.warn('[calendar] could not re-read after a write:', err.message);
@@ -7686,6 +7695,16 @@ function drawCal(){
 
   /* Across the calendars actually being drawn, which is not the same as the
      length of the mail account list this used to report. */
+  /* Freshness, in the shape every other section uses. The calendar was the
+     one page that never said when it had last read anything. */
+  const cstate = document.getElementById('cal-state');
+  if (cstate) {
+    cstate.innerHTML = CAL.lastRead
+      ? '<span class="d" style="background:var(--jade)"></span>as of ' + escC(tkRel(CAL.lastRead))
+      : '';
+    if (CAL.lastRead) cstate.title = 'Last read ' + new Date(CAL.lastRead).toLocaleString();
+  }
+
   const todayCount = shownEvents().filter(e => isToday(e.start)).length;
   const calCount = new Set(shownEvents().map(e => e.cal)).size;
   document.getElementById('cal-sub').textContent =
@@ -10008,10 +10027,18 @@ function drawSchedule(sched){
   const fmt = iso => new Date(iso).toLocaleString([], { timeZone: sched.tz, hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
   const last = sched.lastManual && (!sched.lastScheduled || sched.lastManual > sched.lastScheduled)
     ? sched.lastManual : sched.lastScheduled;
+  /* The same line Tasks and Properties draw: a dot, then "as of" in relative
+     time. Freshness was reported three different ways on three pages -- this
+     one printed a full timestamp AND the auto-refresh schedule AND the next
+     run, the other two said "as of just now", and the Calendar said nothing.
+     Same fact, three shapes, each one learned separately. The schedule is
+     still here, in the tooltip, where it is available without being read
+     every time somebody glances at the header. */
   el.innerHTML = '<span class="d" style="background:' + (sched.running ? 'var(--brass)' : 'var(--jade)') + '"></span>'
-    + (sched.running ? 'Fetching… ' : (last ? 'Data as of ' + fmt(last) + ' · ' : ''))
-    + 'auto ' + sched.times.join(' & ') + ' ' + shortTz(sched.tz) + ' · next ' + fmt(sched.next);
-  el.title = 'Scheduled refresh at ' + sched.times.join(' and ') + ' ' + sched.tz + '. Fetch now pulls immediately.';
+    + (sched.running ? 'Fetching…' : (last ? 'as of ' + tkRel(Date.parse(last)) : 'not fetched yet'));
+  el.title = (last ? 'Last pulled ' + fmt(last) + '. ' : '')
+    + 'Scheduled refresh at ' + sched.times.join(' and ') + ' ' + sched.tz
+    + '. Next ' + fmt(sched.next) + '. Fetch now pulls immediately.';
 }
 const shortTz = tz => tz === 'America/Chicago' ? 'CT' : tz;
 
@@ -23098,6 +23125,7 @@ async function load(){
       start: parseWhen(e.start, e.allDay),
       end: parseWhen(e.end, e.allDay)
     })).filter(e => e.start && e.end);
+    CAL.lastRead = Date.now();
 
     GHL_ERR = locs.status === 'rejected'
       ? (locs.reason?.body?.detail || locs.reason?.message || 'request failed')
