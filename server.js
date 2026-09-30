@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-import { migrate, applyNotifyTriggers, close, describeDb, ownDbUrl, ghlDbUrl } from './db/index.js';
+import { migrate, applyNotifyTriggers, close, describeDb, ownDbUrl, ghlDbUrl, ghlQuery } from './db/index.js';
 import { initCrypto } from './lib/crypto.js';
 import { createApp } from './lib/app.js';
 import { AUTH_MODES, normaliseMode } from './lib/session.js';
@@ -231,6 +231,32 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   } else {
     console.log('  outlook:  no service calendar (needs MS_TENANT_ID, MS_CLIENT_ID, '
       + 'MS_CLIENT_SECRET, MS_SERVICE_USER)');
+  }
+
+  /* Does the ledger this deployment is pointed at actually hold the financial
+     tables? The Financial reports read eight of them, and the alternative to
+     asking here is finding out from an empty page with no explanation. One
+     count each, at boot, so the deploy log answers it before anybody opens
+     the section. */
+  if (env.SUPABASE_DB_URL) {
+    (async () => {
+      const tables = ['gl_account', 'gl_period_amount', 'gl_balance', 'investor_loan',
+        'investor_payment', 'document', 't12_report', 't12_report_line'];
+      const found = [], missing = [];
+      for (const t of tables) {
+        try {
+          const r = await ghlQuery(`select count(*)::int n from public.${t}`);
+          found.push(`${t}=${r.rows[0].n}`);
+        } catch (err) {
+          missing.push(/relation .* does not exist/i.test(err.message) ? t : `${t}(${err.message})`);
+        }
+      }
+      if (!missing.length) console.log('Financial: ' + found.join(' '));
+      else {
+        console.warn('Financial: reports will be empty. Missing here: ' + missing.join(', '));
+        if (found.length) console.warn('  financial: present: ' + found.join(' '));
+      }
+    })().catch(err => console.warn('Financial: could not probe the ledger — ' + err.message));
   }
 
   /* LinkedIn, the same way and for the same reason: it verifies the key against
