@@ -241,7 +241,7 @@ const server = app.listen(PORT, '0.0.0.0', () => {
   if (env.SUPABASE_DB_URL) {
     (async () => {
       const tables = ['gl_account', 'gl_period_amount', 'gl_balance', 'investor_loan',
-        'investor_payment', 'document', 't12_report', 't12_report_line'];
+        'investor_payment', 'document', 't12_report', 't12_report_line', 'cash_flow_month'];
       const found = [], missing = [];
       for (const t of tables) {
         try {
