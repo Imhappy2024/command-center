@@ -48,9 +48,16 @@
   --cream:#EFEBE4;      /* primary ink */
   --text:#CFC8BC;
   --dim:#A29B90;
-  --dimmer:#8A8377;   /* lifted off the reference's #6B655D: 3.6:1 is short for 9px labels */
+  /* Lifted twice now. #6B655D was 3.6:1, #8A8377 was 4.7:1, and at 9px with
+     .14em tracking that still had reviewers calling these labels unreadable
+     and mistaking the warm grey for a dull gold. This clears 6:1. */
+  --dimmer:#9C9488;
 
-  --brass:#C9A96B;
+  /* The one gold, and the brighter of the two that were in here. It means
+     brand, active, or "this is the thing" -- never a warning, never a data
+     series. Both of those had drifted into it, which left a real warning
+     looking like decoration and a chart looking permanently selected. */
+  --brass:#DCB870;
   --jade:#8FB48C;       /* good / up — sage, not a signal green */
   --rust:#C08268;       /* bad / needs attention */
   /* Unread. Deliberately NOT brass: brass is the accent on every control in
@@ -58,10 +65,12 @@
      stops seeing it. Hotter and more saturated than rust, which is a status
      colour for something wrong — unread is not wrong, it is waiting. */
   --unread:#E2564A;
-  /* The reference has no third status colour. This one is pushed
-     yellower than brass so a warning and the accent chrome do not
-     read as the same mark at a glance. */
-  --amber:#E0B34A;      /* down, but not an error */
+  /* Warnings. Orange, and deliberately outside the gold family: the previous
+     value was a yellower gold, which meant the maturing-loans banner and a
+     110% leverage bar wore the same colour as the brand accent and so read as
+     decoration. A warning has to be able to interrupt. */
+  --warn:#E28A3A;
+  --amber:var(--warn);  /* the old name for it, kept so 29 call sites still read */
 
   /* Platform identity. These carry meaning — which network a number
      belongs to — so they are not decoration, and they always sit
@@ -84,7 +93,7 @@
   --grid:rgba(255,255,255,.045);
   --glass:rgba(22,21,19,.82);
   --shadow:0 1px 0 rgba(255,255,255,.035) inset, 0 18px 40px -24px rgba(0,0,0,.9);
-  --scope:rgba(201,169,107,.10);
+  --scope:rgba(220,184,112,.10);
 
   --ff-display:'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
   --ff-body:'Plus Jakarta Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -141,10 +150,26 @@ h1,h2,h3,h4{font-family:var(--ff-display)}
 .kpi .kval,.ro .v,.stat .v{font-family:var(--ff-serif)}
 .eyebrow{
   font-family:var(--ff-mono);
-  font-size:10px;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--dimmer);
+  font-size:10.5px;letter-spacing:.13em;text-transform:uppercase;
+  color:var(--dim);
 }
 .num{font-family:var(--ff-display);font-weight:600;letter-spacing:-.03em;font-feature-settings:'tnum'}
+
+/* Tabular figures everywhere a figure is read as a figure. Proportional
+   digits are right inside a sentence and wrong in a column: they refuse to
+   line up, and a counter that updates in place jitters as the glyphs change
+   width. Not applied globally for exactly that reason. */
+.num,.kpi .kval,.ro .v,.stat .v,.prtile .val,.kpi .kprev,
+table td,table th,.mono{font-variant-numeric:tabular-nums}
+
+/* The browser default focus ring is invisible on this ground, which left the
+   whole board unusable from a keyboard. focus-visible rather than focus, so a
+   mouse click does not leave a halo sitting on the control. */
+:where(a,button,input,select,textarea,summary,[tabindex]):focus-visible{
+  outline:2px solid var(--brass);
+  outline-offset:2px;
+  border-radius:5px;
+}
 
 /* ---------- shell ---------- */
 .shell{display:grid;grid-template-columns:var(--rail) 1fr;min-height:100vh}
@@ -256,8 +281,8 @@ h1,h2,h3,h4{font-family:var(--ff-display)}
   overflow:hidden;isolation:isolate;
   background:
     radial-gradient(120% 120% at 30% 18%, #221F1A 0%, #16150F 55%, #0F0E0B 100%);
-  border:1px solid rgba(201,169,107,.34);
-  box-shadow:0 6px 18px -9px rgba(201,169,107,.65),
+  border:1px solid rgba(220,184,112,.34);
+  box-shadow:0 6px 18px -9px rgba(220,184,112,.65),
              inset 0 1px 0 rgba(255,244,222,.06);
 }
 /* The trace. A conic gradient that is transparent for most of the turn and
@@ -266,12 +291,12 @@ h1,h2,h3,h4{font-family:var(--ff-display)}
 .brand .mark::before{
   content:"";position:absolute;inset:-30%;z-index:0;
   background:conic-gradient(from 0deg,
-    rgba(201,169,107,0) 0deg,
-    rgba(201,169,107,0) 232deg,
-    rgba(201,169,107,.16) 296deg,
+    rgba(220,184,112,0) 0deg,
+    rgba(220,184,112,0) 232deg,
+    rgba(220,184,112,.16) 296deg,
     rgba(228,200,146,.52) 344deg,
     rgba(255,240,208,.92) 358deg,
-    rgba(201,169,107,0) 360deg);
+    rgba(220,184,112,0) 360deg);
   animation:mk-sweep 3.6s linear infinite;
 }
 /* The glass. Sits above everything, crosses, and waits — the pause is most of
@@ -284,9 +309,9 @@ h1,h2,h3,h4{font-family:var(--ff-display)}
   animation:mk-sheen 5.4s cubic-bezier(.5,0,.2,1) infinite;
 }
 .brand .mark svg{position:relative;z-index:1;display:block}
-.brand .mark .mk-ring{fill:none;stroke:rgba(201,169,107,.44);stroke-width:1}
-.brand .mark .mk-ring2{fill:none;stroke:rgba(201,169,107,.26);stroke-width:.85}
-.brand .mark .mk-tick{stroke:rgba(201,169,107,.55);stroke-width:1.1;stroke-linecap:round}
+.brand .mark .mk-ring{fill:none;stroke:rgba(220,184,112,.44);stroke-width:1}
+.brand .mark .mk-ring2{fill:none;stroke:rgba(220,184,112,.26);stroke-width:.85}
+.brand .mark .mk-tick{stroke:rgba(220,184,112,.55);stroke-width:1.1;stroke-linecap:round}
 .brand .mark .mk-core{fill:#F2DCAE;animation:mk-core 2.8s ease-in-out infinite}
 
 @keyframes mk-sweep{to{transform:rotate(360deg)}}
@@ -330,7 +355,7 @@ nav{padding:10px 8px;overflow-y:auto;flex:1}
 .navitem .src{font-family:var(--ff-mono);font-size:9px;letter-spacing:.09em;color:var(--dimmer);text-transform:uppercase}
 .navitem .badge{
   font-family:var(--ff-mono);font-size:10px;padding:1px 6px;border-radius:20px;
-  background:rgba(201,169,107,.16);color:var(--brass);
+  background:rgba(220,184,112,.16);color:var(--brass);
 }
 /* Waiting, not describing. The brass badge above says what a section IS
    ("Soon"); this one says something in it wants you. */
@@ -475,7 +500,7 @@ main{min-width:0;display:flex;flex-direction:column}
   font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
   padding:2.5px 7px;border-radius:4px;border:1px solid var(--edge2);color:var(--dim);white-space:nowrap;
 }
-.chip.brass{color:var(--brass);border-color:rgba(201,169,107,.18);background:rgba(201,169,107,.10)}
+.chip.brass{color:var(--brass);border-color:rgba(220,184,112,.18);background:rgba(220,184,112,.10)}
 .chip.jade{color:var(--jade);border-color:rgba(143,180,140,.16);background:rgba(143,180,140,.10)}
 .chip.rust{color:var(--rust);border-color:rgba(192,130,104,.16);background:rgba(192,130,104,.10)}
 
@@ -796,7 +821,7 @@ body.ycmlock{overflow:hidden}
   font-family:inherit;font-size:12.5px;color:var(--dim);padding:5px 13px;
 }
 .mgpills button:hover{background:var(--edge);color:var(--cream)}
-.mgpills button.on{background:rgba(201,169,107,.16);color:var(--brass)}
+.mgpills button.on{background:rgba(220,184,112,.16);color:var(--brass)}
 
 .mgrows{flex:1;overflow:auto;padding:0 8px 8px;display:flex;flex-direction:column;gap:2px}
 .mgrow{
@@ -804,7 +829,7 @@ body.ycmlock{overflow:hidden}
   padding:8px 9px;border-radius:10px;cursor:pointer;
 }
 .mgrow:hover{background:var(--panel2)}
-.mgrow.on{background:rgba(201,169,107,.13)}
+.mgrow.on{background:rgba(220,184,112,.13)}
 .mgrow:focus-visible{outline:2px solid var(--brass);outline-offset:-2px}
 .mgrowmid{min-width:0}
 .mgrowtop{display:flex;align-items:baseline;gap:8px}
@@ -888,7 +913,7 @@ body.ycmlock{overflow:hidden}
 }
 .mgtool svg{width:20px;height:20px;fill:currentColor}
 .mgtool:hover{background:var(--panel2)}
-.mgtool.on{background:rgba(201,169,107,.16)}
+.mgtool.on{background:rgba(220,184,112,.16)}
 /* Recording. Red, and pulsing, because it is the one control here that is
    consuming something while you are not looking at it. */
 .mgtool.rec{color:var(--rust);background:rgba(192,130,104,.14);animation:mgpulse 1.2s infinite}
@@ -909,7 +934,7 @@ body.ycmlock{overflow:hidden}
   background:none;color:var(--brass);display:flex;align-items:center;justify-content:center}
 .mgemoji svg{width:19px;height:19px;fill:currentColor}
 .mgemoji:hover{background:var(--panel2)}
-.mgemoji.on{background:rgba(201,169,107,.16)}
+.mgemoji.on{background:rgba(220,184,112,.16)}
 .mgsend{
   width:34px;height:34px;flex:none;border:0;border-radius:50%;cursor:pointer;
   background:none;color:var(--brass);display:flex;align-items:center;justify-content:center;
@@ -1013,7 +1038,7 @@ body.ycmlock{overflow:hidden}
 .mgcircle svg{width:17px;height:17px;fill:currentColor}
 .mgcircle:hover span{background:var(--edge)}
 .mgcircle.on{color:var(--brass)}
-.mgcircle.on span{background:rgba(201,169,107,.16)}
+.mgcircle.on span{background:rgba(220,184,112,.16)}
 .mgfind{padding:0 14px 12px}
 .mgfind input{width:100%;background:var(--ink2);border:1px solid var(--edge);
   border-radius:999px;padding:7px 13px;color:var(--cream);font-family:inherit;font-size:12.5px}
@@ -1168,7 +1193,7 @@ body.ycmlock{overflow:hidden}
   cursor:pointer;color:var(--brass);font-family:inherit;font-size:12.5px;
   padding:5px 10px;border-radius:999px;font-variation-settings:'wght' 550;
 }
-.ycmtoggle:hover{background:rgba(201,169,107,.12)}
+.ycmtoggle:hover{background:rgba(220,184,112,.12)}
 .ycmtoggle svg{width:18px;height:18px;fill:currentColor;transition:transform .13s}
 .ycmtoggle svg.down{transform:rotate(180deg)}
 .ycmnote{font-size:11.5px;color:var(--dimmer);margin:4px 0 0 44px;line-height:1.45}
@@ -1325,7 +1350,7 @@ body.ycmlock{overflow:hidden}
 }
 .ibxbub.mine .b{
   border-radius:14px 14px 4px 14px;
-  background:rgba(201,169,107,.14);border-color:rgba(201,169,107,.4);
+  background:rgba(220,184,112,.14);border-color:rgba(220,184,112,.4);
 }
 .ibxbub .m{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);
   margin-top:4px;padding:0 4px}
@@ -1597,7 +1622,7 @@ body.ycmlock{overflow:hidden}
   border:1px solid var(--edge2);color:var(--dim);white-space:nowrap}
 .ldstage.won{color:var(--jade);border-color:rgba(143,180,140,.4);background:rgba(143,180,140,.1)}
 .ldstage.lost{color:var(--rust);border-color:rgba(192,130,104,.35);background:rgba(192,130,104,.08)}
-.ldstage.hot{color:var(--brass);border-color:rgba(201,169,107,.4);background:rgba(201,169,107,.1)}
+.ldstage.hot{color:var(--brass);border-color:rgba(220,184,112,.4);background:rgba(220,184,112,.1)}
 
 /* ---------- connect form ---------- */
 .form{padding:18px 20px;display:flex;flex-direction:column;gap:15px}
@@ -2132,14 +2157,14 @@ body.ycmlock{overflow:hidden}
   padding:6px 9px;cursor:pointer;outline:0;max-width:340px;
 }
 .stagefilter:focus{border-color:var(--brass)}
-.stgsum{font-family:var(--ff-mono);font-size:10.5px;color:var(--brass)}
+.stgsum{font-family:var(--ff-mono);font-size:10.5px;color:var(--dim)}
 
 #ld-list{padding:8px;display:flex;flex-direction:column;gap:6px}
 .lstage{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;
   padding:1.5px 6px;border-radius:3px;flex:none;border:1px solid var(--edge2);color:var(--dim)}
 .lstage.won{color:var(--jade);border-color:rgba(143,180,140,.16);background:rgba(143,180,140,.10)}
 .lstage.lost{color:var(--rust);border-color:rgba(192,130,104,.16);background:rgba(192,130,104,.10)}
-.lstage.hot{color:var(--brass);border-color:rgba(201,169,107,.18);background:rgba(201,169,107,.10)}
+.lstage.hot{color:var(--brass);border-color:rgba(220,184,112,.18);background:rgba(220,184,112,.10)}
 
 /* detail pane */
 .ldhead{padding:12px 16px 11px;border-bottom:1px solid var(--edge)}
@@ -2319,7 +2344,7 @@ body.ycmlock{overflow:hidden}
 .pcard .sub2 b{display:block;font-family:var(--ff-mono);font-size:13px;color:var(--text)}
 .pcard .sub2 small{font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--dimmer)}
 
-.notice{background:rgba(201,169,107,.10);border:1px solid rgba(201,169,107,.20);border-radius:8px;padding:11px 14px;margin-bottom:14px;
+.notice{background:rgba(220,184,112,.10);border:1px solid rgba(220,184,112,.20);border-radius:8px;padding:11px 14px;margin-bottom:14px;
   font-size:12px;color:var(--brass);line-height:1.6}
 .notice b{color:var(--brass)}
 
@@ -2367,7 +2392,11 @@ body.ycmlock{overflow:hidden}
    and 3:1 contrast all pass, every one of them a shade better than
    against the surface they were picked on. */
 .viz{
-  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#c98500;
+  /* s4 was #c98500, an ochre that sat a hair off --brass. On a Meta board it
+     made a whole chart look like it was wearing the brand accent, which is
+     the one thing a series colour must not do. Teal fills the gap in the set
+     and is nowhere near the gold. */
+  --s1:#3987e5; --s2:#d95926; --s3:#199e70; --s4:#0E9BAD;
   --s5:#d55181; --s6:#008300; --s7:#9085e9; --s8:#e66767;
   --grid:rgba(255,255,255,.05); --axis:var(--edge2);
 }
@@ -2376,8 +2405,8 @@ body.ycmlock{overflow:hidden}
 .fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 14px;margin-bottom:14px;
   background:var(--panel);border:1px solid var(--edge);border-radius:var(--r)}
 .fbar .sep{width:1px;height:20px;background:var(--edge);margin:0 2px}
-.fbar .flabel{font-family:var(--ff-mono);font-size:9px;letter-spacing:.14em;
-  text-transform:uppercase;color:var(--dimmer);margin-right:2px}
+.fbar .flabel{font-family:var(--ff-mono);font-size:10px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dim);margin-right:2px}
 .seg{display:inline-flex;background:var(--ink2);border:1px solid var(--edge);border-radius:7px;padding:2px;gap:2px}
 .seg button{background:none;border:0;border-radius:5px;color:var(--dim);cursor:pointer;
   font:inherit;font-size:11.5px;padding:5px 11px;transition:background .13s,color .13s;white-space:nowrap}
@@ -2404,8 +2433,8 @@ body.ycmlock{overflow:hidden}
 /* The tile whose metric the chart is currently drawing. Clicking a tile
    charts it, so the chart and the tile need to agree visibly — otherwise
    the click looks like it did nothing. */
-.kpi.sel{border-color:rgba(201,169,107,.6);
-  box-shadow:var(--shadow),0 0 0 3px rgba(201,169,107,.13)}
+.kpi.sel{border-color:rgba(220,184,112,.6);
+  box-shadow:var(--shadow),0 0 0 3px rgba(220,184,112,.13)}
 .kpi .klab{font-size:12px;color:var(--dim);display:block;margin-bottom:10px;
   font-variation-settings:'wght' 500;letter-spacing:0;text-transform:none;font-family:inherit}
 .kpi .kval{font-size:33px;line-height:1;color:var(--cream);
@@ -2424,7 +2453,7 @@ body.ycmlock{overflow:hidden}
 .chip2.up{background:rgba(143,180,140,.13);color:var(--jade);border-color:rgba(143,180,140,.26)}
 /* Amber, not red: a metric moving the wrong way is worth noticing, and is
    not the same thing as an error. Red stays for things that are broken. */
-.chip2.down{background:rgba(224,179,74,.13);color:var(--amber);border-color:rgba(224,179,74,.26)}
+.chip2.down{background:rgba(226,138,58,.13);color:var(--amber);border-color:rgba(226,138,58,.26)}
 .chip2.flat{background:var(--panel2);color:var(--dim);border-color:var(--edge)}
 .kbench{font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer)}
 
@@ -2518,7 +2547,7 @@ body.ycmlock{overflow:hidden}
   content:"";position:absolute;inset:0;pointer-events:none;
   background:
     repeating-linear-gradient(0deg,var(--scope) 0 1px,transparent 1px 4px),
-    radial-gradient(120% 80% at 50% 0%,rgba(201,169,107,.07),transparent 62%);
+    radial-gradient(120% 80% at 50% 0%,rgba(220,184,112,.07),transparent 62%);
 }
 .sigcard>*{position:relative}
 /* Inside the Signal panel the plot is not its own card — no second border,
@@ -2566,9 +2595,9 @@ body.ycmlock{overflow:hidden}
 .insrow .tx{font-size:12.5px;line-height:1.5;color:var(--dim)}
 .insrow .tx b{color:var(--cream);font-variation-settings:'wght' 600}
 .sev.good{background:rgba(143,180,140,.15);color:var(--jade)}
-.sev.warn{background:rgba(224,179,74,.15);color:var(--amber)}
+.sev.warn{background:rgba(226,138,58,.15);color:var(--amber)}
 .sev.bad{background:rgba(192,130,104,.15);color:var(--rust)}
-.sev.info{background:rgba(201,169,107,.15);color:var(--brass)}
+.sev.info{background:rgba(220,184,112,.15);color:var(--brass)}
 
 /* ================= systems ================= */
 .autos{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:18px}
@@ -2578,7 +2607,7 @@ body.ycmlock{overflow:hidden}
   border-radius:var(--r-lg);padding:16px 17px 14px;box-shadow:var(--shadow);text-align:left;
   cursor:pointer;transition:.18s var(--ease);min-height:132px}
 .auto:hover{border-color:var(--edge2);transform:translateY(-2px)}
-.auto.on{border-color:rgba(201,169,107,.6);box-shadow:var(--shadow),0 0 0 3px rgba(201,169,107,.13)}
+.auto.on{border-color:rgba(220,184,112,.6);box-shadow:var(--shadow),0 0 0 3px rgba(220,184,112,.13)}
 .auto.soon{cursor:default;opacity:.72}
 .auto.soon:hover{transform:none;border-color:var(--edge)}
 .auto h4{font-family:var(--ff-display);font-size:14.5px;font-weight:600;color:var(--cream);letter-spacing:-.01em}
@@ -2599,7 +2628,7 @@ body.ycmlock{overflow:hidden}
 
 .drop{border:1.5px dashed var(--edge2);border-radius:var(--r-lg);padding:30px 20px;text-align:center;
   background:var(--ink2);transition:.16s;cursor:pointer}
-.drop:hover,.drop.over{border-color:var(--brass);background:rgba(201,169,107,.05)}
+.drop:hover,.drop.over{border-color:var(--brass);background:rgba(220,184,112,.05)}
 .drop b{display:block;color:var(--cream);font-size:14px;margin-bottom:5px;font-family:var(--ff-display)}
 .drop small{color:var(--dim);font-size:12px}
 .orbar{display:flex;align-items:center;gap:12px;margin:14px 0;color:var(--dimmer);font-size:11px;
@@ -2632,7 +2661,7 @@ body.ycmlock{overflow:hidden}
 .clipcard .cm{display:flex;align-items:center;gap:7px;font-family:var(--ff-mono);font-size:10px;color:var(--dimmer)}
 .clipcard .cact{margin-top:auto;display:flex;gap:6px}
 .scorepill{display:inline-flex;align-items:center;gap:4px;border-radius:20px;padding:2px 7px;
-  font-family:var(--ff-mono);font-size:10px;background:rgba(201,169,107,.15);color:var(--brass)}
+  font-family:var(--ff-mono);font-size:10px;background:rgba(220,184,112,.15);color:var(--brass)}
 
 /* ---- composer ---- */
 .srcrow{display:flex;align-items:center;gap:11px;background:var(--ink2);border:1px solid var(--edge);
@@ -2670,7 +2699,7 @@ body.ycmlock{overflow:hidden}
   border:1px solid var(--edge);cursor:pointer;flex:none;transition:.16s}
 .sw2::after{content:'';position:absolute;left:2px;top:1px;width:15px;height:15px;border-radius:50%;
   background:var(--dim);transition:.16s}
-.sw2.on{background:rgba(201,169,107,.3);border-color:var(--brass)}
+.sw2.on{background:rgba(220,184,112,.3);border-color:var(--brass)}
 .sw2.on::after{left:18px;background:var(--brass)}
 
 /* ---- projects ---- */
@@ -2705,7 +2734,7 @@ body.ycmlock{overflow:hidden}
   border:1.5px solid rgba(255,255,255,.75);background:rgba(0,0,0,.4);cursor:pointer;display:grid;
   place-items:center;color:#fff;font-size:11px;z-index:2;transition:.14s}
 .clipcard .pick.on{background:var(--brass);border-color:var(--brass)}
-.clipcard.sel{border-color:var(--brass);box-shadow:var(--shadow),0 0 0 3px rgba(201,169,107,.14)}
+.clipcard.sel{border-color:var(--brass);box-shadow:var(--shadow),0 0 0 3px rgba(220,184,112,.14)}
 .clipacts{display:flex;gap:4px;margin-top:auto;padding-top:8px}
 .iconbtn{flex:1;display:grid;place-items:center;background:none;border:1px solid var(--edge);
   border-radius:8px;color:var(--dim);cursor:pointer;padding:7px 0;transition:.14s}
@@ -2785,7 +2814,7 @@ body.ycmlock{overflow:hidden}
 .wplink{position:relative;display:grid;place-items:center;background:var(--panel2);
   border:1px solid var(--edge2);border-radius:8px;color:var(--dim);cursor:pointer;
   width:32px;height:32px;flex:none;transition:.14s}
-.wplink:hover:not(.dis){border-color:var(--brass);color:var(--brass);background:rgba(201,169,107,.15)}
+.wplink:hover:not(.dis){border-color:var(--brass);color:var(--brass);background:rgba(220,184,112,.15)}
 .wplink.dis{opacity:.4;cursor:not-allowed}
 .wplink svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.7;
   stroke-linecap:round;stroke-linejoin:round}
@@ -2802,7 +2831,7 @@ body.ycmlock{overflow:hidden}
 .wpopt{display:flex;align-items:center;gap:10px;background:var(--ink2);border:1.5px solid var(--edge);
   border-radius:var(--r-md);padding:13px 14px;cursor:pointer;text-align:left;color:inherit;transition:.15s var(--ease)}
 .wpopt:hover{border-color:var(--edge2)}
-.wpopt.on{border-color:var(--brass);background:rgba(201,169,107,.06)}
+.wpopt.on{border-color:var(--brass);background:rgba(220,184,112,.06)}
 .wpopt .lbl{flex:1;font-size:13px;color:var(--cream)}
 .wpopt .dot{width:17px;height:17px;border-radius:50%;border:1.5px solid var(--edge2);flex:none;
   display:grid;place-items:center}
@@ -2878,7 +2907,7 @@ body.ycmlock{overflow:hidden}
 .acctrow{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--edge);
   border-radius:var(--r-md);cursor:pointer;background:var(--ink2);transition:.14s}
 .acctrow:hover{border-color:var(--edge2)}
-.acctrow.on{border-color:var(--brass);background:rgba(201,169,107,.08)}
+.acctrow.on{border-color:var(--brass);background:rgba(220,184,112,.08)}
 .acctrow img{width:26px;height:26px;border-radius:50%;flex:none;object-fit:cover}
 .acctrow .ai{width:26px;height:26px;border-radius:50%;flex:none;display:grid;place-items:center;
   background:var(--panel2);font-size:11px;color:var(--dim)}
@@ -2892,7 +2921,7 @@ body.ycmlock{overflow:hidden}
 .privrow{display:flex;gap:6px}
 .privrow button{flex:1;background:var(--ink2);border:1px solid var(--edge);border-radius:8px;
   color:var(--dim);cursor:pointer;font:inherit;font-size:12px;padding:8px 0;transition:.14s}
-.privrow button.on{border-color:var(--brass);color:var(--cream);background:rgba(201,169,107,.09)}
+.privrow button.on{border-color:var(--brass);color:var(--cream);background:rgba(220,184,112,.09)}
 .thumbside img{width:100%;border-radius:var(--r-md);display:block;border:1px solid var(--edge)}
 /* Two panes: a sidebar carrying chats and everything configurable, and the
    surface itself. This is the shape claude.ai uses, and the reason is that a
@@ -2957,7 +2986,7 @@ body.ycmlock{overflow:hidden}
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .ccrow .st{font-family:var(--ff-mono);font-size:9.5px;padding:3px 7px;border-radius:6px;flex:none}
 .ccrow .st.ok{background:rgba(143,180,140,.14);color:var(--jade)}
-.ccrow .st.warn{background:rgba(224,179,74,.14);color:var(--amber)}
+.ccrow .st.warn{background:rgba(226,138,58,.14);color:var(--amber)}
 .ccrow .st.bad{background:rgba(192,130,104,.14);color:var(--rust)}
 .ccrow .st.dim{background:var(--panel2);color:var(--dimmer)}
 .ccsearch{width:100%;background:var(--ink2);border:1px solid var(--edge);border-radius:9px;
@@ -3088,9 +3117,9 @@ body.ycmlock{overflow:hidden}
    and can be ignored, this is the turn waiting on you. It is the one thing in a
    reply that must not be collapsed by default. */
 .ccask{border:1px solid var(--brass);border-radius:var(--r-md);background:var(--panel2);
-  margin:0 0 11px;overflow:hidden;box-shadow:0 0 0 3px rgba(201,169,107,.10)}
+  margin:0 0 11px;overflow:hidden;box-shadow:0 0 0 3px rgba(220,184,112,.10)}
 .ccask.done{border-color:var(--edge2);box-shadow:none;opacity:.82}
-.ccaskh{display:flex;align-items:center;gap:8px;padding:8px 13px;background:rgba(201,169,107,.10);
+.ccaskh{display:flex;align-items:center;gap:8px;padding:8px 13px;background:rgba(220,184,112,.10);
   border-bottom:1px solid var(--edge);font-family:var(--ff-mono);font-size:9.5px;
   letter-spacing:.13em;text-transform:uppercase;color:var(--brass)}
 .ccask.done .ccaskh{background:none;color:var(--dimmer)}
@@ -3109,7 +3138,7 @@ body.ycmlock{overflow:hidden}
   background:var(--ink2);border:1px solid var(--edge);border-radius:9px;padding:9px 11px;
   color:var(--text);font:inherit;cursor:pointer;transition:.14s var(--ease);min-width:0}
 .ccopt:hover:not(:disabled){border-color:var(--edge2);background:var(--panel);color:var(--cream)}
-.ccopt.on{border-color:var(--brass);background:rgba(201,169,107,.13);color:var(--cream)}
+.ccopt.on{border-color:var(--brass);background:rgba(220,184,112,.13);color:var(--cream)}
 .ccopt:disabled{cursor:default}
 .ccopt b{font-weight:600;font-size:12.5px;line-height:1.3;word-break:break-word}
 .ccopt small{color:var(--dimmer);font-size:11px;line-height:1.4;word-break:break-word}
@@ -3228,7 +3257,7 @@ body.ycmlock{overflow:hidden}
 
 .pralert{display:flex;align-items:center;gap:10px;border-radius:11px;padding:10px 14px;
   margin-bottom:12px;font-size:12.5px;color:var(--text);
-  background:rgba(224,179,74,.07);border:1px solid rgba(224,179,74,.28)}
+  background:rgba(226,138,58,.07);border:1px solid rgba(226,138,58,.28)}
 .pralert.bad{background:rgba(192,130,104,.07);border-color:rgba(192,130,104,.3)}
 .pralert b{color:var(--amber)}
 .pralert.bad b{color:var(--rust)}
@@ -3243,8 +3272,11 @@ body.ycmlock{overflow:hidden}
   background:linear-gradient(90deg,transparent,rgba(255,255,255,.07),transparent)}
 .prtile .lab{font-family:var(--ff-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;
   color:var(--dimmer)}
-.prtile .val{font-family:var(--ff-display);font-size:25px;font-weight:600;letter-spacing:-.035em;
-  color:var(--cream);margin-top:5px;font-feature-settings:'tnum'}
+/* The serif, like every other headline figure. This tile was the one place
+   still setting its numbers in bold sans, so the same kind of number looked
+   like a different kind of thing depending on which page you were on. */
+.prtile .val{font-family:var(--ff-serif);font-size:27px;font-weight:400;letter-spacing:-.018em;
+  color:var(--cream);margin-top:4px}
 .prtile .val small{font-size:13px;color:var(--dim);font-weight:500}
 .prtile .sub{font-size:11.5px;color:var(--dimmer);margin-top:4px}
 .prstack{display:flex;height:8px;border-radius:99px;overflow:hidden;margin-top:9px;
@@ -3402,15 +3434,15 @@ body.ycmlock{overflow:hidden}
 .prgrp.open .cv{transform:rotate(90deg);color:var(--brass)}
 .prgrp .gct{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);flex:none;
   border:1px solid var(--edge2);border-radius:99px;padding:1px 7px}
-.prgrp.open .gct{color:var(--brass);border-color:rgba(201,169,107,.45);
-  background:rgba(201,169,107,.1)}
+.prgrp.open .gct{color:var(--brass);border-color:rgba(220,184,112,.45);
+  background:rgba(220,184,112,.1)}
 .prgrp .n{justify-content:flex-end;font-family:var(--ff-mono);font-size:12.5px;color:var(--cream);
   position:relative;font-variant-numeric:tabular-nums}
 .prgrp.d1 .n{font-size:11.5px;color:var(--text)}
 /* How much of the portfolio this band is, without a column of its own. */
 .prshare{position:absolute;right:12px;bottom:6px;height:2px;border-radius:2px;
   background:linear-gradient(90deg,#8A7040,var(--brass));opacity:.85}
-.prgrp mark{background:rgba(201,169,107,.3);color:var(--cream);border-radius:3px;padding:0 1px}
+.prgrp mark{background:rgba(220,184,112,.3);color:var(--cream);border-radius:3px;padding:0 1px}
 
 .prnestwrap{display:grid;grid-template-rows:0fr;transition:grid-template-rows .26s var(--ease)}
 .prnestwrap.on{grid-template-rows:1fr}
@@ -3499,7 +3531,7 @@ body.ycmlock{overflow:hidden}
 .prpill{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
   padding:2px 8px;border-radius:99px;border:1px solid var(--edge2);color:var(--dim);flex:none}
 .prpill.active{color:var(--jade);background:rgba(143,180,140,.12);border-color:rgba(143,180,140,.3)}
-.prpill.pending{color:var(--amber);background:rgba(224,179,74,.12);border-color:rgba(224,179,74,.3)}
+.prpill.pending{color:var(--amber);background:rgba(226,138,58,.12);border-color:rgba(226,138,58,.3)}
 .prpill.off{color:var(--dimmer)}
 .prsums{display:flex;gap:18px;flex-wrap:wrap;margin:12px 0 2px}
 .prsums .s{display:flex;flex-direction:column;gap:2px}
@@ -3517,7 +3549,7 @@ body.ycmlock{overflow:hidden}
 .prtab.on{color:var(--cream);border-bottom-color:var(--brass)}
 .prtab .tn{font-family:var(--ff-mono);font-size:9.5px;color:var(--dimmer);background:var(--ink2);
   border-radius:99px;padding:1px 6px}
-.prtab.on .tn{color:var(--brass);background:rgba(201,169,107,.12)}
+.prtab.on .tn{color:var(--brass);background:rgba(220,184,112,.12)}
 .prptools{display:flex;gap:7px;align-items:center;padding:10px 18px;
   border-bottom:1px solid var(--edge);background:var(--ink2);flex-wrap:wrap;flex:none}
 .prptools input[type=text]{flex:1 1 180px;min-width:140px;font-size:11.5px;padding:6px 9px;
@@ -3551,11 +3583,11 @@ body.ycmlock{overflow:hidden}
 .prf .fv .mt{color:var(--edge2)}
 .prf .fv a{color:var(--brass);text-decoration:none}
 .prf .fv a:hover{text-decoration:underline}
-.prf mark{background:rgba(201,169,107,.3);color:var(--cream);border-radius:3px;padding:0 1px}
+.prf mark{background:rgba(220,184,112,.3);color:var(--cream);border-radius:3px;padding:0 1px}
 .predwrap{display:flex;flex-direction:column;gap:6px}
 .predin{background:var(--ink2);border:1px solid var(--brass);border-radius:6px;color:var(--cream);
   font:inherit;font-size:12.5px;padding:5px 7px;width:100%}
-.predin:focus{outline:none;box-shadow:0 0 0 3px rgba(201,169,107,.18)}
+.predin:focus{outline:none;box-shadow:0 0 0 3px rgba(220,184,112,.18)}
 .predacts{display:flex;gap:6px;align-items:center}
 .prederr{color:var(--rust);font-size:11px;font-family:var(--ff-mono)}
 
@@ -3661,7 +3693,7 @@ body.ycmlock{overflow:hidden}
 .tkwarm.inline{margin:0;max-width:220px;flex-direction:row;align-items:center;gap:10px}
 .tkwarm.inline .bar{flex:1;min-width:80px}
 .tkwarming{display:flex;align-items:center;gap:12px;padding:8px 13px;margin-bottom:12px;
-  border:1px solid rgba(201,169,107,.28);background:rgba(201,169,107,.06);
+  border:1px solid rgba(220,184,112,.28);background:rgba(220,184,112,.06);
   border-radius:10px;font-size:12px;color:var(--dim);flex-wrap:wrap}
 .tkwarm .bar{height:5px;border-radius:99px;background:var(--ink2);border:1px solid var(--edge);
   overflow:hidden}
@@ -3703,7 +3735,7 @@ body.ycmlock{overflow:hidden}
 .tkpopitem:hover{background:var(--panel3);color:var(--cream)}
 .tkpopitem i{width:8px;height:8px;border-radius:50%;flex:none}
 .tkpopitem span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tkpopitem b{color:var(--brass);font-size:9px}
+.tkpopitem b{color:var(--dim);font-size:10px}
 .tkpopdiv{height:1px;background:var(--edge);margin:4px 2px}
 .tkpophead{font-family:var(--ff-mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;
   color:var(--dimmer);padding:5px 9px 6px}
@@ -4011,7 +4043,7 @@ body.ycmlock{overflow:hidden}
 .agstartin small{font-size:11.5px;color:var(--dimmer);max-width:430px;line-height:1.6}
 .agbig{background:var(--brass);border:0;border-radius:12px;color:#fff;font:inherit;font-size:15px;
   font-weight:600;padding:13px 44px;cursor:pointer;margin:6px 0 2px;
-  box-shadow:0 12px 30px -12px rgba(201,169,107,.7);transition:.16s var(--ease)}
+  box-shadow:0 12px 30px -12px rgba(220,184,112,.7);transition:.16s var(--ease)}
 .agbig:hover{filter:brightness(1.08);transform:translateY(-1px)}
 .agbig:active{transform:none}
 
@@ -4049,7 +4081,7 @@ body.ycmlock{overflow:hidden}
   font:inherit;text-align:left;transition:.13s var(--ease)}
 .agfile:hover{border-color:var(--brass);transform:translateY(-1px)}
 .agfile .ic{width:32px;height:32px;flex:none;border-radius:8px;display:grid;place-items:center;
-  background:rgba(201,169,107,.14);color:var(--brass);font-size:15px}
+  background:rgba(220,184,112,.14);color:var(--brass);font-size:15px}
 .agfile .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
 .agfile b{font-size:12.5px;color:var(--cream);font-weight:600;overflow:hidden;
   text-overflow:ellipsis;white-space:nowrap}
@@ -4104,7 +4136,7 @@ body.ycmlock{overflow:hidden}
 .agsub{border-bottom:1px solid var(--edge)}
 .agsub:last-child{border-bottom:0}
 .agsubh{display:flex;align-items:baseline;gap:10px;padding:10px 15px 8px;
-  background:rgba(201,169,107,.05)}
+  background:rgba(220,184,112,.05)}
 .agsubh b{font-family:var(--ff-display);font-size:12px;color:var(--cream);font-weight:600}
 .agsubh small{font-size:10.5px;color:var(--dimmer)}
 .agsubnote{padding:11px 15px;font-size:11.5px;color:var(--dim);line-height:1.6;
@@ -4504,7 +4536,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   transition:border-color var(--t-fast) var(--ease),background var(--t-fast) var(--ease)
 }
 .mginput{transition:box-shadow var(--t) var(--ease)}
-.mginput:focus-within{box-shadow:0 0 0 2px rgba(201,169,107,.14)}
+.mginput:focus-within{box-shadow:0 0 0 2px rgba(220,184,112,.14)}
 
 /* ---- chips and toggles ---- */
 .chip2,.pill,.mgpills button,.wpopt,.wplink{
@@ -4715,7 +4747,7 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
        handler and leaves the app on whatever was open. -->
   <section class="view" id="v-acquisity">
     <div class="vhead">
-      <div><h1>Aquisity</h1><p>Not built yet.</p></div>
+      <div><h1>Acquisity</h1><p>Not built yet.</p></div>
     </div>
     <div class="card flush">
       <div class="empty">
@@ -5083,10 +5115,10 @@ const ICON = {
    elsewhere -- there is simply no way in from the menu, which is exactly what
    was done with Claude. Putting either back is one line here.
 
-   Aquisity has no view and no data yet, so it has a section that says so
+   Acquisity has no view and no data yet, so it has a section that says so
    rather than a menu entry that leads nowhere. */
 const MENU = [
-  ['acquisity','Aquisity','Soon',''],
+  ['acquisity','Acquisity','Soon',''],
   ['calendar','Calendar','GCal',''],
   ['tasks','Tasks','ClickUp',''],
   ['notes','Notes','Vault',''],
@@ -5250,7 +5282,7 @@ MENU.forEach(([id,label,src,badge],i)=>{
 
    Four in the bar. Material puts the ceiling at five and warns that more than
    that crowds the targets; the fifth slot is the way to the other six. */
-/* Four of the nine, chosen by where the work actually happens. Aquisity is
+/* Four of the nine, chosen by where the work actually happens. Acquisity is
    not among them while it is a placeholder -- a tab that leads to Coming soon
    is a wasted fifth of the bar. */
 const TAB_PRIMARY = ['calendar', 'leads', 'social', 'properties'];
@@ -9955,6 +9987,21 @@ function wireViz(root){
 
 const VIZ_SLOTS = ['var(--s1)','var(--s2)','var(--s3)','var(--s4)','var(--s5)','var(--s6)','var(--s7)','var(--s8)'];
 
+/* A metric wears the same colour on every board it appears on. These were
+   handed out by position in the selection instead, so Views was blue on
+   YouTube and whichever slot happened to be free on Meta, and the legend had
+   to be re-read on every page. Colour is identity, not running order. */
+const METRIC_HUE = {
+  views:        'var(--s1)',
+  interactions: 'var(--s3)',
+  followers:    'var(--s7)',
+  reach:        'var(--s4)',
+  spend:        'var(--s2)',
+  impressions:  'var(--s5)',
+  clicks:       'var(--s8)'
+};
+const metricHue = m => METRIC_HUE[m] || VIZ_SLOTS[0];
+
 /* Stable hue per entity id. Assignment order is first-seen and then frozen for
    the session, so removing a channel from the filter cannot recolour the rest. */
 const VIZ_HUE = new Map();
@@ -10180,13 +10227,21 @@ function kpiSpark(values, color){
 
 /* Stat tile: label, value, optional delta against a named period, optional
    trend. Values use proportional figures — tabular is for columns. */
-function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, spark = null, color = 'var(--brass)', bench = '', na = false, prev = '', sel = false } = {}){
+/* Below this, a percentage is noise dressed as a finding: one follower added
+   to a base of two is "+50%", which is arithmetically true and tells you
+   nothing. Tiles carrying a base this small print the actual movement. */
+const SMALL_BASE = 25;
+
+function kpi(label, value, { delta = null, deltaLabel = '', goodDown = false, spark = null, color = 'var(--brass)', bench = '', na = false, prev = '', sel = false, abs = null, base = null } = {}){
   let chip = '';
   if (delta != null && isFinite(delta)) {
     const better = goodDown ? delta < 0 : delta > 0;
     const cls = Math.abs(delta) < 0.5 ? 'flat' : better ? 'up' : 'down';
     const mark = Math.abs(delta) < 0.5 ? '=' : delta > 0 ? '▲' : '▼';
-    chip = '<span class="chip2 ' + cls + '">' + mark + ' ' + Math.abs(delta).toFixed(1) + '%</span>';
+    const tiny = abs != null && base != null && Math.abs(base) < SMALL_BASE;
+    chip = '<span class="chip2 ' + cls + '">' + mark + ' '
+      + (tiny ? (abs > 0 ? '+' : '') + compact(abs) : Math.abs(delta).toFixed(1) + '%')
+      + '</span>';
   } else if (deltaLabel) {
     chip = '<span class="chip2 flat">' + escS(deltaLabel) + '</span>';
   }
@@ -10506,7 +10561,20 @@ function insights(d, key, rows, prevRows){
   const byDay = m => days.map(dd => rows.filter(r => String(r.day).slice(0,10) === dd)
     .reduce((n, r) => n + (r[m] || 0), 0));
 
-  const v = byDay('views');
+  /* The series the chart is actually drawing, resolved exactly the way the
+     metric chips resolve it. Reading 'views' unconditionally is what put
+     "28 days recorded nothing at all" under a Facebook board full of bars:
+     Facebook publishes no per-day view figure, so every single day counted
+     as empty while the chart beside it drew interactions. */
+  const hasM = m => rows.some(r => r[m] != null);
+  const avail = (SO_METRICS[key] || SO_METRICS.facebook).filter(m => hasM(m.k));
+  const pick = SO.metrics.filter(m => avail.some(a => a.k === m))[0]
+    || (avail.length ? avail[0].k : null);
+  if (!pick) return '';
+  const mLabel = (avail.find(a => a.k === pick) || {}).label || pick;
+  const mWord = mLabel.toLowerCase();
+
+  const v = byDay(pick);
   const mean = a => a.length ? a.reduce((x, y) => x + y, 0) / a.length : 0;
   const mv = mean(v);
 
@@ -10516,7 +10584,7 @@ function insights(d, key, rows, prevRows){
     if (bx > 1.8 && bi >= 0) {
       out.push({ sev:'good', mark:'▲',
         t:'<b>' + escS(dayLabel(days[bi])) + '</b> ran ' + bx.toFixed(1) + '× your daily average on ' + escS(label)
-          + ' — ' + compact(v[bi]) + ' views against a ' + compact(mv) + ' norm.' });
+          + ', ' + compact(v[bi]) + ' ' + mWord + ' against a normal day’s ' + compact(Math.round(mv)) + '.' });
     }
   }
 
@@ -10527,24 +10595,28 @@ function insights(d, key, rows, prevRows){
       const ch = (recent - earlier) / earlier * 100;
       if (Math.abs(ch) >= 12) {
         out.push({ sev: ch > 0 ? 'good' : 'warn', mark: ch > 0 ? '▲' : '▼',
-          t:'Views are <b>' + (ch > 0 ? 'up ' : 'down ') + Math.abs(Math.round(ch)) + '%</b> across the second half of this window against the first.' });
+          t:escS(mLabel) + ' are <b>' + (ch > 0 ? 'up ' : 'down ') + Math.abs(Math.round(ch)) + '%</b> across the second half of this window against the first.' });
       }
     }
   }
 
-  const totV = rows.reduce((n, r) => n + (r.views || 0), 0);
-  const prevV = prevRows.reduce((n, r) => n + (r.views || 0), 0);
+  const totV = rows.reduce((n, r) => n + (r[pick] || 0), 0);
+  const prevV = prevRows.reduce((n, r) => n + (r[pick] || 0), 0);
   if (prevV > 0) {
     const ch = (totV - prevV) / prevV * 100;
     out.push({ sev: Math.abs(ch) < 5 ? 'info' : ch > 0 ? 'good' : 'warn', mark: ch > 0 ? '▲' : ch < 0 ? '▼' : '=',
-      t:'Against the previous ' + RANGE_N() + ' days: <b>' + compact(totV) + '</b> views versus ' + compact(prevV)
+      t:'Against the previous ' + RANGE_N() + ' days: <b>' + compact(totV) + '</b> ' + mWord + ' versus ' + compact(prevV)
         + ', ' + (ch >= 0 ? '+' : '') + ch.toFixed(1) + '%.' });
   }
 
+  /* Named, and never for the whole window. Every day reading zero does not
+     mean the account went quiet, it means this figure is not being reported,
+     and saying "nothing at all" over a chart full of bars is simply wrong. */
   const quiet = days.filter((dd, i) => v[i] === 0).length;
-  if (quiet) {
+  if (quiet && quiet < days.length) {
     out.push({ sev:'info', mark:'i',
-      t:'<b>' + quiet + '</b> day' + (quiet === 1 ? '' : 's') + ' in this window recorded nothing at all. Those are gaps in the chart, not zeroes.' });
+      t:'<b>' + quiet + '</b> day' + (quiet === 1 ? '' : 's') + ' in this window recorded no ' + mWord
+        + '. Those are gaps in the chart, not zeroes.' });
   }
 
   if (!rows.some(r => r.reach != null)) {
@@ -10685,7 +10757,15 @@ function performanceSection(d, key){
   /* One accent across the band, as in the reference — a different hue per
      tile implies the tiles are a series, and they are not. The charted one
      is marked instead. */
-  const charted = picked0 => SO.metrics.length === 1 && SO.metrics[0] === picked0;
+  /* Resolved here rather than below the band, because the band has to mark
+     the metric the chart is ACTUALLY drawing. Testing SO.metrics raw meant
+     Facebook lit the Views tile -- the one tile reading "not published" --
+     while the chart drew interactions. */
+  const available = (SO_METRICS[key] || SO_METRICS.facebook).filter(m => has(m.k));
+  let picked = SO.metrics.filter(m => available.some(a => a.k === m));
+  if (!picked.length) picked = available.length ? [available[0].k] : [];
+
+  const charted = picked0 => picked.length === 1 && picked[0] === picked0;
   const tile = (mk, label, value, opts) =>
     '<div data-kpimetric="' + mk + '" style="cursor:pointer">'
     + kpi(label, value, Object.assign({ color: 'var(--brass)', sel: charted(mk) }, opts)) + '</div>';
@@ -10715,23 +10795,40 @@ function performanceSection(d, key){
   const vsPrior = 'vs prior ' + RANGE_N() + 'd';
   const prevTxt = m => { const v = prevVal(m); return (SO.compare && v != null) ? 'prev ' + compact(v) : ''; };
 
-  const band = '<div class="kpis grid g4">'
-    + tile('views', 'Views', views == null ? '—' : compact(views), {
+  /* The four headline tiles, with anything the platform does not publish
+     pushed to the end of the row. They still appear -- a stated absence is
+     worth more than a missing tile -- but they no longer take the first,
+     most-looked-at slot, which is how Facebook came to lead with an empty
+     Views card. Order among the published ones is unchanged. */
+  const headline = [
+    { na: views == null, html: tile('views', 'Views', views == null ? '—' : compact(views), {
         delta: SO.compare ? pctMove(views, prevVal('views')) : null,
+        abs: (views != null && prevVal('views') != null) ? views - prevVal('views') : null,
+        base: prevVal('views'),
         deltaLabel: views == null ? 'not published' : vsPrior,
-        prev: prevTxt('views'), spark: sparkOf('views'), na: views == null })
-    + tile('reach', 'Reach', reach == null ? '—' : compact(reach), {
+        prev: prevTxt('views'), spark: sparkOf('views'), na: views == null }) },
+    { na: reach == null, html: tile('reach', 'Reach', reach == null ? '—' : compact(reach), {
         delta: SO.compare ? pctMove(reach, prevVal('reach')) : null,
+        abs: (reach != null && prevVal('reach') != null) ? reach - prevVal('reach') : null,
+        base: prevVal('reach'),
         deltaLabel: reach == null ? 'not published by ' + (SO_VIEW_LABEL[SO.view] || key) : vsPrior,
-        prev: prevTxt('reach'), spark: sparkOf('reach'), na: reach == null })
-    + tile('interactions', 'Interactions', inter == null ? '—' : compact(inter), {
+        prev: prevTxt('reach'), spark: sparkOf('reach'), na: reach == null }) },
+    { na: inter == null, html: tile('interactions', 'Interactions', inter == null ? '—' : compact(inter), {
         delta: SO.compare ? pctMove(inter, prevVal('interactions')) : null,
+        abs: (inter != null && prevVal('interactions') != null) ? inter - prevVal('interactions') : null,
+        base: prevVal('interactions'),
         deltaLabel: inter == null ? 'not published' : vsPrior,
-        prev: prevTxt('interactions'), spark: sparkOf('interactions'), na: inter == null })
-    + tile('followers', words.followers, fNow == null ? '—' : compact(fNow), {
+        prev: prevTxt('interactions'), spark: sparkOf('interactions'), na: inter == null }) },
+    { na: fNow == null, html: tile('followers', words.followers, fNow == null ? '—' : compact(fNow), {
         delta: (fNow != null && fThen) ? ((fNow - fThen) / fThen) * 100 : null,
+        abs: (fNow != null && fThen != null) ? fNow - fThen : null,
+        base: fThen,
         deltaLabel: levels.length > 1 ? 'across ' + RANGE_N() + 'd' : 'single reading',
-        spark: levels.map(r => r.followers).slice(-14), na: fNow == null })
+        spark: levels.map(r => r.followers).slice(-14), na: fNow == null }) }
+  ];
+  const band = '<div class="kpis grid g4">'
+    + headline.filter(t => !t.na).map(t => t.html).join('')
+    + headline.filter(t => t.na).map(t => t.html).join('')
     + '</div>'
     + '<div class="kpis grid g4">'
     + tile('interactions', 'Engagement rate', eng == null ? '—' : eng.toFixed(2) + '%', {
@@ -10751,13 +10848,9 @@ function performanceSection(d, key){
   /* ---- metric chips. More than one becomes small multiples: views and
      follows share no scale, and forcing them onto one axis flattens the
      smaller series into the floor. ---- */
-  const available = (SO_METRICS[key] || SO_METRICS.facebook).filter(m => has(m.k));
-  let picked = SO.metrics.filter(m => available.some(a => a.k === m));
-  if (!picked.length) picked = available.length ? [available[0].k] : [];
-
   const chips = available.map((m, i) => {
     const on = picked.includes(m.k);
-    const c = on ? VIZ_SLOTS[picked.indexOf(m.k) % VIZ_SLOTS.length] : 'transparent';
+    const c = on ? metricHue(m.k) : 'transparent';
     return '<button class="mchip' + (on ? ' on' : '') + '" style="--c:' + c + '" data-mchip="' + m.k + '">'
       + '<i class="sw"></i>' + escS(m.label) + '</button>';
   }).join('')
@@ -10771,12 +10864,11 @@ function performanceSection(d, key){
     if (SO.split && accounts.length > 1 && !offset) {
       return seriesByAccount(src, ax, metric, accounts, accounts.length > 3 ? 'line' : SO.chartKind);
     }
-    const idx = picked.indexOf(metric);
     const base = (available.find(a => a.k === metric) || {}).label || metric;
     const lvl = SO_LEVELS.has(metric);
     return [{ id: 'm-' + metric + (offset ? '-p' : ''),
       label: lvl ? soLevelLabel(base) : base,
-      color: VIZ_SLOTS[(idx < 0 ? 0 : idx) % VIZ_SLOTS.length],
+      color: metricHue(metric),
       kind: offset ? 'line' : SO.chartKind,
       values: lvl ? seriesDelta(src, ax, metric) : seriesTotal(src, ax, metric) }];
   };
@@ -10805,7 +10897,7 @@ function performanceSection(d, key){
         const was = !SO.compare ? null : lvl ? levelNet(prevRows, m) : prevVal(m);
         return {
           label: lvl ? soLevelLabel(base) : base,
-          color: VIZ_SLOTS[i % VIZ_SLOTS.length],
+          color: metricHue(m),
           total: now,
           move: pctMove(now, was)
         };
@@ -10973,8 +11065,8 @@ function oneDashboard(d, key){
   const vsPrior = 'vs prior ' + RANGE_N() + 'd';
   /* .viz again, and the sparklines take the SERIES hue rather than --brass.
 
-     --brass is #C9A96B, a warm chrome accent; the views series draws in
-     --s1, #3987e5. So the Views tile carried an indigo sparkline directly above
+     --brass is the brand gold, a chrome accent; the views series draws in
+     --s1, #3987e5. So the Views tile carried a gold sparkline directly above
      a blue Views chart of the same numbers. One metric, one colour. */
 
   /* Collected rather than concatenated, because the band is no longer always
@@ -16237,7 +16329,7 @@ function prAlert(){
       + ' mature within six months</b>'
       + '<span class="grow">' + prFull(amt) + ' comes due. '
       + escS([...new Set(soon.map(l => l.lender).filter(Boolean))].slice(0, 3).join(', ')) + '</span>'
-      + '<button class="tgl" data-prmode="debt">See the wall</button></div>';
+      + '<button class="tgl" data-prmode="debt">View maturities</button></div>';
   }
 
   /* Unverified unit counts are the quiet one: every figure per unit is wrong
