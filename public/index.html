@@ -348,6 +348,28 @@ nav{padding:10px 8px;overflow-y:auto;flex:1}
   content:"";position:absolute;left:-8px;top:10px;bottom:10px;width:3px;
   border-radius:0 3px 3px 0;background:var(--brass);
 }
+/* Contains the open page, rather than being it.
+
+   On YouTube, Social and YouTube both wore the full active state, so two
+   things claimed to be the page you were on and neither stood out. A parent
+   whose sub-menu holds the active item drops back to a hint: no fill, a
+   dimmer marker, and the label short of full brightness. */
+.navitem.on:has(+ .subnav:not([hidden]) .subitem.on),
+.navitem.on:has(+ .subnav:not([hidden]) .subsec.on){
+  background:transparent;
+}
+.navitem.on:has(+ .subnav:not([hidden]) .subitem.on)::before,
+.navitem.on:has(+ .subnav:not([hidden]) .subsec.on)::before{
+  background:var(--edge2);
+}
+.navitem.on:has(+ .subnav:not([hidden]) .subitem.on) .label,
+.navitem.on:has(+ .subnav:not([hidden]) .subsec.on) .label{
+  color:var(--text);
+}
+.navitem.on:has(+ .subnav:not([hidden]) .subitem.on) .glyph,
+.navitem.on:has(+ .subnav:not([hidden]) .subsec.on) .glyph{
+  color:var(--dim);
+}
 .navitem .glyph{color:var(--dim);display:flex}
 .navitem.on .glyph{color:var(--brass)}
 .navitem .label{font-size:13.5px;color:var(--dim);font-variation-settings:'wght' 500}
@@ -5191,17 +5213,77 @@ const ICON = {
    Acquisity has no view and no data yet, so it has a section that says so
    rather than a menu entry that leads nowhere. */
 const MENU = [
-  ['acquisity','Acquisity','Soon',''],
-  ['calendar','Calendar','GCal',''],
-  ['tasks','Tasks','ClickUp',''],
-  ['notes','Notes','Vault',''],
-  ['leads','GHL','Supabase',''],
-  ['properties','Properties','Postgres',''],
-  ['financial','Financial','Ledger',''],
-  /* YouTube, Facebook, Instagram, Meta Ads, X, and now LinkedIn. */
-  ['social','Social','6 networks',''],
-  ['systems','Systems','n8n','']
+  ['acquisity','Acquisity','',''],
+  ['calendar','Calendar','',''],
+  ['tasks','Tasks','',''],
+  ['notes','Notes','',''],
+  ['leads','GHL','',''],
+  ['properties','Properties','',''],
+  ['financial','Financial','',''],
+  ['social','Social','',''],
+  ['systems','Systems','','']
 ];
+
+/* What the rail says under each section.
+
+   These used to be the backend: GCal, ClickUp, Vault, Supabase, Postgres,
+   Ledger, n8n. Which store a section reads from is a fact about how this app
+   is built rather than about anything that has happened, and being constant
+   it never repaid a single glance -- nine lines of the rail saying the same
+   nine things forever. "6 networks" was worse than useless: it counted
+   platforms while the menu underneath grouped them by company, so the rail
+   promised six and the submenu showed three.
+
+   A live number where there is one, and nothing where there is not. An empty
+   line is better than a filled one nobody can use.
+
+   Wrapped, because this runs once at parse time while TK, PR, IBX and hhmm
+   are all still in their temporal dead zone -- that throws, it is caught, and
+   the first real values arrive with the refresh a moment later. */
+function navStatus(id){
+  try {
+    switch (id) {
+      case 'acquisity': return 'Soon';
+      case 'calendar': {
+        const { live, next } = liveAndNext();
+        if (live) return 'in a meeting';
+        return next ? 'next ' + hhmm(next.start) : 'nothing scheduled';
+      }
+      case 'tasks': {
+        const t = TK.data?.tasks;
+        if (!t) return '';
+        const over = t.filter(tkOverdue).length;
+        return over ? over + ' overdue' : 'nothing overdue';
+      }
+      case 'properties': {
+        const n = PR.data?.properties?.length;
+        return n ? n.toLocaleString() + ' properties' : '';
+      }
+      case 'social': {
+        let n = 0;
+        for (const plat of Object.values(IBX.unread || {})) {
+          for (const v of Object.values(plat || {})) n += Number(v) || 0;
+        }
+        return n ? n.toLocaleString() + ' unread' : '';
+      }
+      default: return '';
+    }
+  } catch { return ''; }
+}
+
+/* Pushed into the rail and the phone's sheet on a timer rather than each
+   section re-drawing its own line, so a number cannot go stale because the
+   section that owns it is not on screen. */
+function drawNavStatus(){
+  document.querySelectorAll('.navitem[data-target]').forEach(b => {
+    const el = b.querySelector('.src');
+    if (el) el.textContent = navStatus(b.dataset.target);
+  });
+  document.querySelectorAll('.tabrow[data-tab]').forEach(b => {
+    const el = b.querySelector('.src');
+    if (el) el.textContent = navStatus(b.dataset.tab);
+  });
+}
 /* Claude used to sit before Systems. The section it opened is still in the
    document and its code is still loaded -- /api/claude is what the five analyst
    agents behind Pull and analyze run on, and the agent surface shares this
@@ -5501,6 +5583,8 @@ const CLOCK_ABBR = (() => {
 function tick(){
   const now = new Date();
   document.getElementById('clk').textContent = CLOCK.time.format(now);
+  /* The rail's status lines ride the same ten-second tick. */
+  try { drawNavStatus(); } catch { /* before the rail exists */ }
   /* Assembled from parts rather than taking the locale's own order, so it is
      "Mon 21 Sep 2026" and not "Mon, 21 Sep 2026" with a comma the uppercase
      styling would keep. */
@@ -9498,13 +9582,25 @@ function drawSocialSubnav(){
      this row was already passing a number to could never appear, because the
      account-state dot is always present. "How many are waiting" and "are the
      accounts healthy" are not alternatives. */
+  /* One indicator, not two. Every row carried a coloured square on the left
+     for the platform and a status dot on the right for the connection. The
+     square only earned its place while those colours also meant something in
+     the charts, and they no longer do -- series are coloured by metric now.
+     The label already says which platform it is. The dot stays, because
+     "is this connected" is not answerable any other way, and it now says in
+     words what its colour means instead of leaving it to be guessed. */
+  const DOT_WHY = {
+    ok:   'Connected and reading normally.',
+    warn: 'Connected, but at least one account needs attention.',
+    off:  'Nothing connected here yet.'
+  };
   const row = (key, label, count, color, dot) =>
     '<button class="subitem' + (SO.view === key ? ' on' : '') + '" data-soview="' + key + '">'
-    + '<span class="sdot" style="--c:' + color + '"></span>'
     + '<span class="slabel">' + label + '</span>'
     + '<span class="scount">'
     +   (count ? '<span class="waitn">' + escS(String(count)) + '</span>' : '')
-    +   (dot ? '<span class="dot ' + dot + '" style="display:inline-block"></span>' : '')
+    +   (dot ? '<span class="dot ' + dot + '" style="display:inline-block" title="'
+          + escS(DOT_WHY[dot] || '') + '"></span>' : '')
     + '</span></button>';
 
   const state = keys => {
@@ -9522,7 +9618,7 @@ function drawSocialSubnav(){
     /* Everything unread, on every platform and both kinds — not the count for
        whichever tab happens to be selected inside. This row is read from
        outside the inbox, so the number it shows has to be the whole answer. */
-    row('inbox', 'Comments &amp; Messages', ibxUnreadTotal(), 'var(--brass)',
+    row('inbox', 'Inbox', ibxUnreadTotal(), 'var(--brass)',
       state(SO_VIEW_KEYS.inbox))
     + row('youtube', 'YouTube', 0, 'var(--yt)', state(SO_VIEW_KEYS.youtube))
     + row('meta',    'Meta',    0, 'var(--fb)', state(SO_VIEW_KEYS.meta))
@@ -16660,9 +16756,14 @@ function prToolbar(){
 
   /* Actions go inside the sheet on a phone and stay in the bar on a desktop;
      either way they sit after the filters they act on. */
-  h += '<button class="tgl" id="pr-export" title="Download what is on screen, columns and all">Export</button>'
-    + '<button class="tgl" id="pr-addentity">+ Entity</button>'
-    + '<button class="tgl" id="pr-addprop">+ Property</button>'
+  /* .btn, not .tgl. These three are actions, and every other action in the
+     app -- New event, Connect, Add Meta account -- is a .btn. Wearing toggle
+     clothing put "+ Entity" in sentence-case sans next to "+ NEW EVENT" in
+     mono caps, for the same kind of control. A .tgl is a filter or a switch;
+     these create things. */
+  h += '<button class="btn" id="pr-export" title="Download what is on screen, columns and all">Export</button>'
+    + '<button class="btn" id="pr-addentity">+ Entity</button>'
+    + '<button class="btn" id="pr-addprop">+ Property</button>'
     + '</div>'
     /* Portfolio/Debt is not a filter, it is which page you are on, so it
        stays out of the sheet and on the bar at every width. */
