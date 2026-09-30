@@ -4820,18 +4820,6 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
 .fnlegend .sw-ub1{background:rgba(110,143,214,.20)} .fnlegend .sw-ub2{background:rgba(110,143,214,.36)}
 .fnlegend .sep{width:10px}
 .fnlegend[hidden]{display:none}
-/* The company this tab is about. Same shape as the property picker on a T12
-   statement, because it answers the same question: whose numbers are these. */
-.fnco{display:flex;align-items:center;gap:8px;color:var(--brass);cursor:pointer}
-.fnco[hidden]{display:none}
-.fnco svg{width:19px;height:19px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
-.fnco span{font-family:var(--ff-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dimmer)}
-.fnco select{background:var(--ink2);border:1px solid var(--edge2);border-radius:8px;color:var(--cream);
-  font-family:var(--ff-body);font-size:14px;font-weight:600;padding:7px 10px;cursor:pointer;outline:0;max-width:280px}
-.fnco select:hover{border-color:var(--dim)}
-.fnco select:focus{border-color:var(--brass)}
-.fntbl .ok{color:var(--jade)}
-.pralert .tgl + .tgl{margin-left:0}
 .fnfoot{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--edge2);
   font-size:12.5px;color:var(--dim)}
 .fnfoot b{margin-left:auto;font-family:var(--ff-mono);font-size:13px;color:var(--cream);font-weight:500}
@@ -5252,7 +5240,6 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
         <div class="prseg" id="fin-mode" role="tablist" aria-label="Report set">
           <button data-mode="company" role="tab">Company</button><button data-mode="t12" role="tab">Property T12</button>
         </div>
-        <label class="fnco" id="fin-cowrap" title="Choose a company"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21h18"/><path d="M5 21V4.5L13 2v19"/><path d="M13 8l6 2.5V21"/><path d="M8.5 7.5v.01M8.5 11v.01M8.5 14.5v.01M16 13.5v.01M16 17v.01"/></svg><span>Company</span><select id="fin-co" aria-label="Company"></select></label>
         <div class="fnmonths" id="fin-months" role="group" aria-label="Months in the range; click one to leave it out"></div>
         <span class="fngap" id="fin-gap"></span>
         <div class="fnperiod">
@@ -5292,9 +5279,12 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
       </div>
       <div id="fin-xco">
         <p class="xnote" id="fin-xrange"></p>
-        <fieldset id="fin-xreports"><legend>Reports</legend>
+        <fieldset><legend>Reports</legend>
           <label><input type="checkbox" name="r" value="income" checked> Income</label>
           <label><input type="checkbox" name="r" value="expenses" checked> Expenses</label>
+          <label><input type="checkbox" name="r" value="loans"> Investor loans</label>
+          <label><input type="checkbox" name="r" value="payments"> Investor payments</label>
+          <label><input type="checkbox" name="r" value="bs"> Balance sheet</label>
         </fieldset>
       </div>
       <div id="fin-xt12" hidden>
@@ -21194,23 +21184,16 @@ function buildModel(row) {
 let S = { mode: 'company', from: null, to: null, off: [], ranges: {}, tab: 'income', q: '', t12view: 'all', prop: null, t12sort: { k: 'noi', d: -1 } };
 try { Object.assign(S, JSON.parse(localStorage.getItem('cc.fin') || '{}')); } catch (e) {}
 S.q = '';
+/* A company selector briefly lived on the Company tab and remembered its
+   choice here. The tab is Liquid Lending only again; the keys go. */
+delete S.co; delete S.tabAF;
 const save = () => { try { const { q, ...keep } = S; localStorage.setItem('cc.fin', JSON.stringify(keep)); } catch (e) {} };
-/* Companies. M is the QuickBooks company's model (built from the payload's
-   `company`, as it always was); each AppFolio company carries its own model,
-   and A is the one currently selected. Switching is a lookup: every company
-   arrived in the one read, so nothing from the previous company can linger. */
-let COS = [], A = null;
-const curCo = () => COS.find((c) => c.id === S.co) || COS[0] || null;
-const coIsAF = () => { const c = curCo(); return !!(c && c.source === 'appfolio'); };
-const isAF = () => S.mode !== 't12' && coIsAF();
-const coModel = () => (coIsAF() ? curCo().model : null);
-const coMonths = () => (coIsAF() ? (curCo().model.months) : (M ? M.months : []));
-const activeMonths = () => S.mode === 't12' ? (T ? T.months : []) : coMonths();
+const activeMonths = () => S.mode === 't12' ? (T ? T.months : []) : (M ? M.months : []);
 const activeLast = () => { const a = activeMonths(); return a.length ? a[a.length - 1] : new Date().toISOString().slice(0, 7); };
 const sel = () => activeMonths().filter((m) => m >= S.from && m <= S.to && !S.off.includes(m));
 const rangeText = () => S.from === S.to ? mon(S.from, true) + ' ' + S.from.slice(0, 4) : my(S.from) + ' to ' + my(S.to);
 const period = () => { const off = S.off.filter((m) => m >= S.from && m <= S.to); return rangeText() + (off.length ? ' (excluding ' + off.map(my).join(', ') + ')' : ''); };
-const bsDate = () => { if (!M || coIsAF()) return null; const end = S.to + '-31'; const ds = M.bsDates.filter((d) => d <= end); return ds.length ? ds[ds.length - 1] : null; };
+const bsDate = () => { if (!M) return null; const end = S.to + '-31'; const ds = M.bsDates.filter((d) => d <= end); return ds.length ? ds[ds.length - 1] : null; };
 const bsRows = () => { const d = bsDate(); return d ? M.bsByDate[d] : []; };
 const loanAcctSet = () => new Set(M.loans.map((l) => l.acct));
 const loanBalance = (l) => { const r = bsRows().find((x) => x.a === l.acct); return r ? r.v : null; };
@@ -21453,134 +21436,6 @@ function t12CompareReport(props, ms, label) {
 }
 
 /* ---------- render ---------- */
-/* ================= AppFolio companies =================
-   A cash flow report rather than a ledger: income and expense lines, "Other
-   Items" that move cash without being income (contributions, distributions,
-   intercompany transfers, work in progress), and a monthly cash summary. */
-const AF_TABS = [['income', 'Income'], ['expenses', 'Expenses'], ['moves', 'Cash movements'], ['cash', 'Cash summary']];
-function buildAF(d) {
-  const accounts = parseCol(d.accounts) || [], amounts = parseCol(d.amounts) || [], cash = parseCol(d.cash) || [], docs = parseCol(d.docs) || [];
-  const amt = {};
-  for (const r of amounts) { const m = ym(r.y, r.m); (amt[r.a] = amt[r.a] || {})[m] = r2(((amt[r.a] || {})[m] || 0) + Number(r.v)); }
-  const cashBy = {};
-  for (const c of cash) { const m = ym(c.y, c.m); const row = {}; for (const k in c) row[k] = k === 'y' || k === 'm' ? c[k] : Number(c[k] || 0); cashBy[m] = row; }
-  const months = new Set(Object.keys(cashBy));
-  for (const a in amt) for (const m in amt[a]) if (amt[a][m]) months.add(m);
-  return { accounts, amt, cashBy, docs, months: [...months].sort() };
-}
-function setupCompanies(j) {
-  const list = Array.isArray(j.companies) && j.companies.length ? j.companies
-    : [{ id: j.entity || 'quickbooks', name: 'Liquid Lending Solutions', short: 'Liquid Lending', source: 'quickbooks' }];
-  COS = list.map((c) => Object.assign({}, c, { model: c.source === 'appfolio' ? buildAF(c.data || {}) : null }));
-  /* First visit: the company with the most recent month of data, and among
-     those one whose P&L actually loaded -- otherwise the page opens on a
-     company whose income says "Not loaded". */
-  if (!COS.some((c) => c.id === S.co)) {
-    const last = (c) => { const ms = c.model ? c.model.months : M.months; return ms.length ? ms[ms.length - 1] : ''; };
-    const hasPL = (c) => (c.model ? Object.keys(c.model.amt).length > 0 : M.plMonths.size > 0) ? 1 : 0;
-    S.co = COS.slice().sort((a, b) => last(b).localeCompare(last(a)) || hasPL(b) - hasPL(a))[0].id;
-  }
-  A = coModel();
-  $('#fin-co').innerHTML = COS.map((c) => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
-}
-function setCompany(id) {
-  if (!COS.some((c) => c.id === id) || id === S.co) return;
-  S.co = id; A = coModel(); S.q = ''; $('#fin-q').value = '';
-  if (S.mode !== 'company') { keepRange(); S.mode = 'company'; useRange('company'); }
-  render();
-}
-const afVal = (a) => r2(sum(sel(), (m) => (A.amt[a] && A.amt[a][m]) || 0));
-const afCashMs = () => sel().filter((m) => A.cashBy[m]);
-const afCash = (k) => r2(sum(afCashMs(), (m) => A.cashBy[m][k] || 0));
-/* Ending cash is a balance: the latest month in range, never a sum. */
-const afEnding = () => { const ms = afCashMs(); return ms.length ? { m: ms[ms.length - 1], v: A.cashBy[ms[ms.length - 1]].actual_ending_cash } : null; };
-const afSec = (s) => String(s || 'Other').split(' > ').map((x) => (/^[A-Z0-9 &/-]+$/.test(x) ? x.charAt(0) + x.slice(1).toLowerCase() : x)).join(' › ');
-const afHit = (x) => !S.q || [x.a, x.name, x.s].some((t) => String(t || '').toLowerCase().includes(S.q.toLowerCase()));
-const afLines = (kind) => A.accounts.filter((x) => x.t === kind).map((x) => Object.assign({}, x, { v: afVal(x.a) })).filter((x) => x.v);
-function afTiles(tile) {
-  const ms = afCashMs(), e = afEnding();
-  if (!ms.length) return ['Total income', 'Total expenses', 'Net income', 'Cash flow', 'Ending cash'].map((l) => tile(l, 'No data', 'No cash flow report for ' + period(), true)).join('');
-  const ni = afCash('net_income'), cf = afCash('cash_flow');
-  return tile('Total income', '<span class="fnup">' + money(afCash('total_income'), true) + '</span>', period())
-    + tile('Total expenses', money(afCash('total_expense'), true), period())
-    + tile('Net income', '<span class="' + (ni < 0 ? 'fndown' : 'fnup') + '">' + money(ni, true) + '</span>', period())
-    + tile('Cash flow', '<span class="' + (cf < 0 ? 'fndown' : 'fnup') + '">' + money(cf, true) + '</span>', 'Net income plus net other items')
-    + tile('Ending cash', money(e.v, true), 'At the end of ' + my(e.m));
-}
-function afLinesTable(kind, color) {
-  const label = kind === 'income' ? 'income' : 'expenses', co = curCo();
-  const lines = afLines(kind), total = r2(sum(lines, (x) => x.v));
-  const foot = '<span>Total ' + label + ', ' + esc(period()) + '</span><b>' + money(total, true) + '</b>';
-  if (!lines.length) return { head: '<th>Account</th>', rows: '<tr><td class="msg-cell">No ' + label + ' for ' + esc(co.name) + ' in ' + esc(period()) + '.</td></tr>', foot, sub: co.name + ', ' + period() };
-  /* Grouped by the report's own section path, largest group first. */
-  const groups = {};
-  for (const x of lines.filter(afHit)) (groups[x.s || ''] = groups[x.s || ''] || []).push(x);
-  const rows = Object.entries(groups).map(([s, xs]) => ({ s, xs: xs.sort((a, b) => b.v - a.v), v: r2(sum(xs, (x) => x.v)) })).sort((a, b) => b.v - a.v)
-    .map((g) => '<tr class="sec"><td>' + esc(afSec(g.s)) + '</td><td class="r">' + money(g.v, true) + '</td><td></td></tr>'
-      + g.xs.map((x) => '<tr><td class="name">' + esc(x.name || x.a) + '</td><td class="r">' + money(x.v, true) + '</td><td>' + pct(x.v, total, color) + '</td></tr>').join('')).join('');
-  return { head: '<th>Account</th><th class="r">Amount</th><th class="r">% of total</th>', rows, foot, sub: co.name + ', ' + period() + ', cash basis.' };
-}
-function afMovesTable() {
-  const co = curCo(), lines = afLines('cash_movement').sort((a, b) => Math.abs(b.v) - Math.abs(a.v));
-  const net = r2(sum(lines, (x) => x.v)), cin = r2(sum(lines.filter((x) => x.v > 0), (x) => x.v)), cout = r2(sum(lines.filter((x) => x.v < 0), (x) => x.v));
-  const foot = '<span>Cash in ' + money(cin, true) + '</span><span>Cash out ' + money(cout, true) + '</span><b class="' + (net < 0 ? 'fndown' : '') + '">Net other items ' + money(net, true) + '</b>';
-  if (!lines.length) return { head: '<th>Account</th>', rows: '<tr><td class="msg-cell">No cash movements for ' + esc(co.name) + ' in ' + esc(period()) + '.</td></tr>', foot, sub: co.name + ', ' + period() };
-  /* Direction in words as well as colour: green is cash in, red is cash out. */
-  const gross = r2(cin - cout);
-  const rows = lines.filter(afHit).map((x) => '<tr><td class="name">' + esc(x.name || x.a) + '</td><td>' + (x.v > 0 ? 'Cash in' : 'Cash out') + '</td><td class="r ' + (x.v > 0 ? 'fnup' : 'fndown') + '">' + money(x.v, true) + '</td><td>' + pct(x.v, gross, x.v > 0 ? 'var(--jade)' : 'var(--rust)') + '</td></tr>').join('');
-  return { head: '<th>Account</th><th>Direction</th><th class="r">Cash effect</th><th class="r">% of gross movement</th>', rows, foot,
-    sub: 'AppFolio "Other Items": contributions, distributions, transfers and work in progress. ' + period() + '.' };
-}
-function afCashTable() {
-  const co = curCo(), ms = afCashMs();
-  if (!ms.length) return { head: '<th>Cash summary</th>', rows: '<tr><td class="msg-cell">No cash flow report for ' + esc(co.name) + ' in ' + esc(period()) + '.</td></tr>', foot: '<span>No months</span>', sub: co.name };
-  const sg = (v) => '<td class="r' + (v < 0 ? ' fndown' : v > 0 ? ' fnup' : '') + '">' + money(v, true) + '</td>';
-  const rows = ms.map((m) => { const c = A.cashBy[m], off = Math.abs(c.ending_cash_difference) >= 0.005;
-    return '<tr><td class="name">' + my(m) + '</td><td class="r">' + money(c.beginning_cash, true) + '</td>' + sg(c.net_income) + sg(c.net_other_items) + sg(c.cash_flow)
-      + '<td class="r">' + money(c.actual_ending_cash, true) + '</td><td>' + (off ? '<span class="flag">Off by ' + money(c.ending_cash_difference, true) + '</span>' : '<span class="ok">Reconciles</span>') + '</td></tr>'; }).join('');
-  const e = afEnding();
-  return { head: '<th>Month</th><th class="r">Beginning cash</th><th class="r">Net income</th><th class="r">Net other items</th><th class="r">Cash flow</th><th class="r">Ending cash</th><th>Check</th>', rows,
-    foot: '<span>' + ms.length + ' month' + (ms.length > 1 ? 's' : '') + '</span><span>Net income ' + money(afCash('net_income'), true) + '</span><span>Net other items ' + money(afCash('net_other_items'), true) + '</span><span>Cash flow ' + money(afCash('cash_flow'), true) + '</span><b>Ending cash ' + money(e.v, true) + '</b>',
-    sub: 'Ending cash is the balance at the end of each month; the check compares it with beginning cash plus cash flow.' };
-}
-const afTable = () => ({ income: () => afLinesTable('income', 'var(--jade)'), expenses: () => afLinesTable('expense', 'var(--rust)'), moves: afMovesTable, cash: afCashTable }[S.tabAF] || (() => afLinesTable('income', 'var(--jade)')))();
-function afReport(id) {
-  const ms = sel();
-  const mcols = ms.map((m) => ({ h: my(m), t: 'money' }));
-  const lineRows = (kind, lead) => A.accounts.filter((x) => x.t === kind).map((x) => { const vals = ms.map((m) => r2((A.amt[x.a] && A.amt[x.a][m]) || 0)); return [...lead(x, r2(sum(vals, (v) => v))), ...vals, r2(sum(vals, (v) => v))]; }).filter((r) => r.slice(2).some((v) => v));
-  const totalRow = (rows, head) => { const tv = ms.map((_, j) => r2(sum(rows, (r) => r[2 + j]))); return [...head, ...tv, r2(sum(tv, (v) => v))]; };
-  if (id === 'income' || id === 'expenses') {
-    const rows = lineRows(id === 'income' ? 'income' : 'expense', (x) => [afSec(x.s), x.name || x.a]);
-    return { name: RNAME[id], note: period() + '. From the AppFolio cash flow report, cash basis.', cols: [{ h: 'Section', t: 'text' }, { h: 'Account', t: 'text' }, ...mcols, { h: 'Total', t: 'money' }], rows, total: rows.length ? totalRow(rows, ['', 'Total ' + (id === 'income' ? 'income' : 'expenses')]) : null };
-  }
-  if (id === 'moves') {
-    const rows = lineRows('cash_movement', (x, t) => [x.name || x.a, t >= 0 ? 'Cash in' : 'Cash out']);
-    return { name: RNAME.moves, note: period() + '. AppFolio Other Items, as the cash effect: positive is cash in, negative is cash out.', cols: [{ h: 'Account', t: 'text' }, { h: 'Direction', t: 'text' }, ...mcols, { h: 'Total', t: 'money' }], rows, total: rows.length ? totalRow(rows, ['Net other items', '']) : null };
-  }
-  const cms = ms.filter((m) => A.cashBy[m]);
-  const rows = cms.map((m) => { const c = A.cashBy[m]; return [my(m), c.beginning_cash, c.net_income, c.net_other_items, c.cash_flow, c.actual_ending_cash, c.ending_cash_difference]; });
-  return { name: RNAME.cash, note: (cms.length ? period() : 'No cash flow report in ' + rangeText()) + '. Ending cash is the balance at month end.',
-    cols: [{ h: 'Month', t: 'text' }, { h: 'Beginning cash', t: 'money' }, { h: 'Net income', t: 'money' }, { h: 'Net other items', t: 'money' }, { h: 'Cash flow', t: 'money' }, { h: 'Ending cash', t: 'money' }, { h: 'Ending cash difference', t: 'money' }], rows, total: null };
-}
-/* What the banner says about the company on screen: no data in this range
-   (and who does have some), AppFolio cash that does not reconcile, or the
-   QuickBooks reports that arrived empty. */
-function companyAlert() {
-  const co = curCo(); if (!co) return '';
-  const inRange = (c) => (c.model ? c.model.months : M.months).some((m) => m >= S.from && m <= S.to && !S.off.includes(m));
-  if (!sel().length && !(co.source === 'quickbooks' && bsDate())) {
-    const others = COS.filter((c) => c.id !== co.id && inRange(c));
-    return '<div class="pralert"><b>No data for ' + esc(co.name) + ' in ' + esc(rangeText()) + '</b><span class="grow">'
-      + (others.length ? 'Data is available for:' : 'No other company has data in this range either.') + '</span>'
-      + others.map((c) => '<button class="tgl" data-co="' + esc(c.id) + '">' + esc(c.short || c.name) + '</button>').join('') + '</div>';
-  }
-  if (co.source === 'appfolio') {
-    const off = afCashMs().filter((m) => Math.abs(A.cashBy[m].ending_cash_difference) >= 0.005);
-    return off.length ? '<div class="pralert bad"><b>Ending cash does not reconcile</b><span class="grow">'
-      + esc(off.map((m) => my(m) + ': off by ' + money(A.cashBy[m].ending_cash_difference, true)).join('; ')) + '. AppFolio\'s ending cash differs from beginning cash plus cash flow.</span></div>' : '';
-  }
-  return companyNotes.length ? '<div class="pralert"><b>Not loaded yet</b><span class="grow">' + esc(companyNotes.join(' ')) + '</span></div>' : '';
-}
 const TABS = [['income', 'Income'], ['expenses', 'Expenses'], ['loans', 'Investor loans'], ['payments', 'Investor payments'], ['bs', 'Balance sheet']];
 const T12TABS = [['all', 'All properties'], ['one', 'Single property']];
 const MN = ['01','02','03','04','05','06','07','08','09','10','11','12'];
@@ -21589,7 +21444,7 @@ function setupControls() {
   for (const id of ['fin-fromY', 'fin-toY']) $('#' + id).innerHTML = YEARS.map((y) => `<option value="${y}">${y}</option>`).join('');
 }
 function defaultRange(mode) {
-  const ms = mode === 't12' ? (T ? T.months : []) : coMonths();
+  const ms = mode === 't12' ? (T ? T.months : []) : (M ? M.months : []);
   const last = ms.length ? ms[ms.length - 1] : new Date().toISOString().slice(0, 7);
   return mode === 't12' ? { from: ms.length ? ms[Math.max(0, ms.length - 12)] : last, to: last, off: [] } : { from: last, to: last, off: [] };
 }
@@ -21613,12 +21468,7 @@ function drawState() {
   if (lastPayload && lastPayload.configured === false) sub.textContent = 'No database connected.';
   else if (!M) sub.textContent = loadError ? 'Could not read the ledger.' : 'Reading the ledger…';
   else if (S.mode === 't12') sub.textContent = T.props.length + ' property T12' + (T.props.length === 1 ? '' : 's') + ' · newest report per property';
-  else {
-    const co = curCo();
-    if (co && co.model) { const a = co.model, n = a.months.length;
-      sub.textContent = [co.name, 'AppFolio cash flow', a.accounts.length + ' accounts', !n ? 'no months loaded' : n === 1 ? my(a.months[0]) : my(a.months[0]) + ' to ' + my(a.months[n - 1])].join(' · '); }
-    else sub.textContent = [co ? co.name : 'Liquid Lending Solutions', 'QuickBooks', M.loans.length + ' investor loans', M.pays.length + ' investor payments'].join(' · ');
-  }
+  else sub.textContent = ['Liquid Lending Solutions', 'QuickBooks', M.loans.length + ' investor loans', M.pays.length + ' investor payments'].join(' · ');
 }
 
 function showMessage(title, detail) {
@@ -21633,7 +21483,6 @@ function render() {
   keepRange(); save();
   if (typeof routeSync === 'function') routeSync('financial');
   $('#fin-mode').querySelectorAll('button').forEach((b) => { const on = b.dataset.mode === S.mode; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
-  $('#fin-cowrap').hidden = S.mode === 't12' || !COS.length; if (curCo()) $('#fin-co').value = curCo().id;
   $('#fin-fromM').value = S.from.slice(5, 7); $('#fin-fromY').value = S.from.slice(0, 4);
   $('#fin-toM').value = S.to.slice(5, 7); $('#fin-toY').value = S.to.slice(0, 4);
   const inRange = activeMonths().filter((m) => m >= S.from && m <= S.to);
@@ -21642,7 +21491,7 @@ function render() {
     return yl + `<button data-m="${m}" aria-pressed="${!off}" class="${off ? 'off' : 'on'}" title="${mon(m, true)} ${y}. Click to ${off ? 'include' : 'leave out'}.">${mon(m)}</button>`; }).join('');
   $('#fin-months').hidden = !inRange.length;
   const t12 = S.mode === 't12';
-  $('#fin-gap').textContent = !t12 || sel().length ? '' : 'No data for ' + rangeText() + '.';
+  $('#fin-gap').textContent = sel().length || (!t12 && bsDate()) ? '' : 'No data for ' + rangeText() + '.';
 
   /* A failed query first, because every number below it may be missing a
      part; then what did not load and why. */
@@ -21651,12 +21500,10 @@ function render() {
   if (problems.length) alert = '<div class="pralert bad"><b>' + problems.length + ' quer' + (problems.length > 1 ? 'ies' : 'y') + ' failed</b><span class="grow">'
     + esc(problems[0].query || '') + ': ' + esc(String(problems[0].message || 'no detail').slice(0, 160)) + '</span><button class="tgl" data-finretry="1">Retry</button></div>';
   else if (lastPayload && lastPayload.error) alert = '<div class="pralert bad"><b>Refresh failed</b><span class="grow">Showing the last numbers read. ' + esc(lastPayload.error) + '</span></div>';
-  else if (!t12) alert = companyAlert();
+  else if (!t12 && companyNotes.length) alert = '<div class="pralert"><b>Not loaded yet</b><span class="grow">' + esc(companyNotes.join(' ')) + '</span></div>';
   $('#fin-banner').innerHTML = alert;
 
-  const af = isAF();
-  if (af && !AF_TABS.some(([id]) => id === S.tabAF)) S.tabAF = 'income';
-  const tabs = t12 ? T12TABS : af ? AF_TABS : TABS, cur = t12 ? S.t12view : af ? S.tabAF : S.tab;
+  const tabs = t12 ? T12TABS : TABS, cur = t12 ? S.t12view : S.tab;
   $('#fin-tabs').innerHTML = tabs.map(([id, l]) => `<button role="tab" data-t="${id}" class="${id === cur ? 'on' : ''}" aria-selected="${id === cur}">${l}</button>`).join('');
   if (t12 && T.props.length && !T.byName[S.prop]) S.prop = T.props[0].p;
   $('#fin-q').placeholder = t12 ? (S.t12view === 'all' ? 'Search properties' : 'Search accounts') : 'Search accounts or names';
@@ -21671,9 +21518,6 @@ function render() {
       + tile('Net operating income', `<span class="${k.noi < 0 ? 'fndown' : 'fnup'}">${money(k.noi)}</span>`, k.inc ? (k.noi / k.inc * 100).toFixed(1) + '% margin' : period())
       + tile('Non-operating, net', money(k.nonop), 'Debt service, capital and other')
       + tile('Net income', `<span class="${k.ni < 0 ? 'fndown' : 'fnup'}">${money(k.ni)}</span>`, period());
-  } else if (af) {
-    $('#fin-nums').innerHTML = afTiles(tile);
-    t = afTable();
   } else {
     const hasPL = sel().some((m) => M.plMonths.has(m));
     const inc = plTotal('income'), exp = plTotal('expense'), ni = r2(inc - exp), d = bsDate();
@@ -21739,14 +21583,13 @@ function wire() {
   $('#fin-quick').onclick = (e) => { const q = e.target.closest('button')?.dataset.q; if (!q || !M) return; const L = activeLast();
     S.to = L; S.from = q === 'ytd' ? L.slice(0, 4) + '-01' : addM(L, -(+q - 1)); S.off = []; render(); };
   $('#fin-mode').onclick = (e) => { const m = e.target.closest('button'); if (!m || !M || m.dataset.mode === S.mode) return; setMode(m.dataset.mode); };
-  $('#fin-tabs').onclick = (e) => { const t = e.target.closest('button')?.dataset.t; if (!t) return; if (S.mode === 't12') S.t12view = t; else if (isAF()) S.tabAF = t; else S.tab = t; S.q = ''; $('#fin-q').value = ''; render(); };
+  $('#fin-tabs').onclick = (e) => { const t = e.target.closest('button')?.dataset.t; if (!t) return; if (S.mode === 't12') S.t12view = t; else S.tab = t; S.q = ''; $('#fin-q').value = ''; render(); };
   $('#fin-tbl').onchange = (e) => { if (e.target.id === 'fin-prop') { S.prop = e.target.value; render(); } };
   $('#fin-tbl').onclick = (e) => {
     const th = e.target.closest('th[data-sort]'); if (th) { const k = th.dataset.sort; S.t12sort = { k, d: S.t12sort.k === k ? -S.t12sort.d : (k === 'p' ? 1 : -1) }; render(); return; }
     const tr = e.target.closest('tr[data-prop]'); if (tr) { S.prop = tr.dataset.prop; S.t12view = 'one'; S.q = ''; $('#fin-q').value = ''; render(); }
   };
-  $('#fin-banner').onclick = (e) => { if (e.target.closest('[data-finretry]')) return load(true); const c = e.target.closest('[data-co]'); if (c) setCompany(c.dataset.co); };
-  $('#fin-co').onchange = (e) => setCompany(e.target.value);
+  $('#fin-banner').onclick = (e) => { if (e.target.closest('[data-finretry]')) load(true); };
   let tm; $('#fin-q').oninput = (e) => { clearTimeout(tm); tm = setTimeout(() => { S.q = e.target.value.trim(); render(); }, 120); };
   $('#fin-refresh').onclick = () => load(true);
 }
@@ -21767,9 +21610,8 @@ async function load(force) {
     lastPayload = j;
     if (j.configured === false) { loading = false; M = null; drawState(); return showMessage('No database connected', j.reason || ''); }
     M = buildModel(j.company || {}); T = buildT12(j.t12 || []);
-    setupCompanies(j);
     fetchedAt = j.fetchedAt || new Date().toISOString();
-    const all = [...M.months, ...T.months, ...COS.flatMap((c) => (c.model ? c.model.months : []))].sort();
+    const all = [...M.months, ...T.months].sort();
     const last = all.length ? all[all.length - 1] : String(fetchedAt).slice(0, 7);
     YEARS = []; const y0 = Math.min(+last.slice(0, 4) - 3, all.length ? +all[0].slice(0, 4) : 9999); for (let y = +last.slice(0, 4); y >= y0; y--) YEARS.push(String(y));
     setupControls(); useRange(S.mode);
@@ -21783,7 +21625,7 @@ async function load(force) {
   if (!M) { drawState(); return showMessage('Could not read the ledger', loadError); }
   /* Readable but empty is a different message from broken: the tables are
      there and hold nothing for this entity. */
-  if (!M.loans.length && !M.plAccounts.length && !M.pays.length && !T.props.length && !COS.some((c) => c.model && c.model.months.length) && !((lastPayload && lastPayload.problems) || []).length) {
+  if (!M.loans.length && !M.plAccounts.length && !M.pays.length && !T.props.length && !((lastPayload && lastPayload.problems) || []).length) {
     drawState(); return showMessage('Nothing in the ledger yet', 'The financial tables are reachable but hold no rows for this company or any property T12.');
   }
   if (loadError) toast('Refresh failed: ' + loadError, 'bad');
@@ -21798,12 +21640,8 @@ const present = { xlsx: () => !!window.XLSX, pdf: () => !!(window.jspdf && windo
 const loaded = {};
 const loadScript = (src) => loaded[src] || (loaded[src] = new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => { delete loaded[src]; bad(new Error('Could not load ' + src)); }; document.head.appendChild(el); }));
 const need = async (k) => { if (present[k]()) return; for (const src of LIBS[k]) await loadScript(src); };
-const RNAME = { income: 'Income', expenses: 'Expenses', loans: 'Investor loans', payments: 'Investor payments', bs: 'Balance sheet', moves: 'Cash movements', cash: 'Cash summary' };
-/* The selected company's reports. Its name rides along on each report so the
-   Summary tab and the PDF headers say whose numbers these are; the file names
-   stay generic. */
-function reportData(id) { const r = coIsAF() ? afReport(id) : qbReport(id); r.company = curCo() ? curCo().name : ''; return r; }
-function qbReport(id) {
+const RNAME = { income: 'Income', expenses: 'Expenses', loans: 'Investor loans', payments: 'Investor payments', bs: 'Balance sheet' };
+function reportData(id) {
   const ms = sel();
   if (id === 'income' || id === 'expenses') {
     const kind = id === 'income' ? 'income' : 'expense';
@@ -21848,7 +21686,7 @@ const slug = (n) => String(n).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '
 const csvCell = (v) => { if (v == null) return ''; let s = String(v); if (typeof v !== 'number' && /^[=+\-@]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
 const csvLines = (r) => [r.cols.map((c) => c.h)].concat(r.rows.length ? r.rows : [[r.note]], r.total ? [r.total] : []);
 const csvText = (lines) => '﻿' + lines.map((l) => l.map(csvCell).join(',')).join('\r\n') + '\r\n';
-const subtitle = (r) => (r.company ? r.company + ', ' : '') + (r.sub || (r.name + ', ' + (r.name === 'Balance sheet' || r.name === 'Investor loans' ? (bsDate() ? 'as of ' + day(bsDate()) : 'not loaded') : period())));
+const subtitle = (r) => r.sub || (r.name + ', ' + (r.name === 'Balance sheet' || r.name === 'Investor loans' ? (bsDate() ? 'as of ' + day(bsDate()) : 'not loaded') : period()));
 const sheetName = (n, used) => { let b = String(n).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31).trim() || 'Sheet'; let s = b, i = 2; while (used.has(s)) s = b.slice(0, 28) + ' ' + i++; used.add(s); return s; };
 function sheetFor(X, r) {
   const aoa = [[r.name], [subtitle(r) + (r.note ? '. ' + r.note : '')], [], r.cols.map((c) => c.h), ...r.rows, ...(r.total ? [r.total] : [])];
@@ -21902,7 +21740,7 @@ async function filesFor(reports, fmt, mode, base, suffix, summaryTitle) {
     return [{ filename: reports.length > 1 ? single('csv') : each(reports[0], 'csv'), data: csvText(lines) }]; }
   return [{ filename: single('zip'), data: await zipOf(reports.map((r) => ({ filename: each(r, 'csv'), data: csvText(csvLines(r)) }))) }];
 }
-async function buildCompanyExport(ids, fmt, mode) { return filesFor(ids.map(reportData), fmt, mode, 'Reports_' + stamp(), stamp(), 'Report export, ' + (curCo() ? curCo().name + ', ' : '') + period()); }
+async function buildCompanyExport(ids, fmt, mode) { return filesFor(ids.map(reportData), fmt, mode, 'Reports_' + stamp(), stamp(), 'Report export, ' + period()); }
 async function buildT12Export(type, props, when, fmt, mode) {
   if (type === 'month') {
     const ms = [when], label = my(when);
@@ -21967,15 +21805,7 @@ $('#fin-export').onclick = () => { if (!M || !T) return; fillT12Dialog(); dlg.qu
   /* From a single property's statement, export that property; from the
      comparison, keep whatever was ticked last time. */
   if (S.mode === 't12' && S.t12view === 'one') dlg.querySelectorAll('#fin-xprops input').forEach((x) => { x.checked = x.value === S.prop; });
-  /* The report list follows the selected company's source: AppFolio has no
-     loans, payments or balance sheet, and offering them would export nothing. */
-  const co = curCo();
-  $('#fin-xreports').querySelectorAll('label').forEach((l) => l.remove());
-  $('#fin-xreports').insertAdjacentHTML('beforeend', (co && co.source === 'appfolio'
-    ? [['income', 'Income', 1], ['expenses', 'Expenses', 1], ['moves', 'Cash movements', 0], ['cash', 'Cash summary', 0]]
-    : [['income', 'Income', 1], ['expenses', 'Expenses', 1], ['loans', 'Investor loans', 0], ['payments', 'Investor payments', 0], ['bs', 'Balance sheet', 0]])
-    .map(([v, l, c]) => '<label><input type="checkbox" name="r" value="' + v + '"' + (c ? ' checked' : '') + '> ' + l + '</label>').join(''));
-  $('#fin-xrange').textContent = 'Company: ' + (co ? co.name : '') + '. Date range: ' + (S.mode === 'company' ? period() : companyRangeText()) + ' (the range selected on the Company screen)';
+  $('#fin-xrange').textContent = 'Date range: ' + (S.mode === 'company' ? period() : companyRangeText()) + ' (the range selected on the Company screen)';
   $('#fin-xmsg').textContent = ''; $('#fin-xmsg').className = 'dmsg'; syncDlg(); dlg.showModal(); };
 dlg.addEventListener('change', syncDlg);
 dlg.querySelector('.kind').onclick = (e) => { const b = e.target.closest('button[data-k]'); if (!b) return; dlg.querySelector(`input[name=k][value=${b.dataset.k}]`).checked = true; syncDlg(); };

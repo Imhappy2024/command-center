@@ -22,39 +22,10 @@
 import express from 'express';
 import { ghlQuery } from '../db/index.js';
 
-/* The companies the Company tab can show. One line per company; `source` says
-   which ledger shape its numbers come in. QuickBooks is a full ledger (P&L,
-   balance sheet, investor loans and payments); AppFolio is a monthly cash flow
-   report (income, expense, "other items" and a cash summary). */
-export const COMPANIES = [
-  { id: 'd050000a-0616-497e-b8ce-aa699164c5a8', name: 'Liquid Lending Solutions', short: 'Liquid Lending', source: 'quickbooks', brand: 'c0000000-0000-4000-8000-000000000004' },
-  { id: '5e6213aa-023d-4fa0-8f93-70d5eded0aec', name: 'LeavenWealth Holdings LLC', short: 'LeavenWealth Holdings', source: 'appfolio', brand: 'c0000000-0000-4000-8000-000000000003' },
-  { id: '8bd3c562-1feb-4e85-b363-bc21aebff616', name: 'LeadLi Consulting LLC', short: 'LeadLi', source: 'appfolio', brand: 'c0000000-0000-4000-8000-000000000001' },
-  { id: '32bec21a-b52f-49db-93fb-fea5a594b480', name: 'Folio Excel LLC', short: 'Folio', source: 'appfolio', brand: 'c0000000-0000-4000-8000-000000000002' }
-];
-
-/* The QuickBooks company. FINANCIAL_ENTITY_ID still overrides it, as before. */
-const DEFAULT_ENTITY = COMPANIES[0].id;
-
-/* ---- AppFolio companies ----
-
-   account_type cash_movement is AppFolio's "Other Items" (contributions,
-   distributions, work in progress, intercompany transfers), stored as the cash
-   effect: positive is cash in. Expenses are positive, as AppFolio prints them.
-   cash_flow_month is the report's own summary, one row per month; its ending
-   cash is a balance, so the page takes the latest month rather than a sum. */
-const APPFOLIO_SQL = `select
-  (select coalesce(json_agg(json_build_object('a', a.qb_name, 'name', a.name, 't', a.account_type, 's', a.report_section, 'o', a.sort_order) order by a.sort_order), '[]'::json)
-     from gl_account a where a.entity_id = $1 and a.source_system = 'appfolio' and a.is_active) as accounts,
-  (select coalesce(json_agg(json_build_object('a', a.qb_name, 'y', p.period_year, 'm', p.period_month, 'v', p.amount)), '[]'::json)
-     from gl_period_amount p join gl_account a on a.id = p.gl_account_id
-    where p.entity_id = $1 and a.source_system = 'appfolio' and p.accounting_basis = 'cash') as amounts,
-  (select coalesce(json_agg(json_build_object('y', c.period_year, 'm', c.period_month, 'total_income', c.total_income, 'total_expense', c.total_expense,
-            'noi', c.noi, 'net_income', c.net_income, 'net_other_items', c.net_other_items, 'cash_flow', c.cash_flow, 'beginning_cash', c.beginning_cash,
-            'actual_ending_cash', c.actual_ending_cash, 'ending_cash_difference', c.ending_cash_difference) order by c.period_year, c.period_month), '[]'::json)
-     from cash_flow_month c where c.entity_id = $1 and c.source_system = 'appfolio' and c.accounting_basis = 'cash') as cash,
-  (select coalesce(json_agg(json_build_object('file', d.file_name, 'status', d.extraction_status, 'generated', d.report_generated_at) order by d.report_generated_at desc), '[]'::json)
-     from document d where d.entity_id = $1 and d.source_system = 'appfolio') as docs`;
+/* The company these reports are about. Overridable, because the entity id is
+   data rather than a fact about the code, and a second company should not
+   need a deploy. */
+const DEFAULT_ENTITY = 'd050000a-0616-497e-b8ce-aa699164c5a8';
 
 /* ---- company ----
 
@@ -140,25 +111,14 @@ export function financialRoutes({ env, auth }){
         return null;
       });
 
-    const appfolio = COMPANIES.filter((c) => c.source === 'appfolio');
-    const [co, t12row, ...af] = await Promise.all([
+    const [co, t12row] = await Promise.all([
       one('company', COMPANY_SQL, [entity]),
-      one('t12', T12_SQL, []),
-      ...appfolio.map((c) => one('appfolio:' + c.short, APPFOLIO_SQL, [c.id]))
+      one('t12', T12_SQL, [])
     ]);
-    const company = co || { pl_accounts: [], pl_amounts: [], balances: [], loans: [], payments: [], docs: [] };
-    const afData = new Map(appfolio.map((c, i) => [c.id, af[i] || { accounts: [], amounts: [], cash: [], docs: [] }]));
 
     return {
       entity,
-      company,
-      /* Every company with its own data, so switching between them in the page
-         is a lookup rather than a second read -- and can never show one
-         company's numbers under another's name while a request is in flight. */
-      companies: COMPANIES.map((c) => ({
-        id: c.source === 'quickbooks' ? entity : c.id, name: c.name, short: c.short, source: c.source, brand: c.brand,
-        data: c.source === 'quickbooks' ? company : afData.get(c.id)
-      })),
+      company: co || { pl_accounts: [], pl_amounts: [], balances: [], loans: [], payments: [], docs: [] },
       t12: (t12row && t12row.t12) || [],
       problems,
       fetchedAt: new Date().toISOString()
