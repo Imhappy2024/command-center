@@ -4709,6 +4709,15 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
 .fncard.t12 .fntbl th:first-child,.fncard.t12 .fntbl td:first-child{position:sticky;left:0;
   background:var(--panel);z-index:1;min-width:250px;max-width:330px;white-space:normal}
 .fncard.t12 .fntbl thead th:first-child{z-index:2}
+.fnprop{display:flex;align-items:center;gap:9px;cursor:pointer;color:var(--brass)}
+.fnprop svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round}
+.fnprop select{flex:1;min-width:0;width:100%;background:var(--ink2);border:1px solid var(--edge2);border-radius:8px;
+  color:var(--cream);font-family:var(--ff-body);font-size:15px;font-weight:600;letter-spacing:-.005em;
+  text-transform:none;padding:8px 10px;cursor:pointer;outline:0}
+.fnprop select:hover{border-color:var(--dim)}
+.fnprop select:focus{border-color:var(--brass)}
+.fncard.t12 .fntbl thead th:first-child{min-width:300px;vertical-align:middle}
 .fncard.t12 .fntbl tr.sec td:first-child{background:var(--ink2)}
 .fncard.t12 .fntbl td,.fncard.t12 .fntbl th{padding:9px 12px}
 .fnfoot{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--edge2);
@@ -5133,7 +5142,6 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
       <div class="card flush fncard" id="fin-card">
         <div class="fnch">
           <div class="viewtabs" id="fin-tabs" role="tablist" aria-label="Report"></div>
-          <select class="stagesel" id="fin-prop" aria-label="Property" hidden></select>
           <span class="fnsub" id="fin-tsub"></span>
           <input type="search" class="fsearch" id="fin-q" placeholder="Search accounts or names" autocomplete="off" aria-label="Search">
         </div>
@@ -21173,17 +21181,23 @@ function t12AllTable() {
     foot: `<span>${rows.length} of ${T.props.length} properties, ${esc(period())}</span><span>Income ${money(tot.inc)}</span><span>NOI ${money(tot.noi)}</span><b class="${tot.ni < 0 ? 'fndown' : ''}">Net income ${money(tot.ni, true)}</b>`,
     sub: 'Click a property to see its month-by-month statement.', kpi: tot };
 }
+/* Which property this statement is, in the column that names the rows. It was
+   a small mono select up in the toolbar, where it read as a filter rather than
+   as the title of the table under it. */
+const HOUSE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5"/><path d="M5 9v12h14V9"/><path d="M10 21v-6h4v6"/></svg>';
+const propPicker = (cur) => '<label class="fnprop" title="Choose a property">' + HOUSE
+  + '<select id="fin-prop" aria-label="Property">' + T.props.map((p) => `<option value="${esc(p.p)}"${p.p === cur ? ' selected' : ''}>${esc(p.p)}</option>`).join('') + '</select></label>';
 function t12OneTable() {
   if (!T.props.length) return noT12();
   const prop = T.byName[S.prop] || T.props[0]; S.prop = prop.p;
   const ms = sel().filter((m) => prop.idx[m] != null);
-  if (!ms.length) return { cls: 't12', head: '<th>Statement</th>', rows: `<tr><td class="msg-cell">No T12 data for ${esc(prop.p)} in ${esc(period())}. This property's report covers ${my(prop.m[0])} to ${my(prop.m[prop.m.length - 1])}.</td></tr>`, foot: '<span>No data</span>', sub: '', kpi: propTotals(prop, []) };
+  if (!ms.length) return { cls: 't12', head: `<th>${propPicker(prop.p)}</th>`, rows: `<tr><td class="msg-cell">No T12 data for ${esc(prop.p)} in ${esc(period())}. This property's report covers ${my(prop.m[0])} to ${my(prop.m[prop.m.length - 1])}.</td></tr>`, foot: '<span>No data</span>', sub: '', kpi: propTotals(prop, []) };
   const rows = statementRows(prop, ms, S.q);
   const tds = (r) => r.vals.map((v) => `<td class="r${v < 0 && (r.kind === 'key') ? ' fndown' : ''}">${v ? money(v, true) : '<span class="zero">0.00</span>'}</td>`).join('') + `<td class="r"><b>${money(r.total, true)}</b></td>`;
   const body = rows.map((r) => r.kind === 'sec' ? `<tr class="sec"><td>${esc(r.label)}</td>${ms.map(() => '<td></td>').join('')}<td></td></tr>` :
     `<tr class="${r.kind === 'tot' ? 'subt' : r.kind}"><td class="name">${esc(r.label)}</td>${tds(r)}</tr>`).join('');
   const t = propTotals(prop, ms);
-  return { cls: 't12', head: `<th>Account</th>${ms.map((m) => `<th class="r">${mon(m)} ${m.slice(0, 4)}</th>`).join('')}<th class="r">Total</th>`,
+  return { cls: 't12', head: `<th>${propPicker(prop.p)}</th>${ms.map((m) => `<th class="r">${mon(m)} ${m.slice(0, 4)}</th>`).join('')}<th class="r">Total</th>`,
     rows: body || `<tr><td class="msg-cell">No results for "${esc(S.q)}".</td></tr>`,
     foot: S.q ? '<span>Filtered by search</span>' : `<span>${esc(prop.p)}, ${ms.length} month${ms.length > 1 ? 's' : ''}</span><span>NOI ${money(t.noi, true)}</span><b class="${t.ni < 0 ? 'fndown' : ''}">Net income ${money(t.ni, true)}</b>`,
     sub: 'Cash basis' + (prop.c ? ', ' + prop.c : ''), kpi: t };
@@ -21216,7 +21230,6 @@ const MN = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 function setupControls() {
   for (const id of ['fin-fromM', 'fin-toM']) $('#' + id).innerHTML = MN.map((mm) => `<option value="${mm}">${new Date(Date.UTC(2000, +mm - 1, 1)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })}</option>`).join('');
   for (const id of ['fin-fromY', 'fin-toY']) $('#' + id).innerHTML = YEARS.map((y) => `<option value="${y}">${y}</option>`).join('');
-  $('#fin-prop').innerHTML = T.props.map((p) => `<option value="${esc(p.p)}">${esc(p.p)}</option>`).join('');
 }
 function defaultRange(mode) {
   const ms = mode === 't12' ? (T ? T.months : []) : (M ? M.months : []);
@@ -21279,8 +21292,7 @@ function render() {
 
   const tabs = t12 ? T12TABS : TABS, cur = t12 ? S.t12view : S.tab;
   $('#fin-tabs').innerHTML = tabs.map(([id, l]) => `<button role="tab" data-t="${id}" class="${id === cur ? 'on' : ''}" aria-selected="${id === cur}">${l}</button>`).join('');
-  $('#fin-prop').hidden = !(t12 && S.t12view === 'one' && T.props.length);
-  if (t12 && T.props.length) { if (!T.byName[S.prop]) S.prop = T.props[0].p; $('#fin-prop').value = S.prop; }
+  if (t12 && T.props.length && !T.byName[S.prop]) S.prop = T.props[0].p;
   $('#fin-q').placeholder = t12 ? (S.t12view === 'all' ? 'Search properties' : 'Search accounts') : 'Search accounts or names';
 
   const tile = (lab, val, sub, na) => `<div class="prtile"><div class="lab">${lab}</div><div class="val${na ? ' na' : ''}">${val}</div><div class="sub">${esc(sub)}</div></div>`;
@@ -21320,7 +21332,7 @@ function wire() {
     S.to = L; S.from = q === 'ytd' ? L.slice(0, 4) + '-01' : addM(L, -(+q - 1)); S.off = []; render(); };
   $('#fin-mode').onclick = (e) => { const m = e.target.closest('button'); if (!m || !M || m.dataset.mode === S.mode) return; setMode(m.dataset.mode); };
   $('#fin-tabs').onclick = (e) => { const t = e.target.closest('button')?.dataset.t; if (!t) return; if (S.mode === 't12') S.t12view = t; else S.tab = t; S.q = ''; $('#fin-q').value = ''; render(); };
-  $('#fin-prop').onchange = (e) => { S.prop = e.target.value; render(); };
+  $('#fin-tbl').onchange = (e) => { if (e.target.id === 'fin-prop') { S.prop = e.target.value; render(); } };
   $('#fin-tbl').onclick = (e) => {
     const th = e.target.closest('th[data-sort]'); if (th) { const k = th.dataset.sort; S.t12sort = { k, d: S.t12sort.k === k ? -S.t12sort.d : (k === 'p' ? 1 : -1) }; render(); return; }
     const tr = e.target.closest('tr[data-prop]'); if (tr) { S.prop = tr.dataset.prop; S.t12view = 'one'; S.q = ''; $('#fin-q').value = ''; render(); }
