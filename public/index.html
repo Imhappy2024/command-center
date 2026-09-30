@@ -4645,6 +4645,109 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
              border-color var(--t-fast) var(--ease),transform var(--t-fast) var(--ease)
 }
 
+/* ================= financial reports =================
+   Company reports (income, expenses, investor loans and payments, balance
+   sheet) and property T12s, read from the ledger through /api/financial.
+   Built from the app's own parts -- .prseg for which report set, .viewtabs for
+   which report, .prtile for the headline numbers, .tbl for the rows -- so it
+   reads as a section of this dashboard rather than a page pasted into it. */
+#v-financial{--fn-navy:#8FA6C8}
+.fnbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.fnbar .prseg{margin-left:0}
+.fnperiod{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto}
+.fnperiod .fl{font-family:var(--ff-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dimmer)}
+.fnquick{display:flex;gap:6px;flex-wrap:wrap}
+.fnrange{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:11px}
+.fnmonths{display:flex;gap:4px;flex-wrap:wrap;align-items:center}
+.fnmonths .yr{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.1em;color:var(--dimmer);
+  padding:0 3px 0 6px}
+.fnmonths button{background:none;border:1px solid var(--edge);border-radius:20px;color:var(--dimmer);
+  cursor:pointer;font-family:var(--ff-mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+  padding:4px 10px;transition:.13s}
+.fnmonths button:hover{border-color:var(--edge2);color:var(--text)}
+.fnmonths button.on{background:var(--panel2);border-color:var(--edge2);color:var(--cream)}
+.fnmonths button.off{text-decoration:line-through;opacity:.7}
+.fngap{font-size:11.5px;color:var(--amber);border:1px solid rgba(226,138,58,.28);
+  background:rgba(226,138,58,.07);border-radius:99px;padding:3px 11px}
+.fngap:empty{display:none}
+.fnstrip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;margin-bottom:13px}
+@media(max-width:1100px){.fnstrip{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.fnstrip .val{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fnstrip .val.na{color:var(--dimmer);font-size:21px}
+.fnup{color:var(--jade)} .fndown{color:var(--rust)}
+.fnch{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;border-bottom:1px solid var(--edge)}
+.fnch .viewtabs{margin:0}
+/* The caption takes the slack and wraps inside itself, so a long note does not
+   push the search box onto a row of its own. */
+.fnch .fnsub{font-size:11.5px;color:var(--dimmer);flex:1 1 180px;min-width:0}
+.fnch .fsearch{min-width:220px}
+.fncb{overflow:auto;max-height:max(420px,calc(100vh - 380px))}
+.fntbl thead th{position:sticky;top:0;background:var(--panel);z-index:1}
+.fntbl td{white-space:nowrap}
+.fntbl td.name{white-space:normal;color:var(--text)}
+.fntbl td.r{font-family:var(--ff-mono);font-size:12px;font-variant-numeric:tabular-nums}
+.fntbl .code{font-family:var(--ff-mono);font-size:11px;color:var(--dimmer);margin-right:8px}
+.fntbl .zero{color:var(--edge2)}
+.fntbl .small{display:block;color:var(--dimmer);font-size:11px;margin-top:2px}
+.fntbl tr.sec td{background:var(--ink2);font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--dimmer);padding-top:9px;padding-bottom:9px}
+.fntbl tr.subt td,.fntbl tr.grp td{color:var(--cream);font-variation-settings:'wght' 600}
+.fntbl tr.child td.name,.fntbl tr.kid td:first-child{padding-left:34px;color:var(--dim)}
+.fntbl tr.key td{color:var(--cream);font-variation-settings:'wght' 700;border-top:1px solid var(--edge2)}
+.fntbl tbody tr.sec:hover,.fntbl tbody tr.key:hover{background:none}
+.fntbl .clickrow{cursor:pointer}
+.fntbl th.sort{cursor:pointer;user-select:none}
+.fntbl th.sort:hover{color:var(--text)}
+.fntbl .flag{font-family:var(--ff-mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--rust);border:1px solid rgba(192,130,104,.35);border-radius:4px;padding:1px 5px;margin-left:7px}
+.fntbl .msg-cell{white-space:normal;color:var(--dim);padding:40px 16px;text-align:center}
+.fnpct{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.fnpct span{display:inline-block;height:5px;border-radius:3px;min-width:2px;opacity:.85}
+.fnpct small{width:48px;font-family:var(--ff-mono);font-size:11px;text-align:right;color:var(--dimmer)}
+/* The statement: account names stay put while twelve months scroll past. */
+.fncard.t12 .fntbl th:first-child,.fncard.t12 .fntbl td:first-child{position:sticky;left:0;
+  background:var(--panel);z-index:1;min-width:250px;max-width:330px;white-space:normal}
+.fncard.t12 .fntbl thead th:first-child{z-index:2}
+.fncard.t12 .fntbl tr.sec td:first-child{background:var(--ink2)}
+.fncard.t12 .fntbl td,.fncard.t12 .fntbl th{padding:9px 12px}
+.fnfoot{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:12px 16px;border-top:1px solid var(--edge2);
+  font-size:12.5px;color:var(--dim)}
+.fnfoot b{margin-left:auto;font-family:var(--ff-mono);font-size:13px;color:var(--cream);font-weight:500}
+.fnfoot .ok{color:var(--jade)}
+.fnfoot .fndown{color:var(--rust)}
+@media(max-width:820px){
+  .fnperiod{margin-left:0;width:100%}
+  .fnstrip{display:flex;overflow-x:auto;scrollbar-width:none;gap:8px}
+  .fnstrip::-webkit-scrollbar{display:none}
+  .fnstrip .prtile{flex:0 0 auto;min-width:140px}
+  .fnch .fsearch{margin-left:0;width:100%;min-width:0}
+  .fncb{max-height:none}
+}
+
+/* The export dialog. The app had no <dialog> before this, so it is dressed
+   from the same tokens as the property panel. */
+#fin-dlg{border:1px solid var(--edge2);border-radius:var(--r-lg);background:var(--panel);color:var(--text);
+  padding:20px 22px;width:min(480px,92vw);max-height:92vh;overflow:auto;box-shadow:0 30px 70px -20px rgba(0,0,0,.9)}
+#fin-dlg::backdrop{background:rgba(6,5,4,.62);backdrop-filter:blur(2px)}
+#fin-dlg h2{font-size:17px;color:var(--cream);font-variation-settings:'wght' 600;margin:0 0 12px}
+#fin-dlg .dsub{margin:2px 0 12px;color:var(--dimmer);font-size:12px;line-height:1.5}
+#fin-dlg fieldset{border:1px solid var(--edge);border-radius:10px;margin:0 0 11px;padding:9px 13px 11px;display:grid;gap:7px}
+#fin-dlg legend{font-family:var(--ff-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--dimmer);padding:0 6px}
+#fin-dlg fieldset label{display:flex;gap:9px;align-items:center;font-size:12.5px;cursor:pointer;color:var(--text)}
+#fin-dlg input[type=radio],#fin-dlg input[type=checkbox]{width:15px;height:15px;accent-color:var(--brass)}
+#fin-dlg .stagesel{width:100%}
+#fin-dlg label.row .stagesel{width:auto;flex:1}
+#fin-dlg .kind{margin:0 0 12px;width:100%}
+#fin-dlg .kind button{flex:1}
+#fin-dlg .plist{max-height:190px;overflow:auto;display:grid;gap:6px;padding-right:4px}
+#fin-dlg .lnk button{background:none;border:0;color:var(--brass);cursor:pointer;font:inherit;font-size:10px;padding:0 4px}
+#fin-dlg .dmsg{min-height:20px;margin:4px 0 10px;font-size:12px;color:var(--dim)}
+#fin-dlg .dmsg.err{color:var(--rust)}
+#fin-dlg .dact{display:flex;justify-content:flex-end;gap:8px}
+#fin-dlg .btn:disabled{opacity:.45;cursor:default}
+
 </style>
 </head>
 <body>
@@ -4996,18 +5099,96 @@ th.sortable.on .caret{opacity:1;color:var(--brass)}
   <!-- FINANCIAL -->
   <section class="view" id="v-financial">
     <div class="vhead">
-      <div><h1>Financial</h1><p>No ledger connected.</p></div>
-      <span class="chip rust">Not connected</span>
+      <div><h1>Financial</h1><p id="fin-sub">Reading the ledger…</p></div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="synced" id="fin-state"></span>
+        <button class="btn" id="fin-export" hidden>Export</button>
+        <button class="tgl" id="fin-refresh">Refresh</button>
+      </div>
     </div>
-    <div class="grid g4" style="margin-bottom:14px">
-      <div class="stat"><div class="eyebrow">Cash in</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Cash out</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Net</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div><div class="stat"><div class="eyebrow">Runway</div><div class="v num" style="color:var(--dimmer)">—</div><div class="m flat">no source</div></div>
-    </div>
-    <div class="grid g21">
-      <div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:18px">
-        <h3>Revenue vs cost</h3><span class="eyebrow">No data</span></div><div class="empty"><b>Nothing to chart</b><small>Monthly revenue and cost render here once a ledger is connected.</small></div></div>
-      <div class="card flush"><div class="cardhead"><h3>Spending</h3><span class="eyebrow">Breakdown</span></div><div class="empty"><b>No transactions</b><small>Where the money went, once a ledger is connected.</small></div></div>
+    <!-- Loading, no database, or nothing readable. Replaced by #fin-app once
+         there is a ledger to show. -->
+    <div id="fin-body"></div>
+    <div id="fin-app" hidden>
+      <div class="fnbar">
+        <div class="prseg" id="fin-mode" role="tablist" aria-label="Report set">
+          <button data-mode="company" role="tab">Company</button><button data-mode="t12" role="tab">Property T12</button>
+        </div>
+        <div class="fnperiod">
+          <span class="fl">From</span>
+          <select class="stagesel" id="fin-fromM" aria-label="From month"></select><select class="stagesel" id="fin-fromY" aria-label="From year"></select>
+          <span class="fl">to</span>
+          <select class="stagesel" id="fin-toM" aria-label="To month"></select><select class="stagesel" id="fin-toY" aria-label="To year"></select>
+          <div class="fnquick" id="fin-quick">
+            <button class="tgl" data-q="1">Latest month</button><button class="tgl" data-q="ytd">Year to date</button><button class="tgl" data-q="12">Last 12 months</button>
+          </div>
+        </div>
+      </div>
+      <div class="fnrange">
+        <div class="fnmonths" id="fin-months" role="group" aria-label="Months in the range; click one to leave it out"></div>
+        <span class="fngap" id="fin-gap"></span>
+      </div>
+      <div id="fin-banner"></div>
+      <div class="fnstrip" id="fin-nums"></div>
+      <div class="card flush fncard" id="fin-card">
+        <div class="fnch">
+          <div class="viewtabs" id="fin-tabs" role="tablist" aria-label="Report"></div>
+          <select class="stagesel" id="fin-prop" aria-label="Property" hidden></select>
+          <span class="fnsub" id="fin-tsub"></span>
+          <input type="search" class="fsearch" id="fin-q" placeholder="Search accounts or names" autocomplete="off" aria-label="Search">
+        </div>
+        <div class="fncb"><table class="tbl fntbl" id="fin-tbl"></table></div>
+        <div class="fnfoot" id="fin-foot"></div>
+      </div>
     </div>
   </section>
+
+  <!-- Financial export. Top level, like the other overlays, so a hidden view
+       can never be its ancestor. -->
+  <dialog id="fin-dlg" aria-labelledby="fin-dlg-title">
+    <form method="dialog">
+      <h2 id="fin-dlg-title">Export</h2>
+      <div class="prseg kind" role="radiogroup" aria-label="What to export">
+        <label hidden><input type="radio" name="k" value="company" checked></label><label hidden><input type="radio" name="k" value="t12"></label>
+        <button type="button" data-k="company">Company reports</button><button type="button" data-k="t12">Property T12</button>
+      </div>
+      <div id="fin-xco">
+        <p class="dsub" id="fin-xrange"></p>
+        <fieldset><legend>Reports</legend>
+          <label><input type="checkbox" name="r" value="income" checked> Income</label>
+          <label><input type="checkbox" name="r" value="expenses" checked> Expenses</label>
+          <label><input type="checkbox" name="r" value="loans"> Investor loans</label>
+          <label><input type="checkbox" name="r" value="payments"> Investor payments</label>
+          <label><input type="checkbox" name="r" value="bs"> Balance sheet</label>
+        </fieldset>
+      </div>
+      <div id="fin-xt12" hidden>
+        <fieldset><legend>T12 income statement</legend>
+          <label><input type="radio" name="t" value="one12" checked> Running 12 months, one property</label>
+          <label><input type="radio" name="t" value="multi12"> Running 12 months, several properties</label>
+          <label><input type="radio" name="t" value="month"> Several properties, one month</label>
+        </fieldset>
+        <fieldset><legend id="fin-xwhenlbl">Period</legend>
+          <label class="row"><span id="fin-xendlbl">12 months ending</span> <select class="stagesel" id="fin-xend"></select></label>
+          <p class="dsub" id="fin-xendnote" style="margin:0"></p>
+        </fieldset>
+        <fieldset id="fin-xonef"><legend>Property</legend><select class="stagesel" id="fin-xprop" aria-label="Property"></select></fieldset>
+        <fieldset id="fin-xmultif" hidden><legend>Properties <span class="lnk"><button type="button" id="fin-xall">Select all</button><button type="button" id="fin-xnone">Clear</button></span></legend>
+          <div class="plist" id="fin-xprops"></div></fieldset>
+      </div>
+      <fieldset><legend>Format</legend>
+        <label><input type="radio" name="f" value="xlsx" checked> Excel (.xlsx)</label>
+        <label><input type="radio" name="f" value="pdf"> PDF</label>
+        <label><input type="radio" name="f" value="csv"> CSV</label>
+      </fieldset>
+      <fieldset id="fin-xfiles"><legend>Files</legend>
+        <label><input type="radio" name="m" value="one" checked> <span id="fin-onelbl">One consolidated file</span></label>
+        <label><input type="radio" name="m" value="sep"> <span id="fin-seplbl">Separate file for each report (in one .zip)</span></label>
+      </fieldset>
+      <p class="dmsg" id="fin-xmsg" role="status"></p>
+      <div class="dact"><button value="cancel" class="tgl" formnovalidate>Cancel</button><button type="button" id="fin-xgo" class="btn primary">Export</button></div>
+    </form>
+  </dialog>
 
   <!-- SOCIAL -->
   <section class="view" id="v-social">
@@ -20773,6 +20954,634 @@ document.querySelectorAll('.navitem').forEach(b => b.addEventListener('click', (
   if (b.dataset.target === 'tasks' && !TK.loaded && !TK.loading) tkLoad();
   if (b.dataset.target === 'properties' && !PR.loaded && !PR.loading) prLoad();
 }));
+
+/* ================= FINANCIAL =================
+
+   Company reports and property T12s, read from /api/financial.
+
+   This began as a standalone reports page rendering two snapshots embedded in
+   the file. The logic below is that page's, unchanged in what it computes; what
+   changed is where the rows come from (the server's session and connection, so
+   no key and no sign-in in the browser) and what it is dressed in.
+
+   Rules the numbers depend on, all applied here rather than in SQL:
+   - Balance sheet and loan balances use the latest as_of_date on or before the
+     END of the selected range, not the start and not "latest overall".
+   - T12 group subtotals, NOI and net income are summed from leaf lines, so a
+     stored total can never disagree with the rows printed above it.
+   - T12 signs: expenses positive; NOI = income - operating expenses;
+     net income = NOI + non-operating income - non-operating expenses.
+   - A month with no data is not offered as a button, and "No data" appears only
+     when the whole range is empty.
+
+   One closure, because this file is one global scope and names like `sum`,
+   `money` and `period` are the kind of thing somebody else already has. */
+(function(){
+'use strict';
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const f2 = new Intl.NumberFormat('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const f0 = new Intl.NumberFormat('en-US',{maximumFractionDigits:0});
+const money = (n, cents) => (n < 0 ? '-$' : '$') + (cents ? f2 : f0).format(Math.abs(n));
+const sum = (a, f) => a.reduce((t, x) => t + f(x), 0);
+const r2 = (n) => Math.round(n * 100) / 100;
+const mon = (m, long) => new Date(m + '-01T00:00:00Z').toLocaleString('en-US',{month: long ? 'long' : 'short', timeZone:'UTC'});
+const day = (d) => new Date(String(d).slice(0, 10) + 'T00:00:00Z').toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',timeZone:'UTC'});
+const my = (m) => mon(m) + ' ' + m.slice(0, 4);
+const addM = (m, n) => new Date(Date.UTC(+m.slice(0, 4), +m.slice(5, 7) - 1 + n, 1)).toISOString().slice(0, 7);
+const ym = (y, m) => y + '-' + String(m).padStart(2, '0');
+const split = (a) => { const m = String(a).match(/^(\d+)\s+(.*)$/); return m ? [m[1], m[2]] : ['', a]; };
+const acct = (a) => { const [c, n] = split(a); return (c ? `<span class="code">${c}</span>` : '') + esc(n); };
+const pct = (v, tot, color) => { const p = tot ? Math.abs(v) / Math.abs(tot) * 100 : 0;
+  return `<div class="fnpct"><span style="width:${Math.max(2, p * 1.2)}px;background:${color}"></span><small>${p.toFixed(1)}%</small></div>`; };
+const parseCol = (v) => { if (typeof v !== 'string') return v; try { return JSON.parse(v); } catch (e) { return v; } };
+const SOURCE_LABEL = 'Ledger';
+
+/* ---------- company model ---------- */
+let M = null, T = null, YEARS = [];
+let fetchedAt = null, lastPayload = null;
+let loading = false, loadError = null;
+function buildModel(row) {
+  const plAccounts = parseCol(row.pl_accounts) || [], plAmounts = parseCol(row.pl_amounts) || [];
+  const balances = parseCol(row.balances) || [], loans = parseCol(row.loans) || [], payments = parseCol(row.payments) || [], docs = parseCol(row.docs) || [];
+  const amt = {};                        // account -> month -> amount
+  for (const r of plAmounts) { const m = ym(r.y, r.m); (amt[r.a] = amt[r.a] || {})[m] = (amt[r.a][m] || 0) + Number(r.v); }
+  const bsByDate = {};                   // yyyy-mm-dd -> [{a,t,s,v}]
+  for (const b of balances) { const d = String(b.d).slice(0, 10); (bsByDate[d] = bsByDate[d] || []).push({ a: b.a, t: b.t, s: b.s || '', v: Number(b.v) }); }
+  const pays = payments.map((p) => ({ date: String(p.date).slice(0, 10), type: p.type, num: p.num, name: p.name, memo: p.memo, split: p.split, amount: Number(p.amount), loan: p.loan }));
+  const dataMonths = new Set();
+  for (const a in amt) for (const m in amt[a]) if (amt[a][m]) dataMonths.add(m);
+  for (const p of pays) dataMonths.add(p.date.slice(0, 7));
+  for (const d in bsByDate) dataMonths.add(d.slice(0, 7));
+  const months = [...dataMonths].sort();
+  const plMonths = new Set(); for (const a in amt) for (const m in amt[a]) if (amt[a][m]) plMonths.add(m);
+  return { plAccounts, amt, plMonths, bsDates: Object.keys(bsByDate).sort(), bsByDate, loans, loanByNum: Object.fromEntries(loans.map((l) => [l.n, l])), pays, docs, months };
+}
+
+/* ---------- state ---------- */
+let S = { mode: 'company', from: null, to: null, off: [], ranges: {}, tab: 'income', q: '', t12view: 'all', prop: null, t12sort: { k: 'noi', d: -1 } };
+try { Object.assign(S, JSON.parse(localStorage.getItem('cc.fin') || '{}')); } catch (e) {}
+S.q = '';
+const save = () => { try { const { q, ...keep } = S; localStorage.setItem('cc.fin', JSON.stringify(keep)); } catch (e) {} };
+const activeMonths = () => S.mode === 't12' ? (T ? T.months : []) : (M ? M.months : []);
+const activeLast = () => { const a = activeMonths(); return a.length ? a[a.length - 1] : new Date().toISOString().slice(0, 7); };
+const sel = () => activeMonths().filter((m) => m >= S.from && m <= S.to && !S.off.includes(m));
+const rangeText = () => S.from === S.to ? mon(S.from, true) + ' ' + S.from.slice(0, 4) : my(S.from) + ' to ' + my(S.to);
+const period = () => { const off = S.off.filter((m) => m >= S.from && m <= S.to); return rangeText() + (off.length ? ' (excluding ' + off.map(my).join(', ') + ')' : ''); };
+const bsDate = () => { if (!M) return null; const end = S.to + '-31'; const ds = M.bsDates.filter((d) => d <= end); return ds.length ? ds[ds.length - 1] : null; };
+const bsRows = () => { const d = bsDate(); return d ? M.bsByDate[d] : []; };
+const loanAcctSet = () => new Set(M.loans.map((l) => l.acct));
+const loanBalance = (l) => { const r = bsRows().find((x) => x.a === l.acct); return r ? r.v : null; };
+const docStatus = (re) => (M.docs.find((d) => re.test(d.file)) || {}).status;
+const plMissingMsg = () => docStatus(/Profit/i) === 'partial' ? 'No amounts loaded yet. The latest Profit and Loss report arrived with every amount as 0.00, so nothing was loaded. It will appear here once a corrected report is processed.' : 'No income or expense amounts for ' + period() + '.';
+const bsMissingMsg = () => M.bsDates.length ? 'No balance sheet on or before ' + my(S.to) + '. The earliest one loaded is ' + day(M.bsDates[0]) + '.' :
+  (docStatus(/Balance/i) === 'partial' ? 'No balances loaded yet. The latest Balance Sheet arrived with every amount as 0.00, so nothing was loaded. It will appear here once a corrected report is processed.' : 'No balance sheet loaded yet.');
+
+/* ---------- totals ---------- */
+const plVal = (a) => r2(sum(sel(), (m) => (M.amt[a] && M.amt[a][m]) || 0));
+const plTotal = (kind) => r2(sum(M.plAccounts.filter((x) => x.t === kind), (x) => plVal(x.a)));
+const cashTotal = () => r2(sum(bsRows().filter((r) => r.t === 'asset' && /Bank Accounts/i.test(r.s)), (r) => r.v));
+const loanTotal = () => r2(sum(M.loans, (l) => loanBalance(l) || 0));
+
+/* ---------- company tables ---------- */
+function plTable(kind, color) {
+  const accts = M.plAccounts.filter((x) => x.t === kind);
+  const has = sel().some((m) => M.plMonths.has(m));
+  if (!has) return { head: '<th>Account</th>', rows: `<tr><td class="msg-cell">${esc(plMissingMsg())}</td></tr>`, foot: '<span>No amounts</span>', sub: period() };
+  const total = r2(sum(accts, (x) => plVal(x.a)));
+  const kids = {}; accts.forEach((x) => { if (x.p) (kids[x.p] = kids[x.p] || []).push(x); });
+  const groups = accts.filter((x) => !x.p).map((x) => ({ a: x.a, own: plVal(x.a), kids: (kids[x.a] || []).map((k) => ({ a: k.a, v: plVal(k.a) })) }))
+    .map((g) => Object.assign(g, { v: r2(g.own + sum(g.kids, (k) => k.v)) }))
+    .filter((g) => g.v && (!S.q || [g.a, ...g.kids.map((k) => k.a)].some((t) => t.toLowerCase().includes(S.q.toLowerCase())))).sort((x, y) => y.v - x.v);
+  let rows = '';
+  for (const g of groups) {
+    rows += `<tr${g.kids.length ? ' class="subt"' : ''}><td class="name">${acct(g.a)}</td><td class="r">${money(g.v, true)}</td><td>${pct(g.v, total, color)}</td></tr>`;
+    for (const k of g.kids.filter((k) => k.v).sort((x, y) => y.v - x.v)) rows += `<tr class="child"><td class="name">${acct(k.a)}</td><td class="r">${money(k.v, true)}</td><td>${pct(k.v, total, color)}</td></tr>`;
+  }
+  return { head: '<th>Account</th><th class="r">Amount</th><th class="r">% of total</th>', rows,
+    foot: `<span>Total ${kind === 'income' ? 'income' : 'expenses'}, ${period()}</span><b>${money(total, true)}</b>`, sub: period() };
+}
+function loansTable() {
+  const d = bsDate(), lt = loanTotal();
+  const rows = M.loans.filter((l) => !S.q || [l.name, l.n, l.fund].some((t) => String(t).toLowerCase().includes(S.q.toLowerCase())))
+    .map((l) => Object.assign({}, l, { bal: loanBalance(l) })).sort((a, b) => (b.bal || 0) - (a.bal || 0) || a.n.localeCompare(b.n));
+  return { head: '<th>Loan</th><th>Investor</th><th>Fund</th><th class="r">Principal balance</th><th class="r">% of total</th>',
+    rows: rows.map((l) => `<tr><td><span class="code">${esc(l.n)}</span></td><td class="name">${esc(l.name)}${l.entity ? `<span class="small">Entity: ${esc(l.entity)}</span>` : ''}</td><td>${esc(l.fund)}</td><td class="r">${l.bal == null ? '<span class="zero">Not loaded</span>' : money(l.bal, true)}</td><td>${l.bal == null ? '' : pct(l.bal, lt, 'var(--fn-navy)')}</td></tr>`).join(''),
+    foot: `<span>${rows.length} of ${M.loans.length} loans${S.q ? ' (filtered)' : ''}</span><b>${d ? money(r2(sum(rows, (l) => l.bal || 0)), true) : 'Balances not loaded'}</b>`,
+    sub: d ? 'Principal balances as of ' + day(d) + ', the latest balance sheet on or before the end of the range.' : bsMissingMsg() };
+}
+function paymentsTable() {
+  const ms = sel();
+  const ps = M.pays.filter((p) => ms.includes(p.date.slice(0, 7)) && (!S.q || [p.name, p.memo, p.loan, p.type].some((t) => String(t || '').toLowerCase().includes(S.q.toLowerCase()))))
+    .sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
+  const un = ps.filter((p) => !p.loan);
+  if (!ps.length) return { head: '<th>Investor payments</th>', rows: `<tr><td class="msg-cell">${S.q ? 'No results for "' + esc(S.q) + '".' : 'No investor payments in ' + esc(period()) + '.'}</td></tr>`, foot: '<span>0 payments</span>', sub: period() };
+  return { head: '<th>Date</th><th>Payee</th><th>Loan</th><th>Type</th><th>Split</th><th class="r">Amount</th>',
+    rows: ps.map((p) => `<tr><td>${day(p.date)}</td><td class="name">${esc(p.name)}${p.loan ? '' : '<span class="flag">Unmatched</span>'}</td><td>${p.loan ? `<span class="code">${esc(p.loan)}</span>` : '<span class="zero">None</span>'}</td><td>${esc(p.type)}</td><td class="name">${esc(p.split === '-Split-' ? 'Split' : p.split)}</td><td class="r">${money(p.amount, true)}</td></tr>`).join(''),
+    foot: `<span>${ps.length} payments${un.length ? ', ' + un.length + ' unmatched (' + money(r2(sum(un, (p) => p.amount)), true) + ')' : ''}</span><b>${money(r2(sum(ps, (p) => p.amount)), true)}</b>`,
+    sub: 'Account 61010 Investor Payment, ' + period() + '.' };
+}
+function bsSections() {
+  const rows = bsRows(), loanAccts = loanAcctSet();
+  const hit = (t) => !S.q || String(t).toLowerCase().includes(S.q.toLowerCase());
+  const assets = rows.filter((r) => r.t === 'asset' && r.v && hit(r.a));
+  const liab = rows.filter((r) => r.t === 'liability' && r.v && !loanAccts.has(r.a) && hit(r.a));
+  const invRows = rows.filter((r) => loanAccts.has(r.a));
+  const funds = {}; for (const l of M.loans) { const r = invRows.find((x) => x.a === l.acct); if (r) (funds[l.fund] = funds[l.fund] || { n: 0, v: 0 }), funds[l.fund].n++, funds[l.fund].v = r2(funds[l.fund].v + r.v); }
+  for (const [f, x] of Object.entries(funds)) if (hit(f) || hit('investor')) liab.push({ a: f + ' (' + x.n + ' loan accounts)', v: x.v });
+  const eq = rows.filter((r) => r.t === 'equity' && r.v && hit(r.a));
+  return { assets, liab, eq, tA: r2(sum(rows.filter((r) => r.t === 'asset'), (r) => r.v)), tL: r2(sum(rows.filter((r) => r.t === 'liability'), (r) => r.v)), tE: r2(sum(rows.filter((r) => r.t === 'equity'), (r) => r.v)) };
+}
+function bsTable() {
+  const d = bsDate();
+  if (!d) return { head: '<th>Balance sheet</th>', rows: `<tr><td class="msg-cell">${esc(bsMissingMsg())}</td></tr>`, foot: '<span>No balance sheet</span>', sub: 'Uses the latest balance sheet on or before the end of the range.' };
+  const s = bsSections();
+  const sec = (t, items, tot, color, label) => items.length ? `<tr class="sec"><td>${t}</td><td></td><td></td></tr>` + items.slice().sort((a, b) => Math.abs(b.v) - Math.abs(a.v)).map((x) => `<tr><td class="name">${acct(x.a)}</td><td class="r">${money(x.v, true)}</td><td>${pct(x.v, tot, color)}</td></tr>`).join('') + `<tr class="subt"><td>${label}</td><td class="r">${money(tot, true)}</td><td></td></tr>` : '';
+  const ok = Math.abs(s.tA - s.tL - s.tE) < 0.01;
+  return { head: '<th>Account</th><th class="r">Balance</th><th class="r">% of section</th>',
+    rows: sec('Assets', s.assets, s.tA, 'var(--fn-navy)', 'Total assets') + sec('Liabilities', s.liab, s.tL, 'var(--rust)', 'Total liabilities') + sec('Equity', s.eq, s.tE, 'var(--jade)', 'Total equity'),
+    foot: S.q ? '<span>Filtered by search</span>' : `<span>Total liabilities and equity ${money(r2(s.tL + s.tE), true)}</span><span class="${ok ? 'ok' : 'fndown'}">${ok ? 'Balances to total assets' : 'Out of balance by ' + money(s.tA - s.tL - s.tE, true)}</span><b>${money(s.tA, true)}</b>`,
+    sub: 'As of ' + day(d) + ', cash basis.' };
+}
+
+/* ================= T12 (property income statements) ================= */
+const SECS = [['i', 'Income', 'Total income'], ['o', 'Operating expenses', 'Total operating expenses'], ['ni', 'Non-operating income', 'Total non-operating income'], ['ne', 'Non-operating expenses', 'Total non-operating expenses']];
+function buildT12(list) {
+  const props = (list || []).map((r) => ({ p: r.p, c: r.c || '', m: r.m, idx: Object.fromEntries(r.m.map((m, i) => [m, i])), l: (r.l || []).map(([s, path, v]) => ({ s, path, v: v.map(Number) })), t: r.t }));
+  const months = [...new Set(props.flatMap((p) => p.m))].sort();
+  return { props, months, byName: Object.fromEntries(props.map((p) => [p.p, p])) };
+}
+function propTotals(prop, ms) {
+  const t = { i: 0, o: 0, ni: 0, ne: 0 };
+  for (const ln of prop.l) t[ln.s] += r2(sum(ms, (m) => (prop.idx[m] == null ? 0 : ln.v[prop.idx[m]])));
+  for (const k in t) t[k] = r2(t[k]);
+  const noi = r2(t.i - t.o), nonop = r2(t.ni - t.ne);
+  return { inc: t.i, opex: t.o, noi, nonopInc: t.ni, nonopExp: t.ne, nonop, ni: r2(noi + nonop), margin: t.i ? r2(noi / t.i * 100) : null };
+}
+// statement rows for one property: [{kind: 'sec'|'grp'|'line'|'kid'|'tot'|'key', label, vals:[per month], total}]
+function statementRows(prop, ms, q) {
+  const out = []; const hit = (t) => !q || t.toLowerCase().includes(q.toLowerCase());
+  const secTot = {};
+  for (const [code, title, totLabel] of SECS) {
+    const lines = prop.l.filter((ln) => ln.s === code);
+    const tot = ms.map((m) => r2(sum(lines, (ln) => (prop.idx[m] == null ? 0 : ln.v[prop.idx[m]]))));
+    secTot[code] = tot;
+    if (!lines.length) continue;
+    const groups = []; const gi = {};
+    for (const ln of lines) {
+      const segs = ln.path.split(' > ').slice(1);   // drop the section root ("Income", "Expense", ...)
+      const g = segs.length > 1 ? segs[0] : null, label = segs.length > 1 ? segs.slice(1).join(' > ') : (segs[0] || ln.path);
+      if (g) { if (gi[g] == null) { gi[g] = groups.length; groups.push({ g, kids: [] }); } groups[gi[g]].kids.push({ label, ln }); }
+      else groups.push({ g: null, kids: [{ label, ln }] });
+    }
+    const rows = [];
+    for (const G of groups) {
+      const vals = (ln) => ms.map((m) => (prop.idx[m] == null ? 0 : r2(ln.v[prop.idx[m]])));
+      if (!G.g) { const k = G.kids[0]; if (hit(k.label)) rows.push({ kind: 'line', label: k.label, vals: vals(k.ln) }); continue; }
+      if (G.kids.length === 1 && G.kids[0].label === G.g) { if (hit(G.g)) rows.push({ kind: 'line', label: G.g, vals: vals(G.kids[0].ln) }); continue; }
+      const kids = G.kids.filter((k) => hit(k.label) || hit(G.g));
+      if (!kids.length) continue;
+      const gv = ms.map((_, j) => r2(sum(G.kids, (k) => vals(k.ln)[j])));
+      rows.push({ kind: 'grp', label: G.g, vals: gv });
+      for (const k of kids) rows.push({ kind: 'kid', label: k.label, vals: vals(k.ln) });
+    }
+    if (!rows.length) continue;
+    out.push({ kind: 'sec', label: title });
+    out.push(...rows);
+    if (!q) out.push({ kind: 'tot', label: totLabel, vals: tot });
+    if (code === 'o' && !q) out.push({ kind: 'key', label: 'Net operating income', vals: ms.map((_, j) => r2(secTot.i[j] - secTot.o[j])) });
+  }
+  if (!q) out.push({ kind: 'key', label: 'Net income', vals: ms.map((_, j) => r2((secTot.i ? secTot.i[j] : 0) - (secTot.o ? secTot.o[j] : 0) + (secTot.ni ? secTot.ni[j] : 0) - (secTot.ne ? secTot.ne[j] : 0))) });
+  for (const r of out) if (r.vals) r.total = r2(sum(r.vals, (v) => v));
+  return out;
+}
+const noT12 = () => ({ cls: '', head: '<th>Property T12</th>', rows: '<tr><td class="msg-cell">No property T12 reports are loaded.</td></tr>', foot: '<span>0 properties</span>', sub: '', kpi: { inc: 0, opex: 0, noi: 0, nonop: 0, ni: 0 } });
+function t12AllTable() {
+  if (!T.props.length) return noT12();
+  const ms = sel();
+  const q = S.q.toLowerCase();
+  const rows = T.props.filter((p) => !q || (p.p + ' ' + p.c).toLowerCase().includes(q)).map((p) => Object.assign({ p: p.p, c: p.c }, propTotals(p, ms)));
+  const k = S.t12sort.k, d = S.t12sort.d;
+  rows.sort((a, b) => (k === 'p' ? a.p.localeCompare(b.p) : ((a[k] == null ? -1e15 : a[k]) - (b[k] == null ? -1e15 : b[k]))) * d);
+  const tot = { inc: r2(sum(rows, (r) => r.inc)), opex: r2(sum(rows, (r) => r.opex)), noi: r2(sum(rows, (r) => r.noi)), nonop: r2(sum(rows, (r) => r.nonop)), ni: r2(sum(rows, (r) => r.ni)) };
+  const cols = [['p', 'Property', 0], ['inc', 'Total income', 1], ['opex', 'Operating expenses', 1], ['noi', 'Net operating income', 1], ['margin', 'NOI margin', 1], ['nonop', 'Non-operating, net', 1], ['ni', 'Net income', 1]];
+  const arrow = (c) => S.t12sort.k === c ? (S.t12sort.d > 0 ? ' &#9650;' : ' &#9660;') : '';
+  const cell = (v, color) => `<td class="r${color && v < 0 ? ' fndown' : ''}">${money(v, true)}</td>`;
+  return { cls: '', head: cols.map(([c, t, n]) => `<th class="sort${n ? ' r' : ''}" data-sort="${c}">${t}${arrow(c)}</th>`).join(''),
+    rows: rows.map((r) => `<tr class="clickrow" data-prop="${esc(r.p)}" title="Open the T12 for ${esc(r.p)}"><td class="name">${esc(r.p)}${r.c ? `<span class="small">${esc(r.c)}</span>` : ''}</td>${cell(r.inc)}${cell(r.opex)}${cell(r.noi, 1)}<td class="r">${r.margin == null ? '' : r.margin.toFixed(1) + '%'}</td>${cell(r.nonop, 1)}${cell(r.ni, 1)}</tr>`).join(''),
+    foot: `<span>${rows.length} of ${T.props.length} properties, ${esc(period())}</span><span>Income ${money(tot.inc)}</span><span>NOI ${money(tot.noi)}</span><b class="${tot.ni < 0 ? 'fndown' : ''}">Net income ${money(tot.ni, true)}</b>`,
+    sub: 'Click a property to see its month-by-month statement.', kpi: tot };
+}
+function t12OneTable() {
+  if (!T.props.length) return noT12();
+  const prop = T.byName[S.prop] || T.props[0]; S.prop = prop.p;
+  const ms = sel().filter((m) => prop.idx[m] != null);
+  if (!ms.length) return { cls: 't12', head: '<th>Statement</th>', rows: `<tr><td class="msg-cell">No T12 data for ${esc(prop.p)} in ${esc(period())}. This property's report covers ${my(prop.m[0])} to ${my(prop.m[prop.m.length - 1])}.</td></tr>`, foot: '<span>No data</span>', sub: '', kpi: propTotals(prop, []) };
+  const rows = statementRows(prop, ms, S.q);
+  const tds = (r) => r.vals.map((v) => `<td class="r${v < 0 && (r.kind === 'key') ? ' fndown' : ''}">${v ? money(v, true) : '<span class="zero">0.00</span>'}</td>`).join('') + `<td class="r"><b>${money(r.total, true)}</b></td>`;
+  const body = rows.map((r) => r.kind === 'sec' ? `<tr class="sec"><td>${esc(r.label)}</td>${ms.map(() => '<td></td>').join('')}<td></td></tr>` :
+    `<tr class="${r.kind === 'tot' ? 'subt' : r.kind}"><td class="name">${esc(r.label)}</td>${tds(r)}</tr>`).join('');
+  const t = propTotals(prop, ms);
+  return { cls: 't12', head: `<th>Account</th>${ms.map((m) => `<th class="r">${mon(m)} ${m.slice(0, 4)}</th>`).join('')}<th class="r">Total</th>`,
+    rows: body || `<tr><td class="msg-cell">No results for "${esc(S.q)}".</td></tr>`,
+    foot: S.q ? '<span>Filtered by search</span>' : `<span>${esc(prop.p)}, ${ms.length} month${ms.length > 1 ? 's' : ''}</span><span>NOI ${money(t.noi, true)}</span><b class="${t.ni < 0 ? 'fndown' : ''}">Net income ${money(t.ni, true)}</b>`,
+    sub: 'Cash basis' + (prop.c ? ', ' + prop.c : ''), kpi: t };
+}
+
+/* ---- T12 export reports ---- */
+const t12Months = (end) => { const ms = []; for (let i = 11; i >= 0; i--) ms.push(addM(end, -i)); return ms.filter((m) => T.months.includes(m)); };
+function t12StatementReport(prop, ms, label) {
+  const rows = statementRows(prop, ms.filter((m) => prop.idx[m] != null), '');
+  const useMs = ms.filter((m) => prop.idx[m] != null);
+  const bold = new Set(); const out = [];
+  rows.forEach((r) => { if (r.kind === 'sec') { out.push([r.label, ...useMs.map(() => ''), '']); bold.add(out.length - 1); return; }
+    out.push([(r.kind === 'kid' ? '    ' : '') + r.label, ...r.vals, r.total]); if (r.kind === 'tot' || r.kind === 'key' || r.kind === 'grp') bold.add(out.length - 1); });
+  return { name: prop.p, sub: 'T12 income statement, ' + label, note: 'Cash basis. ' + (useMs.length < ms.length ? 'Months without data for this property are omitted.' : ''),
+    cols: [{ h: 'Account', t: 'text' }, ...useMs.map((m) => ({ h: my(m), t: 'money' })), { h: 'Total', t: 'money' }], rows: out, total: null, bold, wide: useMs.length > 6 };
+}
+function t12CompareReport(props, ms, label) {
+  const rows = props.map((p) => { const t = propTotals(p, ms.filter((m) => p.idx[m] != null)); return [p.p, p.c, t.inc, t.opex, t.noi, t.margin == null ? '' : t.margin, t.nonopInc, t.nonopExp, t.ni]; });
+  const s = (i) => r2(sum(rows, (r) => r[i] || 0));
+  const inc = s(2), noi = s(4);
+  return { name: 'All selected properties', sub: 'Property comparison, ' + label, note: props.length + ' properties. Cash basis.',
+    cols: [{ h: 'Property', t: 'text' }, { h: 'City', t: 'text' }, { h: 'Total income', t: 'money' }, { h: 'Operating expenses', t: 'money' }, { h: 'Net operating income', t: 'money' }, { h: 'NOI margin', t: 'pct' }, { h: 'Non-operating income', t: 'money' }, { h: 'Non-operating expenses', t: 'money' }, { h: 'Net income', t: 'money' }],
+    rows, total: ['Total', '', inc, s(3), noi, inc ? r2(noi / inc * 100) : '', s(6), s(7), s(8)] };
+}
+
+/* ---------- render ---------- */
+const TABS = [['income', 'Income'], ['expenses', 'Expenses'], ['loans', 'Investor loans'], ['payments', 'Investor payments'], ['bs', 'Balance sheet']];
+const T12TABS = [['all', 'All properties'], ['one', 'Single property']];
+const MN = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+function setupControls() {
+  for (const id of ['fin-fromM', 'fin-toM']) $('#' + id).innerHTML = MN.map((mm) => `<option value="${mm}">${new Date(Date.UTC(2000, +mm - 1, 1)).toLocaleString('en-US', { month: 'long', timeZone: 'UTC' })}</option>`).join('');
+  for (const id of ['fin-fromY', 'fin-toY']) $('#' + id).innerHTML = YEARS.map((y) => `<option value="${y}">${y}</option>`).join('');
+  $('#fin-prop').innerHTML = T.props.map((p) => `<option value="${esc(p.p)}">${esc(p.p)}</option>`).join('');
+}
+function defaultRange(mode) {
+  const ms = mode === 't12' ? (T ? T.months : []) : (M ? M.months : []);
+  const last = ms.length ? ms[ms.length - 1] : new Date().toISOString().slice(0, 7);
+  return mode === 't12' ? { from: ms.length ? ms[Math.max(0, ms.length - 12)] : last, to: last, off: [] } : { from: last, to: last, off: [] };
+}
+function useRange(mode) {
+  const r = (S.ranges && S.ranges[mode]) || defaultRange(mode);
+  const ok = (m) => /^\d{4}-\d{2}$/.test(m || '') && YEARS.includes(m.slice(0, 4));
+  S.from = ok(r.from) ? r.from : defaultRange(mode).from; S.to = ok(r.to) ? r.to : defaultRange(mode).to; S.off = r.off || [];
+  if (S.from > S.to) S.from = S.to;
+}
+const keepRange = () => { S.ranges = S.ranges || {}; S.ranges[S.mode] = { from: S.from, to: S.to, off: S.off }; };
+let companyNotes = [];
+
+function drawState() {
+  const state = $('#fin-state'), sub = $('#fin-sub');
+  if (state) state.innerHTML = loading ? '<span class="d" style="background:var(--brass)"></span>Reading…'
+    : loadError ? '<span class="d" style="background:var(--rust)"></span>' + esc(loadError.slice(0, 60))
+    : lastPayload && lastPayload.configured === false ? '<span class="d" style="background:var(--rust)"></span>No database'
+    : lastPayload ? '<span class="d"></span>as of ' + tkRel(Date.parse(lastPayload.cachedAt || fetchedAt))
+    : '';
+  if (!sub) return;
+  if (lastPayload && lastPayload.configured === false) sub.textContent = 'No database connected.';
+  else if (!M) sub.textContent = loadError ? 'Could not read the ledger.' : 'Reading the ledger…';
+  else sub.textContent = [M.loans.length + ' investor loans', M.pays.length + ' investor payments', T.props.length + ' property T12' + (T.props.length === 1 ? '' : 's')].join(' · ');
+}
+
+function showMessage(title, detail) {
+  $('#fin-app').hidden = true; $('#fin-export').hidden = true;
+  $('#fin-body').innerHTML = '<div class="card flush"><div class="empty"><b>' + esc(title) + '</b><small>' + esc(detail || '') + '</small></div></div>';
+}
+
+function render() {
+  drawState();
+  if (!M || !T) return;
+  $('#fin-body').innerHTML = ''; $('#fin-app').hidden = false; $('#fin-export').hidden = false;
+  keepRange(); save();
+  if (typeof routeSync === 'function') routeSync('financial');
+  $('#fin-mode').querySelectorAll('button').forEach((b) => { const on = b.dataset.mode === S.mode; b.classList.toggle('on', on); b.setAttribute('aria-selected', on); });
+  $('#fin-fromM').value = S.from.slice(5, 7); $('#fin-fromY').value = S.from.slice(0, 4);
+  $('#fin-toM').value = S.to.slice(5, 7); $('#fin-toY').value = S.to.slice(0, 4);
+  const inRange = activeMonths().filter((m) => m >= S.from && m <= S.to);
+  let prevY = null;
+  $('#fin-months').innerHTML = inRange.map((m) => { const y = m.slice(0, 4), yl = y !== prevY ? `<span class="yr">${y}</span>` : ''; prevY = y; const off = S.off.includes(m);
+    return yl + `<button data-m="${m}" aria-pressed="${!off}" class="${off ? 'off' : 'on'}" title="${mon(m, true)} ${y}. Click to ${off ? 'include' : 'leave out'}.">${mon(m)}</button>`; }).join('');
+  $('#fin-months').hidden = !inRange.length;
+  const t12 = S.mode === 't12';
+  $('#fin-gap').textContent = sel().length || (!t12 && bsDate()) ? '' : 'No data for ' + rangeText() + '.';
+
+  /* A failed query first, because every number below it may be missing a
+     part; then what did not load and why. */
+  const problems = (lastPayload && lastPayload.problems) || [];
+  let alert = '';
+  if (problems.length) alert = '<div class="pralert bad"><b>' + problems.length + ' quer' + (problems.length > 1 ? 'ies' : 'y') + ' failed</b><span class="grow">'
+    + esc(problems[0].query || '') + ': ' + esc(String(problems[0].message || 'no detail').slice(0, 160)) + '</span><button class="tgl" data-finretry="1">Retry</button></div>';
+  else if (lastPayload && lastPayload.error) alert = '<div class="pralert bad"><b>Refresh failed</b><span class="grow">Showing the last numbers read. ' + esc(lastPayload.error) + '</span></div>';
+  else if (!t12 && companyNotes.length) alert = '<div class="pralert"><b>Not loaded yet</b><span class="grow">' + esc(companyNotes.join(' ')) + '</span></div>';
+  $('#fin-banner').innerHTML = alert;
+
+  const tabs = t12 ? T12TABS : TABS, cur = t12 ? S.t12view : S.tab;
+  $('#fin-tabs').innerHTML = tabs.map(([id, l]) => `<button role="tab" data-t="${id}" class="${id === cur ? 'on' : ''}" aria-selected="${id === cur}">${l}</button>`).join('');
+  $('#fin-prop').hidden = !(t12 && S.t12view === 'one' && T.props.length);
+  if (t12 && T.props.length) { if (!T.byName[S.prop]) S.prop = T.props[0].p; $('#fin-prop').value = S.prop; }
+  $('#fin-q').placeholder = t12 ? (S.t12view === 'all' ? 'Search properties' : 'Search accounts') : 'Search accounts or names';
+
+  const tile = (lab, val, sub, na) => `<div class="prtile"><div class="lab">${lab}</div><div class="val${na ? ' na' : ''}">${val}</div><div class="sub">${esc(sub)}</div></div>`;
+  let t;
+  if (t12) {
+    t = S.t12view === 'all' ? t12AllTable() : t12OneTable();
+    const k = t.kpi, who = S.t12view === 'all' ? T.props.length + ' properties' : S.prop;
+    $('#fin-nums').innerHTML = tile('Total income', `<span class="fnup">${money(k.inc)}</span>`, who || '')
+      + tile('Operating expenses', money(k.opex), period())
+      + tile('Net operating income', `<span class="${k.noi < 0 ? 'fndown' : 'fnup'}">${money(k.noi)}</span>`, k.inc ? (k.noi / k.inc * 100).toFixed(1) + '% margin' : period())
+      + tile('Non-operating, net', money(k.nonop), 'Debt service, capital and other')
+      + tile('Net income', `<span class="${k.ni < 0 ? 'fndown' : 'fnup'}">${money(k.ni)}</span>`, period());
+  } else {
+    const hasPL = sel().some((m) => M.plMonths.has(m));
+    const inc = plTotal('income'), exp = plTotal('expense'), ni = r2(inc - exp), d = bsDate();
+    const nl = 'P&L amounts not loaded yet';
+    $('#fin-nums').innerHTML = tile('Total income', hasPL ? `<span class="fnup">${money(inc)}</span>` : 'Not loaded', hasPL ? period() : nl, !hasPL)
+      + tile('Total expenses', hasPL ? money(exp) : 'Not loaded', hasPL ? period() : nl, !hasPL)
+      + tile('Net income', hasPL ? `<span class="${ni < 0 ? 'fndown' : 'fnup'}">${money(ni)}</span>` : 'Not loaded', hasPL ? period() : nl, !hasPL)
+      + tile('Cash', d ? money(cashTotal()) : 'Not loaded', d ? 'As of ' + day(d) : 'No balance sheet loaded', !d)
+      + tile('Investor loans payable', d ? money(loanTotal()) : M.loans.length + ' loans', d ? M.loans.length + ' loans, as of ' + day(d) : 'Balances not loaded yet', !d);
+    t = { income: () => plTable('income', 'var(--jade)'), expenses: () => plTable('expense', 'var(--rust)'), loans: loansTable, payments: paymentsTable, bs: bsTable }[S.tab]();
+  }
+  $('#fin-card').classList.toggle('t12', !!(t && t.cls === 't12'));
+  $('#fin-tsub').textContent = t.sub || '';
+  $('#fin-tbl').innerHTML = `<thead><tr>${t.head}</tr></thead><tbody>${t.rows || `<tr><td colspan="16" class="msg-cell">${S.q ? 'No results for "' + esc(S.q) + '".' : 'No data for ' + esc(period()) + '.'}</td></tr>`}</tbody>`;
+  $('#fin-foot').innerHTML = t.foot;
+}
+
+function wire() {
+  const readSel = (side) => { const m = $('#fin-' + side + 'Y').value + '-' + $('#fin-' + side + 'M').value; const L = activeLast(); return m > L ? L : m; };
+  for (const id of ['fin-fromM', 'fin-fromY']) $('#' + id).onchange = () => { S.from = readSel('from'); if (S.from > S.to) S.to = S.from; S.off = []; render(); };
+  for (const id of ['fin-toM', 'fin-toY']) $('#' + id).onchange = () => { S.to = readSel('to'); if (S.to < S.from) S.from = S.to; S.off = []; render(); };
+  $('#fin-months').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; const m = b.dataset.m;
+    if (S.off.includes(m)) S.off = S.off.filter((x) => x !== m); else if (sel().length > 1) S.off = S.off.concat(m); render(); };
+  $('#fin-quick').onclick = (e) => { const q = e.target.closest('button')?.dataset.q; if (!q || !M) return; const L = activeLast();
+    S.to = L; S.from = q === 'ytd' ? L.slice(0, 4) + '-01' : addM(L, -(+q - 1)); S.off = []; render(); };
+  $('#fin-mode').onclick = (e) => { const m = e.target.closest('button'); if (!m || !M || m.dataset.mode === S.mode) return; setMode(m.dataset.mode); };
+  $('#fin-tabs').onclick = (e) => { const t = e.target.closest('button')?.dataset.t; if (!t) return; if (S.mode === 't12') S.t12view = t; else S.tab = t; S.q = ''; $('#fin-q').value = ''; render(); };
+  $('#fin-prop').onchange = (e) => { S.prop = e.target.value; render(); };
+  $('#fin-tbl').onclick = (e) => {
+    const th = e.target.closest('th[data-sort]'); if (th) { const k = th.dataset.sort; S.t12sort = { k, d: S.t12sort.k === k ? -S.t12sort.d : (k === 'p' ? 1 : -1) }; render(); return; }
+    const tr = e.target.closest('tr[data-prop]'); if (tr) { S.prop = tr.dataset.prop; S.t12view = 'one'; S.q = ''; $('#fin-q').value = ''; render(); }
+  };
+  $('#fin-banner').onclick = (e) => { if (e.target.closest('[data-finretry]')) load(true); };
+  let tm; $('#fin-q').oninput = (e) => { clearTimeout(tm); tm = setTimeout(() => { S.q = e.target.value.trim(); render(); }, 120); };
+  $('#fin-refresh').onclick = () => load(true);
+}
+function setMode(mode) {
+  if (M) keepRange();
+  S.mode = mode === 't12' ? 't12' : 'company'; S.q = ''; $('#fin-q').value = '';
+  if (M) { useRange(S.mode); render(); }
+}
+
+/* ---------- loading ---------- */
+async function load(force) {
+  if (loading) return;
+  loading = true; loadError = null;
+  drawState();
+  if (!M) showMessage('Reading the ledger…', 'Company reports and property T12s.');
+  try {
+    const j = await api('/api/financial' + (force ? '?force=1' : ''));
+    lastPayload = j;
+    if (j.configured === false) { loading = false; M = null; drawState(); return showMessage('No database connected', j.reason || ''); }
+    M = buildModel(j.company || {}); T = buildT12(j.t12 || []);
+    fetchedAt = j.fetchedAt || new Date().toISOString();
+    const all = [...M.months, ...T.months].sort();
+    const last = all.length ? all[all.length - 1] : String(fetchedAt).slice(0, 7);
+    YEARS = []; const y0 = Math.min(+last.slice(0, 4) - 3, all.length ? +all[0].slice(0, 4) : 9999); for (let y = +last.slice(0, 4); y >= y0; y--) YEARS.push(String(y));
+    setupControls(); useRange(S.mode);
+    companyNotes = [];
+    if (!M.plMonths.size && docStatus(/Profit/i) === 'partial') companyNotes.push('Company income and expenses: the Profit and Loss report arrived with every amount as 0.00.');
+    if (!M.bsDates.length && docStatus(/Balance/i) === 'partial') companyNotes.push('Company balances: the Balance Sheet arrived with every amount as 0.00.');
+  } catch (e) {
+    loadError = (e && e.body && e.body.detail) || (e && e.message) || 'unknown error';
+  }
+  loading = false;
+  if (!M) { drawState(); return showMessage('Could not read the ledger', loadError); }
+  /* Readable but empty is a different message from broken: the tables are
+     there and hold nothing for this entity. */
+  if (!M.loans.length && !M.plAccounts.length && !M.pays.length && !T.props.length && !((lastPayload && lastPayload.problems) || []).length) {
+    drawState(); return showMessage('Nothing in the ledger yet', 'The financial tables are reachable but hold no rows for this company or any property T12.');
+  }
+  if (loadError) toast('Refresh failed: ' + loadError, 'bad');
+  render();
+}
+
+/* ================= export ================= */
+const LIBS = { xlsx: ['https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'],
+  pdf: ['https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js'],
+  zip: ['https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js'] };
+const present = { xlsx: () => !!window.XLSX, pdf: () => !!(window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable), zip: () => !!window.JSZip };
+const loaded = {};
+const loadScript = (src) => loaded[src] || (loaded[src] = new Promise((ok, bad) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => { delete loaded[src]; bad(new Error('Could not load ' + src)); }; document.head.appendChild(el); }));
+const need = async (k) => { if (present[k]()) return; for (const src of LIBS[k]) await loadScript(src); };
+const RNAME = { income: 'Income', expenses: 'Expenses', loans: 'Investor loans', payments: 'Investor payments', bs: 'Balance sheet' };
+function reportData(id) {
+  const ms = sel();
+  if (id === 'income' || id === 'expenses') {
+    const kind = id === 'income' ? 'income' : 'expense';
+    const has = ms.some((m) => M.plMonths.has(m));
+    const cols = [{ h: 'Account No.', t: 'text' }, { h: 'Account', t: 'text' }, { h: 'Parent account', t: 'text' }, ...ms.map((m) => ({ h: my(m), t: 'money' })), { h: 'Total', t: 'money' }];
+    if (!has) return { name: RNAME[id], note: plMissingMsg(), cols, rows: [], total: null };
+    const rows = M.plAccounts.filter((x) => x.t === kind).map((x) => { const vals = ms.map((m) => r2((M.amt[x.a] && M.amt[x.a][m]) || 0)); const [c, n] = split(x.a);
+      return [c, n, x.p || '', ...vals, r2(sum(vals, (v) => v))]; }).filter((r) => r.slice(3).some((v) => v));
+    const totals = ms.map((_, j) => r2(sum(rows, (r) => r[3 + j])));
+    return { name: RNAME[id], note: period() + '. From the Profit and Loss report.', cols, rows, total: ['', 'Total ' + (id === 'income' ? 'income' : 'expenses'), '', ...totals, r2(sum(totals, (v) => v))] };
+  }
+  if (id === 'loans') {
+    const d = bsDate(), lt = loanTotal();
+    const rows = M.loans.map((l) => { const b = loanBalance(l); return [l.n, l.name, l.fund, l.entity || '', l.status, b == null ? '' : b, b == null || !lt ? '' : r2(b / lt * 100)]; });
+    return { name: RNAME.loans, note: d ? 'Principal balances as of ' + day(d) + ' (latest balance sheet on or before the end of the range).' : bsMissingMsg() + ' Loan list only.',
+      cols: [{ h: 'Loan No.', t: 'text' }, { h: 'Investor', t: 'text' }, { h: 'Fund', t: 'text' }, { h: 'Linked entity', t: 'text' }, { h: 'Status', t: 'text' }, { h: 'Principal balance', t: 'money' }, { h: '% of total', t: 'pct' }],
+      rows, total: d ? ['', 'Total investor loans', '', '', '', lt, 100] : null };
+  }
+  if (id === 'payments') {
+    const ps = M.pays.filter((p) => ms.includes(p.date.slice(0, 7))).sort((a, b) => a.date.localeCompare(b.date) || b.amount - a.amount);
+    const rows = ps.map((p) => { const l = p.loan && M.loanByNum[p.loan]; return [p.date, p.name, p.loan || '', l ? l.name : 'Not matched', p.type || '', p.num || '', p.memo || '', p.split === '-Split-' ? 'Split' : (p.split || ''), p.amount]; });
+    return { name: RNAME.payments, note: (rows.length ? period() : 'No investor payments in ' + rangeText()) + '. Account 61010 Investor Payment.',
+      cols: [{ h: 'Date', t: 'text' }, { h: 'Payee (QuickBooks)', t: 'text' }, { h: 'Loan No.', t: 'text' }, { h: 'Matched investor', t: 'text' }, { h: 'Type', t: 'text' }, { h: 'Num', t: 'text' }, { h: 'Memo', t: 'text' }, { h: 'Split', t: 'text' }, { h: 'Amount', t: 'money' }],
+      rows, total: rows.length ? ['', 'Total payments', '', '', '', '', '', '', r2(sum(ps, (p) => p.amount))] : null };
+  }
+  const d = bsDate(); const cols = [{ h: 'Section', t: 'text' }, { h: 'Account No.', t: 'text' }, { h: 'Account', t: 'text' }, { h: 'Balance', t: 'money' }];
+  if (!d) return { name: RNAME.bs, note: bsMissingMsg(), cols, rows: [], total: null };
+  const rows = bsRows(); const out = [];
+  for (const [t, label] of [['asset', 'Assets'], ['liability', 'Liabilities'], ['equity', 'Equity']]) {
+    const rs = rows.filter((r) => r.t === t).sort((a, b) => a.a.localeCompare(b.a));
+    rs.forEach((r) => { const [c, n] = split(r.a); out.push([label, c, n, r.v]); });
+    out.push([label, '', 'Total ' + label.toLowerCase(), r2(sum(rs, (r) => r.v))]);
+  }
+  const s = bsSections();
+  return { name: RNAME.bs, note: 'As of ' + day(d) + ', cash basis.' + (Math.abs(s.tA - s.tL - s.tE) < 0.01 ? ' Balanced.' : ' Out of balance by ' + money(s.tA - s.tL - s.tE, true) + '.'), cols, rows: out, total: ['', '', 'Total liabilities and equity', r2(s.tL + s.tE)] };
+}
+
+const stamp = () => S.from === S.to ? S.from : S.from + '_to_' + S.to;
+const slug = (n) => String(n).replace(/[^A-Za-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 60);
+/* A leading =, +, - or @ is a formula to Excel, and payee names are typed by
+   people. Negative numbers are numbers, so only text is guarded. */
+const csvCell = (v) => { if (v == null) return ''; let s = String(v); if (typeof v !== 'number' && /^[=+\-@]/.test(s)) s = "'" + s; return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+const csvLines = (r) => [r.cols.map((c) => c.h)].concat(r.rows.length ? r.rows : [[r.note]], r.total ? [r.total] : []);
+const csvText = (lines) => '﻿' + lines.map((l) => l.map(csvCell).join(',')).join('\r\n') + '\r\n';
+const subtitle = (r) => r.sub || (r.name + ', ' + (r.name === 'Balance sheet' || r.name === 'Investor loans' ? (bsDate() ? 'as of ' + day(bsDate()) : 'not loaded') : period()));
+const sheetName = (n, used) => { let b = String(n).replace(/[\[\]:*?\/\\]/g, ' ').slice(0, 31).trim() || 'Sheet'; let s = b, i = 2; while (used.has(s)) s = b.slice(0, 28) + ' ' + i++; used.add(s); return s; };
+function sheetFor(X, r) {
+  const aoa = [[r.name], [subtitle(r) + (r.note ? '. ' + r.note : '')], [], r.cols.map((c) => c.h), ...r.rows, ...(r.total ? [r.total] : [])];
+  const ws = X.utils.aoa_to_sheet(aoa); const last = 3 + r.rows.length + (r.total ? 1 : 0);
+  r.cols.forEach((c, ci) => { if (c.t === 'text') return; for (let ri = 4; ri <= last; ri++) { const cell = ws[X.utils.encode_cell({ r: ri, c: ci })]; if (cell && typeof cell.v === 'number') cell.z = c.t === 'pct' ? '0.00"%"' : '#,##0.00;[Red]-#,##0.00'; } });
+  ws['!cols'] = r.cols.map((c, ci) => ({ wch: Math.min(48, Math.max(c.h.length + 2, ...r.rows.map((row) => String(row[ci] == null ? '' : typeof row[ci] === 'number' ? money(row[ci], true) : row[ci]).length + 2))) }));
+  return ws;
+}
+function summarySheet(X, title, reports) {
+  const aoa = [[title], [], ['Source', SOURCE_LABEL + ', read ' + new Date(fetchedAt).toLocaleString('en-US')], ['Exported', new Date().toLocaleString('en-US')], [], ['Report', 'Rows', 'Notes']].concat(reports.map((r) => [r.name, r.rows.length, subtitle(r) + (r.note ? '. ' + r.note : '')]));
+  const ws = X.utils.aoa_to_sheet(aoa); ws['!cols'] = [{ wch: 40 }, { wch: 10 }, { wch: 100 }]; return ws;
+}
+const xlsxB64 = (X, wb) => X.write(wb, { bookType: 'xlsx', type: 'base64' });
+const xlsxBlob = (X, wb) => new Blob([X.write(wb, { bookType: 'xlsx', type: 'array' })], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+function pdfDoc(reports, asBytes) {
+  const { jsPDF } = window.jspdf; const wide = reports.some((r) => r.wide);
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: wide ? 'tabloid' : 'letter' }); const W = doc.internal.pageSize.getWidth();
+  reports.forEach((r, k) => {
+    if (k) doc.addPage();
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(16); doc.text(String(r.name), 40, 48);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(90); doc.text(doc.splitTextToSize(subtitle(r) + (r.note ? '. ' + r.note : ''), W - 80), 40, 66); doc.setTextColor(0);
+    if (!r.rows.length) { doc.setFontSize(12); doc.text('No data for this report in the selected period.', 40, 104); return; }
+    let cols = r.cols, rows = r.rows, total = r.total;
+    if (!r.wide && cols.filter((c) => /^\w{3} \d{4}$/.test(c.h)).length > 6) { const keep = cols.map((c, i) => /^\w{3} \d{4}$/.test(c.h) ? -1 : i).filter((i) => i >= 0);
+      cols = keep.map((i) => cols[i]); rows = rows.map((x) => keep.map((i) => x[i])); total = total && keep.map((i) => total[i]);
+      doc.setFontSize(9); doc.setTextColor(90); doc.text('Monthly columns are in the Excel and CSV exports; this PDF shows totals for the period.', 40, 84); doc.setTextColor(0); }
+    const fmt = (v, c) => typeof v === 'number' ? (c.t === 'pct' ? v.toFixed(2) + '%' : money(v, true)) : (v == null ? '' : String(v));
+    const bold = r.bold || new Set(rows.map((x, i) => /^Total /.test(String(x[2] || x[1])) ? i : -1).filter((i) => i >= 0));
+    doc.autoTable({ startY: 94, head: [cols.map((c) => c.h)], body: rows.map((x) => x.map((v, i) => fmt(v, cols[i]))), foot: total ? [total.map((v, i) => fmt(v, cols[i]))] : undefined,
+      styles: { fontSize: cols.length > 12 ? 7 : cols.length > 8 ? 7.5 : 9, cellPadding: 3.5, overflow: 'linebreak' }, headStyles: { fillColor: [23, 36, 58] }, footStyles: { fillColor: [230, 234, 240], textColor: 20, fontStyle: 'bold' },
+      columnStyles: Object.fromEntries(cols.map((c, i) => [i, c.t === 'text' ? (i === 0 && r.wide ? { cellWidth: 190 } : {}) : { halign: 'right' }])), showFoot: 'lastPage', margin: { left: 40, right: 40 },
+      didParseCell: (h) => { if (h.section === 'body' && bold.has(h.row.index)) h.cell.styles.fontStyle = 'bold'; if ((h.section === 'foot' || h.section === 'head') && cols[h.column.index] && cols[h.column.index].t !== 'text') h.cell.styles.halign = 'right'; } });
+  });
+  const n = doc.getNumberOfPages(); for (let p = 1; p <= n; p++) { doc.setPage(p); doc.setFontSize(8); doc.setTextColor(120); doc.text('Exported ' + new Date().toLocaleString('en-US') + '   Page ' + p + ' of ' + n, 40, doc.internal.pageSize.getHeight() - 20); }
+  return asBytes ? doc.output('datauristring').split(',')[1] : doc.output('blob');
+}
+async function zipOf(files) { await need('zip'); const z = new window.JSZip(); for (const f of files) z.file(f.filename, f.data, f.b64 ? { base64: true } : {}); return z.generateAsync({ type: 'blob' }); }
+// Turn a list of report objects into files: one consolidated file, or one file per report inside a zip.
+async function filesFor(reports, fmt, mode, base, suffix, summaryTitle) {
+  const one = mode === 'one' || reports.length === 1;
+  const single = (ext) => base + '.' + ext, each = (r, ext) => slug(r.fileName || r.name) + '_' + suffix + '.' + ext;
+  if (fmt === 'xlsx') { await need('xlsx'); const X = window.XLSX;
+    if (one) { const wb = X.utils.book_new(), used = new Set(); if (reports.length > 1) X.utils.book_append_sheet(wb, summarySheet(X, summaryTitle, reports), sheetName('Summary', used));
+      reports.forEach((r) => X.utils.book_append_sheet(wb, sheetFor(X, r), sheetName(r.tab || r.name, used))); return [{ filename: reports.length > 1 ? single('xlsx') : each(reports[0], 'xlsx'), data: xlsxBlob(X, wb) }]; }
+    const files = reports.map((r) => { const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, sheetFor(X, r), sheetName(r.tab || r.name, new Set())); return { filename: each(r, 'xlsx'), data: xlsxB64(X, wb), b64: true }; });
+    return [{ filename: single('zip'), data: await zipOf(files) }]; }
+  if (fmt === 'pdf') { await need('pdf');
+    if (one) return [{ filename: reports.length > 1 ? single('pdf') : each(reports[0], 'pdf'), data: pdfDoc(reports) }];
+    return [{ filename: single('zip'), data: await zipOf(reports.map((r) => ({ filename: each(r, 'pdf'), data: pdfDoc([r], true), b64: true }))) }]; }
+  if (one) { const lines = []; reports.forEach((r, i) => { if (i) lines.push([]); if (reports.length > 1) lines.push([r.name + ': ' + subtitle(r)]); lines.push(...csvLines(r)); });
+    return [{ filename: reports.length > 1 ? single('csv') : each(reports[0], 'csv'), data: csvText(lines) }]; }
+  return [{ filename: single('zip'), data: await zipOf(reports.map((r) => ({ filename: each(r, 'csv'), data: csvText(csvLines(r)) }))) }];
+}
+async function buildCompanyExport(ids, fmt, mode) { return filesFor(ids.map(reportData), fmt, mode, 'Reports_' + stamp(), stamp(), 'Report export, ' + period()); }
+async function buildT12Export(type, props, when, fmt, mode) {
+  if (type === 'month') {
+    const ms = [when], label = my(when);
+    const reps = [t12CompareReport(props, ms, label), ...props.map((p) => Object.assign(t12StatementReport(p, ms, label), { tab: p.p }))];
+    reps[0].tab = 'Comparison'; reps[0].fileName = 'T12_comparison'; reps.slice(1).forEach((r) => { r.fileName = 'T12_' + r.name; });
+    return filesFor(reps, fmt, mode, 'T12_properties_' + when, when, 'T12 income statements, ' + label);
+  }
+  const ms = t12Months(when), label = ms.length ? my(ms[0]) + ' to ' + my(ms[ms.length - 1]) : my(when);
+  const range = ms.length ? ms[0] + '_to_' + ms[ms.length - 1] : when;
+  if (type === 'one12') { const r = t12StatementReport(props[0], ms, label); r.fileName = 'T12_' + props[0].p; return filesFor([r], fmt, 'one', 'T12_' + slug(props[0].p) + '_' + range, range, ''); }
+  const reps = props.map((p) => Object.assign(t12StatementReport(p, ms, label), { tab: p.p, fileName: 'T12_' + p.p }));
+  if (props.length > 1) reps.unshift(Object.assign(t12CompareReport(props, ms, label), { tab: 'Comparison', fileName: 'T12_comparison' }));
+  return filesFor(reps, fmt, mode, 'T12_properties_' + range, range, 'T12 income statements, ' + label);
+}
+
+/* A normal browser download. The standalone page asked Claude's viewer to
+   confirm each save; here the browser does its own thing. */
+const saveFile = ({ filename, data }) => {
+  const blob = data instanceof Blob ? data : new Blob([data], { type: /\.csv$/.test(filename) ? 'text/csv;charset=utf-8' : 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+};
+
+const dlg = $('#fin-dlg');
+const dv = (n) => { const x = dlg.querySelector(`input[name=${n}]:checked`); return x && x.value; };
+const checked = () => [...dlg.querySelectorAll('input[name=r]:checked')].map((x) => x.value);
+const pickedProps = () => [...dlg.querySelectorAll('#fin-xprops input:checked')].map((x) => x.value);
+function fillT12Dialog() {
+  $('#fin-xend').innerHTML = T.months.slice().reverse().map((m) => `<option value="${m}">${mon(m, true)} ${m.slice(0, 4)}</option>`).join('');
+  if (T.months.length) $('#fin-xend').value = T.months.includes(S.to) && S.mode === 't12' ? S.to : T.months[T.months.length - 1];
+  $('#fin-xprop').innerHTML = T.props.map((p) => `<option value="${esc(p.p)}">${esc(p.p)}</option>`).join('');
+  if (T.props.length) $('#fin-xprop').value = T.byName[S.prop] ? S.prop : T.props[0].p;
+  /* Rebuilt only when the property list changed, so a selection survives
+     closing and reopening the dialog. */
+  const names = T.props.map((p) => p.p).join('\n');
+  if ($('#fin-xprops').dataset.names !== names) {
+    $('#fin-xprops').innerHTML = T.props.map((p) => `<label><input type="checkbox" value="${esc(p.p)}" checked> ${esc(p.p)}</label>`).join('');
+    $('#fin-xprops').dataset.names = names;
+  }
+}
+const LBL = { company: { xlsx: ['One workbook, one tab per report', 'Separate workbook for each report (in one .zip)'], pdf: ['One PDF, one section per report', 'Separate PDF for each report (in one .zip)'], csv: ['One CSV with each report as a section', 'Separate CSV for each report (in one .zip)'] },
+  t12: { xlsx: ['One workbook: comparison tab plus one tab per property', 'Separate workbook for each property (in one .zip)'], pdf: ['One PDF: comparison plus one section per property', 'Separate PDF for each property (in one .zip)'], csv: ['One CSV with each property as a section', 'Separate CSV for each property (in one .zip)'] } };
+function syncDlg() {
+  const kind = dv('k'), fmt = dv('f'), type = dv('t');
+  dlg.querySelectorAll('.kind button').forEach((b) => b.classList.toggle('on', b.dataset.k === kind));
+  $('#fin-xco').hidden = kind !== 'company'; $('#fin-xt12').hidden = kind !== 't12';
+  $('#fin-xonef').hidden = type !== 'one12'; $('#fin-xmultif').hidden = type === 'one12';
+  $('#fin-xendlbl').textContent = type === 'month' ? 'Month' : '12 months ending'; $('#fin-xwhenlbl').textContent = type === 'month' ? 'Month' : 'Period';
+  if (T && kind === 't12') { const ms = type === 'month' ? [$('#fin-xend').value] : t12Months($('#fin-xend').value); $('#fin-xendnote').textContent = type === 'month' ? '' : (ms.length ? 'Covers ' + my(ms[0]) + ' to ' + my(ms[ms.length - 1]) + (ms.length < 12 ? ' (' + ms.length + ' months with data)' : '') + '.' : 'No data for that period.'); }
+  $('#fin-onelbl').textContent = LBL[kind][fmt][0]; $('#fin-seplbl').textContent = LBL[kind][fmt][1];
+  const count = kind === 'company' ? checked().length : !T.props.length ? 0 : type === 'one12' ? 1 : pickedProps().length;
+  const multiOut = kind === 'company' ? count > 1 : type !== 'one12' && count >= 1;
+  dlg.querySelectorAll('input[name=m]').forEach((x) => { x.disabled = !multiOut; }); $('#fin-xfiles').style.opacity = multiOut ? 1 : .5;
+  const msg = $('#fin-xmsg'); const need1 = kind === 'company' ? 'Choose at least one report.' : T.props.length ? 'Choose at least one property.' : 'No property T12s are loaded.';
+  $('#fin-xgo').disabled = !count;
+  if (!count) { msg.className = 'dmsg'; msg.textContent = need1; } else if (/^Choose at least|^No property/.test(msg.textContent)) msg.textContent = '';
+}
+const companyRangeText = () => { const r = S.mode === 'company' ? { from: S.from, to: S.to } : S.ranges.company; if (!r) return period();
+  return (r.from === r.to ? my(r.from) : my(r.from) + ' to ' + my(r.to)); };
+$('#fin-export').onclick = () => { if (!M || !T) return; fillT12Dialog(); dlg.querySelector(`input[name=k][value=${S.mode}]`).checked = true;
+  if (S.mode === 't12' && S.t12view === 'one') dlg.querySelector('input[name=t][value=one12]').checked = true;
+  $('#fin-xrange').textContent = 'Date range: ' + (S.mode === 'company' ? period() : companyRangeText()) + ' (the range selected on the Company screen)';
+  $('#fin-xmsg').textContent = ''; $('#fin-xmsg').className = 'dmsg'; syncDlg(); dlg.showModal(); };
+dlg.addEventListener('change', syncDlg);
+dlg.querySelector('.kind').onclick = (e) => { const b = e.target.closest('button[data-k]'); if (!b) return; dlg.querySelector(`input[name=k][value=${b.dataset.k}]`).checked = true; syncDlg(); };
+$('#fin-xall').onclick = () => { dlg.querySelectorAll('#fin-xprops input').forEach((x) => x.checked = true); syncDlg(); };
+$('#fin-xnone').onclick = () => { dlg.querySelectorAll('#fin-xprops input').forEach((x) => x.checked = false); syncDlg(); };
+$('#fin-xgo').onclick = async () => {
+  if (!M || !T) return;
+  const kind = dv('k'), fmt = dv('f'), mode = dv('m'), type = dv('t');
+  const msg = $('#fin-xmsg'); msg.className = 'dmsg'; msg.textContent = 'Preparing the file…'; $('#fin-xgo').disabled = true;
+  try {
+    let files;
+    if (kind === 'company') {
+      /* Company reports always use the Company screen's range, even when the
+         export was opened from the T12 screen. */
+      const saved = { from: S.from, to: S.to, off: S.off, mode: S.mode };
+      if (S.mode !== 'company') { const r = S.ranges.company || defaultRange('company'); S.mode = 'company'; S.from = r.from; S.to = r.to; S.off = r.off || []; }
+      try { files = await buildCompanyExport(checked(), fmt, mode); } finally { Object.assign(S, saved); }
+    } else {
+      const props = type === 'one12' ? [T.byName[$('#fin-xprop').value]] : pickedProps().map((n) => T.byName[n]);
+      files = await buildT12Export(type, props.filter(Boolean), $('#fin-xend').value, fmt, mode);
+    }
+    for (const f of files) saveFile(f);
+    msg.textContent = 'Saved ' + files.map((f) => f.filename).join(', ') + '.';
+    toast('Exported ' + files.map((f) => f.filename).join(', '));
+    setTimeout(() => dlg.close(), 900);
+  } catch (e) {
+    msg.className = 'dmsg err';
+    msg.textContent = 'Export failed: ' + ((e && e.message) || 'unknown error') + '.';
+  } finally { syncDlg(); }
+};
+
+/* ---------- boot ----------
+   Read on first open, like Properties: nobody who came for their inbox should
+   pay for thirty thousand T12 numbers. */
+wire();
+document.querySelectorAll('.navitem[data-target="financial"]').forEach((b) => b.addEventListener('click', () => {
+  if (!M && !loading) load();
+}));
+/* #financial/t12 opens the T12 screen; the company screen is the bare section. */
+if (typeof routeRegister === 'function') routeRegister('financial', () => S.mode === 't12' ? 't12' : '', (rest) => setMode(rest === 't12' ? 't12' : 'company'));
+window.__fin = { reportData, buildCompanyExport, buildT12Export, propTotals, statementRows, state: () => S, model: () => ({ M, T }) };
+})();
 
 
 /* ================= SYSTEMS =================
