@@ -403,7 +403,12 @@ main{min-width:0;display:flex;flex-direction:column}
    Without it the animation ends and the element goes back to its own styles,
    which are the same values the keyframe was holding -- opacity 1, no
    transform. Same end state, no containing block. */
-.view{padding:26px 28px 60px;display:none;animation:rise .28s ease}
+/* A ceiling on the content, not on the chrome. Past about 1600px the board
+   simply kept stretching, which on a table means columns drifting apart until
+   a row is a name on the left and a number somewhere off to the right with a
+   hand's width of nothing between them. */
+.view{padding:26px 28px 60px;display:none;animation:rise .28s ease;
+  max-width:1680px;width:100%;margin-inline:auto}
 .view.on{display:block}
 @keyframes rise{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 .vhead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:14px;flex-wrap:wrap}
@@ -3339,6 +3344,11 @@ body.ycmlock{overflow:hidden}
 .prtile .val{font-family:var(--ff-serif);font-size:27px;font-weight:400;letter-spacing:-.018em;
   color:var(--cream);margin-top:4px}
 .prtile .val small{font-size:13px;color:var(--dim);font-weight:500}
+/* "shared" on a rolled-up figure. Quiet, because it qualifies the number
+   rather than warning about it, and it is on most rows of a TIC portfolio. */
+.prco{font-style:normal;font-family:var(--ff-mono);font-size:8.5px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--dimmer);border:1px solid var(--edge2);
+  border-radius:4px;padding:1px 4px;margin-left:6px;cursor:help;vertical-align:1px}
 .prtile .sub{font-size:11.5px;color:var(--dimmer);margin-top:4px}
 .prstack{display:flex;height:8px;border-radius:99px;overflow:hidden;margin-top:9px;
   background:var(--ink2);border:1px solid var(--edge)}
@@ -3493,10 +3503,12 @@ body.ycmlock{overflow:hidden}
 .prgrp .cv{color:var(--dimmer);font-size:10px;transition:transform .2s var(--ease),color .2s;
   flex:none;width:9px;display:inline-block}
 .prgrp.open .cv{transform:rotate(90deg);color:var(--brass)}
-.prgrp .gct{font-family:var(--ff-mono);font-size:10px;color:var(--dimmer);flex:none;
-  border:1px solid var(--edge2);border-radius:99px;padding:1px 7px}
-.prgrp.open .gct{color:var(--brass);border-color:rgba(220,184,112,.45);
-  background:rgba(220,184,112,.1)}
+/* Mono text, not a pill. A count is a number, and an outlined capsule around
+   every one of them put a second rounded rectangle inside each row of a table
+   already made of rectangles. The open row brightens the text instead. */
+.prgrp .gct{font-family:var(--ff-mono);font-size:10.5px;color:var(--dim);flex:none;
+  padding:0 2px;font-variant-numeric:tabular-nums}
+.prgrp.open .gct{color:var(--cream)}
 .prgrp .n{justify-content:flex-end;font-family:var(--ff-mono);font-size:12.5px;color:var(--cream);
   position:relative;font-variant-numeric:tabular-nums}
 .prgrp.d1 .n{font-size:11.5px;color:var(--text)}
@@ -16475,10 +16487,29 @@ function drawProperties(){
   }
   if (sub) {
     const t = PR.data?.totals;
-    sub.textContent = PR.data?.configured === false ? 'No database connected.'
-      : t ? t.properties + ' properties · ' + t.entities + ' entities · ' + t.buildings
-            + ' buildings · ' + t.apartments.toLocaleString() + ' apartments'
-      : 'Reading the portfolio…';
+    if (PR.data?.configured === false) sub.textContent = 'No database connected.';
+    else if (!PR.data) sub.textContent = 'Reading the portfolio…';
+    else {
+      /* Counted over the same set, through the same prUnits chain, as the
+         tiles directly below. This line used the server's own totals while
+         the tiles resolved each property through verified -> apartments ->
+         reported and summed only what passed the filter, so one page carried
+         both 2,436 apartments and 3,268 units, 295 buildings and 291. Two
+         defensible numbers, no way to reproduce either from what was on
+         screen, and nothing saying they were answers to different questions.
+
+         "Units" rather than "apartments" as well, to match the tile. */
+      const ps = prShown();
+      const all = PR.data.properties || [];
+      const units = ps.reduce((a2, p2) => a2 + prUnits(p2).n, 0);
+      const blds = ps.reduce((a2, p2) => a2 + p2.buildings, 0);
+      sub.textContent = ps.length.toLocaleString()
+        + (ps.length === all.length ? '' : ' of ' + all.length.toLocaleString())
+        + ' propert' + (ps.length === 1 ? 'y' : 'ies')
+        + ' · ' + (t?.entities || 0) + ' entities'
+        + ' · ' + blds.toLocaleString() + ' buildings'
+        + ' · ' + units.toLocaleString() + ' units';
+    }
   }
 
   if (PR.data?.configured === false) {
@@ -16747,15 +16778,20 @@ function prLtvBar(r){
     + (r ? (r * 100).toFixed(0) + '%' : '—') + '</span></span>';
 }
 
-/* A column blank on two thirds of the rows costs width and reads as broken data.
-   Dropping it hides nothing: the record carries every field. */
+/* A column blank on most rows costs width and reads as broken data. Dropping
+   it hides nothing: the record carries every field.
+
+   Half, not a third. At a third, a column filled on 34% of rows still drew,
+   and a screen of mostly blank cells under a heading is indistinguishable
+   from a column that is simply empty -- which is how Type, Cap Rate, NOI,
+   Next Maturity and Manager all came to look broken at once. */
 function prLiveCols(list){
   const n = list.length || 1;
   const filled = c => list.filter(p => {
     const v = c.get(p);
     return v !== null && v !== undefined && v !== '' && v !== 0;
   }).length;
-  return PR_COLS.filter(c => c.always || filled(c) / n >= 0.33);
+  return PR_COLS.filter(c => c.always || filled(c) / n >= 0.5);
 }
 
 /* ---------- the table ---------- */
@@ -16813,6 +16849,11 @@ function prTableView(){
       if (i === 1) return '<span>' + (r.units ? '<span class="gct">'
         + r.units.toLocaleString() + ' units</span>' : '') + '</span>';
       if (c.k === 'marketValue') return '<span class="n">' + prMoney(r.mv)
+        + (r.shared ? '<em class="prco" title="' + r.shared + ' of these '
+            + (r.shared === 1 ? 'is' : 'are') + ' co-owned. This is the full value of the '
+            + 'property, not this entity’s share — the database records who owns '
+            + 'what, but not in what proportion, so sibling rows repeat the same figure '
+            + 'and these do not add up.">shared</em>' : '')
         + '<i class="prshare" style="width:' + share.toFixed(1) + 'px"></i></span>';
       if (c.k === 'debt') return '<span class="n">' + (r.debt ? prMoney(r.debt) : PR_GAP) + '</span>';
       if (c.k === 'ltv') return '<span class="n">' + (r.debt ? prLtvBar(lv) : PR_GAP) + '</span>';
@@ -16830,14 +16871,19 @@ function prTableView(){
      subtrees counted that building four times -- one holding company read $124M
      of debt against a real $31M. */
   const roll = id => {
-    let mv = 0, debt = 0, units = 0, n = 0;
+    let mv = 0, debt = 0, units = 0, n = 0, shared = 0;
     for (const pid of d.subtree.get(id) || []) {
       if (!passing.has(pid)) continue;
       const p = d.byId.get(pid);
       if (!p) continue;
       mv += prMv(p); debt += p.debt; units += prUnits(p).n; n++;
+      /* Held by more than one entity, so this same figure will appear under
+         each of them. The ownership table records who owns a property but
+         not in what proportion, so there is no share to divide it into --
+         the number can only be marked, not apportioned. */
+      if ((p.owners || []).length > 1) shared++;
     }
-    return { mv, debt, units, n };
+    return { mv, debt, units, n, shared };
   };
 
   /* Opening a sub-entity keeps its ancestors open, so the path down to what you
@@ -16887,8 +16933,8 @@ function prTableView(){
 
   const hidden = PR_COLS.length - cols.length;
   const notice = hidden
-    ? '<span class="eyebrow" style="margin-left:auto" title="A column hides when fewer than a '
-      + 'third of the rows in view have a value for it. The record still has them.">'
+    ? '<span class="eyebrow" style="margin-left:auto" title="A column hides when fewer than '
+      + 'half the rows in view have a value for it. The record still has them.">'
       + hidden + ' sparse column' + (hidden > 1 ? 's' : '') + ' hidden</span>'
     : '';
 
