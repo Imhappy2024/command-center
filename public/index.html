@@ -115,6 +115,10 @@
   --ease-spring:cubic-bezier(.34,1.42,.64,1);
 
   --rail:252px;
+  /* Measured at runtime by sizeTopbar(). Anything sticky below the topbar
+     offsets by this, or it scrolls underneath and the column headings are
+     gone exactly when a long list needs them. */
+  --topbar-h:62px;
   --r:14px;
   --r-sm:8px; --r-md:11px; --r-lg:16px;
 }
@@ -2490,7 +2494,8 @@ body.ycmlock{overflow:hidden}
 }
 
 /* ---- filter bar: one row, above everything it scopes ---- */
-.fbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 13px;margin-bottom:11px;
+.fbar{position:sticky;top:var(--topbar-h);z-index:7;
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 13px;margin-bottom:11px;
   background:var(--panel);border:1px solid var(--edge);border-radius:var(--r)}
 .fbar .sep{width:1px;height:20px;background:var(--edge);margin:0 2px}
 .fbar .flabel{font-family:var(--ff-mono);font-size:10px;letter-spacing:.12em;
@@ -3468,10 +3473,10 @@ body.ycmlock{overflow:hidden}
 .prtbwrap{overflow-x:auto}
 .prtb{min-width:940px;position:relative}
 .prthead{display:grid;background:var(--panel2);border-bottom:1px solid var(--edge);
-  position:sticky;top:0;z-index:6}
+  position:sticky;top:var(--topbar-h);z-index:6}
 .prthb{background:none;border:0;padding:9px 12px;text-align:left;cursor:pointer;
-  font-family:var(--ff-mono);font-size:9px;letter-spacing:.11em;text-transform:uppercase;
-  color:var(--dimmer);display:flex;align-items:center;gap:4px;white-space:nowrap;min-width:0;
+  font-family:var(--ff-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--dim);display:flex;align-items:center;gap:4px;white-space:nowrap;min-width:0;
   transition:color .14s}
 .prthb:hover{color:var(--cream)}
 .prthb.r{justify-content:flex-end}
@@ -5580,8 +5585,21 @@ const CLOCK_ABBR = (() => {
   } catch { return ''; }
 })();
 
+/* The topbar is sticky and so are the things under it, so they have to agree
+   on how tall it is. Measured rather than guessed: it wraps at narrow widths
+   and a hardcoded number would put the table headings either under the bar or
+   floating below a gap. */
+function sizeTopbar(){
+  const bar = document.querySelector('.topbar');
+  if (!bar) return;
+  document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight + 'px');
+}
+addEventListener('resize', sizeTopbar);
+addEventListener('load', sizeTopbar);
+
 function tick(){
   const now = new Date();
+  sizeTopbar();
   document.getElementById('clk').textContent = CLOCK.time.format(now);
   /* The rail's status lines ride the same ten-second tick. */
   try { drawNavStatus(); } catch { /* before the rail exists */ }
@@ -5922,11 +5940,25 @@ function drawRail(){
       + '<span class="mono" style="color:var(--dim)">Nothing connected</span></div>';
     return;
   }
+  /* "2 accounts live" under a heading reading Connections, on a dashboard
+     pulling from GHL, ClickUp, Meta, YouTube, X, HeyReach and Postgres, was
+     a number nobody could make sense of. ACCOUNTS is /api/accounts, which is
+     accountsFor('mail') -- Google, Microsoft and IMAP. Mailboxes. It says
+     mailboxes now, and the social grants get their own line rather than
+     being silently left out of a total that looked like it covered them. */
   const ok = ACCOUNTS.filter(a => a.status === 'ok').length;
   const bad = ACCOUNTS.filter(a => a.status !== 'ok');
+  const social = new Set();
+  try {
+    for (const x of SOCIAL || []) if (x && x.handle) social.add(x.platform + ':' + x.handle);
+  } catch { /* before the social payload has landed */ }
   box.innerHTML =
     '<div class="wire"><span class="dot ok"></span><span class="mono" style="color:var(--dim)">'
-    + ok + (ok === 1 ? ' account live' : ' accounts live') + '</span></div>'
+    + ok + (ok === 1 ? ' mailbox live' : ' mailboxes live') + '</span></div>'
+    + (social.size
+        ? '<div class="wire"><span class="dot ok"></span><span class="mono" style="color:var(--dim)">'
+          + social.size + (social.size === 1 ? ' social account' : ' social accounts') + '</span></div>'
+        : '')
     + bad.map(a => '<div class="wire"><span class="dot off"></span>'
         + '<span class="mono" style="color:var(--dim)">' + esc2(a.label) + ' needs reauth</span></div>').join('');
 }
@@ -7652,10 +7684,13 @@ function drawCal(){
   }
   document.getElementById('cal-range').textContent = range;
 
+  /* Across the calendars actually being drawn, which is not the same as the
+     length of the mail account list this used to report. */
   const todayCount = shownEvents().filter(e => isToday(e.start)).length;
+  const calCount = new Set(shownEvents().map(e => e.cal)).size;
   document.getElementById('cal-sub').textContent =
     todayCount + (todayCount === 1 ? ' event' : ' events') + ' today across '
-    + ACCOUNTS.length + (ACCOUNTS.length === 1 ? ' account' : ' accounts');
+    + calCount + (calCount === 1 ? ' calendar' : ' calendars');
 
   side.innerHTML = sidePanel();
   calDetail();
@@ -9395,6 +9430,10 @@ const SO = { view:'youtube', metaTab:'facebook', range:'28', metric:{}, fetching
      split:   plot one series PER ACCOUNT instead of one summed series
      table:   the table twin, so no value is reachable only by hovering */
   section:'performance', acct:'all', split:false, table:false, q:'', chartKind:'bar',
+  /* linear | log. One outlier owns a linear axis: a single 12,000-view day
+     behind a month averaging 300 puts every other bar on the floor, and the
+     chart stops answering the question it was drawn for. */
+  scale:'linear',
   /* allTime: show every video we hold rather than only those published in the
      window. Off by default, and the panel header says which it is -- the old
      Videos tab did this unconditionally while captioning it "last 28 days". */
@@ -9836,6 +9875,9 @@ function drawSocial(){
   body.querySelectorAll('[data-sokind]').forEach(b => b.onclick = () => {
     SO.chartKind = b.dataset.sokind; drawSocial();
   });
+  body.querySelectorAll('[data-soscale]').forEach(b => b.onclick = () => {
+    SO.scale = b.dataset.soscale; drawSocial();
+  });
   /* The range is a server-side window, so it refetches; everything else above
      re-slices what is already loaded. */
   /* No refetch: 180 days are already loaded and every range is a slice of
@@ -9935,8 +9977,25 @@ function drawSocial(){
 function soSubtitle(keys){
   const acc = soAccountsFor(keys);
   if (!acc.length) return 'Not connected.';
-  const bad = acc.filter(a => a.status !== 'ok').length;
-  return acc.map(a => a.label).join(', ')
+  /* By name, not by row.
+
+     soAccountsFor keys on platform + handle, which is right for it -- a Page
+     and an Instagram profile are separate connections even under one login.
+     But a Meta view asks for facebook AND instagram, so one account came back
+     twice and the subtitle read "LeadLi AI, @thechrispomerleau, LeadLi AI,
+     @thechrispomerleau". This line names WHO is connected, and that is one
+     answer per name. The reconnect count is de-duplicated the same way, or a
+     single expired login would be reported as two. */
+  const byName = new Map();
+  for (const a of acc) {
+    const prev = byName.get(a.label);
+    /* Worst status wins: an account healthy on one platform and broken on
+       the other still needs somebody to look at it. */
+    if (!prev || (prev.status === 'ok' && a.status !== 'ok')) byName.set(a.label, a);
+  }
+  const uniq = [...byName.values()];
+  const bad = uniq.filter(a => a.status !== 'ok').length;
+  return uniq.map(a => a.label).join(', ')
     + (bad ? ' · ' + bad + ' need' + (bad === 1 ? 's' : '') + ' reconnecting' : '');
 }
 
@@ -10345,9 +10404,27 @@ function vizChart({ axis, series, ghosts = [], fmt = compact, height = 190, titl
      rather than being shown a squashed chart with no explanation. */
   const clipped = ghostMax > curMax * 1.35 && curMax > 0;
   const max = clipped ? curMax : Math.max(curMax, ghostMax);
-  const ticks = niceTicks(max, 4);
-  const top = ticks[ticks.length - 1] || 1;
-  const y = v => H - (Math.min(v, top) / top) * H;
+
+  /* Log, when a single day would otherwise own the axis.
+
+     log1p rather than log, so a zero day is the baseline instead of negative
+     infinity, and the ticks are the decades that actually fit under the
+     maximum rather than niceTicks' even steps -- evenly spaced labels on a
+     log axis describe a scale that is not there. */
+  const logOn = SO.scale === 'log' && max > 0;
+  let ticks, top, y;
+  if (logOn) {
+    top = max;
+    const lt = Math.log1p(top);
+    y = v => H - (Math.log1p(Math.max(0, Math.min(v, top))) / lt) * H;
+    ticks = [0];
+    for (let d = 1; d <= top; d *= 10) ticks.push(d);
+    if (ticks[ticks.length - 1] !== top) ticks.push(top);
+  } else {
+    ticks = niceTicks(max, 4);
+    top = ticks[ticks.length - 1] || 1;
+    y = v => H - (Math.min(v, top) / top) * H;
+  }
 
   /* Bars share each x band; 2px of surface between neighbours does the
      separating, and the cap is rounded while the baseline stays square. */
@@ -11157,7 +11234,15 @@ function performanceSection(d, key){
 
   const kindSeg = '<div class="seg"><button class="' + (SO.chartKind === 'bar' ? 'on' : '') + '" data-sokind="bar">Bars</button>'
     + '<button class="' + (SO.chartKind === 'line' ? 'on' : '') + '" data-sokind="line">Line</button>'
-    + '<button class="' + (SO.chartKind === 'area' ? 'on' : '') + '" data-sokind="area">Area</button></div>';
+    + '<button class="' + (SO.chartKind === 'area' ? 'on' : '') + '" data-sokind="area">Area</button></div>'
+    /* Offered rather than applied automatically: a log axis is the right
+       answer to one spike and the wrong default for everything else, and a
+       chart that silently changes what its height means is worse than one
+       that is hard to read. */
+    + '<div class="seg"><button class="' + (SO.scale === 'linear' ? 'on' : '') + '"'
+    +   ' data-soscale="linear" title="Every unit of height is the same number.">Linear</button>'
+    + '<button class="' + (SO.scale === 'log' ? 'on' : '') + '"'
+    +   ' data-soscale="log" title="Each decade gets equal height, so one spike stops flattening the rest.">Log</button></div>';
 
   /* Readout: the total for each charted metric with its own movement. */
   /* Split by account, the readout answers "which account" — that is the whole
